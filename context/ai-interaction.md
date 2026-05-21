@@ -1,0 +1,868 @@
+# 抖选选 — AI 开发协作规范
+
+> 本文档用于约束 AI 开发助手在本项目中的协作方式、代码修改边界、分支提交规范、测试要求和审查重点。  
+
+---
+
+## 1. 文档目标
+
+本项目允许使用 AI 辅助开发，但 AI 生成的代码必须可解释、可测试、可维护，并符合项目当前技术栈与开发计划。
+
+AI 开发助手在本项目中的职责是：
+
+- 辅助拆解功能需求
+- 根据 `current-feature.md` 执行具体实现
+- 维护代码结构一致性
+- 生成必要的类型、接口、测试和文档
+- 协助排查错误
+- 提供 commit message 建议
+- 协助代码审查
+
+AI 开发助手不得：
+
+- 未经说明修改大范围架构
+- 未经确认删除文件
+- 未经确认新增不在需求范围内的功能
+- 未经确认提交代码
+- 编写无法解释的核心逻辑
+- 绕过测试或忽略构建错误
+
+---
+
+## 2. 沟通原则
+
+AI 开发助手需要遵守以下沟通规则：
+
+- 直接说明要改什么文件、为什么改、影响范围是什么。
+- 对非显然的技术选择给出简短说明。
+- 大范围重构、目录调整、数据库模型调整、API 变更前必须先说明方案。
+- 不主动添加需求外功能。
+- 不删除文件，除非用户明确要求。
+- 不修改环境变量、密钥、部署配置中的敏感内容，除非用户明确要求。
+- 遇到需求不清楚时，先说明不确定点，再给出建议方案。
+- 遇到构建或测试失败时，先定位原因，不进行随机尝试。
+
+---
+
+## 3. 项目技术栈约束
+
+AI 生成代码时必须遵守当前项目技术栈。
+
+## 3.1 客户端
+
+```text
+Platform: Android Native
+Language: Kotlin
+UI: Jetpack Compose 或 XML View
+Build Tool: Gradle
+```
+
+客户端相关代码应放在：
+
+```text
+client/android/
+```
+
+客户端代码需要关注：
+
+* Android 原生交互
+* 登录 / 注册页面
+* 对话页面
+* 流式回复渲染
+* 商品卡片组件
+* 商品详情页
+* 购物车页面
+* 网络请求封装
+* 错误和加载状态
+
+## 3.2 后端
+
+```text
+Runtime: Node.js
+Language: TypeScript
+Framework: Express
+Database: PostgreSQL
+Vector Database: Qdrant
+Streaming: SSE
+Auth: JWT
+```
+
+后端相关代码应放在：
+
+```text
+server/
+```
+
+后端代码需要关注：
+
+* REST API
+* SSE 流式接口
+* 用户鉴权
+* 商品数据管理
+* RAG 检索链路
+* Qdrant 向量检索
+* PostgreSQL 数据一致性
+* 购物车 CRUD
+* 模拟订单
+* 错误处理
+* 日志记录
+
+## 3.3 数据与文档
+
+```text
+data/
+docs/
+```
+
+数据目录用于存放导师提供的数据集、清洗后数据和导入脚本输出。
+文档目录用于存放项目规划、当前功能、AI 协作规范和代码规范。
+
+---
+
+## 4. 标准开发工作流
+
+每个 feature、fix、refactor 或文档更新都应遵守以下流程。
+
+## 4.1 Document
+
+实现前先更新或创建 `docs/current-feature.md` 中对应功能说明。
+
+需要记录：
+
+* 功能名称
+* 背景
+* 目标
+* 涉及模块
+* API 变化
+* 数据模型变化
+* 测试方式
+* 当前状态
+
+## 4.2 Todo List
+
+实现前在 `docs/current-feature.md` 添加 feature-specific checklist。
+
+格式必须使用 Markdown checkbox：
+
+```md
+- [ ] 设计接口
+- [ ] 实现后端 service
+- [ ] 实现 route/controller
+- [ ] 实现 Android 页面
+- [ ] 增加错误处理
+- [ ] 运行测试
+- [ ] 更新文档
+```
+
+实现过程中，每完成一项立即更新：
+
+```md
+- [x] 设计接口
+```
+
+## 4.3 Branch
+
+每个功能或修复创建独立分支。
+
+命名规则：
+
+```text
+feature/[feature-name]
+fix/[bug-name]
+docs/[doc-name]
+refactor/[scope]
+chore/[task-name]
+```
+
+示例：
+
+```text
+feature/chat-streaming
+feature/product-import
+feature/cart-crud
+fix/sse-disconnect
+docs/project-overview
+```
+
+## 4.4 Implement
+
+根据 `current-feature.md` 的任务范围实现功能。
+
+实现要求：
+
+* 保持改动范围最小。
+* 优先沿用现有目录结构和代码风格。
+* 不重构无关模块。
+* 不添加未计划功能。
+* 核心逻辑必须有必要注释。
+* RAG、Prompt 构造、向量检索、SSE 等关键链路必须保持可读性。
+
+## 4.5 Test
+
+实现后必须执行对应测试或构建命令。
+
+后端默认检查：
+
+```bash
+cd server
+npm run lint
+npm run build
+npm test
+```
+
+如果项目尚未配置测试，可至少执行：
+
+```bash
+cd server
+npm run lint
+npm run build
+```
+
+Android 默认检查：
+
+```bash
+cd client/android
+./gradlew build
+```
+
+Windows 环境可使用：
+
+```bash
+cd client/android
+gradlew.bat build
+```
+
+如果 Android 项目尚未初始化，需要在 `current-feature.md` 中说明该检查暂不可执行。
+
+## 4.6 Iterate
+
+如果测试或构建失败：
+
+1. 记录失败命令。
+2. 记录关键错误信息。
+3. 定位原因。
+4. 做最小修复。
+5. 重新运行对应检查。
+
+如果连续 2–3 次仍无法解决，需要停止修改并说明：
+
+* 当前错误是什么
+* 已尝试哪些修复
+* 可能原因
+* 建议下一步
+
+## 4.7 Commit
+
+AI 不得自动提交代码。
+
+提交前必须满足：
+
+* 功能已完成
+* checklist 已更新
+* lint/build/test 已通过，或已说明无法执行原因
+* 用户明确允许提交
+
+AI 可以提供 commit message 草稿，但不得自行 commit。
+
+## 4.8 Merge
+
+合并前需要确认：
+
+* 当前分支只包含本功能相关改动
+* 没有敏感信息
+* 没有临时代码
+* 没有调试日志残留
+* 文档已同步更新
+
+## 4.9 Delete Branch
+
+分支合并后，询问是否删除功能分支。
+
+## 4.10 Review
+
+AI 生成代码需要定期审查，尤其是：
+
+* 鉴权
+* 输入校验
+* 错误处理
+* 数据库操作
+* RAG 检索准确性
+* Prompt 构造
+* SSE 连接处理
+* Android 状态管理
+* 购物车数据一致性
+
+## 4.11 Complete
+
+功能完成后，在 `docs/current-feature.md` 中标记为完成，并写入简短历史记录。
+
+---
+
+## 5. 测试规范
+
+## 5.1 后端测试
+
+后端优先使用：
+
+```text
+Vitest
+```
+
+测试范围：
+
+* service 层
+* utility 函数
+* RAG helper
+* Prompt builder
+* vector search wrapper
+* cart service
+* auth helper
+
+测试文件命名：
+
+```text
+*.test.ts
+```
+
+测试文件优先与被测试代码放在同目录。
+
+示例：
+
+```text
+server/src/modules/cart/cart.service.ts
+server/src/modules/cart/cart.service.test.ts
+```
+
+外部依赖需要 mock：
+
+* PostgreSQL client
+* Qdrant client
+* LLM API client
+* Embedding API client
+* JWT helper
+* network client
+
+## 5.2 Android 测试
+
+Android MVP 阶段不强制要求完整 UI 测试。
+
+优先检查：
+
+* Gradle build 能通过
+* 页面能启动
+* 登录流程可用
+* 对话页面可发送消息
+* SSE 或流式接口可正常展示
+* 商品卡片可渲染
+* 加购按钮可调用接口
+* 购物车页面可展示数据
+
+如需添加测试，优先添加：
+
+* ViewModel 单元测试
+* Repository 单元测试
+* API client 测试
+
+不主动添加复杂 UI 自动化测试，除非用户明确要求。
+
+---
+
+## 6. 分支规范
+
+每个 feature、fix、docs 或 refactor 使用独立分支。
+
+命名格式：
+
+```text
+feature/[name]
+fix/[name]
+docs/[name]
+refactor/[name]
+chore/[name]
+```
+
+规则：
+
+* 分支名使用英文小写。
+* 单词之间使用 `-`。
+* 分支只处理一个主题。
+* 不在同一分支混合多个无关功能。
+* 合并后询问是否删除分支。
+
+示例：
+
+```text
+feature/auth-api
+feature/product-import
+feature/chat-streaming
+feature/qdrant-search
+feature/cart-crud
+fix/auth-token-expiry
+docs/ai-interaction
+```
+
+---
+
+## 7. Commit 规范
+
+AI 不得未经许可 commit。
+
+commit message 使用 Conventional Commits。
+
+格式：
+
+```text
+type: subject
+
+- detail 1
+- detail 2
+- detail 3
+```
+
+常用 type：
+
+```text
+feat
+fix
+docs
+chore
+refactor
+test
+build
+ci
+```
+
+示例：
+
+```text
+feat: add product import pipeline
+
+- add product import script
+- normalize product fields
+- write products to PostgreSQL
+- prepare records for Qdrant indexing
+```
+
+```text
+fix: handle SSE stream errors
+
+- add error event handling
+- close stream on client disconnect
+- return structured error payload
+```
+
+禁止内容：
+
+* 不写 `Generated with Codex`
+* 不写 `Generated by AI`
+* 不写无意义提交信息
+* 不混合多个无关改动
+
+---
+
+## 8. 代码修改边界
+
+AI 修改代码时必须遵守以下边界。
+
+## 8.1 允许修改
+
+在需求范围内可以修改：
+
+```text
+server/src/
+client/android/
+docs/
+data/
+```
+
+允许新增：
+
+* 新 feature 模块
+* service
+* controller
+* route
+* type
+* utility
+* test
+* Android screen
+* Android component
+* documentation
+
+## 8.2 需要先说明再修改
+
+以下改动必须先说明：
+
+* 数据库 schema 变化
+* Qdrant collection 结构变化
+* API response 格式变化
+* 鉴权逻辑变化
+* 项目目录结构变化
+* build config 变化
+* dependency 增删
+* 大范围重构
+* 删除或移动文件
+
+## 8.3 禁止直接修改
+
+未经用户确认，不得修改：
+
+```text
+.env
+.env.local
+.env.production
+keystore
+private key
+API key
+deployment secret
+```
+
+不得提交：
+
+* API Key
+* 数据库密码
+* JWT secret
+* 云服务 token
+* Android keystore
+* 真实用户数据
+
+---
+
+## 9. 依赖管理规范
+
+## 9.1 后端依赖
+
+新增 npm 依赖前需要说明：
+
+* 依赖名称
+* 用途
+* 是否为运行时依赖
+* 是否有轻量替代方案
+
+安装后必须更新：
+
+```text
+server/package.json
+server/package-lock.json 或 pnpm-lock.yaml
+```
+
+不主动引入大型框架替代当前 Express 架构。
+
+## 9.2 Android 依赖
+
+新增 Android 依赖前需要说明：
+
+* 依赖名称
+* 用途
+* 是否影响 minSdk
+* 是否影响构建配置
+
+不主动引入与现有 UI 技术路线冲突的库。
+
+## 9.3 数据库和服务依赖
+
+PostgreSQL 和 Qdrant 作为当前架构选择，相关 client 可以添加。
+不得在未确认前把 Qdrant 替换为 pgvector、Chroma、Milvus 或其他向量数据库。
+
+---
+
+## 10. 后端开发规则
+
+## 10.1 目录规则
+
+后端代码按模块组织：
+
+```text
+server/src/modules/
+  auth/
+  users/
+  products/
+  chat/
+  cart/
+  orders/
+  vector/
+```
+
+每个模块优先使用以下结构：
+
+```text
+module-name/
+  module.controller.ts
+  module.service.ts
+  module.routes.ts
+  module.types.ts
+  module.test.ts
+```
+
+## 10.2 Controller 规则
+
+Controller 负责：
+
+* 读取 request
+* 调用 service
+* 返回 response
+* 处理 HTTP 状态码
+
+Controller 不负责：
+
+* 直接写数据库
+* 直接调用 LLM
+* 直接构造复杂 Prompt
+* 写业务核心逻辑
+
+## 10.3 Service 规则
+
+Service 负责业务逻辑。
+
+例如：
+
+* `auth.service.ts`
+* `product.service.ts`
+* `cart.service.ts`
+* `rag.service.ts`
+* `vector-search.service.ts`
+
+Service 需要保持可测试。
+
+## 10.4 RAG 相关规则
+
+RAG 相关逻辑必须拆分清楚：
+
+```text
+embedding.service.ts
+qdrant.service.ts
+vector-search.service.ts
+rag.service.ts
+prompt.builder.ts
+```
+
+不得把以下逻辑全部写在一个 route handler 中：
+
+* query embedding
+* Qdrant search
+* PostgreSQL 回查
+* Prompt 构造
+* LLM 调用
+* SSE 输出
+
+## 10.5 SSE 规则
+
+SSE 接口必须处理：
+
+* `message_delta`
+* `product_cards`
+* `tool_result`
+* `done`
+* `error`
+
+SSE 需要处理客户端断开连接。
+
+不得在流式接口中吞掉错误。
+
+---
+
+## 11. Android 开发规则
+
+## 11.1 页面结构
+
+Android 端优先按功能组织：
+
+```text
+auth/
+chat/
+products/
+cart/
+orders/
+common/
+network/
+```
+
+## 11.2 网络请求
+
+网络请求需要统一封装。
+
+不得在 UI 组件中直接散写 HTTP 请求。
+
+建议结构：
+
+```text
+ApiClient
+AuthRepository
+ChatRepository
+ProductRepository
+CartRepository
+```
+
+## 11.3 状态管理
+
+对话页需要明确区分：
+
+* idle
+* loading
+* streaming
+* success
+* error
+
+商品卡片和文本消息需要支持同一消息流中的组合展示。
+
+## 11.4 错误处理
+
+Android 端需要处理：
+
+* 网络失败
+* 鉴权失败
+* 后端错误
+* SSE 中断
+* 空商品结果
+* 加购失败
+
+错误信息应面向用户，不直接暴露后端堆栈。
+
+---
+
+## 12. 文档更新规则
+
+以下情况必须更新文档：
+
+* 新增功能
+* 修改 API
+* 修改数据库模型
+* 修改 RAG 流程
+* 修改 Prompt 构造规则
+* 修改项目结构
+* 新增依赖
+* 修改启动方式
+* 修改测试方式
+
+文档位置：
+
+```text
+docs/project-overview.md
+docs/current-feature.md
+docs/ai-interaction.md
+docs/coding-standards.md
+README.md
+```
+
+AI 开发助手完成代码后，需要说明是否需要同步更新文档。
+
+---
+
+## 13. 代码审查重点
+
+AI 生成代码需要重点检查以下内容。
+
+## 13.1 安全
+
+* 密码是否 hash
+* JWT 是否正确校验
+* 用户是否只能访问自己的购物车和会话
+* 是否存在未校验输入
+* 是否泄露环境变量
+* 是否把 API Key 写进代码
+
+## 13.2 数据一致性
+
+* PostgreSQL 是否作为结构化商品主数据源
+* Qdrant 是否只存向量和必要 metadata
+* 商品删除后是否同步删除向量
+* 商品更新后是否重新生成 embedding
+* 购物车数量是否校验
+* 订单价格是否使用快照
+
+## 13.3 RAG 可靠性
+
+* 是否基于检索结果生成回复
+* 是否处理空检索结果
+* 是否避免编造商品、价格、库存和优惠
+* 是否回查 PostgreSQL 获取最新商品信息
+* 是否对价格、类目等结构化条件进行过滤
+
+## 13.4 性能
+
+* 是否存在重复数据库查询
+* 是否存在不必要的大对象传输
+* SSE 是否及时释放连接
+* Qdrant 检索 topK 是否合理
+* Android 列表是否避免不必要重组或刷新
+
+## 13.5 可维护性
+
+* 是否符合模块边界
+* 是否有明确类型定义
+* 是否存在重复逻辑
+* 是否有必要注释
+* 是否和当前代码风格一致
+
+---
+
+## 14. 遇到问题时的处理规则
+
+如果实现过程中卡住：
+
+1. 不连续尝试随机修复。
+2. 不扩大改动范围。
+3. 不删除无关代码。
+4. 先复述错误信息。
+5. 分析可能原因。
+6. 给出 1–2 个可执行修复方案。
+7. 等待用户选择，或在低风险场景下执行最小修复。
+
+连续 2–3 次失败后必须停止并说明当前状态。
+
+---
+
+## 15. AI 输出格式要求
+
+AI 在执行开发任务后，需要输出：
+
+```text
+已修改文件：
+- path/to/file
+
+主要变更：
+- change 1
+- change 2
+
+验证结果：
+- command: result
+- command: result
+
+待确认事项：
+- item 1
+```
+
+如果没有执行测试，需要说明原因：
+
+```text
+未执行测试：
+- 原因：Android 项目尚未初始化 / 缺少依赖 / 当前环境不可运行
+```
+
+不得声称测试通过，除非实际执行并通过。
+
+---
+
+## 16. 当前项目默认规则
+
+当前项目默认采用以下规则：
+
+| 项目         | 规则                                        |
+| ---------- | ----------------------------------------- |
+| 客户端        | Android 原生                                |
+| 后端         | Node.js + TypeScript + Express            |
+| 数据库        | PostgreSQL                                |
+| 向量数据库      | Qdrant                                    |
+| 流式通信       | SSE                                       |
+| 鉴权         | JWT                                       |
+| 文档语言       | 中文                                        |
+| 每个功能前      | 更新 `docs/current-feature.md`              |
+| 每个功能       | 独立分支                                      |
+| Commit     | 必须用户确认                                    |
+| 后端检查       | `npm run lint`、`npm run build`、`npm test` |
+| Android 检查 | `./gradlew build` 或 `gradlew.bat build`   |
+| 大范围修改      | 必须先说明                                     |
+| 删除文件       | 必须先确认                                     |
+
+---
+
+
