@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.env
+.env.local
+.env.*.local
+*.log
+.DS_Store
+.idea/
+*.iml
+client/android/.gradle/
+client/android/.kotlin/
+client/android/build/
+client/android/app/build/
+client/android/local.properties
+client/android/gradle/gradle-daemon-jvm.properties
