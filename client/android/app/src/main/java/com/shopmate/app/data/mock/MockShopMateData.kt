@@ -2,11 +2,40 @@ package com.shopmate.app.data.mock
 
 import com.shopmate.app.R
 import com.shopmate.app.ui.model.CartItemUi
+import com.shopmate.app.ui.model.HistoryConversationUi
 import com.shopmate.app.ui.model.ProductCardUi
 import com.shopmate.app.ui.model.ProductDetailUi
 import com.shopmate.app.ui.model.PromptSuggestionUi
 
 object MockShopMateData {
+    val historyConversations = listOf(
+        HistoryConversationUi(
+            id = "history-commute-earbuds",
+            title = "推荐适合通勤的蓝牙耳机",
+            timeText = "09:41"
+        ),
+        HistoryConversationUi(
+            id = "history-sunscreen-compare",
+            title = "帮我对比这两款防晒霜",
+            timeText = "昨天"
+        ),
+        HistoryConversationUi(
+            id = "history-oily-skincare",
+            title = "推荐适合油皮的护肤品",
+            timeText = "昨天"
+        ),
+        HistoryConversationUi(
+            id = "history-earbuds-under-200",
+            title = "200 元以内的耳机推荐",
+            timeText = "前天"
+        ),
+        HistoryConversationUi(
+            id = "history-image-search",
+            title = "拍照找同款",
+            timeText = "前天"
+        )
+    )
+
     val promptSuggestions = listOf(
         PromptSuggestionUi(
             id = "prompt-oily-skincare",
