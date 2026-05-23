@@ -44,6 +44,7 @@ import com.shopmate.app.data.mock.MockShopMateData
 import com.shopmate.app.ui.components.ChatComposer
 import com.shopmate.app.ui.components.ShopMateRoundedIconButton
 import com.shopmate.app.ui.model.PromptSuggestionUi
+import com.shopmate.app.ui.sidebar.SidebarHistoryDrawer
 import com.shopmate.app.ui.theme.ShopMateGreen
 import com.shopmate.app.ui.theme.ShopMateTextPrimary
 import com.shopmate.app.ui.theme.ShopMateSurface
@@ -58,6 +59,7 @@ fun HomeChatEntryScreen(
     onCartClick: () -> Unit = {}
 ) {
     var composerText by rememberSaveable { mutableStateOf("") }
+    var isSidebarOpen by rememberSaveable { mutableStateOf(false) }
 
     BoxWithConstraints(
         modifier = Modifier
@@ -73,7 +75,10 @@ fun HomeChatEntryScreen(
         fun Float.lowerContentY(): Dp = ((this - 36f + lowerContentShift) * scale).dp
 
         Header(
-            onMenuClick = onMenuClick,
+            onMenuClick = {
+                isSidebarOpen = true
+                onMenuClick()
+            },
             onCartClick = onCartClick,
             modifier = Modifier
                 .offset(x = 20f.s(), y = 36f.contentY())
@@ -113,6 +118,16 @@ fun HomeChatEntryScreen(
             modifier = Modifier
                 .offset(x = 18f.s(), y = 772.667f.lowerContentY())
                 .width(352.667f.s())
+        )
+
+        SidebarHistoryDrawer(
+            isOpen = isSidebarOpen,
+            conversations = MockShopMateData.historyConversations,
+            onDismiss = { isSidebarOpen = false },
+            onNewChatClick = {},
+            onCartClick = onCartClick,
+            onSettingsClick = {},
+            onHistoryClick = { isSidebarOpen = false }
         )
     }
 }
