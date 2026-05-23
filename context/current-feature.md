@@ -1,4 +1,4 @@
-# 当前功能：初始化前后端技术栈骨架
+# 当前功能：Android Onboarding Screen
 
 ## 状态
 
@@ -6,31 +6,53 @@
 
 ## 目标
 
-- 初始化 `client/android/` Android 原生 Kotlin 工程骨架，优先支持后续 UI 开发。
-- 初始化 `server/` 下的 Node.js + TypeScript + Express 后端骨架。
-- 补齐前后端基础目录结构与启动入口。
-- 补充当前阶段最小启动说明，并明确是否需要 `.env`。
-- 保持 Phase 1 范围内只做语言与工程初始化，不接入 PostgreSQL、Qdrant 和业务数据流。
+- 用 Jetpack Compose 复现 Figma welcome / onboarding 首屏，替换当前 `Text("ShopMate")` 占位界面。
+- 首屏包含状态栏区域、Shopmate Buddy 吉祥物、标题文案、说明文案、主 CTA 和底部三个价值点。
+- 使用从 Figma 导出的真实 mascot 资产，保存为 Android 本地资源，不在代码中引用临时 Figma MCP URL。
+- 保持目标手机尺寸附近的响应式布局，避免文字重叠或溢出。
+- 完成后通过 Android 构建检查：`cd client/android && .\gradlew.bat build`。
 
 ## 待办事项
 
-- [x] 明确当前 Phase 1 初始化范围并与文档对齐
-- [x] 初始化 Node.js + TypeScript + Express 后端工程
-- [x] 初始化 Android Kotlin UI 工程骨架
-- [x] 补齐基础目录结构与占位文件
-- [x] 说明当前阶段无需 `.env`，并补充最小启动说明
-- [x] 运行当前阶段可执行的构建或检查命令
-- [x] 更新 README 或相关文档说明初始化结果
+- [x] 读取 Figma frame `3:103` 的设计上下文、截图和 mascot 资产。
+- [x] 导出 mascot 并保存到 `client/android/app/src/main/res/drawable-nodpi/mascot_assistant.png`。
+- [x] 新增 `client/android/app/src/main/java/com/shopmate/app/ui/onboarding/OnboardingScreen.kt`。
+- [x] 在 `MainActivity.kt` 中把应用入口替换为 onboarding screen。
+- [x] 实现 Figma 对应的背景、mascot hero、中文标题、说明文案、CTA 和底部价值点。
+- [x] 检查目标手机尺寸下的排版、比例、文字换行和触控区域。
+- [x] 运行 `cd client/android && .\gradlew.bat build` 并记录结果。
 
 ## 备注
 
-- 当前阶段优先服务于 UI 开发，因此 Android 端以可继续扩展页面的基础工程为目标。
-- 数据库、Qdrant、Embedding、LLM、SSE 真实链路暂不接入，只保留后续扩展所需的结构位置。
-- 后端目前只保留最小可运行 Express 服务，不保留额外示例模块。
-- Android 端优先采用 Jetpack Compose 作为默认 UI 路线。
-- 当前后端不依赖 `.env` 文件，端口未配置时默认使用 `3000`。
-- 后端 `npm run build` 已通过；Android Gradle wrapper 已生成，`gradlew.bat assembleDebug` 已通过，可继续在模拟器或真机中查看界面。
+- Feature spec: `context/feature/android-onboarding-spec.md`。
+- Figma reference: file `shopmate`, frame node `3:103`, frame size about `389 x 843`。
+- Required text:
+  - Title first line: `你好， 我是你的`
+  - Highlight line: `AI 导购助手`
+  - Supporting text: `告诉我你想买什么，我来帮你筛选和对比`
+  - CTA: `开始购物`
+  - Bottom value points: `懂你所需`、`帮你筛选`、`陪你挑选`
+- Visual direction: white / very light gray-green background, soft mint glow near mascot, primary green close to `#31C88C`, dark navy / charcoal text, rounded green gradient CTA with soft shadow。
+- CTA click can be no-op unless an app shell / navigation spec is already implemented。
+- Bottom value icons can be simple vector drawables if dedicated Figma icon export is unnecessary。
+- Start step: branch `feature/android-onboarding-screen` has been created and checked out。
+- Figma URL received: `https://www.figma.com/design/hxq1Z7wXPBoruSIFczLluY/shopmate?node-id=0-1&m=dev&t=BvvR7ntUHKGW7rqd-1`。
+- Figma MCP design context for file `hxq1Z7wXPBoruSIFczLluY`, node `3:103` was fetched successfully and included the visual reference plus asset URLs。
+- Separate Figma MCP screenshot and variable calls hit the Starter plan tool-call limit, so implementation used the screenshot embedded in the design-context response plus the structured node geometry。
+- Figma served the mascot asset as PNG bytes, so the committed local Android resource is `mascot_assistant.png` instead of the originally proposed `.webp` filename。
+- Small bottom icons and CTA arrow were recreated as Android vector drawables from the Figma asset semantics。
+- Removed the Figma-drawn status bar mock (`9:41`, signal, battery) from Compose. The real Android system status bar now owns that area。
+- Verification: `cd client/android && .\gradlew.bat build` passed after rerunning with permission for Gradle's user-level cache. Initial sandboxed build failed only because Gradle could not write to `C:\Users\lxd04\.gradle`。
+- Verification after status-bar cleanup: `cd client/android && .\gradlew.bat build` passed。
+- Added Android Studio Compose previews for the Figma target size `389 x 843` and compact Android size `360 x 740` to support visual inspection without changing runtime behavior。
+- Final verification: `cd client/android && .\gradlew.bat build` passed after adding previews and Compose tooling dependencies。
+- Runtime visual screenshot was not captured because no adb device was connected. `adb connect 127.0.0.1:5555` was refused, so LDPlayer / emulator was not available from this shell。
+- Follow-up for user-side visual QA: open `OnboardingScreen.kt` in Android Studio Preview or run the app on LDPlayer / emulator and compare against the Figma frame。
 
 ## 历史记录
 
-- 待补充
+- 初始化前后端技术栈骨架：完成 Android Kotlin + Jetpack Compose 与 Node.js + TypeScript + Express 最小工程初始化，补充 README 与 Git 忽略配置，并通过后端构建与 Android `assembleDebug` 验证。
+- 开发顺序规划文档：新增 `context/feature/spec-implementation-order.md`，梳理 Phase 2 之后的 spec 实现顺序、research 插入点、依赖关系和近期队列。
+- 开发顺序规划文档中文化：将 `context/feature/spec-implementation-order.md` 从英文改为中文，保留原有结构、文件名和开发顺序。
+- Figma 驱动开发顺序调整：根据欢迎页、主聊天页、侧边栏、推荐结果、商品对比、详情页和购物车设计，将近期队列调整为 Android UI 先行，并补充 UI model、mock data 与前后端契约 spec。
+- Figma 复现 research prompt：新增 `context/research/figma-to-compose-reproduction-research.md`，用于后续通过 Figma MCP 获取设计上下文、截图和资产，并产出 Compose 复现计划。
