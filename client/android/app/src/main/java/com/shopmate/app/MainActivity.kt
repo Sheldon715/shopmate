@@ -6,8 +6,8 @@ import android.os.Bundle
 import android.view.View
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.material3.MaterialTheme
 import com.shopmate.app.ui.onboarding.OnboardingScreen
+import com.shopmate.app.ui.theme.ShopMateTheme
 
 class MainActivity : ComponentActivity() {
     @Suppress("DEPRECATION")
@@ -27,7 +27,7 @@ class MainActivity : ComponentActivity() {
         window.decorView.systemUiVisibility = systemUiFlags
 
         setContent {
-            MaterialTheme {
+            ShopMateTheme {
                 OnboardingScreen()
             }
         }
