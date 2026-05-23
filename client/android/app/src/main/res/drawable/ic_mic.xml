@@ -1,28 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp"
-    android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <path
-        android:pathData="M12,4C10.34,4 9,5.34 9,7V12C9,13.66 10.34,15 12,15C13.66,15 15,13.66 15,12V7C15,5.34 13.66,4 12,4Z"
-        android:fillColor="@android:color/transparent"
-        android:strokeColor="#31C88C"
-        android:strokeWidth="1.7"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round" />
-    <path
-        android:pathData="M6.5,11.5C6.5,14.54 8.96,17 12,17C15.04,17 17.5,14.54 17.5,11.5"
-        android:fillColor="@android:color/transparent"
-        android:strokeColor="#31C88C"
-        android:strokeWidth="1.7"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round" />
-    <path
-        android:pathData="M12,17V20M9,20H15"
-        android:fillColor="@android:color/transparent"
-        android:strokeColor="#31C88C"
-        android:strokeWidth="1.7"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round" />
+    android:width="16dp"
+    android:height="16dp"
+    android:viewportWidth="16"
+    android:viewportHeight="16">
+    <path android:fillColor="@android:color/transparent" android:pathData="M11.3333,4.66667V7.33333C11.3333,9.17427 9.84093,10.6667 8,10.6667C6.15905,10.6667 4.66667,9.17427 4.66667,7.33333V4.66667C4.66667,2.82572 6.15905,1.33333 8,1.33333C9.84093,1.33333 11.3333,2.82572 11.3333,4.66667Z" android:strokeColor="#31C88C" android:strokeWidth="1" />
+    <path android:fillColor="@android:color/transparent" android:pathData="M11.3333,4.66667H9.33333M11.3333,7.33333H9.33333" android:strokeColor="#31C88C" android:strokeLineCap="round" android:strokeWidth="1" />
+    <path android:fillColor="@android:color/transparent" android:pathData="M13.3333,7.33333C13.3333,10.2789 10.9455,12.6667 8,12.6667M8,12.6667C5.05448,12.6667 2.66667,10.2789 2.66667,7.33333M8,12.6667V14.6667M8,14.6667H10M8,14.6667H6" android:strokeColor="#31C88C" android:strokeLineCap="round" android:strokeWidth="1" />
 </vector>
