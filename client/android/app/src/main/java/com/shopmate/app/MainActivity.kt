@@ -12,6 +12,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.shopmate.app.ui.chat.ChatRecommendationScreen
+import com.shopmate.app.ui.comparison.ProductComparisonScreen
 import com.shopmate.app.ui.home.HomeChatEntryScreen
 import com.shopmate.app.ui.model.HistoryConversationUi
 import com.shopmate.app.ui.onboarding.OnboardingScreen
@@ -41,8 +42,10 @@ class MainActivity : ComponentActivity() {
             ShopMateTheme {
                 var currentScreen by remember { mutableStateOf(ShopMateScreen.Onboarding) }
                 val openHistoryConversation: (HistoryConversationUi) -> Unit = { conversation ->
-                    if (conversation.id == "history-commute-earbuds") {
-                        currentScreen = ShopMateScreen.ChatRecommendation
+                    currentScreen = when (conversation.id) {
+                        "history-commute-earbuds" -> ShopMateScreen.ChatRecommendation
+                        "history-sunscreen-compare" -> ShopMateScreen.ProductComparison
+                        else -> currentScreen
                     }
                 }
 
@@ -67,6 +70,14 @@ class MainActivity : ComponentActivity() {
                         onCartClick = {},
                         onHistoryClick = openHistoryConversation
                     )
+
+                    ShopMateScreen.ProductComparison -> ProductComparisonScreen(
+                        onNewChatClick = {
+                            currentScreen = ShopMateScreen.HomeChatEntry
+                        },
+                        onCartClick = {},
+                        onHistoryClick = openHistoryConversation
+                    )
                 }
             }
         }
@@ -76,5 +87,6 @@ class MainActivity : ComponentActivity() {
 private enum class ShopMateScreen {
     Onboarding,
     HomeChatEntry,
-    ChatRecommendation
+    ChatRecommendation,
+    ProductComparison
 }
