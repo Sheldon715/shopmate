@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
@@ -21,6 +22,7 @@ fun ShopMateRoundedIconButton(
     backgroundColor: Color = ShopMateSurfaceSoft,
     shape: Shape = ShopMateRoundedIconButtonShape,
     elevation: androidx.compose.ui.unit.Dp = androidx.compose.ui.unit.Dp.Unspecified,
+    enabled: Boolean = true,
     content: @Composable () -> Unit
 ) {
     val shadowModifier = if (elevation != androidx.compose.ui.unit.Dp.Unspecified) {
@@ -34,7 +36,8 @@ fun ShopMateRoundedIconButton(
             .then(shadowModifier)
             .clip(shape)
             .background(backgroundColor, shape)
-            .clickable(role = Role.Button, onClick = onClick),
+            .alpha(if (enabled) 1f else 0.55f)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         content()

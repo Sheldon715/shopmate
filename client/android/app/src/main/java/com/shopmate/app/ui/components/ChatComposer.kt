@@ -42,6 +42,7 @@ fun ChatComposer(
     onVoiceClick: () -> Unit,
     onImageClick: () -> Unit,
     shadowElevation: Dp = 10.dp,
+    sendEnabled: Boolean = value.isNotBlank(),
     modifier: Modifier = Modifier
 ) {
     val shadowModifier = if (shadowElevation > 0.dp) {
@@ -120,7 +121,10 @@ fun ChatComposer(
 
         Spacer(modifier = Modifier.width(7.dp))
 
-        SendButton(onClick = onSend)
+        SendButton(
+            enabled = sendEnabled,
+            onClick = onSend
+        )
     }
 }
 
@@ -145,25 +149,59 @@ private fun ComposerIconButton(
 }
 
 @Composable
-private fun SendButton(onClick: () -> Unit) {
+private fun SendButton(
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
     Box(
         modifier = Modifier
             .size(34.dp)
             .clip(ShopMatePillShape)
             .background(
-                brush = Brush.linearGradient(
-                    colors = listOf(ShopMateLightGreen, ShopMateGreen)
-                )
+                brush = if (enabled) {
+                    Brush.linearGradient(
+                        colors = listOf(ShopMateLightGreen, ShopMateGreen)
+                    )
+                } else {
+                    Brush.linearGradient(
+                        colors = listOf(Color(0xFFE7ECEA), Color(0xFFD8E0DD))
+                    )
+                }
             )
-            .clickable(role = Role.Button, onClick = onClick),
+            .clickable(
+                enabled = enabled,
+                role = Role.Button,
+                onClick = onClick
+            ),
         contentAlignment = Alignment.Center
     ) {
         Image(
             painter = painterResource(id = R.drawable.ic_send),
             contentDescription = "发送",
-            modifier = Modifier.size(16.dp)
+            modifier = Modifier.size(16.dp),
+            alpha = if (enabled) 1f else 0.5f
         )
     }
+}
+
+@Preview(
+    name = "Chat composer - disabled send",
+    widthDp = 360,
+    showBackground = true,
+    backgroundColor = 0xFFFBFDFC
+)
+@Composable
+private fun ChatComposerDisabledSendPreview() {
+    ChatComposer(
+        value = "",
+        onValueChange = {},
+        onSend = {},
+        onVoiceClick = {},
+        onImageClick = {},
+        modifier = Modifier
+            .padding(horizontal = 18.dp)
+            .background(ShopMateSurfaceSoft)
+    )
 }
 
 @Preview(

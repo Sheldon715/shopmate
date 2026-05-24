@@ -11,6 +11,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -29,6 +30,7 @@ fun ShopMatePrimaryButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     textScale: Float = 1f,
+    enabled: Boolean = true,
     trailingIcon: (@Composable () -> Unit)? = null
 ) {
     Box(
@@ -44,7 +46,8 @@ fun ShopMatePrimaryButton(
                 ),
                 shape = ShopMatePillShape
             )
-            .clickable(role = Role.Button, onClick = onClick),
+            .alpha(if (enabled) 1f else 0.55f)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Row(
