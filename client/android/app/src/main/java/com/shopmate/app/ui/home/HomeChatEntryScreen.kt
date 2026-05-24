@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -43,6 +44,7 @@ import com.shopmate.app.R
 import com.shopmate.app.data.mock.MockShopMateData
 import com.shopmate.app.ui.components.ChatComposer
 import com.shopmate.app.ui.components.ShopMateRoundedIconButton
+import com.shopmate.app.ui.model.HistoryConversationUi
 import com.shopmate.app.ui.model.PromptSuggestionUi
 import com.shopmate.app.ui.sidebar.SidebarHistoryDrawer
 import com.shopmate.app.ui.theme.ShopMateGreen
@@ -56,7 +58,9 @@ private const val FIGMA_HEIGHT = 842.667f
 @Composable
 fun HomeChatEntryScreen(
     onMenuClick: () -> Unit = {},
-    onCartClick: () -> Unit = {}
+    onCartClick: () -> Unit = {},
+    onNewChatClick: () -> Unit = {},
+    onHistoryClick: (HistoryConversationUi) -> Unit = {}
 ) {
     var composerText by rememberSaveable { mutableStateOf("") }
     var isSidebarOpen by rememberSaveable { mutableStateOf(false) }
@@ -68,11 +72,19 @@ fun HomeChatEntryScreen(
     ) {
         val scale = maxWidth.value / FIGMA_WIDTH
         val textScale = scale.coerceIn(0.88f, 1.08f)
-        val lowerContentShift = 40f
 
         fun Float.s(): Dp = (this * scale).dp
-        fun Float.contentY(): Dp = ((this - 36f) * scale).dp
-        fun Float.lowerContentY(): Dp = ((this - 36f + lowerContentShift) * scale).dp
+
+        val composerHeight = 52f.s()
+        val composerBottom = 18f.s()
+        val composerTop = maxHeight - composerHeight - composerBottom
+        val promptPanelHeight = 327f.s()
+        val figmaPromptPanelTop = 437.667f.s()
+        val promptPanelTop = if (figmaPromptPanelTop + promptPanelHeight + 14f.s() > composerTop) {
+            (composerTop - promptPanelHeight - 14f.s()).coerceAtLeast(320f.s())
+        } else {
+            figmaPromptPanelTop
+        }
 
         Header(
             onMenuClick = {
@@ -81,7 +93,7 @@ fun HomeChatEntryScreen(
             },
             onCartClick = onCartClick,
             modifier = Modifier
-                .offset(x = 20f.s(), y = 36f.contentY())
+                .offset(x = 20f.s(), y = 36f.s())
                 .width(348.667f.s())
                 .height(44f.s())
         )
@@ -90,13 +102,12 @@ fun HomeChatEntryScreen(
             textScale = textScale,
             scale = scale,
             modifier = Modifier
-                .offset(x = 20f.s(), y = 83f.contentY())
+                .offset(x = 20f.s(), y = 83f.s())
                 .width(348.667f.s())
         )
 
         HeroMascot(
-            scale = scale,
-            yOffset = 36f - lowerContentShift
+            scale = scale
         )
 
         PromptPanel(
@@ -105,8 +116,8 @@ fun HomeChatEntryScreen(
             scale = scale,
             onPromptClick = { prompt -> composerText = prompt.title },
             modifier = Modifier
-                .offset(x = 20f.s(), y = 437.667f.lowerContentY())
-                .size(width = 348.667f.s(), height = 327f.s())
+                .offset(x = 20f.s(), y = promptPanelTop)
+                .size(width = 348.667f.s(), height = promptPanelHeight)
         )
 
         ChatComposer(
@@ -116,18 +127,24 @@ fun HomeChatEntryScreen(
             onVoiceClick = {},
             onImageClick = {},
             modifier = Modifier
-                .offset(x = 18f.s(), y = 772.667f.lowerContentY())
-                .width(352.667f.s())
+                .offset(x = 18f.s(), y = composerTop)
+                .size(width = 352.667f.s(), height = composerHeight)
         )
 
         SidebarHistoryDrawer(
             isOpen = isSidebarOpen,
             conversations = MockShopMateData.historyConversations,
             onDismiss = { isSidebarOpen = false },
-            onNewChatClick = {},
+            onNewChatClick = {
+                isSidebarOpen = false
+                onNewChatClick()
+            },
             onCartClick = onCartClick,
             onSettingsClick = {},
-            onHistoryClick = { isSidebarOpen = false }
+            onHistoryClick = { conversation ->
+                isSidebarOpen = false
+                onHistoryClick(conversation)
+            }
         )
     }
 }
@@ -165,6 +182,8 @@ private fun HeaderIconButton(
     ShopMateRoundedIconButton(
         onClick = onClick,
         backgroundColor = Color.White.copy(alpha = 0.78f),
+        shape = CircleShape,
+        elevation = 8.dp,
         modifier = Modifier.size(38.dp)
     ) {
         Image(
@@ -211,15 +230,13 @@ private fun BrandCopy(
 
 @Composable
 private fun HeroMascot(
-    scale: Float,
-    yOffset: Float
+    scale: Float
 ) {
     fun Float.s(): Dp = (this * scale).dp
-    fun Float.y(): Dp = ((this - yOffset) * scale).dp
 
     Box(
         modifier = Modifier
-            .offset(x = 266.667f.s(), y = 140f.y())
+            .offset(x = 266.667f.s(), y = 140f.s())
             .size(58f.s())
             .shadow(
                 elevation = 12f.s(),
@@ -253,7 +270,7 @@ private fun HeroMascot(
         painter = painterResource(id = R.drawable.home_chat_buddy),
         contentDescription = null,
         modifier = Modifier
-            .offset(x = 68.333f.s(), y = 198.18f.y())
+            .offset(x = 68.333f.s(), y = 198.18f.s())
             .size(width = 252f.s(), height = 255.823f.s()),
         contentScale = ContentScale.Crop
     )

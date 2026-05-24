@@ -26,6 +26,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import com.shopmate.app.R
 import com.shopmate.app.ui.theme.ShopMateGreen
@@ -40,19 +41,26 @@ fun ChatComposer(
     onSend: () -> Unit,
     onVoiceClick: () -> Unit,
     onImageClick: () -> Unit,
+    shadowElevation: Dp = 10.dp,
     modifier: Modifier = Modifier
 ) {
+    val shadowModifier = if (shadowElevation > 0.dp) {
+        Modifier.shadow(
+            elevation = shadowElevation,
+            shape = ShopMatePillShape,
+            clip = false
+        )
+    } else {
+        Modifier
+    }
+
     Row(
         modifier = modifier
             .fillMaxWidth()
             .height(52.dp)
-            .shadow(
-                elevation = 10.dp,
-                shape = ShopMatePillShape,
-                clip = false
-            )
+            .then(shadowModifier)
             .background(
-                color = Color.White.copy(alpha = 0.9f),
+                color = Color.White,
                 shape = ShopMatePillShape
             )
             .border(

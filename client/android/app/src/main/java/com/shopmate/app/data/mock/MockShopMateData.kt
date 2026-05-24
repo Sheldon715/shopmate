@@ -60,25 +60,25 @@ object MockShopMateData {
             id = "ui-edifier-zero-air",
             name = "漫步者 Zero Air 真无线蓝牙耳机",
             priceText = "¥179",
-            imageRes = R.drawable.mascot_assistant,
-            tags = listOf("蓝牙耳机", "通勤", "轻巧"),
-            recommendationReason = "预算 200 元内，佩戴轻便，适合日常通勤和网课使用。"
+            imageRes = R.drawable.product_zero_air,
+            tags = listOf("半入耳舒适", "20h 续航"),
+            recommendationReason = "推荐理由：轻盈半入耳，佩戴无感，通勤久戴不累，通话清晰，日常使用足够省心。"
         ),
         ProductCardUi(
             id = "ui-qcy-t13-x",
             name = "QCY T13 X 真无线蓝牙耳机",
             priceText = "¥149",
-            imageRes = R.drawable.mascot_assistant,
-            tags = listOf("蓝牙耳机", "长续航", "高性价比"),
-            recommendationReason = "价格更低，续航表现稳定，适合想压低预算的用户。"
+            imageRes = R.drawable.product_qcy_t13_x,
+            tags = listOf("低延迟", "30h 续航"),
+            recommendationReason = "推荐理由：续航更长，连接稳定，适合预算内想兼顾通勤和日常娱乐的选择。"
         ),
         ProductCardUi(
             id = "ui-redmi-buds-4-lite",
             name = "小米 Redmi Buds 4 青春版",
             priceText = "¥129",
-            imageRes = R.drawable.mascot_assistant,
-            tags = listOf("蓝牙耳机", "入门款", "轻量"),
-            recommendationReason = "入门价格友好，操作简单，适合第一次购买真无线耳机。"
+            imageRes = R.drawable.product_redmi_buds_4,
+            tags = listOf("蓝牙 5.3", "20h 续航"),
+            recommendationReason = "推荐理由：价格友好，机身轻巧，适合作为入门备用耳机。"
         )
     )
 
