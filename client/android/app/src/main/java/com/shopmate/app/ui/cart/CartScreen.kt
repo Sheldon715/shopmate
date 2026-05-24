@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -49,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.shopmate.app.R
 import com.shopmate.app.data.mock.MockShopMateData
+import com.shopmate.app.ui.components.ShopMateStatusMessage
 import com.shopmate.app.ui.model.CartItemUi
 import com.shopmate.app.ui.theme.ShopMateGreen
 import com.shopmate.app.ui.theme.ShopMateLightGreen
@@ -205,6 +207,7 @@ fun CartScreen(
                 },
                 modifier = Modifier
                     .offset(x = 12f.s(), y = footerTop)
+                    .navigationBarsPadding()
                     .size(width = 364.667f.s(), height = footerHeight)
             )
         }
@@ -754,76 +757,15 @@ private fun EmptyCartState(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    fun Float.s(): Dp = scaledDp(scale)
-
-    Box(
+    ShopMateStatusMessage(
+        title = "购物车还是空的",
+        message = "回到推荐页继续挑选，喜欢的商品会先放在这里。",
+        actionText = "返回继续购物",
+        onActionClick = onBackClick,
+        mascot = R.drawable.cart_shopmate_buddy,
+        scale = scale,
         modifier = modifier
-            .clip(RoundedCornerShape(24f.s()))
-            .background(Color.White.copy(alpha = 0.96f))
-            .border(0.667.dp, Color(0xFFF0F3F2), RoundedCornerShape(24f.s())),
-        contentAlignment = Alignment.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .size(width = 260f.s(), height = 190f.s())
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.cart_shopmate_buddy),
-                contentDescription = "Shopmate Buddy",
-                modifier = Modifier
-                    .offset(x = 90f.s(), y = 0.dp)
-                    .size(80f.s()),
-                contentScale = ContentScale.Fit
-            )
-
-            Text(
-                text = "购物车还是空的",
-                color = ShopMateTextPrimary,
-                fontSize = (20f * scale).sp,
-                lineHeight = (27f * scale).sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                letterSpacing = 0.sp,
-                modifier = Modifier
-                    .offset(y = 92f.s())
-                    .width(260f.s())
-            )
-
-            Text(
-                text = "回到推荐页继续挑选，喜欢的商品会先放在这里。",
-                color = Color(0xFF7C8791),
-                fontSize = (12f * scale).sp,
-                lineHeight = (18f * scale).sp,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                letterSpacing = 0.sp,
-                modifier = Modifier
-                    .offset(y = 124f.s())
-                    .width(260f.s())
-            )
-
-            Box(
-                modifier = Modifier
-                    .offset(x = 48f.s(), y = 158f.s())
-                    .size(width = 164f.s(), height = 38f.s())
-                    .clip(ShopMatePillShape)
-                    .background(Color(0xFFE9FBF3))
-                    .clickable(role = Role.Button, onClick = onBackClick),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "返回继续购物",
-                    color = ShopMateGreen,
-                    fontSize = (13f * scale).sp,
-                    lineHeight = (17f * scale).sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    letterSpacing = 0.sp
-                )
-            }
-        }
-    }
+    )
 }
 
 @Composable
@@ -922,5 +864,18 @@ private fun CartScreenEmptyPreview() {
             onBackClick = {},
             initialItems = emptyList()
         )
+    }
+}
+
+@Preview(
+    name = "Cart screen compact - 360 x 740",
+    widthDp = 360,
+    heightDp = 740,
+    showBackground = true
+)
+@Composable
+private fun CartScreenCompactPreview() {
+    ShopMateTheme {
+        CartScreen(onBackClick = {})
     }
 }

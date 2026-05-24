@@ -281,6 +281,15 @@ private val PreviewDisabledProduct = ProductCardUi(
     recommendationReason = "推荐理由：价格友好，机身轻巧，适合作为入门备用耳机。"
 )
 
+private val PreviewLongProduct = ProductCardUi(
+    id = "preview-long-product",
+    name = "超长商品名示例 防晒修护清透控油乳 SPF50+ PA++++ 学生通勤版",
+    priceText = "¥199",
+    imageRes = R.drawable.cart_sunscreen,
+    tags = listOf("长效防晒", "敏感肌可用", "通勤"),
+    recommendationReason = "推荐理由：这是一段特意加长的推荐理由，用来确认小屏和长文案时不会撑破商品卡片。"
+)
+
 @Preview(
     name = "Product card - enabled",
     widthDp = 361,
@@ -307,5 +316,18 @@ private fun ProductCardDisabledPreview() {
             product = PreviewDisabledProduct,
             enabled = false
         )
+    }
+}
+
+@Preview(
+    name = "Product card - long copy compact",
+    widthDp = 332,
+    heightDp = 168,
+    showBackground = true
+)
+@Composable
+private fun ProductCardLongCopyPreview() {
+    ShopMateTheme {
+        ProductCard(product = PreviewLongProduct)
     }
 }

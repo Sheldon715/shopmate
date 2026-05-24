@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -46,6 +47,7 @@ import androidx.compose.ui.unit.sp
 import com.shopmate.app.R
 import com.shopmate.app.data.mock.MockShopMateData
 import com.shopmate.app.ui.components.ShopMateRoundedIconButton
+import com.shopmate.app.ui.components.ShopMateStatusMessage
 import com.shopmate.app.ui.model.ProductDetailSpecUi
 import com.shopmate.app.ui.model.ProductDetailUi
 import com.shopmate.app.ui.theme.ShopMateGreen
@@ -183,6 +185,7 @@ private fun ProductDetailScreenContent(
                 onBuyNowClick = onBuyNowClick,
                 modifier = Modifier
                     .offset(x = frameStart + 12f.s(), y = footerTop)
+                    .navigationBarsPadding()
                     .size(width = 364.667f.s(), height = footerHeight)
             )
         }
@@ -781,78 +784,14 @@ private fun ProductNotFoundCard(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val cardShape = RoundedCornerShape(24f.scaledDp(scale))
-
-    Box(
+    ShopMateStatusMessage(
+        title = "暂时找不到这个商品",
+        message = "可能是推荐结果已更新，返回后可以重新选择一个商品。",
+        actionText = "返回推荐结果",
+        onActionClick = onBackClick,
+        scale = scale,
         modifier = modifier
-            .shadow(
-                elevation = 14f.scaledDp(scale),
-                shape = cardShape,
-                clip = false
-            )
-            .clip(cardShape)
-            .background(Color.White)
-            .border(
-                width = 0.667.dp,
-                color = Color(0xFFEFF3F2).copy(alpha = 0.96f),
-                shape = cardShape
-            )
-    ) {
-        Image(
-            painter = painterResource(id = R.drawable.sidebar_shopmate_buddy),
-            contentDescription = "Shopmate Buddy",
-            modifier = Modifier
-                .offset(x = 146f.scaledDp(scale), y = 38f.scaledDp(scale))
-                .size(60f.scaledDp(scale)),
-            contentScale = ContentScale.Fit
-        )
-
-        Text(
-            text = "暂时找不到这个商品",
-            color = ShopMateTextPrimary,
-            fontSize = (20f * scale).sp,
-            lineHeight = (27f * scale).sp,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center,
-            letterSpacing = 0.sp,
-            maxLines = 1,
-            modifier = Modifier
-                .offset(x = 36f.scaledDp(scale), y = 116f.scaledDp(scale))
-                .width(280f.scaledDp(scale))
-        )
-
-        Text(
-            text = "可能是推荐结果已更新，返回后可以重新选择一个商品。",
-            color = Color(0xFF6E7781),
-            fontSize = (13f * scale).sp,
-            lineHeight = (21f * scale).sp,
-            textAlign = TextAlign.Center,
-            letterSpacing = 0.sp,
-            maxLines = 2,
-            modifier = Modifier
-                .offset(x = 42f.scaledDp(scale), y = 150f.scaledDp(scale))
-                .width(268f.scaledDp(scale))
-        )
-
-        Box(
-            modifier = Modifier
-                .offset(x = 94f.scaledDp(scale), y = 202f.scaledDp(scale))
-                .size(width = 164f.scaledDp(scale), height = 38f.scaledDp(scale))
-                .clip(ShopMatePillShape)
-                .background(Color(0xFFE9FBF3))
-                .clickable(role = Role.Button, onClick = onBackClick),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "返回推荐结果",
-                color = ShopMateGreen,
-                fontSize = (13f * scale).sp,
-                lineHeight = (17f * scale).sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.sp
-            )
-        }
-    }
+    )
 }
 
 private fun Modifier.figmaProductDetailBackground(): Modifier =
@@ -910,6 +849,25 @@ private fun ProductDetailNotFoundPreview() {
     ShopMateTheme {
         ProductDetailScreenContent(
             product = null,
+            onBackClick = {},
+            onCartClick = {},
+            onAddCartClick = {},
+            onBuyNowClick = {}
+        )
+    }
+}
+
+@Preview(
+    name = "Product detail long title - 360 x 740",
+    widthDp = 360,
+    heightDp = 740,
+    showBackground = true
+)
+@Composable
+private fun ProductDetailCompactPreview() {
+    ShopMateTheme {
+        ProductDetailScreenContent(
+            product = MockShopMateData.findProductDetail("ui-la-roche-posay-sunscreen"),
             onBackClick = {},
             onCartClick = {},
             onAddCartClick = {},

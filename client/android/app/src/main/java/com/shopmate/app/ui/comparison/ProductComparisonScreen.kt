@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -149,6 +151,8 @@ fun ProductComparisonScreen(
             shadowElevation = 0.dp,
             modifier = Modifier
                 .offset(x = 18f.s(), y = composerTop)
+                .imePadding()
+                .navigationBarsPadding()
                 .size(width = 352.667f.s(), height = composerHeight)
         )
 
@@ -757,6 +761,23 @@ private fun comparisonTileSubtitle(product: ProductCardUi): String =
 )
 @Composable
 private fun ProductComparisonScreenTargetPreview() {
+    ShopMateTheme {
+        ProductComparisonScreen(
+            onNewChatClick = {},
+            onCartClick = {},
+            onHistoryClick = {}
+        )
+    }
+}
+
+@Preview(
+    name = "Product comparison - 360 x 740",
+    widthDp = 360,
+    heightDp = 740,
+    showBackground = true
+)
+@Composable
+private fun ProductComparisonScreenCompactPreview() {
     ShopMateTheme {
         ProductComparisonScreen(
             onNewChatClick = {},
