@@ -53,6 +53,7 @@ private const val ASSISTANT_MESSAGE =
 fun ChatRecommendationScreen(
     onNewChatClick: () -> Unit,
     onCartClick: () -> Unit,
+    onProductClick: (String) -> Unit,
     onHistoryClick: (HistoryConversationUi) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -115,13 +116,15 @@ fun ChatRecommendationScreen(
                 )
 
                 MockShopMateData.bluetoothEarbuds.forEachIndexed { index, product ->
-                    ProductCard(
-                        product = product,
-                        enabled = product.id != "ui-redmi-buds-4-lite",
-                        onClick = {},
-                        onAddCartClick = {},
-                        modifier = Modifier
-                            .offset(x = 14f.s(), y = (160.13f + index * 191.104f).s())
+                        ProductCard(
+                            product = product,
+                            enabled = product.id != "ui-redmi-buds-4-lite",
+                            onClick = {
+                                onProductClick(product.id)
+                            },
+                            onAddCartClick = {},
+                            modifier = Modifier
+                                .offset(x = 14f.s(), y = (160.13f + index * 191.104f).s())
                             .size(width = 360.667f.s(), height = 179.104f.s())
                     )
                 }
@@ -304,6 +307,7 @@ private fun ChatRecommendationScreenTargetPreview() {
         ChatRecommendationScreen(
             onNewChatClick = {},
             onCartClick = {},
+            onProductClick = {},
             onHistoryClick = {}
         )
     }

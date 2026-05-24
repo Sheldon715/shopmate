@@ -10,5 +10,12 @@ data class ProductDetailUi(
     val tags: List<String>,
     val recommendationReason: String,
     val description: String,
-    val highlights: List<String>
+    val highlights: List<String>,
+    val specs: List<ProductDetailSpecUi> = emptyList(),
+    val suitedForText: String = ""
+)
+
+data class ProductDetailSpecUi(
+    val label: String,
+    val value: String
 )

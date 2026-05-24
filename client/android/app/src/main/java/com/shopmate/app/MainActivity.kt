@@ -16,6 +16,7 @@ import com.shopmate.app.ui.comparison.ProductComparisonScreen
 import com.shopmate.app.ui.home.HomeChatEntryScreen
 import com.shopmate.app.ui.model.HistoryConversationUi
 import com.shopmate.app.ui.onboarding.OnboardingScreen
+import com.shopmate.app.ui.product.ProductDetailScreen
 import com.shopmate.app.ui.theme.ShopMateTheme
 
 class MainActivity : ComponentActivity() {
@@ -40,7 +41,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             ShopMateTheme {
-                var currentScreen by remember { mutableStateOf(ShopMateScreen.Onboarding) }
+                var currentScreen by remember { mutableStateOf<ShopMateScreen>(ShopMateScreen.Onboarding) }
                 val openHistoryConversation: (HistoryConversationUi) -> Unit = { conversation ->
                     currentScreen = when (conversation.id) {
                         "history-commute-earbuds" -> ShopMateScreen.ChatRecommendation
@@ -68,6 +69,9 @@ class MainActivity : ComponentActivity() {
                             currentScreen = ShopMateScreen.HomeChatEntry
                         },
                         onCartClick = {},
+                        onProductClick = { productId ->
+                            currentScreen = ShopMateScreen.ProductDetail(productId)
+                        },
                         onHistoryClick = openHistoryConversation
                     )
 
@@ -78,15 +82,26 @@ class MainActivity : ComponentActivity() {
                         onCartClick = {},
                         onHistoryClick = openHistoryConversation
                     )
+
+                    is ShopMateScreen.ProductDetail -> ProductDetailScreen(
+                        productId = (currentScreen as ShopMateScreen.ProductDetail).productId,
+                        onBackClick = {
+                            currentScreen = ShopMateScreen.ChatRecommendation
+                        },
+                        onCartClick = {},
+                        onAddCartClick = {},
+                        onBuyNowClick = {}
+                    )
                 }
             }
         }
     }
 }
 
-private enum class ShopMateScreen {
-    Onboarding,
-    HomeChatEntry,
-    ChatRecommendation,
-    ProductComparison
+private sealed class ShopMateScreen {
+    object Onboarding : ShopMateScreen()
+    object HomeChatEntry : ShopMateScreen()
+    object ChatRecommendation : ShopMateScreen()
+    object ProductComparison : ShopMateScreen()
+    data class ProductDetail(val productId: String) : ShopMateScreen()
 }
