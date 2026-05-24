@@ -205,16 +205,43 @@ object MockShopMateData {
 
     val cartItems = listOf(
         CartItemUi(
-            id = "cart-ui-edifier-zero-air",
-            product = bluetoothEarbuds.first(),
+            id = "cart-ui-hyaluronic-acid-serum",
+            product = ProductCardUi(
+                id = "ui-hyaluronic-acid-serum",
+                name = "玻尿酸保湿精华补水修护精华液",
+                priceText = "¥199",
+                imageRes = R.drawable.cart_hyaluronic_serum,
+                tags = listOf("深层补水", "修护屏障"),
+                recommendationReason = "主打深层补水与屏障修护，适合作为购物车里的基础护肤选择。"
+            ),
             quantity = 1,
-            subtotalText = "¥179"
+            subtotalText = "¥199"
         ),
         CartItemUi(
-            id = "cart-ui-sunscreen",
-            product = skincareProducts.last(),
+            id = "cart-ui-la-roche-posay-sunscreen",
+            product = ProductCardUi(
+                id = "ui-la-roche-posay-sunscreen",
+                name = "理肤泉 清透防晒乳 SPF50+ PA++++",
+                priceText = "¥168",
+                imageRes = R.drawable.cart_sunscreen,
+                tags = listOf("防晒隔离", "清爽不油腻"),
+                recommendationReason = "高倍防晒且肤感清爽，适合日常通勤和夏季防护。"
+            ),
             quantity = 1,
             subtotalText = "¥168"
+        ),
+        CartItemUi(
+            id = "cart-ui-shopmate-canvas-bag",
+            product = ProductCardUi(
+                id = "ui-shopmate-canvas-bag",
+                name = "抖选选环保帆布购物袋",
+                priceText = "¥29",
+                imageRes = R.drawable.cart_canvas_bag,
+                tags = listOf("环保材质", "轻便耐用"),
+                recommendationReason = "轻便耐用的薄荷绿购物袋，适合搭配日常购物使用。"
+            ),
+            quantity = 1,
+            subtotalText = "¥29"
         )
     )
 
