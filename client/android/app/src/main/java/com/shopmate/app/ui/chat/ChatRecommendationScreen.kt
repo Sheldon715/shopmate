@@ -3,20 +3,12 @@ package com.shopmate.app.ui.chat
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,21 +19,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -49,15 +35,12 @@ import androidx.compose.ui.unit.sp
 import com.shopmate.app.R
 import com.shopmate.app.data.mock.MockShopMateData
 import com.shopmate.app.ui.components.ChatComposer
+import com.shopmate.app.ui.components.ProductCard
 import com.shopmate.app.ui.components.ShopMateRoundedIconButton
 import com.shopmate.app.ui.model.HistoryConversationUi
-import com.shopmate.app.ui.model.ProductCardUi
 import com.shopmate.app.ui.sidebar.SidebarHistoryDrawer
-import com.shopmate.app.ui.theme.ShopMateGreen
-import com.shopmate.app.ui.theme.ShopMatePillShape
 import com.shopmate.app.ui.theme.ShopMateSurface
 import com.shopmate.app.ui.theme.ShopMateSurfaceSoft
-import com.shopmate.app.ui.theme.ShopMateTextPrimary
 import com.shopmate.app.ui.theme.ShopMateTheme
 
 private const val FIGMA_WIDTH = 388.667f
@@ -90,8 +73,9 @@ fun ChatRecommendationScreen(
         val composerHeight = 52f.s()
         val composerBottom = 18f.s()
         val composerTop = maxHeight - composerHeight - composerBottom
-        val contentHeight = (composerTop - contentTop).coerceAtLeast(360.dp)
-        val scrollContentHeight = 725.443f.s() + 86f.s()
+        val contentBottomGap = 10f.s()
+        val contentHeight = (composerTop - contentTop - contentBottomGap).coerceAtLeast(360.dp)
+        val scrollContentHeight = 725.443f.s() + 118f.s()
 
         RecommendationHeader(
             scale = scale,
@@ -106,6 +90,7 @@ fun ChatRecommendationScreen(
             modifier = Modifier
                 .offset(x = 0.dp, y = contentTop)
                 .size(width = FIGMA_WIDTH.s(), height = contentHeight)
+                .clipToBounds()
                 .verticalScroll(rememberScrollState())
         ) {
             Box(
@@ -130,10 +115,10 @@ fun ChatRecommendationScreen(
                 )
 
                 MockShopMateData.bluetoothEarbuds.forEachIndexed { index, product ->
-                    RecommendationProductCard(
+                    ProductCard(
                         product = product,
                         enabled = product.id != "ui-redmi-buds-4-lite",
-                        scale = scale,
+                        onClick = {},
                         onAddCartClick = {},
                         modifier = Modifier
                             .offset(x = 14f.s(), y = (160.13f + index * 191.104f).s())
@@ -283,192 +268,6 @@ private fun MessageBubble(
         )
     }
 }
-
-@Composable
-private fun RecommendationProductCard(
-    product: ProductCardUi,
-    enabled: Boolean,
-    scale: Float,
-    onAddCartClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    fun Float.s(): Dp = (this * scale).dp
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .shadow(
-                elevation = 12f.s(),
-                shape = RoundedCornerShape(22f.s()),
-                clip = false
-            )
-            .clip(RoundedCornerShape(22f.s()))
-            .background(Color.White.copy(alpha = 0.96f))
-            .border(0.667.dp, Color(0xFFF1F3F3).copy(alpha = 0.9f), RoundedCornerShape(22f.s()))
-            .then(if (enabled) Modifier else Modifier)
-    ) {
-        ProductImage(
-            product = product,
-            scale = scale,
-            modifier = Modifier
-                .offset(x = 12f.s(), y = 12f.s())
-                .size(width = 112f.s(), height = 132f.s())
-        )
-
-        Column(
-            modifier = Modifier
-                .offset(x = 138f.s(), y = 13f.s())
-                .size(width = 209.333f.s(), height = 152.771f.s())
-        ) {
-            Text(
-                text = product.name,
-                color = ShopMateTextPrimary,
-                fontSize = (14f * scale).sp,
-                lineHeight = (18.9f * scale).sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            Spacer(modifier = Modifier.height(6f.s()))
-
-            Text(
-                text = product.priceText,
-                color = ShopMateGreen,
-                fontSize = (16f * scale).sp,
-                lineHeight = (16f * scale).sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.sp,
-                maxLines = 1
-            )
-
-            Spacer(modifier = Modifier.height(12f.s()))
-
-            Row(horizontalArrangement = Arrangement.spacedBy(6f.s())) {
-                product.tags.take(2).forEach { tag ->
-                    ProductTag(
-                        text = tag,
-                        scale = scale
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(9f.s()))
-
-            Text(
-                text = product.recommendationReason,
-                color = Color(0xFF5F6975),
-                fontSize = (12f * scale).sp,
-                lineHeight = (19.44f * scale).sp,
-                letterSpacing = 0.sp,
-                maxLines = 2,
-                overflow = TextOverflow.Clip,
-                modifier = Modifier.height(39f.s())
-            )
-
-            Spacer(modifier = Modifier.height(9f.s()))
-
-            AddCartButton(
-                enabled = enabled,
-                onClick = onAddCartClick,
-                scale = scale,
-                modifier = Modifier
-                    .align(Alignment.End)
-                    .size(
-                        width = if (enabled) 101f.s() else 89f.s(),
-                        height = 30f.s()
-                    )
-            )
-        }
-    }
-}
-
-@Composable
-private fun ProductImage(
-    product: ProductCardUi,
-    scale: Float,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(17f.s(scale)))
-            .background(Color(0xFFF7F8F8)),
-        contentAlignment = Alignment.Center
-    ) {
-        Image(
-            painter = painterResource(id = product.imageRes),
-            contentDescription = product.name,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop
-        )
-    }
-}
-
-@Composable
-private fun ProductTag(
-    text: String,
-    scale: Float,
-    modifier: Modifier = Modifier
-) {
-    Text(
-        text = text,
-        color = Color(0xFF77828B),
-        fontSize = (10f * scale).sp,
-        lineHeight = (12f * scale).sp,
-        fontWeight = FontWeight.Bold,
-        letterSpacing = 0.sp,
-        modifier = modifier
-            .clip(ShopMatePillShape)
-            .background(Color(0xFFF3F5F5))
-            .padding(horizontal = 8f.s(scale), vertical = 3f.s(scale))
-    )
-}
-
-@Composable
-private fun AddCartButton(
-    enabled: Boolean,
-    onClick: () -> Unit,
-    scale: Float,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier
-            .clip(ShopMatePillShape)
-            .background(if (enabled) Color(0xFFE8F9F2) else Color(0xFFEFF2F2))
-            .clickable(role = Role.Button, onClick = onClick)
-    ) {
-        Image(
-            painter = painterResource(id = R.drawable.ic_add_plus),
-            contentDescription = null,
-            colorFilter = if (enabled) null else ColorFilter.tint(Color(0xFFCDD4D7)),
-            modifier = Modifier
-                .offset(x = 12f.s(scale), y = 9f.s(scale))
-                .size(12f.s(scale))
-        )
-
-        Text(
-            text = if (enabled) "加入购物车" else "暂不可选",
-            color = if (enabled) ShopMateGreen else Color(0xFF99A4AA),
-            fontSize = (12f * scale).sp,
-            lineHeight = (16f * scale).sp,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            softWrap = false,
-            overflow = TextOverflow.Visible,
-            letterSpacing = 0.sp,
-            modifier = Modifier
-                .offset(
-                    x = if (enabled) 25f.s(scale) else 25.5f.s(scale),
-                    y = 6.8f.s(scale)
-                )
-                .width(if (enabled) 68f.s(scale) else 55f.s(scale))
-        )
-    }
-}
-
-private fun Float.s(scale: Float): Dp = (this * scale).dp
 
 private fun Modifier.figmaRecommendationBackground(): Modifier =
     background(
