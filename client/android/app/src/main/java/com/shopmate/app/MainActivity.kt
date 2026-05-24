@@ -11,6 +11,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import com.shopmate.app.ui.cart.CartScreen
 import com.shopmate.app.ui.chat.ChatRecommendationScreen
 import com.shopmate.app.ui.comparison.ProductComparisonScreen
 import com.shopmate.app.ui.home.HomeChatEntryScreen
@@ -42,6 +43,9 @@ class MainActivity : ComponentActivity() {
         setContent {
             ShopMateTheme {
                 var currentScreen by remember { mutableStateOf<ShopMateScreen>(ShopMateScreen.Onboarding) }
+                val openCart: () -> Unit = {
+                    currentScreen = ShopMateScreen.Cart(previousScreen = currentScreen)
+                }
                 val openHistoryConversation: (HistoryConversationUi) -> Unit = { conversation ->
                     currentScreen = when (conversation.id) {
                         "history-commute-earbuds" -> ShopMateScreen.ChatRecommendation
@@ -58,6 +62,7 @@ class MainActivity : ComponentActivity() {
                     )
 
                     ShopMateScreen.HomeChatEntry -> HomeChatEntryScreen(
+                        onCartClick = openCart,
                         onNewChatClick = {
                             currentScreen = ShopMateScreen.HomeChatEntry
                         },
@@ -68,7 +73,7 @@ class MainActivity : ComponentActivity() {
                         onNewChatClick = {
                             currentScreen = ShopMateScreen.HomeChatEntry
                         },
-                        onCartClick = {},
+                        onCartClick = openCart,
                         onProductClick = { productId ->
                             currentScreen = ShopMateScreen.ProductDetail(productId)
                         },
@@ -79,7 +84,7 @@ class MainActivity : ComponentActivity() {
                         onNewChatClick = {
                             currentScreen = ShopMateScreen.HomeChatEntry
                         },
-                        onCartClick = {},
+                        onCartClick = openCart,
                         onHistoryClick = openHistoryConversation
                     )
 
@@ -88,9 +93,17 @@ class MainActivity : ComponentActivity() {
                         onBackClick = {
                             currentScreen = ShopMateScreen.ChatRecommendation
                         },
-                        onCartClick = {},
+                        onCartClick = openCart,
                         onAddCartClick = {},
                         onBuyNowClick = {}
+                    )
+
+                    is ShopMateScreen.Cart -> CartScreen(
+                        onBackClick = {
+                            currentScreen = restoreCartPrevious(
+                                (currentScreen as ShopMateScreen.Cart).previousScreen
+                            )
+                        }
                     )
                 }
             }
@@ -104,4 +117,12 @@ private sealed class ShopMateScreen {
     object ChatRecommendation : ShopMateScreen()
     object ProductComparison : ShopMateScreen()
     data class ProductDetail(val productId: String) : ShopMateScreen()
+    data class Cart(val previousScreen: ShopMateScreen) : ShopMateScreen()
 }
+
+private fun restoreCartPrevious(previousScreen: ShopMateScreen): ShopMateScreen =
+    when (previousScreen) {
+        ShopMateScreen.Onboarding -> ShopMateScreen.HomeChatEntry
+        is ShopMateScreen.Cart -> ShopMateScreen.HomeChatEntry
+        else -> previousScreen
+    }
