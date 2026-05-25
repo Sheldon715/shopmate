@@ -1,0 +1,56 @@
+package com.shopmate.app.ui.components
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+
+@Composable
+fun ChatMessageBubble(
+    text: String,
+    fromUser: Boolean,
+    textScale: Float,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .shadow(
+                elevation = 8.dp,
+                shape = RoundedCornerShape(16.dp),
+                clip = false
+            )
+            .background(
+                brush = if (fromUser) {
+                    Brush.linearGradient(
+                        colors = listOf(Color(0xFFCEF5E5), Color(0xFFB5EFD9))
+                    )
+                } else {
+                    Brush.linearGradient(listOf(Color.White, Color.White))
+                },
+                shape = RoundedCornerShape(16.dp)
+            )
+            .border(
+                width = if (fromUser) 0.dp else 0.667.dp,
+                color = if (fromUser) Color.Transparent else Color(0xFFF0F3F3),
+                shape = RoundedCornerShape(16.dp)
+            )
+    ) {
+        Text(
+            text = text,
+            color = if (fromUser) Color(0xFF275747) else Color(0xFF53606B),
+            fontSize = (12f * textScale).sp,
+            lineHeight = (19.2f * textScale).sp,
+            letterSpacing = 0.sp,
+            modifier = Modifier.padding(start = 14.dp, top = 12.dp, end = 14.dp)
+        )
+    }
+}

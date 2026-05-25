@@ -1,6 +1,5 @@
 package com.shopmate.app.ui.theme
 
-import androidx.compose.foundation.background
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.lightColorScheme
@@ -39,20 +38,25 @@ fun ShopMateTheme(content: @Composable () -> Unit) {
 }
 
 fun Modifier.shopMateScreenBackground(): Modifier =
-    background(
-        Brush.verticalGradient(
-            colors = listOf(ShopMateSurface, ShopMateSurfaceSoft)
+    drawBehind {
+        drawRect(
+            brush = Brush.verticalGradient(
+                colors = listOf(ShopMateSurface, ShopMateSurfaceSoft)
+            )
         )
-    ).drawBehind {
         drawCircle(
             brush = Brush.radialGradient(
-                colors = listOf(
-                    ShopMateMintGlow.copy(alpha = 0.32f),
-                    Color(0xFF5C796E).copy(alpha = 0.16f),
-                    Color.Transparent
+                colorStops = arrayOf(
+                    0f to Color(0xFF7FDCC1).copy(alpha = 0.26f),
+                    0.36f to Color(0xFF7FDCC1).copy(alpha = 0.18f),
+                    0.72f to Color(0xFF7FDCC1).copy(alpha = 0.07f),
+                    1f to Color.Transparent
                 ),
-                center = Offset(size.width / 2f, size.height * 0.24f),
-                radius = size.minDimension * 0.34f
+                center = Offset(
+                    x = size.width * (299.27f / 388.667f),
+                    y = size.height * 0.15f
+                ),
+                radius = size.maxDimension * 0.38f
             )
         )
     }

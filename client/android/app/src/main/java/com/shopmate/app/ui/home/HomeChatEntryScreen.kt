@@ -26,10 +26,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -45,14 +42,13 @@ import androidx.compose.ui.unit.sp
 import com.shopmate.app.R
 import com.shopmate.app.data.mock.MockShopMateData
 import com.shopmate.app.ui.components.ChatComposer
-import com.shopmate.app.ui.components.ShopMateRoundedIconButton
+import com.shopmate.app.ui.components.ShopMateCircleIconButton
 import com.shopmate.app.ui.model.HistoryConversationUi
 import com.shopmate.app.ui.model.PromptSuggestionUi
 import com.shopmate.app.ui.sidebar.SidebarHistoryDrawer
 import com.shopmate.app.ui.theme.ShopMateGreen
 import com.shopmate.app.ui.theme.ShopMateTextPrimary
-import com.shopmate.app.ui.theme.ShopMateSurface
-import com.shopmate.app.ui.theme.ShopMateSurfaceSoft
+import com.shopmate.app.ui.theme.shopMateScreenBackground
 
 private const val FIGMA_WIDTH = 388.667f
 private const val FIGMA_HEIGHT = 842.667f
@@ -70,7 +66,7 @@ fun HomeChatEntryScreen(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .figmaHomeBackground()
+            .shopMateScreenBackground()
     ) {
         val scale = maxWidth.value / FIGMA_WIDTH
         val textScale = scale.coerceIn(0.88f, 1.08f)
@@ -183,19 +179,13 @@ private fun HeaderIconButton(
     contentDescription: String,
     onClick: () -> Unit
 ) {
-    ShopMateRoundedIconButton(
+    ShopMateCircleIconButton(
+        icon = icon,
+        contentDescription = contentDescription,
         onClick = onClick,
-        backgroundColor = Color.White.copy(alpha = 0.78f),
-        shape = CircleShape,
-        elevation = 8.dp,
-        modifier = Modifier.size(38.dp)
-    ) {
-        Image(
-            painter = painterResource(id = icon),
-            contentDescription = contentDescription,
-            modifier = Modifier.size(16.dp)
-        )
-    }
+        modifier = Modifier.size(38.dp),
+        iconSize = 16.dp
+    )
 }
 
 @Composable
@@ -279,29 +269,6 @@ private fun HeroMascot(
         contentScale = ContentScale.Crop
     )
 }
-
-private fun Modifier.figmaHomeBackground(): Modifier =
-    background(
-        Brush.verticalGradient(
-            colors = listOf(ShopMateSurface, ShopMateSurfaceSoft)
-        )
-    ).drawBehind {
-        drawCircle(
-            brush = Brush.radialGradient(
-                colorStops = arrayOf(
-                    0f to Color(0xFF7FDCC1).copy(alpha = 0.17f),
-                    0.125f to Color(0xFF406E61).copy(alpha = 0.085f),
-                    0.25f to Color.Transparent,
-                    1f to Color.Transparent
-                ),
-                center = Offset(
-                    x = size.width * (299.27f / FIGMA_WIDTH),
-                    y = size.height * (101.12f / FIGMA_HEIGHT)
-                ),
-                radius = size.minDimension * (79.966f / FIGMA_WIDTH)
-            )
-        )
-    }
 
 @Composable
 private fun PromptPanel(

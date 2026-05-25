@@ -44,19 +44,21 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.shopmate.app.R
 import com.shopmate.app.data.mock.MockShopMateData
+import com.shopmate.app.ui.components.ShopMateElevatedSurface
 import com.shopmate.app.ui.components.ShopMateRoundedIconButton
 import com.shopmate.app.ui.components.ShopMateStatusMessage
+import com.shopmate.app.ui.components.ShopMateTopActionBar
 import com.shopmate.app.ui.model.ProductDetailSpecUi
 import com.shopmate.app.ui.model.ProductDetailUi
 import com.shopmate.app.ui.theme.ShopMateGreen
 import com.shopmate.app.ui.theme.ShopMateLightGreen
 import com.shopmate.app.ui.theme.ShopMatePillShape
-import com.shopmate.app.ui.theme.ShopMateSurface
-import com.shopmate.app.ui.theme.ShopMateSurfaceSoft
 import com.shopmate.app.ui.theme.ShopMateTextPrimary
 import com.shopmate.app.ui.theme.ShopMateTheme
+import com.shopmate.app.ui.theme.shopMateScreenBackground
 
 private const val FIGMA_WIDTH = 388.667f
 private const val FIGMA_HEIGHT = 842.667f
@@ -94,9 +96,10 @@ private fun ProductDetailScreenContent(
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
-            .figmaProductDetailBackground()
+            .shopMateScreenBackground()
     ) {
         val scale = minOf(maxWidth.value / FIGMA_WIDTH, maxHeight.value / FIGMA_HEIGHT)
+        val screenWidth = maxWidth
         val frameStart = ((maxWidth.value - FIGMA_WIDTH * scale) / 2f).dp
 
         fun Float.s(): Dp = scaledDp(scale)
@@ -106,29 +109,20 @@ private fun ProductDetailScreenContent(
         val footerHeight = 58f.s()
         val footerBottom = 18f.s()
         val footerTop = maxHeight - footerHeight - footerBottom
-        val contentBottomGap = 10f.s()
-        val contentHeight = (footerTop - contentTop - contentBottomGap).coerceAtLeast(360.dp)
-        val scrollContentHeight = if (product == null) 430f.s() else 918f.s()
-
-        ProductDetailHeader(
-            scale = scale,
-            onBackClick = onBackClick,
-            onCartClick = onCartClick,
-            modifier = Modifier
-                .offset(x = frameStart, y = headerTop)
-                .size(width = FIGMA_WIDTH.s(), height = 44f.s())
-        )
+        val scrollBodyHeight = if (product == null) 430f.s() else 918f.s()
+        val scrollContentHeight =
+            (contentTop + scrollBodyHeight + footerHeight + footerBottom + 28f.s())
+                .coerceAtLeast(maxHeight + 1.dp)
 
         Box(
             modifier = Modifier
-                .offset(x = frameStart, y = contentTop)
-                .size(width = FIGMA_WIDTH.s(), height = contentHeight)
+                .fillMaxSize()
                 .clipToBounds()
                 .verticalScroll(rememberScrollState())
         ) {
             Box(
                 modifier = Modifier.size(
-                    width = FIGMA_WIDTH.s(),
+                    width = screenWidth,
                     height = scrollContentHeight
                 )
             ) {
@@ -137,7 +131,7 @@ private fun ProductDetailScreenContent(
                         scale = scale,
                         onBackClick = onBackClick,
                         modifier = Modifier
-                            .offset(x = 18f.s(), y = 18f.s())
+                            .offset(x = frameStart + 18f.s(), y = contentTop + 18f.s())
                             .size(width = 352.667f.s(), height = 252f.s())
                     )
                 } else {
@@ -147,7 +141,7 @@ private fun ProductDetailScreenContent(
                         onFavoriteClick = { isFavorite = !isFavorite },
                         scale = scale,
                         modifier = Modifier
-                            .offset(x = 18f.s(), y = 4f.s())
+                            .offset(x = frameStart + 18f.s(), y = contentTop + 4f.s())
                             .size(width = 352.667f.s(), height = 419.531f.s())
                     )
 
@@ -155,7 +149,7 @@ private fun ProductDetailScreenContent(
                         product = product,
                         scale = scale,
                         modifier = Modifier
-                            .offset(x = 18f.s(), y = 437.531f.s())
+                            .offset(x = frameStart + 18f.s(), y = contentTop + 437.531f.s())
                             .size(width = 352.667f.s(), height = 201.01f.s())
                     )
 
@@ -163,7 +157,7 @@ private fun ProductDetailScreenContent(
                         specs = product.specs,
                         scale = scale,
                         modifier = Modifier
-                            .offset(x = 18f.s(), y = 652.541f.s())
+                            .offset(x = frameStart + 18f.s(), y = contentTop + 652.541f.s())
                             .size(width = 352.667f.s(), height = 162f.s())
                     )
 
@@ -171,12 +165,26 @@ private fun ProductDetailScreenContent(
                         product = product,
                         scale = scale,
                         modifier = Modifier
-                            .offset(x = 18f.s(), y = 828.541f.s())
+                            .offset(x = frameStart + 18f.s(), y = contentTop + 828.541f.s())
                             .size(width = 352.667f.s(), height = 95.188f.s())
                     )
                 }
             }
         }
+
+        ShopMateTopActionBar(
+            scale = scale,
+            leftIcon = R.drawable.ic_menu,
+            leftContentDescription = "返回推荐结果",
+            onLeftClick = onBackClick,
+            rightIcon = R.drawable.ic_cart,
+            rightContentDescription = "购物车",
+            onRightClick = onCartClick,
+            modifier = Modifier
+                .offset(x = frameStart, y = headerTop)
+                .size(width = FIGMA_WIDTH.s(), height = 44f.s())
+                .zIndex(2f)
+        )
 
         if (product != null) {
             ProductDetailFooter(
@@ -187,77 +195,9 @@ private fun ProductDetailScreenContent(
                     .offset(x = frameStart + 12f.s(), y = footerTop)
                     .navigationBarsPadding()
                     .size(width = 364.667f.s(), height = footerHeight)
+                    .zIndex(2f)
             )
         }
-    }
-}
-
-@Composable
-private fun ProductDetailHeader(
-    scale: Float,
-    onBackClick: () -> Unit,
-    onCartClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    fun Float.s(): Dp = scaledDp(scale)
-
-    Box(modifier = modifier) {
-        HeaderIconButton(
-            icon = R.drawable.ic_menu,
-            contentDescription = "返回推荐结果",
-            onClick = onBackClick,
-            modifier = Modifier
-                .offset(x = 14f.s(), y = 3f.s())
-                .size(38f.s()),
-            iconSize = 16f.s()
-        )
-
-        Image(
-            painter = painterResource(id = R.drawable.sidebar_shopmate_buddy),
-            contentDescription = "Shopmate Buddy",
-            modifier = Modifier
-                .offset(x = 175.33f.s(), y = 3f.s())
-                .size(38f.s())
-                .shadow(
-                    elevation = 8f.s(),
-                    shape = CircleShape,
-                    clip = false
-                ),
-            contentScale = ContentScale.Fit
-        )
-
-        HeaderIconButton(
-            icon = R.drawable.ic_cart,
-            contentDescription = "购物车",
-            onClick = onCartClick,
-            modifier = Modifier
-                .offset(x = 332.67f.s(), y = 3f.s())
-                .size(38f.s()),
-            iconSize = 16f.s()
-        )
-    }
-}
-
-@Composable
-private fun HeaderIconButton(
-    icon: Int,
-    contentDescription: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    iconSize: Dp
-) {
-    ShopMateRoundedIconButton(
-        onClick = onClick,
-        backgroundColor = Color.White.copy(alpha = 0.78f),
-        shape = CircleShape,
-        elevation = 8.dp,
-        modifier = modifier
-    ) {
-        Image(
-            painter = painterResource(id = icon),
-            contentDescription = contentDescription,
-            modifier = Modifier.size(iconSize)
-        )
     }
 }
 
@@ -271,20 +211,10 @@ private fun ProductHeroCard(
 ) {
     val cardShape = RoundedCornerShape(24f.scaledDp(scale))
 
-    Box(
-        modifier = modifier
-            .shadow(
-                elevation = 14f.scaledDp(scale),
-                shape = cardShape,
-                clip = false
-            )
-            .clip(cardShape)
-            .background(Color.White)
-            .border(
-                width = 0.667.dp,
-                color = Color(0xFFEFF3F2).copy(alpha = 0.96f),
-                shape = cardShape
-            )
+    ShopMateElevatedSurface(
+        modifier = modifier,
+        shape = cardShape,
+        elevation = 14f.scaledDp(scale)
     ) {
         Box(
             modifier = Modifier
@@ -456,20 +386,10 @@ private fun RecommendationReasonCard(
 ) {
     val cardShape = RoundedCornerShape(24f.scaledDp(scale))
 
-    Box(
-        modifier = modifier
-            .shadow(
-                elevation = 14f.scaledDp(scale),
-                shape = cardShape,
-                clip = false
-            )
-            .clip(cardShape)
-            .background(Color.White)
-            .border(
-                width = 0.667.dp,
-                color = Color(0xFFEFF3F2).copy(alpha = 0.96f),
-                shape = cardShape
-            )
+    ShopMateElevatedSurface(
+        modifier = modifier,
+        shape = cardShape,
+        elevation = 14f.scaledDp(scale)
     ) {
         Box(
             modifier = Modifier
@@ -587,20 +507,10 @@ private fun ProductSpecTile(
 ) {
     val tileShape = RoundedCornerShape(18f.scaledDp(scale))
 
-    Box(
-        modifier = modifier
-            .shadow(
-                elevation = 10f.scaledDp(scale),
-                shape = tileShape,
-                clip = false
-            )
-            .clip(tileShape)
-            .background(Color.White)
-            .border(
-                width = 0.667.dp,
-                color = Color(0xFFEFF3F2).copy(alpha = 0.96f),
-                shape = tileShape
-            )
+    ShopMateElevatedSurface(
+        modifier = modifier,
+        shape = tileShape,
+        elevation = 10f.scaledDp(scale)
     ) {
         Text(
             text = spec.label,
@@ -793,29 +703,6 @@ private fun ProductNotFoundCard(
         modifier = modifier
     )
 }
-
-private fun Modifier.figmaProductDetailBackground(): Modifier =
-    background(
-        Brush.verticalGradient(
-            colors = listOf(ShopMateSurface, ShopMateSurfaceSoft)
-        )
-    ).drawBehind {
-        drawCircle(
-            brush = Brush.radialGradient(
-                colorStops = arrayOf(
-                    0f to Color(0xFF7FDCC1).copy(alpha = 0.17f),
-                    0.125f to Color(0xFF406E61).copy(alpha = 0.085f),
-                    0.25f to Color.Transparent,
-                    1f to Color.Transparent
-                ),
-                center = Offset(
-                    x = size.width * (299.27f / FIGMA_WIDTH),
-                    y = size.height * (101.12f / FIGMA_HEIGHT)
-                ),
-                radius = size.minDimension * (79.966f / FIGMA_WIDTH)
-            )
-        )
-    }
 
 private fun Float.scaledDp(scale: Float): Dp = (this * scale).dp
 
