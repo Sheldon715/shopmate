@@ -1,0 +1,226 @@
+{
+  "product_id": "p_home_kitchen_003",
+  "data_version": "v1",
+  "source_type": "synthetic_desensitized",
+  "status": "active",
+  "title": "九阳 Y1 破壁料理机",
+  "brand": "九阳",
+  "category": "家用电器",
+  "sub_category": "厨房小电",
+  "category_path": [
+    "家用电器",
+    "厨房小电"
+  ],
+  "price_info": {
+    "currency": "CNY",
+    "base_price": 499.0,
+    "price_range": [
+      499.0,
+      558.0
+    ],
+    "promotion": null
+  },
+  "skus": [
+    {
+      "sku_id": "s_p_home_kitchen_003_1",
+      "properties": {
+        "容量": "1.2L",
+        "颜色": "白色",
+        "版本": "标准版"
+      },
+      "price": 499.0,
+      "inventory": {
+        "available": true,
+        "stock_level": "unknown"
+      }
+    },
+    {
+      "sku_id": "s_p_home_kitchen_003_2",
+      "properties": {
+        "容量": "1.5L",
+        "颜色": "深灰色",
+        "版本": "升级版"
+      },
+      "price": 558.0,
+      "inventory": {
+        "available": true,
+        "stock_level": "unknown"
+      }
+    }
+  ],
+  "image": {
+    "path": "home_appliance/images/p_home_kitchen_003_main.jpg",
+    "role": "main",
+    "caption": "九阳 Y1 破壁料理机 的占位商品主图，用于开发阶段展示商品类型和标题。",
+    "visual_tags": [
+      "家用电器",
+      "厨房小电",
+      "占位图",
+      "主图"
+    ]
+  },
+  "attributes": {
+    "适用人群": [
+      "租房党",
+      "早餐需求用户",
+      "厨房新手"
+    ],
+    "使用场景": [
+      "早餐制作",
+      "一人食",
+      "快手料理"
+    ],
+    "核心卖点": [
+      "搅打细腻",
+      "适合豆浆果汁",
+      "菜单丰富"
+    ],
+    "不适合": [
+      "对噪音敏感用户",
+      "只偶尔榨汁用户"
+    ],
+    "注意事项": [
+      "高速搅打噪音较明显"
+    ]
+  },
+  "pros_cons": {
+    "pros": [
+      "搅打细腻",
+      "适合豆浆果汁"
+    ],
+    "cons": [
+      "对噪音敏感用户",
+      "高速搅打噪音较明显"
+    ]
+  },
+  "decision_factors": {
+    "recommend_when": [
+      "搅打细腻",
+      "适合豆浆果汁"
+    ],
+    "avoid_when": [
+      "对噪音敏感用户",
+      "只偶尔榨汁用户"
+    ],
+    "compare_with": [
+      "p_home_kitchen_001",
+      "p_home_kitchen_002"
+    ]
+  },
+  "content_blocks": [
+    {
+      "block_id": "p_home_kitchen_003_spec_001",
+      "block_type": "spec",
+      "title": "规格与价格",
+      "content": "九阳 Y1 破壁料理机 属于家用电器/厨房小电，品牌为九阳，价格范围为 499.0-558.0 CNY，共 2 个 SKU。",
+      "keywords": [
+        "规格",
+        "价格",
+        "SKU"
+      ]
+    },
+    {
+      "block_id": "p_home_kitchen_003_selling_point_001",
+      "block_type": "selling_point",
+      "title": "商品详情介绍",
+      "content": "九阳 Y1 破壁料理机 是家用电器/厨房小电下的商品详情页数据。它的核心特点包括搅打细腻、适合豆浆果汁、菜单丰富，适合早餐制作、一人食、快手料理。导购时需要同时说明优势和限制，尤其要提醒高速搅打噪音较明显。",
+      "keywords": [
+        "详情页",
+        "卖点",
+        "商品介绍"
+      ]
+    },
+    {
+      "block_id": "p_home_kitchen_003_scenario_001",
+      "block_type": "scenario",
+      "title": "适用场景",
+      "content": "九阳 Y1 破壁料理机 适合租房党、早餐需求用户、厨房新手，常见使用场景包括早餐制作、一人食、快手料理。",
+      "keywords": [
+        "适用人群",
+        "使用场景",
+        "推荐"
+      ]
+    },
+    {
+      "block_id": "p_home_kitchen_003_limitation_001",
+      "block_type": "limitation",
+      "title": "限制与注意事项",
+      "content": "九阳 Y1 破壁料理机 不太适合对噪音敏感用户、只偶尔榨汁用户。购买前应注意：高速搅打噪音较明显。",
+      "keywords": [
+        "限制",
+        "注意事项",
+        "避坑"
+      ]
+    },
+    {
+      "block_id": "p_home_kitchen_003_sku_001",
+      "block_type": "sku",
+      "title": "SKU 摘要",
+      "content": "九阳 Y1 破壁料理机 当前包含 2 个 SKU，购买前应确认规格属性与实际需求一致。",
+      "keywords": [
+        "SKU",
+        "规格",
+        "价格"
+      ]
+    },
+    {
+      "block_id": "p_home_kitchen_003_visual_001",
+      "block_type": "visual",
+      "title": "图片信息",
+      "content": "九阳 Y1 破壁料理机 的占位商品主图，用于开发阶段展示商品类型和标题。",
+      "keywords": [
+        "图片",
+        "外观",
+        "视觉"
+      ]
+    }
+  ],
+  "review_summary": {
+    "rating_avg": 4.0,
+    "positive_points": [
+      "搅打细腻",
+      "适合豆浆果汁"
+    ],
+    "negative_points": [
+      "对噪音敏感用户",
+      "高速搅打噪音较明显"
+    ],
+    "common_complaints": [
+      "对噪音敏感用户"
+    ]
+  },
+  "raw_knowledge": {
+    "marketing_description": "九阳 Y1 破壁料理机 是真实品牌 九阳 旗下的家用电器/厨房小电商品，本数据集保留真实品牌与产品名，便于后续查找对应商品图片和构建商品详情页。导购信息经过脱敏和结构化整理，主要卖点包括搅打细腻、适合豆浆果汁、菜单丰富，适合早餐制作、一人食。如果用户属于对噪音敏感用户，推荐时需要结合限制条件谨慎判断。价格、SKU、评论和 FAQ 为比赛数据集模拟内容，不代表实时售价或真实用户反馈。",
+    "official_faq": [
+      {
+        "question": "九阳 Y1 破壁料理机 适合哪些使用场景？",
+        "answer": "更适合早餐制作、一人食，尤其适合租房党、早餐需求用户。如果属于对噪音敏感用户这类情况，建议优先对比同类其他商品。"
+      },
+      {
+        "question": "九阳 Y1 破壁料理机 有哪些规格可以选？",
+        "answer": "可选规格包括1.2L、1.5L等，价格区间约为 499-558 元。选择时建议结合预算、空间和使用频率判断。"
+      },
+      {
+        "question": "购买 九阳 Y1 破壁料理机 前需要注意什么？",
+        "answer": "需要注意高速搅打噪音较明显。如果对搅打细腻有明确需求，这款会更合适；如果属于对噪音敏感用户，则不建议盲目购买。"
+      }
+    ],
+    "user_reviews": [
+      {
+        "nickname": "user_001",
+        "rating": 5,
+        "content": "用了几天感觉搅打细腻确实明显，放在早餐制作这个场景里比较合适，整体符合预期。"
+      },
+      {
+        "nickname": "user_002",
+        "rating": 4,
+        "content": "优点是适合豆浆果汁，日常使用挺顺手。不过高速搅打噪音较明显，下单前最好确认清楚。"
+      },
+      {
+        "nickname": "user_003",
+        "rating": 3,
+        "content": "商品本身没有大问题，但如果属于对噪音敏感用户，体验就一般了，建议按自己的实际需求选。"
+      }
+    ]
+  }
+}

@@ -1,0 +1,226 @@
+{
+  "product_id": "p_mom_toy_001",
+  "data_version": "v1",
+  "source_type": "synthetic_desensitized",
+  "status": "active",
+  "title": "Fisher-Price 布书早教玩具",
+  "brand": "Fisher-Price",
+  "category": "母婴用品",
+  "sub_category": "早教玩具",
+  "category_path": [
+    "母婴用品",
+    "早教玩具"
+  ],
+  "price_info": {
+    "currency": "CNY",
+    "base_price": 49.0,
+    "price_range": [
+      49.0,
+      54.0
+    ],
+    "promotion": null
+  },
+  "skus": [
+    {
+      "sku_id": "s_p_mom_toy_001_1",
+      "properties": {
+        "适用年龄": "0-1岁",
+        "颜色": "白色",
+        "版本": "标准版"
+      },
+      "price": 49.0,
+      "inventory": {
+        "available": true,
+        "stock_level": "unknown"
+      }
+    },
+    {
+      "sku_id": "s_p_mom_toy_001_2",
+      "properties": {
+        "适用年龄": "1-2岁",
+        "颜色": "深灰色",
+        "版本": "升级版"
+      },
+      "price": 54.0,
+      "inventory": {
+        "available": true,
+        "stock_level": "unknown"
+      }
+    }
+  ],
+  "image": {
+    "path": "mom_baby/images/p_mom_toy_001_main.jpg",
+    "role": "main",
+    "caption": "Fisher-Price 布书早教玩具 的占位商品主图，用于开发阶段展示商品类型和标题。",
+    "visual_tags": [
+      "母婴用品",
+      "早教玩具",
+      "占位图",
+      "主图"
+    ]
+  },
+  "attributes": {
+    "适用人群": [
+      "亲子互动家庭",
+      "低龄儿童",
+      "送礼用户"
+    ],
+    "使用场景": [
+      "亲子陪伴",
+      "感官启蒙",
+      "生日送礼"
+    ],
+    "核心卖点": [
+      "柔软安全",
+      "感官启蒙",
+      "可清洗"
+    ],
+    "不适合": [
+      "大龄儿童",
+      "需要复杂玩法用户"
+    ],
+    "注意事项": [
+      "使用前需检查缝线和小部件"
+    ]
+  },
+  "pros_cons": {
+    "pros": [
+      "柔软安全",
+      "感官启蒙"
+    ],
+    "cons": [
+      "大龄儿童",
+      "使用前需检查缝线和小部件"
+    ]
+  },
+  "decision_factors": {
+    "recommend_when": [
+      "柔软安全",
+      "感官启蒙"
+    ],
+    "avoid_when": [
+      "大龄儿童",
+      "需要复杂玩法用户"
+    ],
+    "compare_with": [
+      "p_mom_toy_002",
+      "p_mom_toy_003"
+    ]
+  },
+  "content_blocks": [
+    {
+      "block_id": "p_mom_toy_001_spec_001",
+      "block_type": "spec",
+      "title": "规格与价格",
+      "content": "Fisher-Price 布书早教玩具 属于母婴用品/早教玩具，品牌为Fisher-Price，价格范围为 49.0-54.0 CNY，共 2 个 SKU。",
+      "keywords": [
+        "规格",
+        "价格",
+        "SKU"
+      ]
+    },
+    {
+      "block_id": "p_mom_toy_001_selling_point_001",
+      "block_type": "selling_point",
+      "title": "商品详情介绍",
+      "content": "Fisher-Price 布书早教玩具 是母婴用品/早教玩具下的商品详情页数据。它的核心特点包括柔软安全、感官启蒙、可清洗，适合亲子陪伴、感官启蒙、生日送礼。导购时需要同时说明优势和限制，尤其要提醒使用前需检查缝线和小部件。",
+      "keywords": [
+        "详情页",
+        "卖点",
+        "商品介绍"
+      ]
+    },
+    {
+      "block_id": "p_mom_toy_001_scenario_001",
+      "block_type": "scenario",
+      "title": "适用场景",
+      "content": "Fisher-Price 布书早教玩具 适合亲子互动家庭、低龄儿童、送礼用户，常见使用场景包括亲子陪伴、感官启蒙、生日送礼。",
+      "keywords": [
+        "适用人群",
+        "使用场景",
+        "推荐"
+      ]
+    },
+    {
+      "block_id": "p_mom_toy_001_limitation_001",
+      "block_type": "limitation",
+      "title": "限制与注意事项",
+      "content": "Fisher-Price 布书早教玩具 不太适合大龄儿童、需要复杂玩法用户。购买前应注意：使用前需检查缝线和小部件。",
+      "keywords": [
+        "限制",
+        "注意事项",
+        "避坑"
+      ]
+    },
+    {
+      "block_id": "p_mom_toy_001_sku_001",
+      "block_type": "sku",
+      "title": "SKU 摘要",
+      "content": "Fisher-Price 布书早教玩具 当前包含 2 个 SKU，购买前应确认规格属性与实际需求一致。",
+      "keywords": [
+        "SKU",
+        "规格",
+        "价格"
+      ]
+    },
+    {
+      "block_id": "p_mom_toy_001_visual_001",
+      "block_type": "visual",
+      "title": "图片信息",
+      "content": "Fisher-Price 布书早教玩具 的占位商品主图，用于开发阶段展示商品类型和标题。",
+      "keywords": [
+        "图片",
+        "外观",
+        "视觉"
+      ]
+    }
+  ],
+  "review_summary": {
+    "rating_avg": 4.0,
+    "positive_points": [
+      "柔软安全",
+      "感官启蒙"
+    ],
+    "negative_points": [
+      "大龄儿童",
+      "使用前需检查缝线和小部件"
+    ],
+    "common_complaints": [
+      "大龄儿童"
+    ]
+  },
+  "raw_knowledge": {
+    "marketing_description": "Fisher-Price 布书早教玩具 是真实品牌 Fisher-Price 旗下的母婴用品/早教玩具商品，本数据集保留真实品牌与产品名，便于后续查找对应商品图片和构建商品详情页。导购信息经过脱敏和结构化整理，主要卖点包括柔软安全、感官启蒙、可清洗，适合亲子陪伴、感官启蒙。如果用户属于大龄儿童，推荐时需要结合限制条件谨慎判断。价格、SKU、评论和 FAQ 为比赛数据集模拟内容，不代表实时售价或真实用户反馈。",
+    "official_faq": [
+      {
+        "question": "Fisher-Price 布书早教玩具 适合哪些使用场景？",
+        "answer": "更适合亲子陪伴、感官启蒙，尤其适合亲子互动家庭、低龄儿童。如果属于大龄儿童这类情况，建议优先对比同类其他商品。"
+      },
+      {
+        "question": "Fisher-Price 布书早教玩具 有哪些规格可以选？",
+        "answer": "可选规格包括0-1岁、1-2岁等，价格区间约为 49-54 元。选择时建议结合预算、空间和使用频率判断。"
+      },
+      {
+        "question": "购买 Fisher-Price 布书早教玩具 前需要注意什么？",
+        "answer": "需要注意使用前需检查缝线和小部件。如果对柔软安全有明确需求，这款会更合适；如果属于大龄儿童，则不建议盲目购买。"
+      }
+    ],
+    "user_reviews": [
+      {
+        "nickname": "user_001",
+        "rating": 5,
+        "content": "用了几天感觉柔软安全确实明显，放在亲子陪伴这个场景里比较合适，整体符合预期。"
+      },
+      {
+        "nickname": "user_002",
+        "rating": 4,
+        "content": "优点是感官启蒙，日常使用挺顺手。不过使用前需检查缝线和小部件，下单前最好确认清楚。"
+      },
+      {
+        "nickname": "user_003",
+        "rating": 3,
+        "content": "商品本身没有大问题，但如果属于大龄儿童，体验就一般了，建议按自己的实际需求选。"
+      }
+    ]
+  }
+}

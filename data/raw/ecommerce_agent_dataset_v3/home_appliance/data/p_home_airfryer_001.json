@@ -1,0 +1,226 @@
+{
+  "product_id": "p_home_airfryer_001",
+  "data_version": "v1",
+  "source_type": "synthetic_desensitized",
+  "status": "active",
+  "title": "美的 MF-KZC6502XM 空气炸锅",
+  "brand": "美的",
+  "category": "家用电器",
+  "sub_category": "厨房电器",
+  "category_path": [
+    "家用电器",
+    "厨房电器"
+  ],
+  "price_info": {
+    "currency": "CNY",
+    "base_price": 199.0,
+    "price_range": [
+      199.0,
+      209.0
+    ],
+    "promotion": null
+  },
+  "skus": [
+    {
+      "sku_id": "s_p_home_airfryer_001_1",
+      "properties": {
+        "容量": "6.5L",
+        "颜色": "米白色",
+        "控制方式": "触控"
+      },
+      "price": 199.0,
+      "inventory": {
+        "available": true,
+        "stock_level": "unknown"
+      }
+    },
+    {
+      "sku_id": "s_p_home_airfryer_001_2",
+      "properties": {
+        "容量": "6.5L",
+        "颜色": "深灰色",
+        "控制方式": "触控"
+      },
+      "price": 209.0,
+      "inventory": {
+        "available": true,
+        "stock_level": "unknown"
+      }
+    }
+  ],
+  "image": {
+    "path": "home_appliance/images/p_home_airfryer_001_main.jpg",
+    "role": "main",
+    "caption": "美的 MF-KZC6502XM 空气炸锅 的占位商品主图，用于开发阶段展示商品类型和标题。",
+    "visual_tags": [
+      "家用电器",
+      "厨房电器",
+      "占位图",
+      "主图"
+    ]
+  },
+  "attributes": {
+    "适用人群": [
+      "租房党",
+      "新手用户",
+      "单人或双人家庭"
+    ],
+    "使用场景": [
+      "单人做饭",
+      "小户型厨房",
+      "快手晚餐"
+    ],
+    "核心卖点": [
+      "容量适中",
+      "操作简单",
+      "价格低"
+    ],
+    "不适合": [
+      "大家庭",
+      "高频烘焙用户"
+    ],
+    "注意事项": [
+      "容量有限，不适合一次制作多人份食物"
+    ]
+  },
+  "pros_cons": {
+    "pros": [
+      "容量适中",
+      "操作简单"
+    ],
+    "cons": [
+      "大家庭",
+      "容量有限，不适合一次制作多人份食物"
+    ]
+  },
+  "decision_factors": {
+    "recommend_when": [
+      "容量适中",
+      "操作简单"
+    ],
+    "avoid_when": [
+      "大家庭",
+      "高频烘焙用户"
+    ],
+    "compare_with": [
+      "p_home_airfryer_002",
+      "p_home_airfryer_003"
+    ]
+  },
+  "content_blocks": [
+    {
+      "block_id": "p_home_airfryer_001_spec_001",
+      "block_type": "spec",
+      "title": "规格与价格",
+      "content": "美的 MF-KZC6502XM 空气炸锅 属于家用电器/厨房电器，品牌为美的，价格范围为 199.0-209.0 CNY，共 2 个 SKU。",
+      "keywords": [
+        "规格",
+        "价格",
+        "SKU"
+      ]
+    },
+    {
+      "block_id": "p_home_airfryer_001_selling_point_001",
+      "block_type": "selling_point",
+      "title": "商品详情介绍",
+      "content": "美的 MF-KZC6502XM 空气炸锅 是家用电器/厨房电器下的商品详情页数据。它的核心特点包括容量适中、操作简单、价格低，适合单人做饭、小户型厨房、快手晚餐。导购时需要同时说明优势和限制，尤其要提醒容量有限，不适合一次制作多人份食物。",
+      "keywords": [
+        "详情页",
+        "卖点",
+        "商品介绍"
+      ]
+    },
+    {
+      "block_id": "p_home_airfryer_001_scenario_001",
+      "block_type": "scenario",
+      "title": "适用场景",
+      "content": "美的 MF-KZC6502XM 空气炸锅 适合租房党、新手用户、单人或双人家庭，常见使用场景包括单人做饭、小户型厨房、快手晚餐。",
+      "keywords": [
+        "适用人群",
+        "使用场景",
+        "推荐"
+      ]
+    },
+    {
+      "block_id": "p_home_airfryer_001_limitation_001",
+      "block_type": "limitation",
+      "title": "限制与注意事项",
+      "content": "美的 MF-KZC6502XM 空气炸锅 不太适合大家庭、高频烘焙用户。购买前应注意：容量有限，不适合一次制作多人份食物。",
+      "keywords": [
+        "限制",
+        "注意事项",
+        "避坑"
+      ]
+    },
+    {
+      "block_id": "p_home_airfryer_001_sku_001",
+      "block_type": "sku",
+      "title": "SKU 摘要",
+      "content": "美的 MF-KZC6502XM 空气炸锅 当前包含 2 个 SKU，购买前应确认规格属性与实际需求一致。",
+      "keywords": [
+        "SKU",
+        "规格",
+        "价格"
+      ]
+    },
+    {
+      "block_id": "p_home_airfryer_001_visual_001",
+      "block_type": "visual",
+      "title": "图片信息",
+      "content": "美的 MF-KZC6502XM 空气炸锅 的占位商品主图，用于开发阶段展示商品类型和标题。",
+      "keywords": [
+        "图片",
+        "外观",
+        "视觉"
+      ]
+    }
+  ],
+  "review_summary": {
+    "rating_avg": 4.0,
+    "positive_points": [
+      "容量适中",
+      "操作简单"
+    ],
+    "negative_points": [
+      "大家庭",
+      "容量有限，不适合一次制作多人份食物"
+    ],
+    "common_complaints": [
+      "大家庭"
+    ]
+  },
+  "raw_knowledge": {
+    "marketing_description": "美的 MF-KZC6502XM 空气炸锅 是真实品牌 美的 旗下的家用电器/厨房电器商品，本数据集保留真实品牌与产品名，便于后续查找对应商品图片和构建商品详情页。导购信息经过脱敏和结构化整理，主要卖点包括容量适中、操作简单、价格低，适合单人做饭、小户型厨房。如果用户属于大家庭，推荐时需要结合限制条件谨慎判断。价格、SKU、评论和 FAQ 为比赛数据集模拟内容，不代表实时售价或真实用户反馈。",
+    "official_faq": [
+      {
+        "question": "美的 MF-KZC6502XM 空气炸锅 适合哪些使用场景？",
+        "answer": "更适合单人做饭、小户型厨房，尤其适合租房党、新手用户。如果属于大家庭这类情况，建议优先对比同类其他商品。"
+      },
+      {
+        "question": "美的 MF-KZC6502XM 空气炸锅 有哪些规格可以选？",
+        "answer": "可选规格包括6.5L等，价格区间约为 199-209 元。选择时建议结合预算、空间和使用频率判断。"
+      },
+      {
+        "question": "购买 美的 MF-KZC6502XM 空气炸锅 前需要注意什么？",
+        "answer": "需要注意容量有限，不适合一次制作多人份食物。如果对容量适中有明确需求，这款会更合适；如果属于大家庭，则不建议盲目购买。"
+      }
+    ],
+    "user_reviews": [
+      {
+        "nickname": "user_001",
+        "rating": 5,
+        "content": "用了几天感觉容量适中确实明显，放在单人做饭这个场景里比较合适，整体符合预期。"
+      },
+      {
+        "nickname": "user_002",
+        "rating": 4,
+        "content": "优点是操作简单，日常使用挺顺手。不过容量有限，不适合一次制作多人份食物，下单前最好确认清楚。"
+      },
+      {
+        "nickname": "user_003",
+        "rating": 3,
+        "content": "商品本身没有大问题，但如果属于大家庭，体验就一般了，建议按自己的实际需求选。"
+      }
+    ]
+  }
+}

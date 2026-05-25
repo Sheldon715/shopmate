@@ -1,0 +1,226 @@
+{
+  "product_id": "p_office_keyboard_002",
+  "data_version": "v1",
+  "source_type": "synthetic_desensitized",
+  "status": "active",
+  "title": "Logitech K380 多设备蓝牙键盘",
+  "brand": "罗技",
+  "category": "办公学习",
+  "sub_category": "办公外设",
+  "category_path": [
+    "办公学习",
+    "办公外设"
+  ],
+  "price_info": {
+    "currency": "CNY",
+    "base_price": 79.0,
+    "price_range": [
+      79.0,
+      89.0
+    ],
+    "promotion": null
+  },
+  "skus": [
+    {
+      "sku_id": "s_p_office_keyboard_002_1",
+      "properties": {
+        "布局": "104键",
+        "颜色": "黑色",
+        "连接方式": "有线"
+      },
+      "price": 79.0,
+      "inventory": {
+        "available": true,
+        "stock_level": "unknown"
+      }
+    },
+    {
+      "sku_id": "s_p_office_keyboard_002_2",
+      "properties": {
+        "布局": "104键",
+        "颜色": "白色",
+        "连接方式": "有线"
+      },
+      "price": 89.0,
+      "inventory": {
+        "available": true,
+        "stock_level": "unknown"
+      }
+    }
+  ],
+  "image": {
+    "path": "office_study/images/p_office_keyboard_002_main.jpg",
+    "role": "main",
+    "caption": "Logitech K380 多设备蓝牙键盘 的占位商品主图，用于开发阶段展示商品类型和标题。",
+    "visual_tags": [
+      "办公学习",
+      "办公外设",
+      "占位图",
+      "主图"
+    ]
+  },
+  "attributes": {
+    "适用人群": [
+      "办公室人群",
+      "宿舍用户",
+      "预算有限用户"
+    ],
+    "使用场景": [
+      "文档录入",
+      "安静办公",
+      "学习使用"
+    ],
+    "核心卖点": [
+      "声音更低",
+      "价格低",
+      "上手简单"
+    ],
+    "不适合": [
+      "追求机械手感用户",
+      "游戏高频用户"
+    ],
+    "注意事项": [
+      "按键手感偏软，长时间高速输入反馈不如机械键盘"
+    ]
+  },
+  "pros_cons": {
+    "pros": [
+      "声音更低",
+      "价格低"
+    ],
+    "cons": [
+      "追求机械手感用户",
+      "按键手感偏软，长时间高速输入反馈不如机械键盘"
+    ]
+  },
+  "decision_factors": {
+    "recommend_when": [
+      "声音更低",
+      "价格低"
+    ],
+    "avoid_when": [
+      "追求机械手感用户",
+      "游戏高频用户"
+    ],
+    "compare_with": [
+      "p_office_keyboard_001",
+      "p_office_keyboard_003"
+    ]
+  },
+  "content_blocks": [
+    {
+      "block_id": "p_office_keyboard_002_spec_001",
+      "block_type": "spec",
+      "title": "规格与价格",
+      "content": "Logitech K380 多设备蓝牙键盘 属于办公学习/办公外设，品牌为罗技，价格范围为 79.0-89.0 CNY，共 2 个 SKU。",
+      "keywords": [
+        "规格",
+        "价格",
+        "SKU"
+      ]
+    },
+    {
+      "block_id": "p_office_keyboard_002_selling_point_001",
+      "block_type": "selling_point",
+      "title": "商品详情介绍",
+      "content": "Logitech K380 多设备蓝牙键盘 是办公学习/办公外设下的商品详情页数据。它的核心特点包括声音更低、价格低、上手简单，适合文档录入、安静办公、学习使用。导购时需要同时说明优势和限制，尤其要提醒按键手感偏软，长时间高速输入反馈不如机械键盘。",
+      "keywords": [
+        "详情页",
+        "卖点",
+        "商品介绍"
+      ]
+    },
+    {
+      "block_id": "p_office_keyboard_002_scenario_001",
+      "block_type": "scenario",
+      "title": "适用场景",
+      "content": "Logitech K380 多设备蓝牙键盘 适合办公室人群、宿舍用户、预算有限用户，常见使用场景包括文档录入、安静办公、学习使用。",
+      "keywords": [
+        "适用人群",
+        "使用场景",
+        "推荐"
+      ]
+    },
+    {
+      "block_id": "p_office_keyboard_002_limitation_001",
+      "block_type": "limitation",
+      "title": "限制与注意事项",
+      "content": "Logitech K380 多设备蓝牙键盘 不太适合追求机械手感用户、游戏高频用户。购买前应注意：按键手感偏软，长时间高速输入反馈不如机械键盘。",
+      "keywords": [
+        "限制",
+        "注意事项",
+        "避坑"
+      ]
+    },
+    {
+      "block_id": "p_office_keyboard_002_sku_001",
+      "block_type": "sku",
+      "title": "SKU 摘要",
+      "content": "Logitech K380 多设备蓝牙键盘 当前包含 2 个 SKU，购买前应确认规格属性与实际需求一致。",
+      "keywords": [
+        "SKU",
+        "规格",
+        "价格"
+      ]
+    },
+    {
+      "block_id": "p_office_keyboard_002_visual_001",
+      "block_type": "visual",
+      "title": "图片信息",
+      "content": "Logitech K380 多设备蓝牙键盘 的占位商品主图，用于开发阶段展示商品类型和标题。",
+      "keywords": [
+        "图片",
+        "外观",
+        "视觉"
+      ]
+    }
+  ],
+  "review_summary": {
+    "rating_avg": 4.0,
+    "positive_points": [
+      "声音更低",
+      "价格低"
+    ],
+    "negative_points": [
+      "追求机械手感用户",
+      "按键手感偏软，长时间高速输入反馈不如机械键盘"
+    ],
+    "common_complaints": [
+      "追求机械手感用户"
+    ]
+  },
+  "raw_knowledge": {
+    "marketing_description": "Logitech K380 多设备蓝牙键盘 是真实品牌 罗技 旗下的办公学习/办公外设商品，本数据集保留真实品牌与产品名，便于后续查找对应商品图片和构建商品详情页。导购信息经过脱敏和结构化整理，主要卖点包括声音更低、价格低、上手简单，适合文档录入、安静办公。如果用户属于追求机械手感用户，推荐时需要结合限制条件谨慎判断。价格、SKU、评论和 FAQ 为比赛数据集模拟内容，不代表实时售价或真实用户反馈。",
+    "official_faq": [
+      {
+        "question": "Logitech K380 多设备蓝牙键盘 适合哪些使用场景？",
+        "answer": "更适合文档录入、安静办公，尤其适合办公室人群、宿舍用户。如果属于追求机械手感用户这类情况，建议优先对比同类其他商品。"
+      },
+      {
+        "question": "Logitech K380 多设备蓝牙键盘 有哪些规格可以选？",
+        "answer": "可选规格包括104键等，价格区间约为 79-89 元。选择时建议结合预算、空间和使用频率判断。"
+      },
+      {
+        "question": "购买 Logitech K380 多设备蓝牙键盘 前需要注意什么？",
+        "answer": "需要注意按键手感偏软，长时间高速输入反馈不如机械键盘。如果对声音更低有明确需求，这款会更合适；如果属于追求机械手感用户，则不建议盲目购买。"
+      }
+    ],
+    "user_reviews": [
+      {
+        "nickname": "user_001",
+        "rating": 5,
+        "content": "用了几天感觉声音更低确实明显，放在文档录入这个场景里比较合适，整体符合预期。"
+      },
+      {
+        "nickname": "user_002",
+        "rating": 4,
+        "content": "优点是价格低，日常使用挺顺手。不过按键手感偏软，长时间高速输入反馈不如机械键盘，下单前最好确认清楚。"
+      },
+      {
+        "nickname": "user_003",
+        "rating": 3,
+        "content": "商品本身没有大问题，但如果属于追求机械手感用户，体验就一般了，建议按自己的实际需求选。"
+      }
+    ]
+  }
+}

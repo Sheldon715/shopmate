@@ -1,0 +1,226 @@
+{
+  "product_id": "p_home_water_003",
+  "data_version": "v1",
+  "source_type": "synthetic_desensitized",
+  "status": "active",
+  "title": "苏泊尔 SW-15YJ33 养生壶",
+  "brand": "苏泊尔",
+  "category": "家用电器",
+  "sub_category": "饮水电器",
+  "category_path": [
+    "家用电器",
+    "饮水电器"
+  ],
+  "price_info": {
+    "currency": "CNY",
+    "base_price": 199.0,
+    "price_range": [
+      199.0,
+      222.0
+    ],
+    "promotion": null
+  },
+  "skus": [
+    {
+      "sku_id": "s_p_home_water_003_1",
+      "properties": {
+        "容量": "1.5L",
+        "颜色": "白色",
+        "功能": "恒温"
+      },
+      "price": 199.0,
+      "inventory": {
+        "available": true,
+        "stock_level": "unknown"
+      }
+    },
+    {
+      "sku_id": "s_p_home_water_003_2",
+      "properties": {
+        "容量": "1.5L",
+        "颜色": "粉色",
+        "功能": "恒温"
+      },
+      "price": 222.0,
+      "inventory": {
+        "available": true,
+        "stock_level": "unknown"
+      }
+    }
+  ],
+  "image": {
+    "path": "home_appliance/images/p_home_water_003_main.jpg",
+    "role": "main",
+    "caption": "苏泊尔 SW-15YJ33 养生壶 的占位商品主图，用于开发阶段展示商品类型和标题。",
+    "visual_tags": [
+      "家用电器",
+      "饮水电器",
+      "占位图",
+      "主图"
+    ]
+  },
+  "attributes": {
+    "适用人群": [
+      "家庭用户",
+      "办公室人群",
+      "关注饮水便利的人群"
+    ],
+    "使用场景": [
+      "日常饮水",
+      "泡茶冲咖啡",
+      "办公室补水"
+    ],
+    "核心卖点": [
+      "保温方便",
+      "适合泡茶",
+      "价格适中"
+    ],
+    "不适合": [
+      "多人连续大量用水",
+      "需要过滤功能用户"
+    ],
+    "注意事项": [
+      "不具备净水能力，需要配合干净水源"
+    ]
+  },
+  "pros_cons": {
+    "pros": [
+      "保温方便",
+      "适合泡茶"
+    ],
+    "cons": [
+      "多人连续大量用水",
+      "不具备净水能力，需要配合干净水源"
+    ]
+  },
+  "decision_factors": {
+    "recommend_when": [
+      "保温方便",
+      "适合泡茶"
+    ],
+    "avoid_when": [
+      "多人连续大量用水",
+      "需要过滤功能用户"
+    ],
+    "compare_with": [
+      "p_home_water_001",
+      "p_home_water_002"
+    ]
+  },
+  "content_blocks": [
+    {
+      "block_id": "p_home_water_003_spec_001",
+      "block_type": "spec",
+      "title": "规格与价格",
+      "content": "苏泊尔 SW-15YJ33 养生壶 属于家用电器/饮水电器，品牌为苏泊尔，价格范围为 199.0-222.0 CNY，共 2 个 SKU。",
+      "keywords": [
+        "规格",
+        "价格",
+        "SKU"
+      ]
+    },
+    {
+      "block_id": "p_home_water_003_selling_point_001",
+      "block_type": "selling_point",
+      "title": "商品详情介绍",
+      "content": "苏泊尔 SW-15YJ33 养生壶 是家用电器/饮水电器下的商品详情页数据。它的核心特点包括保温方便、适合泡茶、价格适中，适合日常饮水、泡茶冲咖啡、办公室补水。导购时需要同时说明优势和限制，尤其要提醒不具备净水能力，需要配合干净水源。",
+      "keywords": [
+        "详情页",
+        "卖点",
+        "商品介绍"
+      ]
+    },
+    {
+      "block_id": "p_home_water_003_scenario_001",
+      "block_type": "scenario",
+      "title": "适用场景",
+      "content": "苏泊尔 SW-15YJ33 养生壶 适合家庭用户、办公室人群、关注饮水便利的人群，常见使用场景包括日常饮水、泡茶冲咖啡、办公室补水。",
+      "keywords": [
+        "适用人群",
+        "使用场景",
+        "推荐"
+      ]
+    },
+    {
+      "block_id": "p_home_water_003_limitation_001",
+      "block_type": "limitation",
+      "title": "限制与注意事项",
+      "content": "苏泊尔 SW-15YJ33 养生壶 不太适合多人连续大量用水、需要过滤功能用户。购买前应注意：不具备净水能力，需要配合干净水源。",
+      "keywords": [
+        "限制",
+        "注意事项",
+        "避坑"
+      ]
+    },
+    {
+      "block_id": "p_home_water_003_sku_001",
+      "block_type": "sku",
+      "title": "SKU 摘要",
+      "content": "苏泊尔 SW-15YJ33 养生壶 当前包含 2 个 SKU，购买前应确认规格属性与实际需求一致。",
+      "keywords": [
+        "SKU",
+        "规格",
+        "价格"
+      ]
+    },
+    {
+      "block_id": "p_home_water_003_visual_001",
+      "block_type": "visual",
+      "title": "图片信息",
+      "content": "苏泊尔 SW-15YJ33 养生壶 的占位商品主图，用于开发阶段展示商品类型和标题。",
+      "keywords": [
+        "图片",
+        "外观",
+        "视觉"
+      ]
+    }
+  ],
+  "review_summary": {
+    "rating_avg": 4.0,
+    "positive_points": [
+      "保温方便",
+      "适合泡茶"
+    ],
+    "negative_points": [
+      "多人连续大量用水",
+      "不具备净水能力，需要配合干净水源"
+    ],
+    "common_complaints": [
+      "多人连续大量用水"
+    ]
+  },
+  "raw_knowledge": {
+    "marketing_description": "苏泊尔 SW-15YJ33 养生壶 是真实品牌 苏泊尔 旗下的家用电器/饮水电器商品，本数据集保留真实品牌与产品名，便于后续查找对应商品图片和构建商品详情页。导购信息经过脱敏和结构化整理，主要卖点包括保温方便、适合泡茶、价格适中，适合日常饮水、泡茶冲咖啡。如果用户属于多人连续大量用水，推荐时需要结合限制条件谨慎判断。价格、SKU、评论和 FAQ 为比赛数据集模拟内容，不代表实时售价或真实用户反馈。",
+    "official_faq": [
+      {
+        "question": "苏泊尔 SW-15YJ33 养生壶 适合哪些使用场景？",
+        "answer": "更适合日常饮水、泡茶冲咖啡，尤其适合家庭用户、办公室人群。如果属于多人连续大量用水这类情况，建议优先对比同类其他商品。"
+      },
+      {
+        "question": "苏泊尔 SW-15YJ33 养生壶 有哪些规格可以选？",
+        "answer": "可选规格包括1.5L等，价格区间约为 199-222 元。选择时建议结合预算、空间和使用频率判断。"
+      },
+      {
+        "question": "购买 苏泊尔 SW-15YJ33 养生壶 前需要注意什么？",
+        "answer": "需要注意不具备净水能力，需要配合干净水源。如果对保温方便有明确需求，这款会更合适；如果属于多人连续大量用水，则不建议盲目购买。"
+      }
+    ],
+    "user_reviews": [
+      {
+        "nickname": "user_001",
+        "rating": 5,
+        "content": "用了几天感觉保温方便确实明显，放在日常饮水这个场景里比较合适，整体符合预期。"
+      },
+      {
+        "nickname": "user_002",
+        "rating": 4,
+        "content": "优点是适合泡茶，日常使用挺顺手。不过不具备净水能力，需要配合干净水源，下单前最好确认清楚。"
+      },
+      {
+        "nickname": "user_003",
+        "rating": 3,
+        "content": "商品本身没有大问题，但如果属于多人连续大量用水，体验就一般了，建议按自己的实际需求选。"
+      }
+    ]
+  }
+}

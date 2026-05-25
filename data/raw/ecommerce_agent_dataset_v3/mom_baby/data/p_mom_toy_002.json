@@ -1,0 +1,226 @@
+{
+  "product_id": "p_mom_toy_002",
+  "data_version": "v1",
+  "source_type": "synthetic_desensitized",
+  "status": "active",
+  "title": "Munchkin 叠叠杯玩具",
+  "brand": "Munchkin",
+  "category": "母婴用品",
+  "sub_category": "早教玩具",
+  "category_path": [
+    "母婴用品",
+    "早教玩具"
+  ],
+  "price_info": {
+    "currency": "CNY",
+    "base_price": 39.0,
+    "price_range": [
+      39.0,
+      43.0
+    ],
+    "promotion": null
+  },
+  "skus": [
+    {
+      "sku_id": "s_p_mom_toy_002_1",
+      "properties": {
+        "适用年龄": "6只装",
+        "颜色": "白色",
+        "版本": "标准版"
+      },
+      "price": 39.0,
+      "inventory": {
+        "available": true,
+        "stock_level": "unknown"
+      }
+    },
+    {
+      "sku_id": "s_p_mom_toy_002_2",
+      "properties": {
+        "适用年龄": "10只装",
+        "颜色": "深灰色",
+        "版本": "升级版"
+      },
+      "price": 43.0,
+      "inventory": {
+        "available": true,
+        "stock_level": "unknown"
+      }
+    }
+  ],
+  "image": {
+    "path": "mom_baby/images/p_mom_toy_002_main.jpg",
+    "role": "main",
+    "caption": "Munchkin 叠叠杯玩具 的占位商品主图，用于开发阶段展示商品类型和标题。",
+    "visual_tags": [
+      "母婴用品",
+      "早教玩具",
+      "占位图",
+      "主图"
+    ]
+  },
+  "attributes": {
+    "适用人群": [
+      "亲子互动家庭",
+      "低龄儿童",
+      "送礼用户"
+    ],
+    "使用场景": [
+      "亲子陪伴",
+      "感官启蒙",
+      "生日送礼"
+    ],
+    "核心卖点": [
+      "颜色认知",
+      "堆叠训练",
+      "价格低"
+    ],
+    "不适合": [
+      "追求电子互动用户",
+      "大龄儿童"
+    ],
+    "注意事项": [
+      "玩耍后需及时收纳避免踩踏"
+    ]
+  },
+  "pros_cons": {
+    "pros": [
+      "颜色认知",
+      "堆叠训练"
+    ],
+    "cons": [
+      "追求电子互动用户",
+      "玩耍后需及时收纳避免踩踏"
+    ]
+  },
+  "decision_factors": {
+    "recommend_when": [
+      "颜色认知",
+      "堆叠训练"
+    ],
+    "avoid_when": [
+      "追求电子互动用户",
+      "大龄儿童"
+    ],
+    "compare_with": [
+      "p_mom_toy_001",
+      "p_mom_toy_003"
+    ]
+  },
+  "content_blocks": [
+    {
+      "block_id": "p_mom_toy_002_spec_001",
+      "block_type": "spec",
+      "title": "规格与价格",
+      "content": "Munchkin 叠叠杯玩具 属于母婴用品/早教玩具，品牌为Munchkin，价格范围为 39.0-43.0 CNY，共 2 个 SKU。",
+      "keywords": [
+        "规格",
+        "价格",
+        "SKU"
+      ]
+    },
+    {
+      "block_id": "p_mom_toy_002_selling_point_001",
+      "block_type": "selling_point",
+      "title": "商品详情介绍",
+      "content": "Munchkin 叠叠杯玩具 是母婴用品/早教玩具下的商品详情页数据。它的核心特点包括颜色认知、堆叠训练、价格低，适合亲子陪伴、感官启蒙、生日送礼。导购时需要同时说明优势和限制，尤其要提醒玩耍后需及时收纳避免踩踏。",
+      "keywords": [
+        "详情页",
+        "卖点",
+        "商品介绍"
+      ]
+    },
+    {
+      "block_id": "p_mom_toy_002_scenario_001",
+      "block_type": "scenario",
+      "title": "适用场景",
+      "content": "Munchkin 叠叠杯玩具 适合亲子互动家庭、低龄儿童、送礼用户，常见使用场景包括亲子陪伴、感官启蒙、生日送礼。",
+      "keywords": [
+        "适用人群",
+        "使用场景",
+        "推荐"
+      ]
+    },
+    {
+      "block_id": "p_mom_toy_002_limitation_001",
+      "block_type": "limitation",
+      "title": "限制与注意事项",
+      "content": "Munchkin 叠叠杯玩具 不太适合追求电子互动用户、大龄儿童。购买前应注意：玩耍后需及时收纳避免踩踏。",
+      "keywords": [
+        "限制",
+        "注意事项",
+        "避坑"
+      ]
+    },
+    {
+      "block_id": "p_mom_toy_002_sku_001",
+      "block_type": "sku",
+      "title": "SKU 摘要",
+      "content": "Munchkin 叠叠杯玩具 当前包含 2 个 SKU，购买前应确认规格属性与实际需求一致。",
+      "keywords": [
+        "SKU",
+        "规格",
+        "价格"
+      ]
+    },
+    {
+      "block_id": "p_mom_toy_002_visual_001",
+      "block_type": "visual",
+      "title": "图片信息",
+      "content": "Munchkin 叠叠杯玩具 的占位商品主图，用于开发阶段展示商品类型和标题。",
+      "keywords": [
+        "图片",
+        "外观",
+        "视觉"
+      ]
+    }
+  ],
+  "review_summary": {
+    "rating_avg": 4.0,
+    "positive_points": [
+      "颜色认知",
+      "堆叠训练"
+    ],
+    "negative_points": [
+      "追求电子互动用户",
+      "玩耍后需及时收纳避免踩踏"
+    ],
+    "common_complaints": [
+      "追求电子互动用户"
+    ]
+  },
+  "raw_knowledge": {
+    "marketing_description": "Munchkin 叠叠杯玩具 是真实品牌 Munchkin 旗下的母婴用品/早教玩具商品，本数据集保留真实品牌与产品名，便于后续查找对应商品图片和构建商品详情页。导购信息经过脱敏和结构化整理，主要卖点包括颜色认知、堆叠训练、价格低，适合亲子陪伴、感官启蒙。如果用户属于追求电子互动用户，推荐时需要结合限制条件谨慎判断。价格、SKU、评论和 FAQ 为比赛数据集模拟内容，不代表实时售价或真实用户反馈。",
+    "official_faq": [
+      {
+        "question": "Munchkin 叠叠杯玩具 适合哪些使用场景？",
+        "answer": "更适合亲子陪伴、感官启蒙，尤其适合亲子互动家庭、低龄儿童。如果属于追求电子互动用户这类情况，建议优先对比同类其他商品。"
+      },
+      {
+        "question": "Munchkin 叠叠杯玩具 有哪些规格可以选？",
+        "answer": "可选规格包括6只装、10只装等，价格区间约为 39-43 元。选择时建议结合预算、空间和使用频率判断。"
+      },
+      {
+        "question": "购买 Munchkin 叠叠杯玩具 前需要注意什么？",
+        "answer": "需要注意玩耍后需及时收纳避免踩踏。如果对颜色认知有明确需求，这款会更合适；如果属于追求电子互动用户，则不建议盲目购买。"
+      }
+    ],
+    "user_reviews": [
+      {
+        "nickname": "user_001",
+        "rating": 5,
+        "content": "用了几天感觉颜色认知确实明显，放在亲子陪伴这个场景里比较合适，整体符合预期。"
+      },
+      {
+        "nickname": "user_002",
+        "rating": 4,
+        "content": "优点是堆叠训练，日常使用挺顺手。不过玩耍后需及时收纳避免踩踏，下单前最好确认清楚。"
+      },
+      {
+        "nickname": "user_003",
+        "rating": 3,
+        "content": "商品本身没有大问题，但如果属于追求电子互动用户，体验就一般了，建议按自己的实际需求选。"
+      }
+    ]
+  }
+}

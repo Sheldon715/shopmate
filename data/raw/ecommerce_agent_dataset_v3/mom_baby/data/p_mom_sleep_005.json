@@ -1,0 +1,226 @@
+{
+  "product_id": "p_mom_sleep_005",
+  "data_version": "v1",
+  "source_type": "synthetic_desensitized",
+  "status": "active",
+  "title": "PurCotton 婴儿隔尿垫",
+  "brand": "全棉时代",
+  "category": "母婴用品",
+  "sub_category": "婴童寝居",
+  "category_path": [
+    "母婴用品",
+    "婴童寝居"
+  ],
+  "price_info": {
+    "currency": "CNY",
+    "base_price": 49.0,
+    "price_range": [
+      49.0,
+      54.0
+    ],
+    "promotion": null
+  },
+  "skus": [
+    {
+      "sku_id": "s_p_mom_sleep_005_1",
+      "properties": {
+        "尺码": "小号",
+        "颜色": "白色",
+        "版本": "标准版"
+      },
+      "price": 49.0,
+      "inventory": {
+        "available": true,
+        "stock_level": "unknown"
+      }
+    },
+    {
+      "sku_id": "s_p_mom_sleep_005_2",
+      "properties": {
+        "尺码": "大号",
+        "颜色": "深灰色",
+        "版本": "升级版"
+      },
+      "price": 54.0,
+      "inventory": {
+        "available": true,
+        "stock_level": "unknown"
+      }
+    }
+  ],
+  "image": {
+    "path": "mom_baby/images/p_mom_sleep_005_main.jpg",
+    "role": "main",
+    "caption": "PurCotton 婴儿隔尿垫 的占位商品主图，用于开发阶段展示商品类型和标题。",
+    "visual_tags": [
+      "母婴用品",
+      "婴童寝居",
+      "占位图",
+      "主图"
+    ]
+  },
+  "attributes": {
+    "适用人群": [
+      "新手父母",
+      "0-3岁婴幼儿家庭",
+      "换季保暖需求用户"
+    ],
+    "使用场景": [
+      "夜间睡眠",
+      "午睡",
+      "换季保暖"
+    ],
+    "核心卖点": [
+      "防水",
+      "可机洗",
+      "适合换尿布"
+    ],
+    "不适合": [
+      "追求纯棉单层触感用户",
+      "大面积床铺覆盖需求"
+    ],
+    "注意事项": [
+      "防水层不宜高温烘干"
+    ]
+  },
+  "pros_cons": {
+    "pros": [
+      "防水",
+      "可机洗"
+    ],
+    "cons": [
+      "追求纯棉单层触感用户",
+      "防水层不宜高温烘干"
+    ]
+  },
+  "decision_factors": {
+    "recommend_when": [
+      "防水",
+      "可机洗"
+    ],
+    "avoid_when": [
+      "追求纯棉单层触感用户",
+      "大面积床铺覆盖需求"
+    ],
+    "compare_with": [
+      "p_mom_sleep_001",
+      "p_mom_sleep_002"
+    ]
+  },
+  "content_blocks": [
+    {
+      "block_id": "p_mom_sleep_005_spec_001",
+      "block_type": "spec",
+      "title": "规格与价格",
+      "content": "PurCotton 婴儿隔尿垫 属于母婴用品/婴童寝居，品牌为全棉时代，价格范围为 49.0-54.0 CNY，共 2 个 SKU。",
+      "keywords": [
+        "规格",
+        "价格",
+        "SKU"
+      ]
+    },
+    {
+      "block_id": "p_mom_sleep_005_selling_point_001",
+      "block_type": "selling_point",
+      "title": "商品详情介绍",
+      "content": "PurCotton 婴儿隔尿垫 是母婴用品/婴童寝居下的商品详情页数据。它的核心特点包括防水、可机洗、适合换尿布，适合夜间睡眠、午睡、换季保暖。导购时需要同时说明优势和限制，尤其要提醒防水层不宜高温烘干。",
+      "keywords": [
+        "详情页",
+        "卖点",
+        "商品介绍"
+      ]
+    },
+    {
+      "block_id": "p_mom_sleep_005_scenario_001",
+      "block_type": "scenario",
+      "title": "适用场景",
+      "content": "PurCotton 婴儿隔尿垫 适合新手父母、0-3岁婴幼儿家庭、换季保暖需求用户，常见使用场景包括夜间睡眠、午睡、换季保暖。",
+      "keywords": [
+        "适用人群",
+        "使用场景",
+        "推荐"
+      ]
+    },
+    {
+      "block_id": "p_mom_sleep_005_limitation_001",
+      "block_type": "limitation",
+      "title": "限制与注意事项",
+      "content": "PurCotton 婴儿隔尿垫 不太适合追求纯棉单层触感用户、大面积床铺覆盖需求。购买前应注意：防水层不宜高温烘干。",
+      "keywords": [
+        "限制",
+        "注意事项",
+        "避坑"
+      ]
+    },
+    {
+      "block_id": "p_mom_sleep_005_sku_001",
+      "block_type": "sku",
+      "title": "SKU 摘要",
+      "content": "PurCotton 婴儿隔尿垫 当前包含 2 个 SKU，购买前应确认规格属性与实际需求一致。",
+      "keywords": [
+        "SKU",
+        "规格",
+        "价格"
+      ]
+    },
+    {
+      "block_id": "p_mom_sleep_005_visual_001",
+      "block_type": "visual",
+      "title": "图片信息",
+      "content": "PurCotton 婴儿隔尿垫 的占位商品主图，用于开发阶段展示商品类型和标题。",
+      "keywords": [
+        "图片",
+        "外观",
+        "视觉"
+      ]
+    }
+  ],
+  "review_summary": {
+    "rating_avg": 4.0,
+    "positive_points": [
+      "防水",
+      "可机洗"
+    ],
+    "negative_points": [
+      "追求纯棉单层触感用户",
+      "防水层不宜高温烘干"
+    ],
+    "common_complaints": [
+      "追求纯棉单层触感用户"
+    ]
+  },
+  "raw_knowledge": {
+    "marketing_description": "PurCotton 婴儿隔尿垫 是真实品牌 全棉时代 旗下的母婴用品/婴童寝居商品，本数据集保留真实品牌与产品名，便于后续查找对应商品图片和构建商品详情页。导购信息经过脱敏和结构化整理，主要卖点包括防水、可机洗、适合换尿布，适合夜间睡眠、午睡。如果用户属于追求纯棉单层触感用户，推荐时需要结合限制条件谨慎判断。价格、SKU、评论和 FAQ 为比赛数据集模拟内容，不代表实时售价或真实用户反馈。",
+    "official_faq": [
+      {
+        "question": "PurCotton 婴儿隔尿垫 适合哪些使用场景？",
+        "answer": "更适合夜间睡眠、午睡，尤其适合新手父母、0-3岁婴幼儿家庭。如果属于追求纯棉单层触感用户这类情况，建议优先对比同类其他商品。"
+      },
+      {
+        "question": "PurCotton 婴儿隔尿垫 有哪些规格可以选？",
+        "answer": "可选规格包括小号、大号等，价格区间约为 49-54 元。选择时建议结合预算、空间和使用频率判断。"
+      },
+      {
+        "question": "购买 PurCotton 婴儿隔尿垫 前需要注意什么？",
+        "answer": "需要注意防水层不宜高温烘干。如果对防水有明确需求，这款会更合适；如果属于追求纯棉单层触感用户，则不建议盲目购买。"
+      }
+    ],
+    "user_reviews": [
+      {
+        "nickname": "user_001",
+        "rating": 5,
+        "content": "用了几天感觉防水确实明显，放在夜间睡眠这个场景里比较合适，整体符合预期。"
+      },
+      {
+        "nickname": "user_002",
+        "rating": 4,
+        "content": "优点是可机洗，日常使用挺顺手。不过防水层不宜高温烘干，下单前最好确认清楚。"
+      },
+      {
+        "nickname": "user_003",
+        "rating": 3,
+        "content": "商品本身没有大问题，但如果属于追求纯棉单层触感用户，体验就一般了，建议按自己的实际需求选。"
+      }
+    ]
+  }
+}

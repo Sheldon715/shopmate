@@ -1,0 +1,12 @@
+{
+  "generated_at": "2026-05-25T15:14:05.230Z",
+  "source_dataset": "ecommerce_agent_dataset_v3",
+  "source_version": "v3",
+  "data_version": "catalog_v1",
+  "item_count": 175,
+  "valid_item_count": 175,
+  "error_count": 0,
+  "warning_count": 0,
+  "status": "valid",
+  "issues": []
+}

@@ -1,0 +1,226 @@
+{
+  "product_id": "p_home_airfryer_003",
+  "data_version": "v1",
+  "source_type": "synthetic_desensitized",
+  "status": "active",
+  "title": "九阳 KL VF531 空气炸锅",
+  "brand": "九阳",
+  "category": "家用电器",
+  "sub_category": "厨房电器",
+  "category_path": [
+    "家用电器",
+    "厨房电器"
+  ],
+  "price_info": {
+    "currency": "CNY",
+    "base_price": 399.0,
+    "price_range": [
+      399.0,
+      419.0
+    ],
+    "promotion": null
+  },
+  "skus": [
+    {
+      "sku_id": "s_p_home_airfryer_003_1",
+      "properties": {
+        "容量": "5.5L",
+        "颜色": "黑色",
+        "控制方式": "触控"
+      },
+      "price": 399.0,
+      "inventory": {
+        "available": true,
+        "stock_level": "unknown"
+      }
+    },
+    {
+      "sku_id": "s_p_home_airfryer_003_2",
+      "properties": {
+        "容量": "5.5L",
+        "颜色": "绿色",
+        "控制方式": "触控"
+      },
+      "price": 419.0,
+      "inventory": {
+        "available": true,
+        "stock_level": "unknown"
+      }
+    }
+  ],
+  "image": {
+    "path": "home_appliance/images/p_home_airfryer_003_main.jpg",
+    "role": "main",
+    "caption": "九阳 KL55-VF531 空气炸锅 的占位商品主图，用于开发阶段展示商品类型和标题。",
+    "visual_tags": [
+      "家用电器",
+      "厨房电器",
+      "占位图",
+      "主图"
+    ]
+  },
+  "attributes": {
+    "适用人群": [
+      "新手用户",
+      "家庭用户",
+      "喜欢观察烹饪状态的人群"
+    ],
+    "使用场景": [
+      "烤制观察",
+      "日常快手菜",
+      "少油烹饪"
+    ],
+    "核心卖点": [
+      "可视窗口",
+      "控温直观",
+      "清洁方便"
+    ],
+    "不适合": [
+      "预算极低用户",
+      "厨房空间很小用户"
+    ],
+    "注意事项": [
+      "玻璃窗口需要定期清洁，否则会影响观察效果"
+    ]
+  },
+  "pros_cons": {
+    "pros": [
+      "可视窗口",
+      "控温直观"
+    ],
+    "cons": [
+      "预算极低用户",
+      "玻璃窗口需要定期清洁，否则会影响观察效果"
+    ]
+  },
+  "decision_factors": {
+    "recommend_when": [
+      "可视窗口",
+      "控温直观"
+    ],
+    "avoid_when": [
+      "预算极低用户",
+      "厨房空间很小用户"
+    ],
+    "compare_with": [
+      "p_home_airfryer_001",
+      "p_home_airfryer_002"
+    ]
+  },
+  "content_blocks": [
+    {
+      "block_id": "p_home_airfryer_003_spec_001",
+      "block_type": "spec",
+      "title": "规格与价格",
+      "content": "九阳 KL VF531 空气炸锅 属于家用电器/厨房电器，品牌为九阳，价格范围为 399.0-419.0 CNY，共 2 个 SKU。",
+      "keywords": [
+        "规格",
+        "价格",
+        "SKU"
+      ]
+    },
+    {
+      "block_id": "p_home_airfryer_003_selling_point_001",
+      "block_type": "selling_point",
+      "title": "商品详情介绍",
+      "content": "九阳 KL VF531 空气炸锅 是家用电器/厨房电器下的商品详情页数据。它的核心特点包括可视窗口、控温直观、清洁方便，适合烤制观察、日常快手菜、少油烹饪。导购时需要同时说明优势和限制，尤其要提醒玻璃窗口需要定期清洁，否则会影响观察效果。",
+      "keywords": [
+        "详情页",
+        "卖点",
+        "商品介绍"
+      ]
+    },
+    {
+      "block_id": "p_home_airfryer_003_scenario_001",
+      "block_type": "scenario",
+      "title": "适用场景",
+      "content": "九阳 KL VF531 空气炸锅 适合新手用户、家庭用户、喜欢观察烹饪状态的人群，常见使用场景包括烤制观察、日常快手菜、少油烹饪。",
+      "keywords": [
+        "适用人群",
+        "使用场景",
+        "推荐"
+      ]
+    },
+    {
+      "block_id": "p_home_airfryer_003_limitation_001",
+      "block_type": "limitation",
+      "title": "限制与注意事项",
+      "content": "九阳 KL VF531 空气炸锅 不太适合预算极低用户、厨房空间很小用户。购买前应注意：玻璃窗口需要定期清洁，否则会影响观察效果。",
+      "keywords": [
+        "限制",
+        "注意事项",
+        "避坑"
+      ]
+    },
+    {
+      "block_id": "p_home_airfryer_003_sku_001",
+      "block_type": "sku",
+      "title": "SKU 摘要",
+      "content": "九阳 KL VF531 空气炸锅 当前包含 2 个 SKU，购买前应确认规格属性与实际需求一致。",
+      "keywords": [
+        "SKU",
+        "规格",
+        "价格"
+      ]
+    },
+    {
+      "block_id": "p_home_airfryer_003_visual_001",
+      "block_type": "visual",
+      "title": "图片信息",
+      "content": "九阳 KL55-VF531 空气炸锅 的占位商品主图，用于开发阶段展示商品类型和标题。",
+      "keywords": [
+        "图片",
+        "外观",
+        "视觉"
+      ]
+    }
+  ],
+  "review_summary": {
+    "rating_avg": 4.0,
+    "positive_points": [
+      "可视窗口",
+      "控温直观"
+    ],
+    "negative_points": [
+      "预算极低用户",
+      "玻璃窗口需要定期清洁，否则会影响观察效果"
+    ],
+    "common_complaints": [
+      "预算极低用户"
+    ]
+  },
+  "raw_knowledge": {
+    "marketing_description": "九阳 KL55-VF531 空气炸锅 是真实品牌 九阳 旗下的家用电器/厨房电器商品，本数据集保留真实品牌与产品名，便于后续查找对应商品图片和构建商品详情页。导购信息经过脱敏和结构化整理，主要卖点包括可视窗口、控温直观、清洁方便，适合烤制观察、日常快手菜。如果用户属于预算极低用户，推荐时需要结合限制条件谨慎判断。价格、SKU、评论和 FAQ 为比赛数据集模拟内容，不代表实时售价或真实用户反馈。",
+    "official_faq": [
+      {
+        "question": "九阳 KL55-VF531 空气炸锅 适合哪些使用场景？",
+        "answer": "更适合烤制观察、日常快手菜，尤其适合新手用户、家庭用户。如果属于预算极低用户这类情况，建议优先对比同类其他商品。"
+      },
+      {
+        "question": "九阳 KL55-VF531 空气炸锅 有哪些规格可以选？",
+        "answer": "可选规格包括5.5L等，价格区间约为 399-419 元。选择时建议结合预算、空间和使用频率判断。"
+      },
+      {
+        "question": "购买 九阳 KL55-VF531 空气炸锅 前需要注意什么？",
+        "answer": "需要注意玻璃窗口需要定期清洁，否则会影响观察效果。如果对可视窗口有明确需求，这款会更合适；如果属于预算极低用户，则不建议盲目购买。"
+      }
+    ],
+    "user_reviews": [
+      {
+        "nickname": "user_001",
+        "rating": 5,
+        "content": "用了几天感觉可视窗口确实明显，放在烤制观察这个场景里比较合适，整体符合预期。"
+      },
+      {
+        "nickname": "user_002",
+        "rating": 4,
+        "content": "优点是控温直观，日常使用挺顺手。不过玻璃窗口需要定期清洁，否则会影响观察效果，下单前最好确认清楚。"
+      },
+      {
+        "nickname": "user_003",
+        "rating": 3,
+        "content": "商品本身没有大问题，但如果属于预算极低用户，体验就一般了，建议按自己的实际需求选。"
+      }
+    ]
+  }
+}
