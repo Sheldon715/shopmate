@@ -1372,11 +1372,15 @@ shopmate/
     processed/
       products.json
 
-  docs/
+  context/
     project-overview.md
     current-feature.md
     ai-interaction.md
     coding-standards.md
+    spec-implementation-order.md
+
+  docs/
+    figma-to-compose-reproduction-plan.md
 
   README.md
 ```

@@ -44,8 +44,8 @@ fun ChatRecommendationScreen(
     onCartClick: () -> Unit,
     onProductClick: (String) -> Unit,
     onHistoryClick: (HistoryConversationUi) -> Unit,
-    showEmptyState: Boolean = false,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    showEmptyState: Boolean = false
 ) {
     var composerText by rememberSaveable { mutableStateOf("") }
     var isSidebarOpen by rememberSaveable { mutableStateOf(false) }

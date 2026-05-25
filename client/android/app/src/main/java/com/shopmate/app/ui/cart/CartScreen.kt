@@ -67,8 +67,8 @@ private const val FIGMA_HEIGHT = 842.667f
 @Composable
 fun CartScreen(
     onBackClick: () -> Unit,
-    initialItems: List<CartItemUi> = MockShopMateData.cartItems,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    initialItems: List<CartItemUi> = MockShopMateData.cartItems
 ) {
     var cartLines by remember(initialItems) {
         mutableStateOf(

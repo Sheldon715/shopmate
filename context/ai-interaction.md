@@ -111,11 +111,12 @@ server/
 
 ```text
 data/
+context/
 docs/
 ```
 
 数据目录用于存放导师提供的数据集、清洗后数据和导入脚本输出。
-文档目录用于存放项目规划、当前功能、AI 协作规范和代码规范。
+`context/` 用于存放当前生效的项目规划、当前功能、AI 协作规范、代码规范和开发顺序；`docs/` 仅存放支撑材料和研究输出，除非项目明确调整。
 
 ---
 
@@ -125,7 +126,7 @@ docs/
 
 ## 4.1 Document
 
-实现前先更新或创建 `docs/current-feature.md` 中对应功能说明。
+实现前先更新或创建 `context/current-feature.md` 中对应功能说明。
 
 需要记录：
 
@@ -140,7 +141,7 @@ docs/
 
 ## 4.2 Todo List
 
-实现前在 `docs/current-feature.md` 添加 feature-specific checklist。
+实现前在 `context/current-feature.md` 添加 feature-specific checklist。
 
 格式必须使用 Markdown checkbox：
 
@@ -205,17 +206,15 @@ docs/project-overview
 
 ```bash
 cd server
-npm run lint
-npm run build
-npm test
+npm.cmd run build
+npm.cmd test
 ```
 
-如果项目尚未配置测试，可至少执行：
+如果后续配置了 lint，再加入：
 
 ```bash
 cd server
-npm run lint
-npm run build
+npm.cmd run lint
 ```
 
 Android 默认检查：
@@ -294,7 +293,7 @@ AI 生成代码需要定期审查，尤其是：
 
 ## 4.11 Complete
 
-功能完成后，在 `docs/current-feature.md` 中标记为完成，并写入简短历史记录。
+功能完成后，在 `context/current-feature.md` 中标记为完成，并写入简短历史记录。
 
 ---
 
@@ -736,10 +735,11 @@ Android 端需要处理：
 文档位置：
 
 ```text
-docs/project-overview.md
-docs/current-feature.md
-docs/ai-interaction.md
-docs/coding-standards.md
+context/project-overview.md
+context/current-feature.md
+context/ai-interaction.md
+context/coding-standards.md
+context/spec-implementation-order.md
 README.md
 ```
 
@@ -855,10 +855,10 @@ AI 在执行开发任务后，需要输出：
 | 流式通信       | SSE                                       |
 | 鉴权         | JWT                                       |
 | 文档语言       | 中文                                        |
-| 每个功能前      | 更新 `docs/current-feature.md`              |
+| 每个功能前      | 更新 `context/current-feature.md`           |
 | 每个功能       | 独立分支                                      |
 | Commit     | 必须用户确认                                    |
-| 后端检查       | `npm run lint`、`npm run build`、`npm test` |
+| 后端检查       | 当前为 `npm.cmd run build`、`npm.cmd test`；配置 lint 后再加入 `npm.cmd run lint` |
 | Android 检查 | `./gradlew build` 或 `gradlew.bat build`   |
 | 大范围修改      | 必须先说明                                     |
 | 删除文件       | 必须先确认                                     |

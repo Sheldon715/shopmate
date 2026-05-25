@@ -45,11 +45,15 @@ shopmate/
     raw/
     processed/
 
-  docs/
+  context/
     project-overview.md
     current-feature.md
     ai-interaction.md
     coding-standards.md
+    spec-implementation-order.md
+
+  docs/
+    supporting-material.md
 
   README.md
 ```
@@ -62,7 +66,8 @@ shopmate/
 | `server/`             | Node.js + TypeScript + Express 后端 |
 | `data/raw/`           | 原始商品数据                            |
 | `data/processed/`     | 清洗后的商品数据                          |
-| `docs/`               | 项目文档                              |
+| `context/`            | 当前生效的项目文档、规范、开发顺序和功能 tracker |
+| `docs/`               | 支撑材料和研究输出；除非项目明确调整，否则不作为 active docs |
 | `server/src/scripts/` | 数据导入、embedding 生成、reindex 脚本      |
 
 ---
@@ -1082,21 +1087,19 @@ gradlew.bat build
 
 ## 16. 提交前检查
 
-后端提交前执行：
+后端提交前执行当前可用检查：
 
 ```bash
 cd server
-npm run lint
-npm run build
-npm test
+npm.cmd run build
+npm.cmd test
 ```
 
-如果测试尚未配置，至少执行：
+如果后续配置了 lint，再加入：
 
 ```bash
 cd server
-npm run lint
-npm run build
+npm.cmd run lint
 ```
 
 Android 提交前执行：
@@ -1110,7 +1113,7 @@ Windows：
 
 ```bash
 cd client/android
-gradlew.bat build
+.\gradlew.bat build
 ```
 
 文档变更需检查：
@@ -1179,10 +1182,11 @@ Markdown 标题层级
 相关文档：
 
 ```text
-docs/project-overview.md
-docs/current-feature.md
-docs/ai-interaction.md
-docs/coding-standards.md
+context/project-overview.md
+context/current-feature.md
+context/ai-interaction.md
+context/coding-standards.md
+context/spec-implementation-order.md
 README.md
 ```
 

@@ -45,10 +45,10 @@ private const val FIGMA_PRODUCT_CARD_WIDTH = 360.667f
 @Composable
 fun ProductCard(
     product: ProductCardUi,
+    modifier: Modifier = Modifier,
     enabled: Boolean = true,
     onClick: () -> Unit = {},
-    onAddCartClick: () -> Unit = {},
-    modifier: Modifier = Modifier
+    onAddCartClick: () -> Unit = {}
 ) {
     BoxWithConstraints(
         modifier = modifier
@@ -227,12 +227,12 @@ private fun AddCartButton(
             )
     ) {
         Image(
-            painter = painterResource(id = R.drawable.ic_add_plus),
+            painter = painterResource(id = R.drawable.ic_add_cart),
             contentDescription = null,
-            colorFilter = if (enabled) null else ColorFilter.tint(Color(0xFFCDD4D7)),
+            colorFilter = ColorFilter.tint(if (enabled) ShopMateGreen else Color(0xFFCDD4D7)),
             modifier = Modifier
-                .offset(x = 12f.s(scale), y = 9f.s(scale))
-                .size(12f.s(scale))
+                .offset(x = 10f.s(scale), y = 7.5f.s(scale))
+                .size(15f.s(scale))
         )
 
         Text(
@@ -248,10 +248,10 @@ private fun AddCartButton(
             letterSpacing = 0.sp,
             modifier = Modifier
                 .offset(
-                    x = if (enabled) 25f.s(scale) else 25.5f.s(scale),
+                    x = if (enabled) 28f.s(scale) else 25.5f.s(scale),
                     y = 6.8f.s(scale)
                 )
-                .width(if (enabled) 68f.s(scale) else 55f.s(scale))
+                .width(if (enabled) 65f.s(scale) else 55f.s(scale))
         )
     }
 }
@@ -285,7 +285,7 @@ private val PreviewLongProduct = ProductCardUi(
     id = "preview-long-product",
     name = "超长商品名示例 防晒修护清透控油乳 SPF50+ PA++++ 学生通勤版",
     priceText = "¥199",
-    imageRes = R.drawable.cart_sunscreen,
+    imageRes = R.drawable.product_zero_air,
     tags = listOf("长效防晒", "敏感肌可用", "通勤"),
     recommendationReason = "推荐理由：这是一段特意加长的推荐理由，用来确认小屏和长文案时不会撑破商品卡片。"
 )

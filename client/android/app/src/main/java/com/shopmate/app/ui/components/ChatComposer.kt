@@ -41,9 +41,9 @@ fun ChatComposer(
     onSend: () -> Unit,
     onVoiceClick: () -> Unit,
     onImageClick: () -> Unit,
+    modifier: Modifier = Modifier,
     shadowElevation: Dp = 10.dp,
-    sendEnabled: Boolean = value.isNotBlank(),
-    modifier: Modifier = Modifier
+    sendEnabled: Boolean = value.isNotBlank()
 ) {
     val shadowModifier = if (shadowElevation > 0.dp) {
         Modifier.shadow(

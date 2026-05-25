@@ -16,8 +16,9 @@ Read the following to get the full context of the project:
 - @context/coding-standards.md
 - @context/ai-interaction.md
 - @context/current-feature.md
+- @context/spec-implementation-order.md
 
-The design docs describe a future `docs/` folder, but this checkout uses `context/`. Planned source layout is:
+The design docs describe a future `docs/` folder, but this checkout uses `context/` for active project docs. Current source layout is:
 
 - `client/android/` for the Android app
 - `server/` for the Node.js + TypeScript + Express backend
@@ -25,12 +26,13 @@ The design docs describe a future `docs/` folder, but this checkout uses `contex
 - `.agents/skills/` for workflows such as `feature` and `research`
 
 ## Build, Test, and Development Commands
-There is no runnable app scaffold yet. Once the planned modules exist, use:
+The Android and backend scaffolds now exist. On Windows, prefer `npm.cmd` for npm commands:
 
-- `cd server && npm run lint` to check backend style
-- `cd server && npm run build` to compile TypeScript
-- `cd server && npm test` to run Vitest
-- `cd client/android && gradlew.bat build` to build Android on Windows
+- `cd server && npm.cmd run dev` to start the Express dev server
+- `cd server && npm.cmd run build` to compile TypeScript
+- `cd server && npm.cmd test` to run the current backend test command; it is still a placeholder until Vitest is configured
+- Backend lint is not configured yet; add the lint script and dependencies before treating lint as a required gate
+- `cd client/android && .\gradlew.bat build` to build Android on Windows
 
 If a module is missing, record that in `context/current-feature.md` instead of inventing a passing check.
 
@@ -46,7 +48,7 @@ Follow `context/coding-standards.md` as the default authority. Key rules:
 - Use branch names such as `feature/chat-streaming` or `fix/sse-disconnect`
 
 ## Testing Guidelines
-Backend tests use Vitest and live beside the implementation as `*.test.ts`. Prioritize services, utilities, RAG helpers, vector search wrappers, auth helpers, and parsers. For Android, use `gradlew.bat build`; add tests for ViewModels, repositories, and API clients before UI automation.
+Backend tests are planned to use Vitest and live beside the implementation as `*.test.ts`; the current backend scaffold only has a placeholder `npm.cmd test` command. Prioritize services, utilities, RAG helpers, vector search wrappers, auth helpers, and parsers when tests are added. For Android, use `.\gradlew.bat build`; add tests for ViewModels, repositories, and API clients before UI automation.
 
 ## Commit & Pull Request Guidelines
 Git history is minimal and currently starts with `Initial commit`, so follow the documented standard: use Conventional Commits such as `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, and `chore:`. Before opening a PR, update `context/current-feature.md`, finish the checklist, and record any commands you could not run. Keep PRs scoped to one feature, include test/build status, and attach screenshots for UI work.

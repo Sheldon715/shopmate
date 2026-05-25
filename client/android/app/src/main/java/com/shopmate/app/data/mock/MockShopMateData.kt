@@ -98,7 +98,7 @@ object MockShopMateData {
             id = "ui-la-roche-posay-sunscreen",
             name = "理肤泉 清透防晒乳 SPF50+ PA++++",
             priceText = "¥168",
-            imageRes = R.drawable.comparison_product_one,
+            imageRes = R.drawable.product_qcy_t13_x,
             tags = listOf("防晒", "清透", "SPF50+"),
             recommendationReason = "防护力高，质地相对清爽，适合日常通勤和夏季防晒。"
         ),
@@ -106,7 +106,7 @@ object MockShopMateData {
             id = "ui-anessa-perfect-uv-sunscreen",
             name = "安热沙 小金瓶防晒乳 SPF50+",
             priceText = "¥229",
-            imageRes = R.drawable.comparison_product_two,
+            imageRes = R.drawable.product_zero_air,
             tags = listOf("防晒", "耐汗", "SPF50+"),
             recommendationReason = "防晒膜更稳，耐水耐汗表现更强，适合户外暴晒或长时间通勤。"
         )
@@ -210,7 +210,7 @@ object MockShopMateData {
                 id = "ui-hyaluronic-acid-serum",
                 name = "玻尿酸保湿精华补水修护精华液",
                 priceText = "¥199",
-                imageRes = R.drawable.cart_hyaluronic_serum,
+                imageRes = R.drawable.product_qcy_t13_x,
                 tags = listOf("深层补水", "修护屏障"),
                 recommendationReason = "主打深层补水与屏障修护，适合作为购物车里的基础护肤选择。"
             ),
@@ -223,7 +223,7 @@ object MockShopMateData {
                 id = "ui-la-roche-posay-sunscreen",
                 name = "理肤泉 清透防晒乳 SPF50+ PA++++",
                 priceText = "¥168",
-                imageRes = R.drawable.cart_sunscreen,
+                imageRes = R.drawable.product_zero_air,
                 tags = listOf("防晒隔离", "清爽不油腻"),
                 recommendationReason = "高倍防晒且肤感清爽，适合日常通勤和夏季防护。"
             ),
@@ -236,7 +236,7 @@ object MockShopMateData {
                 id = "ui-shopmate-canvas-bag",
                 name = "抖选选环保帆布购物袋",
                 priceText = "¥29",
-                imageRes = R.drawable.cart_canvas_bag,
+                imageRes = R.drawable.product_redmi_buds_4,
                 tags = listOf("环保材质", "轻便耐用"),
                 recommendationReason = "轻便耐用的薄荷绿购物袋，适合搭配日常购物使用。"
             ),
