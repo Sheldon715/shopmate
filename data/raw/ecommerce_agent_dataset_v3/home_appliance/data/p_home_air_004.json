@@ -1,0 +1,226 @@
+{
+  "product_id": "p_home_air_004",
+  "data_version": "v1",
+  "source_type": "synthetic_desensitized",
+  "status": "active",
+  "title": "米家纯净式智能加湿器 Pro",
+  "brand": "小米",
+  "category": "家用电器",
+  "sub_category": "空气护理",
+  "category_path": [
+    "家用电器",
+    "空气护理"
+  ],
+  "price_info": {
+    "currency": "CNY",
+    "base_price": 139.0,
+    "price_range": [
+      139.0,
+      155.0
+    ],
+    "promotion": null
+  },
+  "skus": [
+    {
+      "sku_id": "s_p_home_air_004_1",
+      "properties": {
+        "适用面积": "500ml",
+        "颜色": "白色",
+        "版本": "标准版"
+      },
+      "price": 139.0,
+      "inventory": {
+        "available": true,
+        "stock_level": "unknown"
+      }
+    },
+    {
+      "sku_id": "s_p_home_air_004_2",
+      "properties": {
+        "适用面积": "800ml",
+        "颜色": "深灰色",
+        "版本": "升级版"
+      },
+      "price": 155.0,
+      "inventory": {
+        "available": true,
+        "stock_level": "unknown"
+      }
+    }
+  ],
+  "image": {
+    "path": "home_appliance/images/p_home_air_004_main.jpg",
+    "role": "main",
+    "caption": "米家纯净式智能加湿器 Pro 的占位商品主图，用于开发阶段展示商品类型和标题。",
+    "visual_tags": [
+      "家用电器",
+      "空气护理",
+      "占位图",
+      "主图"
+    ]
+  },
+  "attributes": {
+    "适用人群": [
+      "新房入住用户",
+      "敏感人群",
+      "养宠家庭"
+    ],
+    "使用场景": [
+      "卧室空气护理",
+      "客厅空气循环",
+      "换季除味"
+    ],
+    "核心卖点": [
+      "体积小",
+      "低噪音",
+      "可加香薰"
+    ],
+    "不适合": [
+      "大面积加湿需求",
+      "对香味敏感者"
+    ],
+    "注意事项": [
+      "加湿范围有限，不适合整屋加湿"
+    ]
+  },
+  "pros_cons": {
+    "pros": [
+      "体积小",
+      "低噪音"
+    ],
+    "cons": [
+      "大面积加湿需求",
+      "加湿范围有限，不适合整屋加湿"
+    ]
+  },
+  "decision_factors": {
+    "recommend_when": [
+      "体积小",
+      "低噪音"
+    ],
+    "avoid_when": [
+      "大面积加湿需求",
+      "对香味敏感者"
+    ],
+    "compare_with": [
+      "p_home_air_001",
+      "p_home_air_002"
+    ]
+  },
+  "content_blocks": [
+    {
+      "block_id": "p_home_air_004_spec_001",
+      "block_type": "spec",
+      "title": "规格与价格",
+      "content": "米家纯净式智能加湿器 Pro 属于家用电器/空气护理，品牌为小米，价格范围为 139.0-155.0 CNY，共 2 个 SKU。",
+      "keywords": [
+        "规格",
+        "价格",
+        "SKU"
+      ]
+    },
+    {
+      "block_id": "p_home_air_004_selling_point_001",
+      "block_type": "selling_point",
+      "title": "商品详情介绍",
+      "content": "米家纯净式智能加湿器 Pro 是家用电器/空气护理下的商品详情页数据。它的核心特点包括体积小、低噪音、可加香薰，适合卧室空气护理、客厅空气循环、换季除味。导购时需要同时说明优势和限制，尤其要提醒加湿范围有限，不适合整屋加湿。",
+      "keywords": [
+        "详情页",
+        "卖点",
+        "商品介绍"
+      ]
+    },
+    {
+      "block_id": "p_home_air_004_scenario_001",
+      "block_type": "scenario",
+      "title": "适用场景",
+      "content": "米家纯净式智能加湿器 Pro 适合新房入住用户、敏感人群、养宠家庭，常见使用场景包括卧室空气护理、客厅空气循环、换季除味。",
+      "keywords": [
+        "适用人群",
+        "使用场景",
+        "推荐"
+      ]
+    },
+    {
+      "block_id": "p_home_air_004_limitation_001",
+      "block_type": "limitation",
+      "title": "限制与注意事项",
+      "content": "米家纯净式智能加湿器 Pro 不太适合大面积加湿需求、对香味敏感者。购买前应注意：加湿范围有限，不适合整屋加湿。",
+      "keywords": [
+        "限制",
+        "注意事项",
+        "避坑"
+      ]
+    },
+    {
+      "block_id": "p_home_air_004_sku_001",
+      "block_type": "sku",
+      "title": "SKU 摘要",
+      "content": "米家纯净式智能加湿器 Pro 当前包含 2 个 SKU，购买前应确认规格属性与实际需求一致。",
+      "keywords": [
+        "SKU",
+        "规格",
+        "价格"
+      ]
+    },
+    {
+      "block_id": "p_home_air_004_visual_001",
+      "block_type": "visual",
+      "title": "图片信息",
+      "content": "米家纯净式智能加湿器 Pro 的占位商品主图，用于开发阶段展示商品类型和标题。",
+      "keywords": [
+        "图片",
+        "外观",
+        "视觉"
+      ]
+    }
+  ],
+  "review_summary": {
+    "rating_avg": 4.0,
+    "positive_points": [
+      "体积小",
+      "低噪音"
+    ],
+    "negative_points": [
+      "大面积加湿需求",
+      "加湿范围有限，不适合整屋加湿"
+    ],
+    "common_complaints": [
+      "大面积加湿需求"
+    ]
+  },
+  "raw_knowledge": {
+    "marketing_description": "米家纯净式智能加湿器 Pro 是真实品牌 小米 旗下的家用电器/空气护理商品，本数据集保留真实品牌与产品名，便于后续查找对应商品图片和构建商品详情页。导购信息经过脱敏和结构化整理，主要卖点包括体积小、低噪音、可加香薰，适合卧室空气护理、客厅空气循环。如果用户属于大面积加湿需求，推荐时需要结合限制条件谨慎判断。价格、SKU、评论和 FAQ 为比赛数据集模拟内容，不代表实时售价或真实用户反馈。",
+    "official_faq": [
+      {
+        "question": "米家纯净式智能加湿器 Pro 适合哪些使用场景？",
+        "answer": "更适合卧室空气护理、客厅空气循环，尤其适合新房入住用户、敏感人群。如果属于大面积加湿需求这类情况，建议优先对比同类其他商品。"
+      },
+      {
+        "question": "米家纯净式智能加湿器 Pro 有哪些规格可以选？",
+        "answer": "可选规格包括500ml、800ml等，价格区间约为 139-155 元。选择时建议结合预算、空间和使用频率判断。"
+      },
+      {
+        "question": "购买 米家纯净式智能加湿器 Pro 前需要注意什么？",
+        "answer": "需要注意加湿范围有限，不适合整屋加湿。如果对体积小有明确需求，这款会更合适；如果属于大面积加湿需求，则不建议盲目购买。"
+      }
+    ],
+    "user_reviews": [
+      {
+        "nickname": "user_001",
+        "rating": 5,
+        "content": "用了几天感觉体积小确实明显，放在卧室空气护理这个场景里比较合适，整体符合预期。"
+      },
+      {
+        "nickname": "user_002",
+        "rating": 4,
+        "content": "优点是低噪音，日常使用挺顺手。不过加湿范围有限，不适合整屋加湿，下单前最好确认清楚。"
+      },
+      {
+        "nickname": "user_003",
+        "rating": 3,
+        "content": "商品本身没有大问题，但如果属于大面积加湿需求，体验就一般了，建议按自己的实际需求选。"
+      }
+    ]
+  }
+}

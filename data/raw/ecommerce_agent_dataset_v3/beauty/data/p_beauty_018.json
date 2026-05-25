@@ -1,0 +1,227 @@
+{
+  "product_id": "p_beauty_018",
+  "data_version": "v1",
+  "source_type": "synthetic_desensitized",
+  "status": "active",
+  "title": "The Ordinary烟酰胺10%锌1%精华液平衡油脂淡化毛孔提亮肤色",
+  "brand": "The Ordinary",
+  "category": "美妆护肤",
+  "sub_category": "精华",
+  "category_path": [
+    "美妆护肤",
+    "精华"
+  ],
+  "price_info": {
+    "currency": "CNY",
+    "base_price": 59.0,
+    "price_range": [
+      59.0,
+      98.0
+    ],
+    "promotion": null
+  },
+  "skus": [
+    {
+      "sku_id": "s_p_beauty_018_1",
+      "properties": {
+        "容量": "30ml 标准装"
+      },
+      "price": 59.0,
+      "inventory": {
+        "available": true,
+        "stock_level": "unknown"
+      }
+    },
+    {
+      "sku_id": "s_p_beauty_018_2",
+      "properties": {
+        "容量": "60ml 大容量装"
+      },
+      "price": 98.0,
+      "inventory": {
+        "available": true,
+        "stock_level": "unknown"
+      }
+    }
+  ],
+  "image": {
+    "path": "beauty/images/p_beauty_018_main.jpg",
+    "role": "main",
+    "caption": "The Ordinary烟酰胺10%锌1%精华液平衡油脂淡化毛孔提亮肤色30ml 的商品主图，用于展示商品主体外观。",
+    "visual_tags": [
+      "美妆护肤",
+      "精华",
+      "主图"
+    ]
+  },
+  "attributes": {
+    "适用人群": [
+      "日常护肤用户",
+      "关注肤感的人群",
+      "成分敏感用户"
+    ],
+    "使用场景": [
+      "日常护理",
+      "换季护理",
+      "送礼"
+    ],
+    "核心卖点": [
+      "功效描述明确",
+      "适用场景清楚",
+      "便于按肤质筛选"
+    ],
+    "不适合": [
+      "对相关成分过敏的人群",
+      "希望获得医疗效果的用户"
+    ],
+    "注意事项": [
+      "敏感肌建议先做局部测试，不应替代医疗建议"
+    ]
+  },
+  "pros_cons": {
+    "pros": [
+      "功效描述明确",
+      "适用场景清楚"
+    ],
+    "cons": [
+      "对相关成分过敏的人群",
+      "敏感肌建议先做局部测试，不应替代医疗建议"
+    ]
+  },
+  "decision_factors": {
+    "recommend_when": [
+      "功效描述明确",
+      "适用场景清楚"
+    ],
+    "avoid_when": [
+      "对相关成分过敏的人群",
+      "希望获得医疗效果的用户"
+    ],
+    "compare_with": [
+      "p_beauty_019",
+      "p_beauty_020"
+    ]
+  },
+  "content_blocks": [
+    {
+      "block_id": "p_beauty_018_spec_001",
+      "block_type": "spec",
+      "title": "规格与价格",
+      "content": "The Ordinary烟酰胺10%锌1%精华液平衡油脂淡化毛孔提亮肤色 属于美妆护肤/精华，品牌为The Ordinary，价格范围为 59.0-98.0 CNY，共 2 个 SKU。",
+      "keywords": [
+        "规格",
+        "价格",
+        "SKU"
+      ]
+    },
+    {
+      "block_id": "p_beauty_018_selling_point_001",
+      "block_type": "selling_point",
+      "title": "商品详情介绍",
+      "content": "The Ordinary烟酰胺10%锌1%精华液平衡油脂淡化毛孔提亮肤色 是美妆护肤/精华下的商品详情页数据。它的核心特点包括功效描述明确、适用场景清楚、便于按肤质筛选，适合日常护理、换季护理、送礼。导购时需要同时说明优势和限制，尤其要提醒敏感肌建议先做局部测试，不应替代医疗建议。",
+      "keywords": [
+        "详情页",
+        "卖点",
+        "商品介绍"
+      ]
+    },
+    {
+      "block_id": "p_beauty_018_scenario_001",
+      "block_type": "scenario",
+      "title": "适用场景",
+      "content": "The Ordinary烟酰胺10%锌1%精华液平衡油脂淡化毛孔提亮肤色 适合日常护肤用户、关注肤感的人群、成分敏感用户，常见使用场景包括日常护理、换季护理、送礼。",
+      "keywords": [
+        "适用人群",
+        "使用场景",
+        "推荐"
+      ]
+    },
+    {
+      "block_id": "p_beauty_018_limitation_001",
+      "block_type": "limitation",
+      "title": "限制与注意事项",
+      "content": "The Ordinary烟酰胺10%锌1%精华液平衡油脂淡化毛孔提亮肤色 不太适合对相关成分过敏的人群、希望获得医疗效果的用户。购买前应注意：敏感肌建议先做局部测试，不应替代医疗建议。",
+      "keywords": [
+        "限制",
+        "注意事项",
+        "避坑"
+      ]
+    },
+    {
+      "block_id": "p_beauty_018_sku_001",
+      "block_type": "sku",
+      "title": "SKU 摘要",
+      "content": "The Ordinary烟酰胺10%锌1%精华液平衡油脂淡化毛孔提亮肤色 当前包含 2 个 SKU，购买前应确认规格属性与实际需求一致。",
+      "keywords": [
+        "SKU",
+        "规格",
+        "价格"
+      ]
+    },
+    {
+      "block_id": "p_beauty_018_visual_001",
+      "block_type": "visual",
+      "title": "图片信息",
+      "content": "The Ordinary烟酰胺10%锌1%精华液平衡油脂淡化毛孔提亮肤色30ml 的商品主图，用于展示商品主体外观。",
+      "keywords": [
+        "图片",
+        "外观",
+        "视觉"
+      ]
+    }
+  ],
+  "review_summary": {
+    "rating_avg": 4.0,
+    "positive_points": [
+      "功效描述明确",
+      "适用场景清楚"
+    ],
+    "negative_points": [
+      "对相关成分过敏的人群",
+      "敏感肌建议先做局部测试，不应替代医疗建议"
+    ],
+    "common_complaints": [
+      "对相关成分过敏的人群"
+    ]
+  },
+  "raw_knowledge": {
+    "marketing_description": "The Ordinary这款烟酰胺10%锌1%精华液是油痘肌和暗沉肌的高性价比选择。核心成分10%烟酰胺能调节皮脂分泌、淡化毛孔并提亮肤色，1%锌则辅助控油舒缓。适合油性/混合性皮肤、有毛孔粗大或肤色不均问题的人群。日常护肤时，洁面爽肤后取2-3滴涂抹全脸（避开眼周），初期建议隔天使用建立耐受，后续可增至每日。注意：敏感肌需先耳后测试，避免与高浓度酸类（如水杨酸）同时使用，使用期间做好防晒。",
+    "official_faq": [
+      {
+        "question": "10%烟酰胺浓度会刺激皮肤吗？",
+        "answer": "10%属于较高浓度烟酰胺，初次使用可能有轻微刺痛或泛红。建议先在耳后/手臂内侧测试，无不适再用。初期每周2-3次，每次2-3滴，待皮肤适应后逐渐增加频率。若持续不适，暂停使用或咨询医生。敏感肌需谨慎，可先选低浓度产品。"
+      },
+      {
+        "question": "这款精华适合什么肤质？",
+        "answer": "成分功效完全相同，仅容量和价格不同。30ml单价约1.97元/ml，60ml约1.63元/ml，大容量更划算。初次尝试选30ml，长期使用选60ml更经济。"
+      }
+    ],
+    "user_reviews": [
+      {
+        "nickname": "user_001",
+        "rating": 2,
+        "content": "用两次就泛红刺痛，混干皮hold不住10%浓度。之前用5%烟酰胺没事，这个太刺激了。涂完脸紧绷，还起了小疹子，敏感肌慎入！"
+      },
+      {
+        "nickname": "user_002",
+        "rating": 3,
+        "content": "控油效果一般，早上涂下午T区还是油。毛孔没见小，质地略黏吸收慢。用了一个月没明显变化，性价比普通。"
+      },
+      {
+        "nickname": "user_003",
+        "rating": 5,
+        "content": "油痘肌救星！半个月T区出油减少，毛孔细腻了，肤色提亮。清爽不黏，吸收快。30ml能用俩月，价格超实惠，会回购60ml！"
+      },
+      {
+        "nickname": "user_004",
+        "rating": 3,
+        "content": "效果不明显，三周肤色没变化。涂多了搓泥，和后续乳液不兼容。用量得控制，不然容易卡粉，整体一般。"
+      },
+      {
+        "nickname": "user_005",
+        "rating": 5,
+        "content": "男生油皮福音！控油超棒，早上涂到晚上不油，毛孔变小。价格便宜，60ml能用很久，推荐给油皮朋友！"
+      }
+    ]
+  }
+}

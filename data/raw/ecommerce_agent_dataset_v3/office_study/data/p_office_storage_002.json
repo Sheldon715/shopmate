@@ -1,0 +1,226 @@
+{
+  "product_id": "p_office_storage_002",
+  "data_version": "v1",
+  "source_type": "synthetic_desensitized",
+  "status": "active",
+  "title": "得力 78981 三联文件框",
+  "brand": "得力",
+  "category": "办公学习",
+  "sub_category": "文件收纳",
+  "category_path": [
+    "办公学习",
+    "文件收纳"
+  ],
+  "price_info": {
+    "currency": "CNY",
+    "base_price": 59.0,
+    "price_range": [
+      59.0,
+      66.0
+    ],
+    "promotion": null
+  },
+  "skus": [
+    {
+      "sku_id": "s_p_office_storage_002_1",
+      "properties": {
+        "规格": "三层",
+        "颜色": "白色",
+        "版本": "标准版"
+      },
+      "price": 59.0,
+      "inventory": {
+        "available": true,
+        "stock_level": "unknown"
+      }
+    },
+    {
+      "sku_id": "s_p_office_storage_002_2",
+      "properties": {
+        "规格": "五层",
+        "颜色": "深灰色",
+        "版本": "升级版"
+      },
+      "price": 66.0,
+      "inventory": {
+        "available": true,
+        "stock_level": "unknown"
+      }
+    }
+  ],
+  "image": {
+    "path": "office_study/images/p_office_storage_002_main.jpg",
+    "role": "main",
+    "caption": "得力 78981 三联文件框 的占位商品主图，用于开发阶段展示商品类型和标题。",
+    "visual_tags": [
+      "办公学习",
+      "文件收纳",
+      "占位图",
+      "主图"
+    ]
+  },
+  "attributes": {
+    "适用人群": [
+      "学生",
+      "财务行政用户",
+      "资料整理用户"
+    ],
+    "使用场景": [
+      "文件归档",
+      "桌面整理",
+      "学习资料分类"
+    ],
+    "核心卖点": [
+      "桌面分层",
+      "拿取方便",
+      "适合办公"
+    ],
+    "不适合": [
+      "桌面空间很小用户",
+      "大量档案用户"
+    ],
+    "注意事项": [
+      "需要预留桌面空间"
+    ]
+  },
+  "pros_cons": {
+    "pros": [
+      "桌面分层",
+      "拿取方便"
+    ],
+    "cons": [
+      "桌面空间很小用户",
+      "需要预留桌面空间"
+    ]
+  },
+  "decision_factors": {
+    "recommend_when": [
+      "桌面分层",
+      "拿取方便"
+    ],
+    "avoid_when": [
+      "桌面空间很小用户",
+      "大量档案用户"
+    ],
+    "compare_with": [
+      "p_office_storage_001",
+      "p_office_storage_003"
+    ]
+  },
+  "content_blocks": [
+    {
+      "block_id": "p_office_storage_002_spec_001",
+      "block_type": "spec",
+      "title": "规格与价格",
+      "content": "得力 78981 三联文件框 属于办公学习/文件收纳，品牌为得力，价格范围为 59.0-66.0 CNY，共 2 个 SKU。",
+      "keywords": [
+        "规格",
+        "价格",
+        "SKU"
+      ]
+    },
+    {
+      "block_id": "p_office_storage_002_selling_point_001",
+      "block_type": "selling_point",
+      "title": "商品详情介绍",
+      "content": "得力 78981 三联文件框 是办公学习/文件收纳下的商品详情页数据。它的核心特点包括桌面分层、拿取方便、适合办公，适合文件归档、桌面整理、学习资料分类。导购时需要同时说明优势和限制，尤其要提醒需要预留桌面空间。",
+      "keywords": [
+        "详情页",
+        "卖点",
+        "商品介绍"
+      ]
+    },
+    {
+      "block_id": "p_office_storage_002_scenario_001",
+      "block_type": "scenario",
+      "title": "适用场景",
+      "content": "得力 78981 三联文件框 适合学生、财务行政用户、资料整理用户，常见使用场景包括文件归档、桌面整理、学习资料分类。",
+      "keywords": [
+        "适用人群",
+        "使用场景",
+        "推荐"
+      ]
+    },
+    {
+      "block_id": "p_office_storage_002_limitation_001",
+      "block_type": "limitation",
+      "title": "限制与注意事项",
+      "content": "得力 78981 三联文件框 不太适合桌面空间很小用户、大量档案用户。购买前应注意：需要预留桌面空间。",
+      "keywords": [
+        "限制",
+        "注意事项",
+        "避坑"
+      ]
+    },
+    {
+      "block_id": "p_office_storage_002_sku_001",
+      "block_type": "sku",
+      "title": "SKU 摘要",
+      "content": "得力 78981 三联文件框 当前包含 2 个 SKU，购买前应确认规格属性与实际需求一致。",
+      "keywords": [
+        "SKU",
+        "规格",
+        "价格"
+      ]
+    },
+    {
+      "block_id": "p_office_storage_002_visual_001",
+      "block_type": "visual",
+      "title": "图片信息",
+      "content": "得力 78981 三联文件框 的占位商品主图，用于开发阶段展示商品类型和标题。",
+      "keywords": [
+        "图片",
+        "外观",
+        "视觉"
+      ]
+    }
+  ],
+  "review_summary": {
+    "rating_avg": 4.0,
+    "positive_points": [
+      "桌面分层",
+      "拿取方便"
+    ],
+    "negative_points": [
+      "桌面空间很小用户",
+      "需要预留桌面空间"
+    ],
+    "common_complaints": [
+      "桌面空间很小用户"
+    ]
+  },
+  "raw_knowledge": {
+    "marketing_description": "得力 78981 三联文件框 是真实品牌 得力 旗下的办公学习/文件收纳商品，本数据集保留真实品牌与产品名，便于后续查找对应商品图片和构建商品详情页。导购信息经过脱敏和结构化整理，主要卖点包括桌面分层、拿取方便、适合办公，适合文件归档、桌面整理。如果用户属于桌面空间很小用户，推荐时需要结合限制条件谨慎判断。价格、SKU、评论和 FAQ 为比赛数据集模拟内容，不代表实时售价或真实用户反馈。",
+    "official_faq": [
+      {
+        "question": "得力 78981 三联文件框 适合哪些使用场景？",
+        "answer": "更适合文件归档、桌面整理，尤其适合学生、财务行政用户。如果属于桌面空间很小用户这类情况，建议优先对比同类其他商品。"
+      },
+      {
+        "question": "得力 78981 三联文件框 有哪些规格可以选？",
+        "answer": "可选规格包括三层、五层等，价格区间约为 59-66 元。选择时建议结合预算、空间和使用频率判断。"
+      },
+      {
+        "question": "购买 得力 78981 三联文件框 前需要注意什么？",
+        "answer": "需要注意需要预留桌面空间。如果对桌面分层有明确需求，这款会更合适；如果属于桌面空间很小用户，则不建议盲目购买。"
+      }
+    ],
+    "user_reviews": [
+      {
+        "nickname": "user_001",
+        "rating": 5,
+        "content": "用了几天感觉桌面分层确实明显，放在文件归档这个场景里比较合适，整体符合预期。"
+      },
+      {
+        "nickname": "user_002",
+        "rating": 4,
+        "content": "优点是拿取方便，日常使用挺顺手。不过需要预留桌面空间，下单前最好确认清楚。"
+      },
+      {
+        "nickname": "user_003",
+        "rating": 3,
+        "content": "商品本身没有大问题，但如果属于桌面空间很小用户，体验就一般了，建议按自己的实际需求选。"
+      }
+    ]
+  }
+}

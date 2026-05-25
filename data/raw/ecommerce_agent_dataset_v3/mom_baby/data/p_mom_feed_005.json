@@ -1,0 +1,226 @@
+{
+  "product_id": "p_mom_feed_005",
+  "data_version": "v1",
+  "source_type": "synthetic_desensitized",
+  "status": "active",
+  "title": "THERMOS 儿童保温辅食碗",
+  "brand": "膳魔师",
+  "category": "母婴用品",
+  "sub_category": "喂养用品",
+  "category_path": [
+    "母婴用品",
+    "喂养用品"
+  ],
+  "price_info": {
+    "currency": "CNY",
+    "base_price": 89.0,
+    "price_range": [
+      89.0,
+      99.0
+    ],
+    "promotion": null
+  },
+  "skus": [
+    {
+      "sku_id": "s_p_mom_feed_005_1",
+      "properties": {
+        "规格": "单碗",
+        "颜色": "白色",
+        "版本": "标准版"
+      },
+      "price": 89.0,
+      "inventory": {
+        "available": true,
+        "stock_level": "unknown"
+      }
+    },
+    {
+      "sku_id": "s_p_mom_feed_005_2",
+      "properties": {
+        "规格": "碗勺套装",
+        "颜色": "深灰色",
+        "版本": "升级版"
+      },
+      "price": 99.0,
+      "inventory": {
+        "available": true,
+        "stock_level": "unknown"
+      }
+    }
+  ],
+  "image": {
+    "path": "mom_baby/images/p_mom_feed_005_main.jpg",
+    "role": "main",
+    "caption": "THERMOS 儿童保温辅食碗 的占位商品主图，用于开发阶段展示商品类型和标题。",
+    "visual_tags": [
+      "母婴用品",
+      "喂养用品",
+      "占位图",
+      "主图"
+    ]
+  },
+  "attributes": {
+    "适用人群": [
+      "辅食期宝宝",
+      "新手父母",
+      "外出喂养家庭"
+    ],
+    "使用场景": [
+      "辅食喂养",
+      "自主进食",
+      "外出携带"
+    ],
+    "核心卖点": [
+      "辅助保温",
+      "防滑底座",
+      "适合慢喂"
+    ],
+    "不适合": [
+      "追求极简餐具用户",
+      "外出轻便需求用户"
+    ],
+    "注意事项": [
+      "注水保温需注意水温安全"
+    ]
+  },
+  "pros_cons": {
+    "pros": [
+      "辅助保温",
+      "防滑底座"
+    ],
+    "cons": [
+      "追求极简餐具用户",
+      "注水保温需注意水温安全"
+    ]
+  },
+  "decision_factors": {
+    "recommend_when": [
+      "辅助保温",
+      "防滑底座"
+    ],
+    "avoid_when": [
+      "追求极简餐具用户",
+      "外出轻便需求用户"
+    ],
+    "compare_with": [
+      "p_mom_feed_001",
+      "p_mom_feed_002"
+    ]
+  },
+  "content_blocks": [
+    {
+      "block_id": "p_mom_feed_005_spec_001",
+      "block_type": "spec",
+      "title": "规格与价格",
+      "content": "THERMOS 儿童保温辅食碗 属于母婴用品/喂养用品，品牌为膳魔师，价格范围为 89.0-99.0 CNY，共 2 个 SKU。",
+      "keywords": [
+        "规格",
+        "价格",
+        "SKU"
+      ]
+    },
+    {
+      "block_id": "p_mom_feed_005_selling_point_001",
+      "block_type": "selling_point",
+      "title": "商品详情介绍",
+      "content": "THERMOS 儿童保温辅食碗 是母婴用品/喂养用品下的商品详情页数据。它的核心特点包括辅助保温、防滑底座、适合慢喂，适合辅食喂养、自主进食、外出携带。导购时需要同时说明优势和限制，尤其要提醒注水保温需注意水温安全。",
+      "keywords": [
+        "详情页",
+        "卖点",
+        "商品介绍"
+      ]
+    },
+    {
+      "block_id": "p_mom_feed_005_scenario_001",
+      "block_type": "scenario",
+      "title": "适用场景",
+      "content": "THERMOS 儿童保温辅食碗 适合辅食期宝宝、新手父母、外出喂养家庭，常见使用场景包括辅食喂养、自主进食、外出携带。",
+      "keywords": [
+        "适用人群",
+        "使用场景",
+        "推荐"
+      ]
+    },
+    {
+      "block_id": "p_mom_feed_005_limitation_001",
+      "block_type": "limitation",
+      "title": "限制与注意事项",
+      "content": "THERMOS 儿童保温辅食碗 不太适合追求极简餐具用户、外出轻便需求用户。购买前应注意：注水保温需注意水温安全。",
+      "keywords": [
+        "限制",
+        "注意事项",
+        "避坑"
+      ]
+    },
+    {
+      "block_id": "p_mom_feed_005_sku_001",
+      "block_type": "sku",
+      "title": "SKU 摘要",
+      "content": "THERMOS 儿童保温辅食碗 当前包含 2 个 SKU，购买前应确认规格属性与实际需求一致。",
+      "keywords": [
+        "SKU",
+        "规格",
+        "价格"
+      ]
+    },
+    {
+      "block_id": "p_mom_feed_005_visual_001",
+      "block_type": "visual",
+      "title": "图片信息",
+      "content": "THERMOS 儿童保温辅食碗 的占位商品主图，用于开发阶段展示商品类型和标题。",
+      "keywords": [
+        "图片",
+        "外观",
+        "视觉"
+      ]
+    }
+  ],
+  "review_summary": {
+    "rating_avg": 4.0,
+    "positive_points": [
+      "辅助保温",
+      "防滑底座"
+    ],
+    "negative_points": [
+      "追求极简餐具用户",
+      "注水保温需注意水温安全"
+    ],
+    "common_complaints": [
+      "追求极简餐具用户"
+    ]
+  },
+  "raw_knowledge": {
+    "marketing_description": "THERMOS 儿童保温辅食碗 是真实品牌 膳魔师 旗下的母婴用品/喂养用品商品，本数据集保留真实品牌与产品名，便于后续查找对应商品图片和构建商品详情页。导购信息经过脱敏和结构化整理，主要卖点包括辅助保温、防滑底座、适合慢喂，适合辅食喂养、自主进食。如果用户属于追求极简餐具用户，推荐时需要结合限制条件谨慎判断。价格、SKU、评论和 FAQ 为比赛数据集模拟内容，不代表实时售价或真实用户反馈。",
+    "official_faq": [
+      {
+        "question": "THERMOS 儿童保温辅食碗 适合哪些使用场景？",
+        "answer": "更适合辅食喂养、自主进食，尤其适合辅食期宝宝、新手父母。如果属于追求极简餐具用户这类情况，建议优先对比同类其他商品。"
+      },
+      {
+        "question": "THERMOS 儿童保温辅食碗 有哪些规格可以选？",
+        "answer": "可选规格包括单碗、碗勺套装等，价格区间约为 89-99 元。选择时建议结合预算、空间和使用频率判断。"
+      },
+      {
+        "question": "购买 THERMOS 儿童保温辅食碗 前需要注意什么？",
+        "answer": "需要注意注水保温需注意水温安全。如果对辅助保温有明确需求，这款会更合适；如果属于追求极简餐具用户，则不建议盲目购买。"
+      }
+    ],
+    "user_reviews": [
+      {
+        "nickname": "user_001",
+        "rating": 5,
+        "content": "用了几天感觉辅助保温确实明显，放在辅食喂养这个场景里比较合适，整体符合预期。"
+      },
+      {
+        "nickname": "user_002",
+        "rating": 4,
+        "content": "优点是防滑底座，日常使用挺顺手。不过注水保温需注意水温安全，下单前最好确认清楚。"
+      },
+      {
+        "nickname": "user_003",
+        "rating": 3,
+        "content": "商品本身没有大问题，但如果属于追求极简餐具用户，体验就一般了，建议按自己的实际需求选。"
+      }
+    ]
+  }
+}

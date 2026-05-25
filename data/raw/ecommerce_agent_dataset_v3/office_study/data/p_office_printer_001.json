@@ -1,0 +1,226 @@
+{
+  "product_id": "p_office_printer_001",
+  "data_version": "v1",
+  "source_type": "synthetic_desensitized",
+  "status": "active",
+  "title": "HP LaserJet M233sdw 黑白激光一体机",
+  "brand": "惠普",
+  "category": "办公学习",
+  "sub_category": "打印设备",
+  "category_path": [
+    "办公学习",
+    "打印设备"
+  ],
+  "price_info": {
+    "currency": "CNY",
+    "base_price": 699.0,
+    "price_range": [
+      699.0,
+      782.0
+    ],
+    "promotion": null
+  },
+  "skus": [
+    {
+      "sku_id": "s_p_office_printer_001_1",
+      "properties": {
+        "功能": "打印",
+        "颜色": "白色",
+        "版本": "标准版"
+      },
+      "price": 699.0,
+      "inventory": {
+        "available": true,
+        "stock_level": "unknown"
+      }
+    },
+    {
+      "sku_id": "s_p_office_printer_001_2",
+      "properties": {
+        "功能": "打印+复印",
+        "颜色": "深灰色",
+        "版本": "升级版"
+      },
+      "price": 782.0,
+      "inventory": {
+        "available": true,
+        "stock_level": "unknown"
+      }
+    }
+  ],
+  "image": {
+    "path": "office_study/images/p_office_printer_001_main.jpg",
+    "role": "main",
+    "caption": "HP LaserJet M233sdw 黑白激光一体机 的占位商品主图，用于开发阶段展示商品类型和标题。",
+    "visual_tags": [
+      "办公学习",
+      "打印设备",
+      "占位图",
+      "主图"
+    ]
+  },
+  "attributes": {
+    "适用人群": [
+      "学生",
+      "家庭办公用户",
+      "小团队用户"
+    ],
+    "使用场景": [
+      "作业打印",
+      "合同打印",
+      "资料复印"
+    ],
+    "核心卖点": [
+      "打印速度快",
+      "文字清晰",
+      "适合文档"
+    ],
+    "不适合": [
+      "彩色图片打印用户",
+      "大批量商用用户"
+    ],
+    "注意事项": [
+      "不支持彩色打印"
+    ]
+  },
+  "pros_cons": {
+    "pros": [
+      "打印速度快",
+      "文字清晰"
+    ],
+    "cons": [
+      "彩色图片打印用户",
+      "不支持彩色打印"
+    ]
+  },
+  "decision_factors": {
+    "recommend_when": [
+      "打印速度快",
+      "文字清晰"
+    ],
+    "avoid_when": [
+      "彩色图片打印用户",
+      "大批量商用用户"
+    ],
+    "compare_with": [
+      "p_office_printer_002",
+      "p_office_printer_003"
+    ]
+  },
+  "content_blocks": [
+    {
+      "block_id": "p_office_printer_001_spec_001",
+      "block_type": "spec",
+      "title": "规格与价格",
+      "content": "HP LaserJet M233sdw 黑白激光一体机 属于办公学习/打印设备，品牌为惠普，价格范围为 699.0-782.0 CNY，共 2 个 SKU。",
+      "keywords": [
+        "规格",
+        "价格",
+        "SKU"
+      ]
+    },
+    {
+      "block_id": "p_office_printer_001_selling_point_001",
+      "block_type": "selling_point",
+      "title": "商品详情介绍",
+      "content": "HP LaserJet M233sdw 黑白激光一体机 是办公学习/打印设备下的商品详情页数据。它的核心特点包括打印速度快、文字清晰、适合文档，适合作业打印、合同打印、资料复印。导购时需要同时说明优势和限制，尤其要提醒不支持彩色打印。",
+      "keywords": [
+        "详情页",
+        "卖点",
+        "商品介绍"
+      ]
+    },
+    {
+      "block_id": "p_office_printer_001_scenario_001",
+      "block_type": "scenario",
+      "title": "适用场景",
+      "content": "HP LaserJet M233sdw 黑白激光一体机 适合学生、家庭办公用户、小团队用户，常见使用场景包括作业打印、合同打印、资料复印。",
+      "keywords": [
+        "适用人群",
+        "使用场景",
+        "推荐"
+      ]
+    },
+    {
+      "block_id": "p_office_printer_001_limitation_001",
+      "block_type": "limitation",
+      "title": "限制与注意事项",
+      "content": "HP LaserJet M233sdw 黑白激光一体机 不太适合彩色图片打印用户、大批量商用用户。购买前应注意：不支持彩色打印。",
+      "keywords": [
+        "限制",
+        "注意事项",
+        "避坑"
+      ]
+    },
+    {
+      "block_id": "p_office_printer_001_sku_001",
+      "block_type": "sku",
+      "title": "SKU 摘要",
+      "content": "HP LaserJet M233sdw 黑白激光一体机 当前包含 2 个 SKU，购买前应确认规格属性与实际需求一致。",
+      "keywords": [
+        "SKU",
+        "规格",
+        "价格"
+      ]
+    },
+    {
+      "block_id": "p_office_printer_001_visual_001",
+      "block_type": "visual",
+      "title": "图片信息",
+      "content": "HP LaserJet M233sdw 黑白激光一体机 的占位商品主图，用于开发阶段展示商品类型和标题。",
+      "keywords": [
+        "图片",
+        "外观",
+        "视觉"
+      ]
+    }
+  ],
+  "review_summary": {
+    "rating_avg": 4.0,
+    "positive_points": [
+      "打印速度快",
+      "文字清晰"
+    ],
+    "negative_points": [
+      "彩色图片打印用户",
+      "不支持彩色打印"
+    ],
+    "common_complaints": [
+      "彩色图片打印用户"
+    ]
+  },
+  "raw_knowledge": {
+    "marketing_description": "HP LaserJet M233sdw 黑白激光一体机 是真实品牌 惠普 旗下的办公学习/打印设备商品，本数据集保留真实品牌与产品名，便于后续查找对应商品图片和构建商品详情页。导购信息经过脱敏和结构化整理，主要卖点包括打印速度快、文字清晰、适合文档，适合作业打印、合同打印。如果用户属于彩色图片打印用户，推荐时需要结合限制条件谨慎判断。价格、SKU、评论和 FAQ 为比赛数据集模拟内容，不代表实时售价或真实用户反馈。",
+    "official_faq": [
+      {
+        "question": "HP LaserJet M233sdw 黑白激光一体机 适合哪些使用场景？",
+        "answer": "更适合作业打印、合同打印，尤其适合学生、家庭办公用户。如果属于彩色图片打印用户这类情况，建议优先对比同类其他商品。"
+      },
+      {
+        "question": "HP LaserJet M233sdw 黑白激光一体机 有哪些规格可以选？",
+        "answer": "可选规格包括打印、打印+复印等，价格区间约为 699-782 元。选择时建议结合预算、空间和使用频率判断。"
+      },
+      {
+        "question": "购买 HP LaserJet M233sdw 黑白激光一体机 前需要注意什么？",
+        "answer": "需要注意不支持彩色打印。如果对打印速度快有明确需求，这款会更合适；如果属于彩色图片打印用户，则不建议盲目购买。"
+      }
+    ],
+    "user_reviews": [
+      {
+        "nickname": "user_001",
+        "rating": 5,
+        "content": "用了几天感觉打印速度快确实明显，放在作业打印这个场景里比较合适，整体符合预期。"
+      },
+      {
+        "nickname": "user_002",
+        "rating": 4,
+        "content": "优点是文字清晰，日常使用挺顺手。不过不支持彩色打印，下单前最好确认清楚。"
+      },
+      {
+        "nickname": "user_003",
+        "rating": 3,
+        "content": "商品本身没有大问题，但如果属于彩色图片打印用户，体验就一般了，建议按自己的实际需求选。"
+      }
+    ]
+  }
+}

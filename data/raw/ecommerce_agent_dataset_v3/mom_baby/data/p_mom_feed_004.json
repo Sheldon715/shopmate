@@ -1,0 +1,226 @@
+{
+  "product_id": "p_mom_feed_004",
+  "data_version": "v1",
+  "source_type": "synthetic_desensitized",
+  "status": "active",
+  "title": "b.box 儿童重力球",
+  "brand": "b.box",
+  "category": "母婴用品",
+  "sub_category": "喂养用品",
+  "category_path": [
+    "母婴用品",
+    "喂养用品"
+  ],
+  "price_info": {
+    "currency": "CNY",
+    "base_price": 79.0,
+    "price_range": [
+      79.0,
+      88.0
+    ],
+    "promotion": null
+  },
+  "skus": [
+    {
+      "sku_id": "s_p_mom_feed_004_1",
+      "properties": {
+        "容量": "240ml",
+        "颜色": "蓝色",
+        "杯型": "吸管杯"
+      },
+      "price": 79.0,
+      "inventory": {
+        "available": true,
+        "stock_level": "unknown"
+      }
+    },
+    {
+      "sku_id": "s_p_mom_feed_004_2",
+      "properties": {
+        "容量": "240ml",
+        "颜色": "粉色",
+        "杯型": "吸管杯"
+      },
+      "price": 88.0,
+      "inventory": {
+        "available": true,
+        "stock_level": "unknown"
+      }
+    }
+  ],
+  "image": {
+    "path": "mom_baby/images/p_mom_feed_004_main.jpg",
+    "role": "main",
+    "caption": "b.box 儿童重力球吸管杯 的占位商品主图，用于开发阶段展示商品类型和标题。",
+    "visual_tags": [
+      "母婴用品",
+      "喂养用品",
+      "占位图",
+      "主图"
+    ]
+  },
+  "attributes": {
+    "适用人群": [
+      "辅食期宝宝",
+      "新手父母",
+      "外出喂养家庭"
+    ],
+    "使用场景": [
+      "辅食喂养",
+      "自主进食",
+      "外出携带"
+    ],
+    "核心卖点": [
+      "防摔",
+      "吸管防漏",
+      "适合外出"
+    ],
+    "不适合": [
+      "低月龄宝宝",
+      "不接受吸管杯用户"
+    ],
+    "注意事项": [
+      "吸管部件需要拆洗"
+    ]
+  },
+  "pros_cons": {
+    "pros": [
+      "防摔",
+      "吸管防漏"
+    ],
+    "cons": [
+      "低月龄宝宝",
+      "吸管部件需要拆洗"
+    ]
+  },
+  "decision_factors": {
+    "recommend_when": [
+      "防摔",
+      "吸管防漏"
+    ],
+    "avoid_when": [
+      "低月龄宝宝",
+      "不接受吸管杯用户"
+    ],
+    "compare_with": [
+      "p_mom_feed_001",
+      "p_mom_feed_002"
+    ]
+  },
+  "content_blocks": [
+    {
+      "block_id": "p_mom_feed_004_spec_001",
+      "block_type": "spec",
+      "title": "规格与价格",
+      "content": "b.box 儿童重力球 属于母婴用品/喂养用品，品牌为b.box，价格范围为 79.0-88.0 CNY，共 2 个 SKU。",
+      "keywords": [
+        "规格",
+        "价格",
+        "SKU"
+      ]
+    },
+    {
+      "block_id": "p_mom_feed_004_selling_point_001",
+      "block_type": "selling_point",
+      "title": "商品详情介绍",
+      "content": "b.box 儿童重力球 是母婴用品/喂养用品下的商品详情页数据。它的核心特点包括防摔、吸管防漏、适合外出，适合辅食喂养、自主进食、外出携带。导购时需要同时说明优势和限制，尤其要提醒吸管部件需要拆洗。",
+      "keywords": [
+        "详情页",
+        "卖点",
+        "商品介绍"
+      ]
+    },
+    {
+      "block_id": "p_mom_feed_004_scenario_001",
+      "block_type": "scenario",
+      "title": "适用场景",
+      "content": "b.box 儿童重力球 适合辅食期宝宝、新手父母、外出喂养家庭，常见使用场景包括辅食喂养、自主进食、外出携带。",
+      "keywords": [
+        "适用人群",
+        "使用场景",
+        "推荐"
+      ]
+    },
+    {
+      "block_id": "p_mom_feed_004_limitation_001",
+      "block_type": "limitation",
+      "title": "限制与注意事项",
+      "content": "b.box 儿童重力球 不太适合低月龄宝宝、不接受吸管杯用户。购买前应注意：吸管部件需要拆洗。",
+      "keywords": [
+        "限制",
+        "注意事项",
+        "避坑"
+      ]
+    },
+    {
+      "block_id": "p_mom_feed_004_sku_001",
+      "block_type": "sku",
+      "title": "SKU 摘要",
+      "content": "b.box 儿童重力球 当前包含 2 个 SKU，购买前应确认规格属性与实际需求一致。",
+      "keywords": [
+        "SKU",
+        "规格",
+        "价格"
+      ]
+    },
+    {
+      "block_id": "p_mom_feed_004_visual_001",
+      "block_type": "visual",
+      "title": "图片信息",
+      "content": "b.box 儿童重力球吸管杯 的占位商品主图，用于开发阶段展示商品类型和标题。",
+      "keywords": [
+        "图片",
+        "外观",
+        "视觉"
+      ]
+    }
+  ],
+  "review_summary": {
+    "rating_avg": 4.0,
+    "positive_points": [
+      "防摔",
+      "吸管防漏"
+    ],
+    "negative_points": [
+      "低月龄宝宝",
+      "吸管部件需要拆洗"
+    ],
+    "common_complaints": [
+      "低月龄宝宝"
+    ]
+  },
+  "raw_knowledge": {
+    "marketing_description": "b.box 儿童重力球吸管杯 是真实品牌 b.box 旗下的母婴用品/喂养用品商品，本数据集保留真实品牌与产品名，便于后续查找对应商品图片和构建商品详情页。导购信息经过脱敏和结构化整理，主要卖点包括防摔、吸管防漏、适合外出，适合辅食喂养、自主进食。如果用户属于低月龄宝宝，推荐时需要结合限制条件谨慎判断。价格、SKU、评论和 FAQ 为比赛数据集模拟内容，不代表实时售价或真实用户反馈。",
+    "official_faq": [
+      {
+        "question": "b.box 儿童重力球吸管杯 适合哪些使用场景？",
+        "answer": "更适合辅食喂养、自主进食，尤其适合辅食期宝宝、新手父母。如果属于低月龄宝宝这类情况，建议优先对比同类其他商品。"
+      },
+      {
+        "question": "b.box 儿童重力球吸管杯 有哪些规格可以选？",
+        "answer": "可选规格包括240ml等，价格区间约为 79-88 元。选择时建议结合预算、空间和使用频率判断。"
+      },
+      {
+        "question": "购买 b.box 儿童重力球吸管杯 前需要注意什么？",
+        "answer": "需要注意吸管部件需要拆洗。如果对防摔有明确需求，这款会更合适；如果属于低月龄宝宝，则不建议盲目购买。"
+      }
+    ],
+    "user_reviews": [
+      {
+        "nickname": "user_001",
+        "rating": 5,
+        "content": "用了几天感觉防摔确实明显，放在辅食喂养这个场景里比较合适，整体符合预期。"
+      },
+      {
+        "nickname": "user_002",
+        "rating": 4,
+        "content": "优点是吸管防漏，日常使用挺顺手。不过吸管部件需要拆洗，下单前最好确认清楚。"
+      },
+      {
+        "nickname": "user_003",
+        "rating": 3,
+        "content": "商品本身没有大问题，但如果属于低月龄宝宝，体验就一般了，建议按自己的实际需求选。"
+      }
+    ]
+  }
+}

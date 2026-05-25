@@ -7,18 +7,26 @@
     "test": "echo No tests configured yet",
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/server.js"
+    "start": "node dist/server.js",
+    "db:migrate": "tsx src/scripts/migrate-db.ts",
+    "db:rebuild": "tsx src/scripts/rebuild-db.ts",
+    "catalog:normalize": "tsx src/scripts/normalize-products.ts",
+    "catalog:validate": "tsx src/scripts/validate-products.ts",
+    "catalog:import": "tsx src/scripts/import-products.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "express": "^5.1.0"
+    "dotenv": "^17.4.2",
+    "express": "^5.1.0",
+    "pg": "^8.21.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/node": "^25.9.1",
+    "@types/pg": "^8.20.0",
     "tsx": "^4.22.3",
     "typescript": "^6.0.3"
   }

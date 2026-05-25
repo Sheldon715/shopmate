@@ -1,0 +1,226 @@
+{
+  "product_id": "p_mom_sleep_002",
+  "data_version": "v1",
+  "source_type": "synthetic_desensitized",
+  "status": "active",
+  "title": "良良 婴儿苎麻凉感睡袋",
+  "brand": "良良",
+  "category": "母婴用品",
+  "sub_category": "婴童寝居",
+  "category_path": [
+    "母婴用品",
+    "婴童寝居"
+  ],
+  "price_info": {
+    "currency": "CNY",
+    "base_price": 129.0,
+    "price_range": [
+      129.0,
+      144.0
+    ],
+    "promotion": null
+  },
+  "skus": [
+    {
+      "sku_id": "s_p_mom_sleep_002_1",
+      "properties": {
+        "尺码": "S码",
+        "颜色": "白色",
+        "版本": "标准版"
+      },
+      "price": 129.0,
+      "inventory": {
+        "available": true,
+        "stock_level": "unknown"
+      }
+    },
+    {
+      "sku_id": "s_p_mom_sleep_002_2",
+      "properties": {
+        "尺码": "M码",
+        "颜色": "深灰色",
+        "版本": "升级版"
+      },
+      "price": 144.0,
+      "inventory": {
+        "available": true,
+        "stock_level": "unknown"
+      }
+    }
+  ],
+  "image": {
+    "path": "mom_baby/images/p_mom_sleep_002_main.jpg",
+    "role": "main",
+    "caption": "良良 婴儿苎麻凉感睡袋 的占位商品主图，用于开发阶段展示商品类型和标题。",
+    "visual_tags": [
+      "母婴用品",
+      "婴童寝居",
+      "占位图",
+      "主图"
+    ]
+  },
+  "attributes": {
+    "适用人群": [
+      "新手父母",
+      "0-3岁婴幼儿家庭",
+      "换季保暖需求用户"
+    ],
+    "使用场景": [
+      "夜间睡眠",
+      "午睡",
+      "换季保暖"
+    ],
+    "核心卖点": [
+      "轻薄透气",
+      "空调房友好",
+      "方便换尿布"
+    ],
+    "不适合": [
+      "寒冷环境",
+      "需要厚保暖用户"
+    ],
+    "注意事项": [
+      "需根据室温选择厚度"
+    ]
+  },
+  "pros_cons": {
+    "pros": [
+      "轻薄透气",
+      "空调房友好"
+    ],
+    "cons": [
+      "寒冷环境",
+      "需根据室温选择厚度"
+    ]
+  },
+  "decision_factors": {
+    "recommend_when": [
+      "轻薄透气",
+      "空调房友好"
+    ],
+    "avoid_when": [
+      "寒冷环境",
+      "需要厚保暖用户"
+    ],
+    "compare_with": [
+      "p_mom_sleep_001",
+      "p_mom_sleep_003"
+    ]
+  },
+  "content_blocks": [
+    {
+      "block_id": "p_mom_sleep_002_spec_001",
+      "block_type": "spec",
+      "title": "规格与价格",
+      "content": "良良 婴儿苎麻凉感睡袋 属于母婴用品/婴童寝居，品牌为良良，价格范围为 129.0-144.0 CNY，共 2 个 SKU。",
+      "keywords": [
+        "规格",
+        "价格",
+        "SKU"
+      ]
+    },
+    {
+      "block_id": "p_mom_sleep_002_selling_point_001",
+      "block_type": "selling_point",
+      "title": "商品详情介绍",
+      "content": "良良 婴儿苎麻凉感睡袋 是母婴用品/婴童寝居下的商品详情页数据。它的核心特点包括轻薄透气、空调房友好、方便换尿布，适合夜间睡眠、午睡、换季保暖。导购时需要同时说明优势和限制，尤其要提醒需根据室温选择厚度。",
+      "keywords": [
+        "详情页",
+        "卖点",
+        "商品介绍"
+      ]
+    },
+    {
+      "block_id": "p_mom_sleep_002_scenario_001",
+      "block_type": "scenario",
+      "title": "适用场景",
+      "content": "良良 婴儿苎麻凉感睡袋 适合新手父母、0-3岁婴幼儿家庭、换季保暖需求用户，常见使用场景包括夜间睡眠、午睡、换季保暖。",
+      "keywords": [
+        "适用人群",
+        "使用场景",
+        "推荐"
+      ]
+    },
+    {
+      "block_id": "p_mom_sleep_002_limitation_001",
+      "block_type": "limitation",
+      "title": "限制与注意事项",
+      "content": "良良 婴儿苎麻凉感睡袋 不太适合寒冷环境、需要厚保暖用户。购买前应注意：需根据室温选择厚度。",
+      "keywords": [
+        "限制",
+        "注意事项",
+        "避坑"
+      ]
+    },
+    {
+      "block_id": "p_mom_sleep_002_sku_001",
+      "block_type": "sku",
+      "title": "SKU 摘要",
+      "content": "良良 婴儿苎麻凉感睡袋 当前包含 2 个 SKU，购买前应确认规格属性与实际需求一致。",
+      "keywords": [
+        "SKU",
+        "规格",
+        "价格"
+      ]
+    },
+    {
+      "block_id": "p_mom_sleep_002_visual_001",
+      "block_type": "visual",
+      "title": "图片信息",
+      "content": "良良 婴儿苎麻凉感睡袋 的占位商品主图，用于开发阶段展示商品类型和标题。",
+      "keywords": [
+        "图片",
+        "外观",
+        "视觉"
+      ]
+    }
+  ],
+  "review_summary": {
+    "rating_avg": 4.0,
+    "positive_points": [
+      "轻薄透气",
+      "空调房友好"
+    ],
+    "negative_points": [
+      "寒冷环境",
+      "需根据室温选择厚度"
+    ],
+    "common_complaints": [
+      "寒冷环境"
+    ]
+  },
+  "raw_knowledge": {
+    "marketing_description": "良良 婴儿苎麻凉感睡袋 是真实品牌 良良 旗下的母婴用品/婴童寝居商品，本数据集保留真实品牌与产品名，便于后续查找对应商品图片和构建商品详情页。导购信息经过脱敏和结构化整理，主要卖点包括轻薄透气、空调房友好、方便换尿布，适合夜间睡眠、午睡。如果用户属于寒冷环境，推荐时需要结合限制条件谨慎判断。价格、SKU、评论和 FAQ 为比赛数据集模拟内容，不代表实时售价或真实用户反馈。",
+    "official_faq": [
+      {
+        "question": "良良 婴儿苎麻凉感睡袋 适合哪些使用场景？",
+        "answer": "更适合夜间睡眠、午睡，尤其适合新手父母、0-3岁婴幼儿家庭。如果属于寒冷环境这类情况，建议优先对比同类其他商品。"
+      },
+      {
+        "question": "良良 婴儿苎麻凉感睡袋 有哪些规格可以选？",
+        "answer": "可选规格包括S码、M码等，价格区间约为 129-144 元。选择时建议结合预算、空间和使用频率判断。"
+      },
+      {
+        "question": "购买 良良 婴儿苎麻凉感睡袋 前需要注意什么？",
+        "answer": "需要注意需根据室温选择厚度。如果对轻薄透气有明确需求，这款会更合适；如果属于寒冷环境，则不建议盲目购买。"
+      }
+    ],
+    "user_reviews": [
+      {
+        "nickname": "user_001",
+        "rating": 5,
+        "content": "用了几天感觉轻薄透气确实明显，放在夜间睡眠这个场景里比较合适，整体符合预期。"
+      },
+      {
+        "nickname": "user_002",
+        "rating": 4,
+        "content": "优点是空调房友好，日常使用挺顺手。不过需根据室温选择厚度，下单前最好确认清楚。"
+      },
+      {
+        "nickname": "user_003",
+        "rating": 3,
+        "content": "商品本身没有大问题，但如果属于寒冷环境，体验就一般了，建议按自己的实际需求选。"
+      }
+    ]
+  }
+}

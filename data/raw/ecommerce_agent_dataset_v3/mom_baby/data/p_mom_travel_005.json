@@ -1,0 +1,226 @@
+{
+  "product_id": "p_mom_travel_005",
+  "data_version": "v1",
+  "source_type": "synthetic_desensitized",
+  "status": "active",
+  "title": "Britax Marathon ClickTight 儿童安全座椅",
+  "brand": "Britax",
+  "category": "母婴用品",
+  "sub_category": "出行用品",
+  "category_path": [
+    "母婴用品",
+    "出行用品"
+  ],
+  "price_info": {
+    "currency": "CNY",
+    "base_price": 899.0,
+    "price_range": [
+      899.0,
+      1006.0
+    ],
+    "promotion": null
+  },
+  "skus": [
+    {
+      "sku_id": "s_p_mom_travel_005_1",
+      "properties": {
+        "规格": "9月-12岁",
+        "颜色": "白色",
+        "版本": "标准版"
+      },
+      "price": 899.0,
+      "inventory": {
+        "available": true,
+        "stock_level": "unknown"
+      }
+    },
+    {
+      "sku_id": "s_p_mom_travel_005_2",
+      "properties": {
+        "规格": "0-12岁",
+        "颜色": "深灰色",
+        "版本": "升级版"
+      },
+      "price": 1006.0,
+      "inventory": {
+        "available": true,
+        "stock_level": "unknown"
+      }
+    }
+  ],
+  "image": {
+    "path": "mom_baby/images/p_mom_travel_005_main.jpg",
+    "role": "main",
+    "caption": "Britax Marathon ClickTight 儿童安全座椅 的占位商品主图，用于开发阶段展示商品类型和标题。",
+    "visual_tags": [
+      "母婴用品",
+      "出行用品",
+      "占位图",
+      "主图"
+    ]
+  },
+  "attributes": {
+    "适用人群": [
+      "婴幼儿家庭",
+      "经常外出的父母",
+      "城市通勤家庭"
+    ],
+    "使用场景": [
+      "商场出行",
+      "短途旅行",
+      "小区散步"
+    ],
+    "核心卖点": [
+      "年龄覆盖广",
+      "安全固定",
+      "适合自驾"
+    ],
+    "不适合": [
+      "无车家庭",
+      "临时打车场景"
+    ],
+    "注意事项": [
+      "购买前需要确认车型接口"
+    ]
+  },
+  "pros_cons": {
+    "pros": [
+      "年龄覆盖广",
+      "安全固定"
+    ],
+    "cons": [
+      "无车家庭",
+      "购买前需要确认车型接口"
+    ]
+  },
+  "decision_factors": {
+    "recommend_when": [
+      "年龄覆盖广",
+      "安全固定"
+    ],
+    "avoid_when": [
+      "无车家庭",
+      "临时打车场景"
+    ],
+    "compare_with": [
+      "p_mom_travel_001",
+      "p_mom_travel_002"
+    ]
+  },
+  "content_blocks": [
+    {
+      "block_id": "p_mom_travel_005_spec_001",
+      "block_type": "spec",
+      "title": "规格与价格",
+      "content": "Britax Marathon ClickTight 儿童安全座椅 属于母婴用品/出行用品，品牌为Britax，价格范围为 899.0-1006.0 CNY，共 2 个 SKU。",
+      "keywords": [
+        "规格",
+        "价格",
+        "SKU"
+      ]
+    },
+    {
+      "block_id": "p_mom_travel_005_selling_point_001",
+      "block_type": "selling_point",
+      "title": "商品详情介绍",
+      "content": "Britax Marathon ClickTight 儿童安全座椅 是母婴用品/出行用品下的商品详情页数据。它的核心特点包括年龄覆盖广、安全固定、适合自驾，适合商场出行、短途旅行、小区散步。导购时需要同时说明优势和限制，尤其要提醒购买前需要确认车型接口。",
+      "keywords": [
+        "详情页",
+        "卖点",
+        "商品介绍"
+      ]
+    },
+    {
+      "block_id": "p_mom_travel_005_scenario_001",
+      "block_type": "scenario",
+      "title": "适用场景",
+      "content": "Britax Marathon ClickTight 儿童安全座椅 适合婴幼儿家庭、经常外出的父母、城市通勤家庭，常见使用场景包括商场出行、短途旅行、小区散步。",
+      "keywords": [
+        "适用人群",
+        "使用场景",
+        "推荐"
+      ]
+    },
+    {
+      "block_id": "p_mom_travel_005_limitation_001",
+      "block_type": "limitation",
+      "title": "限制与注意事项",
+      "content": "Britax Marathon ClickTight 儿童安全座椅 不太适合无车家庭、临时打车场景。购买前应注意：购买前需要确认车型接口。",
+      "keywords": [
+        "限制",
+        "注意事项",
+        "避坑"
+      ]
+    },
+    {
+      "block_id": "p_mom_travel_005_sku_001",
+      "block_type": "sku",
+      "title": "SKU 摘要",
+      "content": "Britax Marathon ClickTight 儿童安全座椅 当前包含 2 个 SKU，购买前应确认规格属性与实际需求一致。",
+      "keywords": [
+        "SKU",
+        "规格",
+        "价格"
+      ]
+    },
+    {
+      "block_id": "p_mom_travel_005_visual_001",
+      "block_type": "visual",
+      "title": "图片信息",
+      "content": "Britax Marathon ClickTight 儿童安全座椅 的占位商品主图，用于开发阶段展示商品类型和标题。",
+      "keywords": [
+        "图片",
+        "外观",
+        "视觉"
+      ]
+    }
+  ],
+  "review_summary": {
+    "rating_avg": 4.0,
+    "positive_points": [
+      "年龄覆盖广",
+      "安全固定"
+    ],
+    "negative_points": [
+      "无车家庭",
+      "购买前需要确认车型接口"
+    ],
+    "common_complaints": [
+      "无车家庭"
+    ]
+  },
+  "raw_knowledge": {
+    "marketing_description": "Britax Marathon ClickTight 儿童安全座椅 是真实品牌 Britax 旗下的母婴用品/出行用品商品，本数据集保留真实品牌与产品名，便于后续查找对应商品图片和构建商品详情页。导购信息经过脱敏和结构化整理，主要卖点包括年龄覆盖广、安全固定、适合自驾，适合商场出行、短途旅行。如果用户属于无车家庭，推荐时需要结合限制条件谨慎判断。价格、SKU、评论和 FAQ 为比赛数据集模拟内容，不代表实时售价或真实用户反馈。",
+    "official_faq": [
+      {
+        "question": "Britax Marathon ClickTight 儿童安全座椅 适合哪些使用场景？",
+        "answer": "更适合商场出行、短途旅行，尤其适合婴幼儿家庭、经常外出的父母。如果属于无车家庭这类情况，建议优先对比同类其他商品。"
+      },
+      {
+        "question": "Britax Marathon ClickTight 儿童安全座椅 有哪些规格可以选？",
+        "answer": "可选规格包括9月-12岁、0-12岁等，价格区间约为 899-1006 元。选择时建议结合预算、空间和使用频率判断。"
+      },
+      {
+        "question": "购买 Britax Marathon ClickTight 儿童安全座椅 前需要注意什么？",
+        "answer": "需要注意购买前需要确认车型接口。如果对年龄覆盖广有明确需求，这款会更合适；如果属于无车家庭，则不建议盲目购买。"
+      }
+    ],
+    "user_reviews": [
+      {
+        "nickname": "user_001",
+        "rating": 5,
+        "content": "用了几天感觉年龄覆盖广确实明显，放在商场出行这个场景里比较合适，整体符合预期。"
+      },
+      {
+        "nickname": "user_002",
+        "rating": 4,
+        "content": "优点是安全固定，日常使用挺顺手。不过购买前需要确认车型接口，下单前最好确认清楚。"
+      },
+      {
+        "nickname": "user_003",
+        "rating": 3,
+        "content": "商品本身没有大问题，但如果属于无车家庭，体验就一般了，建议按自己的实际需求选。"
+      }
+    ]
+  }
+}

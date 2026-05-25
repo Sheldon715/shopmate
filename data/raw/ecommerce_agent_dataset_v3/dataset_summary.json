@@ -1,0 +1,112 @@
+{
+  "dataset_root": "ecommerce_agent_dataset_v3",
+  "source_dataset": "ecommerce_agent_dataset_供参考/ecommerce_agent_dataset",
+  "schema": [
+    "product_id",
+    "data_version",
+    "source_type",
+    "status",
+    "title",
+    "brand",
+    "category",
+    "sub_category",
+    "category_path",
+    "price_info",
+    "skus",
+    "image",
+    "attributes",
+    "pros_cons",
+    "decision_factors",
+    "content_blocks",
+    "review_summary",
+    "raw_knowledge"
+  ],
+  "original_products_transformed": 100,
+  "new_products_added": 75,
+  "total_products": 175,
+  "image_rule": "Original products keep copied source images; newly added products use placeholder main images.",
+  "path_rule": "Directory names and image paths are English relative paths.",
+  "categories": {
+    "美妆护肤": 25,
+    "服饰运动": 25,
+    "数码电子": 25,
+    "食品饮料": 25,
+    "家用电器": 25,
+    "母婴用品": 25,
+    "办公学习": 25
+  },
+  "sub_categories": {
+    "美妆护肤": {
+      "精华": 7,
+      "化妆水": 2,
+      "防晒": 3,
+      "面霜": 3,
+      "洁面": 1,
+      "蜜粉": 2,
+      "唇釉": 1,
+      "眼霜": 2,
+      "卸妆": 1,
+      "粉底液": 1,
+      "面膜": 1,
+      "眉笔": 1
+    },
+    "服饰运动": {
+      "短袖T恤": 3,
+      "运动长裤": 2,
+      "卫衣": 2,
+      "跑步鞋": 4,
+      "篮球鞋": 3,
+      "徒步鞋": 2,
+      "瑜伽裤": 1,
+      "户外裤": 1,
+      "背包": 2,
+      "帽子": 2,
+      "速干T恤": 2,
+      "运动短裤": 1
+    },
+    "数码电子": {
+      "智能手机": 10,
+      "笔记本电脑": 6,
+      "平板电脑": 7,
+      "真无线耳机": 2
+    },
+    "食品饮料": {
+      "咖啡": 4,
+      "茶饮": 2,
+      "碳酸饮料": 3,
+      "功能饮料": 3,
+      "牛奶": 2,
+      "酸奶": 2,
+      "坚果/零食": 3,
+      "方便食品": 4,
+      "调味品": 2
+    },
+    "家用电器": {
+      "环境电器": 3,
+      "厨房电器": 3,
+      "空气护理": 4,
+      "厨房小电": 4,
+      "清洁电器": 3,
+      "洗护电器": 4,
+      "饮水电器": 4
+    },
+    "母婴用品": {
+      "洗护用品": 5,
+      "喂养用品": 5,
+      "婴童寝居": 5,
+      "早教玩具": 5,
+      "出行用品": 5
+    },
+    "办公学习": {
+      "办公收纳": 3,
+      "办公家具": 4,
+      "办公外设": 3,
+      "显示设备": 4,
+      "学习用品": 3,
+      "打印设备": 4,
+      "文件收纳": 4
+    }
+  },
+  "validation_error_count": 0,
+  "validation_errors": []
+}
