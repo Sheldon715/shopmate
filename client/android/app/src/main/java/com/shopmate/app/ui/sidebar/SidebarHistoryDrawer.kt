@@ -31,6 +31,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.shopmate.app.R
 import com.shopmate.app.data.mock.MockShopMateData
 import com.shopmate.app.ui.model.HistoryConversationUi
@@ -52,7 +53,9 @@ fun SidebarHistoryDrawer(
     }
 
     BoxWithConstraints(
-        modifier = modifier.fillMaxSize()
+        modifier = modifier
+            .fillMaxSize()
+            .zIndex(10f)
     ) {
         val drawerWidth = if (maxWidth < 340.dp) {
             maxWidth * 0.82f
@@ -99,7 +102,7 @@ private fun SidebarPanel(
                 clip = false
             )
             .clip(drawerShape)
-            .background(Color.White.copy(alpha = 0.96f))
+            .background(Color.White)
             .padding(start = 20.dp, top = 60.dp, end = 20.dp, bottom = 34.dp)
     ) {
         AssistantHeader()

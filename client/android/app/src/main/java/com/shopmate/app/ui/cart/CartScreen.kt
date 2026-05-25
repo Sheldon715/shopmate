@@ -50,15 +50,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.shopmate.app.R
 import com.shopmate.app.data.mock.MockShopMateData
+import com.shopmate.app.ui.components.ShopMateCircleIconButton
+import com.shopmate.app.ui.components.ShopMateElevatedSurface
 import com.shopmate.app.ui.components.ShopMateStatusMessage
 import com.shopmate.app.ui.model.CartItemUi
 import com.shopmate.app.ui.theme.ShopMateGreen
 import com.shopmate.app.ui.theme.ShopMateLightGreen
 import com.shopmate.app.ui.theme.ShopMatePillShape
-import com.shopmate.app.ui.theme.ShopMateSurface
-import com.shopmate.app.ui.theme.ShopMateSurfaceSoft
 import com.shopmate.app.ui.theme.ShopMateTextPrimary
 import com.shopmate.app.ui.theme.ShopMateTheme
+import com.shopmate.app.ui.theme.shopMateScreenBackground
 
 private const val FIGMA_WIDTH = 388.667f
 private const val FIGMA_HEIGHT = 842.667f
@@ -92,7 +93,7 @@ fun CartScreen(
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
-            .figmaCartBackground()
+            .shopMateScreenBackground()
     ) {
         val scale = maxWidth.value / FIGMA_WIDTH
         val textScale = scale.coerceIn(0.88f, 1.08f)
@@ -224,7 +225,7 @@ private fun CartHeader(
 ) {
     fun Float.s(): Dp = scaledDp(scale)
 
-    CircularIconButton(
+    ShopMateCircleIconButton(
         icon = R.drawable.ic_back,
         contentDescription = "返回上一页",
         onClick = onBackClick,
@@ -389,20 +390,12 @@ private fun CartItemCard(
     val unitPrice = parseYuanPrice(line.item.product.priceText)
     val subtotalText = formatYuan(unitPrice * line.quantity)
 
-    Box(
-        modifier = modifier
-            .shadow(
-                elevation = 4f.s(),
-                shape = RoundedCornerShape(20f.s()),
-                clip = false
-            )
-            .clip(RoundedCornerShape(20f.s()))
-            .background(Color.White.copy(alpha = 0.96f))
-            .border(
-                width = 0.667.dp,
-                color = Color(0xFFF0F3F2),
-                shape = RoundedCornerShape(20f.s())
-            )
+    ShopMateElevatedSurface(
+        modifier = modifier,
+        shape = RoundedCornerShape(20f.s()),
+        elevation = 4f.s(),
+        backgroundColor = Color.White.copy(alpha = 0.96f),
+        borderColor = Color(0xFFF0F3F2)
     ) {
         SelectableCheckButton(
             selected = line.selected,
@@ -442,7 +435,7 @@ private fun CartItemCard(
                 .size(width = 128f.s(), height = 38f.s())
         )
 
-        CircularIconButton(
+        ShopMateCircleIconButton(
             icon = R.drawable.ic_cart_delete,
             contentDescription = "删除 ${line.item.product.name}",
             onClick = onDelete,
@@ -768,60 +761,11 @@ private fun EmptyCartState(
     )
 }
 
-@Composable
-private fun CircularIconButton(
-    icon: Int,
-    contentDescription: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    iconSize: Dp,
-    backgroundColor: Color = Color.White.copy(alpha = 0.78f),
-    elevation: Dp = 8.dp
-) {
-    Box(
-        modifier = modifier
-            .shadow(elevation = elevation, shape = CircleShape, clip = false)
-            .clip(CircleShape)
-            .background(backgroundColor)
-            .clickable(role = Role.Button, onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Image(
-            painter = painterResource(id = icon),
-            contentDescription = contentDescription,
-            modifier = Modifier.size(iconSize)
-        )
-    }
-}
-
 private data class CartLineState(
     val item: CartItemUi,
     val quantity: Int,
     val selected: Boolean
 )
-
-private fun Modifier.figmaCartBackground(): Modifier =
-    background(
-        Brush.verticalGradient(
-            colors = listOf(ShopMateSurface, ShopMateSurfaceSoft)
-        )
-    ).drawBehind {
-        drawCircle(
-            brush = Brush.radialGradient(
-                colorStops = arrayOf(
-                    0f to Color(0xFF7FDCC1).copy(alpha = 0.18f),
-                    0.13f to Color(0xFF406E61).copy(alpha = 0.09f),
-                    0.26f to Color.Transparent,
-                    1f to Color.Transparent
-                ),
-                center = Offset(
-                    x = size.width * (357.57f / FIGMA_WIDTH),
-                    y = size.height * (101.12f / FIGMA_HEIGHT)
-                ),
-                radius = size.minDimension * (82.326f / FIGMA_WIDTH)
-            )
-        )
-    }
 
 private fun Float.scaledDp(scale: Float): Dp = (this * scale).dp
 
