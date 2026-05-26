@@ -98,6 +98,13 @@ export interface Product {
   officialFaq: JsonValue;
   userReviews: JsonValue;
   normalizedPayload: JsonValue;
+  sourceDataset: string;
+  sourceVersion: string;
+  sourceType: string;
+  dataVersion: string;
+  isDesensitized: boolean;
+  ingestBatchId: string;
+  sourcePath: string;
   skus: ProductSku[];
 }
 

@@ -13,7 +13,8 @@
     "db:rebuild": "tsx src/scripts/rebuild-db.ts",
     "catalog:normalize": "tsx src/scripts/normalize-products.ts",
     "catalog:validate": "tsx src/scripts/validate-products.ts",
-    "catalog:import": "tsx src/scripts/import-products.ts"
+    "catalog:import": "tsx src/scripts/import-products.ts",
+    "rag:documents": "tsx src/scripts/build-rag-documents.ts"
   },
   "keywords": [],
   "author": "",

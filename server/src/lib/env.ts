@@ -11,6 +11,7 @@ export interface ServerEnv {
   databaseUrl?: string;
   rawDataDir: string;
   processedDataDir: string;
+  ragDataDir: string;
   importDryRun: boolean;
   importStrict: boolean;
 }
@@ -118,6 +119,11 @@ export function getEnv(): ServerEnv {
     path.join(projectRoot, "data", "processed"),
     projectRoot,
   );
+  const ragDataDir = resolveProjectPath(
+    process.env.SHOPMATE_RAG_DATA_DIR,
+    path.join(processedDataDir, "rag"),
+    projectRoot,
+  );
 
   cachedEnv = {
     port: readNumber("PORT", 3000),
@@ -126,6 +132,7 @@ export function getEnv(): ServerEnv {
     databaseUrl: process.env.DATABASE_URL,
     rawDataDir,
     processedDataDir,
+    ragDataDir,
     importDryRun: readBoolean("IMPORT_DRY_RUN", true),
     importStrict: readBoolean("IMPORT_STRICT", false),
   };
