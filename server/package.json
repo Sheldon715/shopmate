@@ -4,7 +4,8 @@
   "description": "ShopMate backend scaffold",
   "main": "dist/server.js",
   "scripts": {
-    "test": "echo No tests configured yet",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
@@ -28,6 +29,7 @@
     "@types/node": "^25.9.1",
     "@types/pg": "^8.20.0",
     "tsx": "^4.22.3",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.7"
   }
 }
