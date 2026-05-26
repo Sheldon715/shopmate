@@ -40,7 +40,9 @@ function getMigrationDirectory(): string {
 }
 
 function checksumSql(sql: string): string {
-  return createHash("sha256").update(sql).digest("hex");
+  return createHash("sha256")
+    .update(sql.replace(/\r\n/g, "\n"))
+    .digest("hex");
 }
 
 async function readMigrationFiles(): Promise<MigrationFile[]> {

@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import type { Pool } from "pg";
+import type { PoolClient } from "pg";
 import {
   createDatabasePool,
   withTransaction,
@@ -10,7 +10,16 @@ import {
   getCatalogPaths,
   readNormalizedProducts,
 } from "../lib/catalog/catalog-pipeline";
-import type { CatalogManifest, ValidationReport } from "../lib/catalog/types";
+import type {
+  CatalogManifest,
+  NormalizedProduct,
+  ValidationReport,
+} from "../lib/catalog/types";
+import { mapNormalizedProductsToUpsertInputs } from "../modules/products/product.mapper";
+import {
+  upsertProductsWithSkus,
+  type ProductImportSummary,
+} from "../modules/products/product.repository";
 
 async function readJsonFile<T>(filePath: string): Promise<T> {
   const raw = await readFile(filePath, "utf8");
@@ -28,62 +37,77 @@ async function readOptionalValidationReport(
 }
 
 async function recordImportBatch(
-  pool: Pool,
+  client: PoolClient,
   manifest: CatalogManifest,
   processedItemCount: number,
   errorCount: number,
 ): Promise<void> {
-  await withTransaction(pool, async (client) => {
-    await client.query(
-      `
-        INSERT INTO catalog_import_batches (
-          id,
-          source_dataset,
-          source_version,
-          source_type,
-          data_version,
-          is_desensitized,
-          source_path,
-          dry_run,
-          status,
-          raw_item_count,
-          processed_item_count,
-          error_count,
-          started_at,
-          finished_at,
-          notes
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, FALSE, 'completed', $8, $9, $10, NOW(), NOW(), $11)
-        ON CONFLICT (id) DO UPDATE SET
-          source_dataset = EXCLUDED.source_dataset,
-          source_version = EXCLUDED.source_version,
-          source_type = EXCLUDED.source_type,
-          data_version = EXCLUDED.data_version,
-          is_desensitized = EXCLUDED.is_desensitized,
-          source_path = EXCLUDED.source_path,
-          dry_run = EXCLUDED.dry_run,
-          status = EXCLUDED.status,
-          raw_item_count = EXCLUDED.raw_item_count,
-          processed_item_count = EXCLUDED.processed_item_count,
-          error_count = EXCLUDED.error_count,
-          finished_at = EXCLUDED.finished_at,
-          notes = EXCLUDED.notes
-      `,
-      [
-        manifest.ingest_batch_id,
-        manifest.source_dataset,
-        manifest.source_version,
-        manifest.source_type,
-        manifest.data_version,
-        manifest.is_desensitized,
-        manifest.source_path,
-        manifest.raw_item_count,
-        processedItemCount,
-        errorCount,
-        "Database foundation records import provenance only; product business tables are deferred to product-schema-spec.md.",
-      ],
-    );
-  });
+  await client.query(
+    `
+      INSERT INTO catalog_import_batches (
+        id,
+        source_dataset,
+        source_version,
+        source_type,
+        data_version,
+        is_desensitized,
+        source_path,
+        dry_run,
+        status,
+        raw_item_count,
+        processed_item_count,
+        error_count,
+        started_at,
+        finished_at,
+        notes
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, FALSE, 'completed', $8, $9, $10, NOW(), NOW(), $11)
+      ON CONFLICT (id) DO UPDATE SET
+        source_dataset = EXCLUDED.source_dataset,
+        source_version = EXCLUDED.source_version,
+        source_type = EXCLUDED.source_type,
+        data_version = EXCLUDED.data_version,
+        is_desensitized = EXCLUDED.is_desensitized,
+        source_path = EXCLUDED.source_path,
+        dry_run = EXCLUDED.dry_run,
+        status = EXCLUDED.status,
+        raw_item_count = EXCLUDED.raw_item_count,
+        processed_item_count = EXCLUDED.processed_item_count,
+        error_count = EXCLUDED.error_count,
+        finished_at = EXCLUDED.finished_at,
+        notes = EXCLUDED.notes
+    `,
+    [
+      manifest.ingest_batch_id,
+      manifest.source_dataset,
+      manifest.source_version,
+      manifest.source_type,
+      manifest.data_version,
+      manifest.is_desensitized,
+      manifest.source_path,
+      manifest.raw_item_count,
+      processedItemCount,
+      errorCount,
+      "Imported product schema records from processed catalog artifacts.",
+    ],
+  );
+}
+
+function assertProductBatchMatchesManifest(
+  manifest: CatalogManifest,
+  products: NormalizedProduct[],
+): void {
+  const mismatchedProduct = products.find(
+    (product) => product.source.ingest_batch_id !== manifest.ingest_batch_id,
+  );
+
+  if (!mismatchedProduct) {
+    return;
+  }
+
+  throw new Error(
+    `Product ${mismatchedProduct.product_id} uses ingest_batch_id ${mismatchedProduct.source.ingest_batch_id}, expected ${manifest.ingest_batch_id}.`,
+  );
 }
 
 export async function importProductsCommand(): Promise<void> {
@@ -103,9 +127,11 @@ export async function importProductsCommand(): Promise<void> {
     );
   }
 
+  assertProductBatchMatchesManifest(manifest, products);
+
   if (env.importDryRun) {
     console.log(
-      `Dry-run import: ${products.length} products would be recorded as batch ${manifest.ingest_batch_id}.`,
+      `Dry-run import: ${products.length} products would be upserted as batch ${manifest.ingest_batch_id}.`,
     );
     console.log("No PostgreSQL connection was opened because IMPORT_DRY_RUN=true.");
     return;
@@ -114,9 +140,19 @@ export async function importProductsCommand(): Promise<void> {
   const pool = createDatabasePool({ allowExitOnIdle: true });
 
   try {
-    await recordImportBatch(pool, manifest, products.length, errorCount);
+    const summary = await withTransaction(
+      pool,
+      async (client): Promise<ProductImportSummary> => {
+        await recordImportBatch(client, manifest, products.length, errorCount);
+        return upsertProductsWithSkus(
+          client,
+          mapNormalizedProductsToUpsertInputs(products),
+        );
+      },
+    );
+
     console.log(
-      `Recorded catalog import batch ${manifest.ingest_batch_id} with ${products.length} processed products.`,
+      `Imported catalog batch ${manifest.ingest_batch_id}: ${summary.productCount} products, ${summary.skuCount} SKUs.`,
     );
   } finally {
     await pool.end();
