@@ -96,7 +96,7 @@ fun ChatRecommendationScreen(
                         title = "暂时没有找到结果",
                         message = "当前商品库里没有同时满足预算和降噪的耳机，可以放宽价格再试试。",
                         actionText = "调整需求",
-                        onActionClick = {},
+                        onActionClick = onNewChatClick,
                         scale = scale,
                         modifier = Modifier
                             .offset(x = 18f.s(), y = contentTop + 76f.s())
@@ -127,7 +127,7 @@ fun ChatRecommendationScreen(
                             onClick = {
                                 onProductClick(product.id)
                             },
-                            onAddCartClick = {},
+                            onAddCartClick = onCartClick,
                             modifier = Modifier
                                 .offset(
                                     x = 14f.s(),
