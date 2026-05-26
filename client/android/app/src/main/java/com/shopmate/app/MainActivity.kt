@@ -5,11 +5,13 @@ import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.view.WindowInsets
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import com.shopmate.app.ui.cart.CartScreen
 import com.shopmate.app.ui.chat.ChatRecommendationScreen
@@ -42,9 +44,26 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             ShopMateTheme {
-                var currentScreen by remember { mutableStateOf<ShopMateScreen>(ShopMateScreen.Onboarding) }
+                var currentScreen by rememberSaveable(stateSaver = ShopMateScreenSaver) {
+                    mutableStateOf<ShopMateScreen>(ShopMateScreen.Onboarding)
+                }
                 val openCart: () -> Unit = {
                     currentScreen = ShopMateScreen.Cart(previousScreen = currentScreen)
+                }
+                val openCartPreview: () -> Unit = {
+                    Toast.makeText(
+                        this@MainActivity,
+                        "购物车接口尚未接入，先打开购物车预览",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    openCart()
+                }
+                val showCheckoutPending: () -> Unit = {
+                    Toast.makeText(
+                        this@MainActivity,
+                        "模拟结算流程还未接入",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
                 val openHistoryConversation: (HistoryConversationUi) -> Unit = { conversation ->
                     currentScreen = when (conversation.id) {
@@ -85,6 +104,9 @@ class MainActivity : ComponentActivity() {
                             currentScreen = ShopMateScreen.HomeChatEntry
                         },
                         onCartClick = openCart,
+                        onProductClick = { productId ->
+                            currentScreen = ShopMateScreen.ProductDetail(productId)
+                        },
                         onHistoryClick = openHistoryConversation
                     )
 
@@ -94,8 +116,8 @@ class MainActivity : ComponentActivity() {
                             currentScreen = ShopMateScreen.ChatRecommendation
                         },
                         onCartClick = openCart,
-                        onAddCartClick = {},
-                        onBuyNowClick = {}
+                        onAddCartClick = openCartPreview,
+                        onBuyNowClick = openCartPreview
                     )
 
                     is ShopMateScreen.Cart -> CartScreen(
@@ -103,7 +125,8 @@ class MainActivity : ComponentActivity() {
                             currentScreen = restoreCartPrevious(
                                 (currentScreen as ShopMateScreen.Cart).previousScreen
                             )
-                        }
+                        },
+                        onCheckoutClick = showCheckoutPending
                     )
                 }
             }
@@ -120,9 +143,37 @@ private sealed class ShopMateScreen {
     data class Cart(val previousScreen: ShopMateScreen) : ShopMateScreen()
 }
 
+private val ShopMateScreenSaver: Saver<ShopMateScreen, List<String>> = Saver(
+    save = { screen -> screen.toRouteParts() },
+    restore = { parts -> restoreScreenFromRouteParts(parts) }
+)
+
 private fun restoreCartPrevious(previousScreen: ShopMateScreen): ShopMateScreen =
     when (previousScreen) {
         ShopMateScreen.Onboarding -> ShopMateScreen.HomeChatEntry
         is ShopMateScreen.Cart -> ShopMateScreen.HomeChatEntry
         else -> previousScreen
+    }
+
+private fun ShopMateScreen.toRouteParts(): List<String> =
+    when (this) {
+        ShopMateScreen.Onboarding -> listOf("onboarding")
+        ShopMateScreen.HomeChatEntry -> listOf("home")
+        ShopMateScreen.ChatRecommendation -> listOf("chat-recommendation")
+        ShopMateScreen.ProductComparison -> listOf("comparison")
+        is ShopMateScreen.ProductDetail -> listOf("product-detail", productId)
+        is ShopMateScreen.Cart -> listOf("cart") + previousScreen.toRouteParts().take(2)
+    }
+
+private fun restoreScreenFromRouteParts(parts: List<String>): ShopMateScreen =
+    when (parts.firstOrNull()) {
+        "home" -> ShopMateScreen.HomeChatEntry
+        "chat-recommendation" -> ShopMateScreen.ChatRecommendation
+        "comparison" -> ShopMateScreen.ProductComparison
+        "product-detail" -> ShopMateScreen.ProductDetail(parts.getOrNull(1).orEmpty())
+        "cart" -> ShopMateScreen.Cart(
+            previousScreen = restoreScreenFromRouteParts(parts.drop(1))
+                .let(::restoreCartPrevious)
+        )
+        else -> ShopMateScreen.Onboarding
     }

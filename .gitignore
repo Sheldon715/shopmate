@@ -13,3 +13,12 @@ client/android/build/
 client/android/app/build/
 client/android/local.properties
 client/android/gradle/gradle-daemon-jvm.properties
+
+# Generated data/tooling artifacts
+__pycache__/
+*.pyc
+data/raw/**/outputs/
+data/raw/**/*.zip
+data/raw/**/*.jsonl
+*storage_state*.json
+data/raw/**/*session*.json

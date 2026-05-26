@@ -70,6 +70,7 @@ private const val FIGMA_HEIGHT = 842.667f
 fun ProductComparisonScreen(
     onNewChatClick: () -> Unit,
     onCartClick: () -> Unit,
+    onProductClick: (String) -> Unit,
     onHistoryClick: (HistoryConversationUi) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -127,6 +128,8 @@ fun ProductComparisonScreen(
                 ComparisonResultCard(
                     comparison = comparison,
                     scale = scale,
+                    onProductClick = onProductClick,
+                    onAddCartClick = onCartClick,
                     modifier = Modifier
                         .offset(x = 14f.s(), y = contentTop + 188f.s())
                         .size(width = 360.667f.s(), height = 668f.s())
@@ -185,6 +188,8 @@ fun ProductComparisonScreen(
 private fun ComparisonResultCard(
     comparison: ComparisonUi,
     scale: Float,
+    onProductClick: (String) -> Unit,
+    onAddCartClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val cardShape = RoundedCornerShape(26f.scaledDp(scale))
@@ -208,6 +213,8 @@ private fun ComparisonResultCard(
             product = comparison.products[0],
             index = 1,
             scale = scale,
+            onClick = { onProductClick(comparison.products[0].id) },
+            onAddCartClick = onAddCartClick,
             modifier = Modifier
                 .offset(x = 12f.scaledDp(scale), y = 12f.scaledDp(scale))
                 .size(width = 160.333f.scaledDp(scale), height = 198.667f.scaledDp(scale))
@@ -218,6 +225,8 @@ private fun ComparisonResultCard(
             index = 2,
             scale = scale,
             withMintGlow = true,
+            onClick = { onProductClick(comparison.products[1].id) },
+            onAddCartClick = onAddCartClick,
             modifier = Modifier
                 .offset(x = 184.33f.scaledDp(scale), y = 12f.scaledDp(scale))
                 .size(width = 160.333f.scaledDp(scale), height = 198.667f.scaledDp(scale))
@@ -247,6 +256,8 @@ private fun ComparisonProductTile(
     index: Int,
     scale: Float,
     modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+    onAddCartClick: () -> Unit,
     withMintGlow: Boolean = false
 ) {
     val tileShape = RoundedCornerShape(22f.scaledDp(scale))
@@ -277,7 +288,7 @@ private fun ComparisonProductTile(
                 color = Color(0xFFF1F3F3).copy(alpha = 0.92f),
                 shape = tileShape
             )
-            .clickable(role = Role.Button, onClick = {})
+            .clickable(role = Role.Button, onClick = onClick)
     ) {
         Box(
             modifier = Modifier
@@ -357,7 +368,7 @@ private fun ComparisonProductTile(
         )
 
         ShopMateRoundedIconButton(
-            onClick = {},
+            onClick = onAddCartClick,
             backgroundColor = Color.White,
             shape = CircleShape,
             elevation = 7f.scaledDp(scale),
@@ -639,6 +650,7 @@ private fun ProductComparisonScreenTargetPreview() {
         ProductComparisonScreen(
             onNewChatClick = {},
             onCartClick = {},
+            onProductClick = {},
             onHistoryClick = {}
         )
     }
@@ -656,6 +668,7 @@ private fun ProductComparisonScreenCompactPreview() {
         ProductComparisonScreen(
             onNewChatClick = {},
             onCartClick = {},
+            onProductClick = {},
             onHistoryClick = {}
         )
     }

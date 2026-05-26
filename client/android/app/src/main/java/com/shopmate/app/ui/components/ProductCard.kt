@@ -26,6 +26,8 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -220,6 +222,9 @@ private fun AddCartButton(
         modifier = modifier
             .clip(ShopMatePillShape)
             .background(if (enabled) Color(0xFFE8F9F2) else Color(0xFFEFF2F2))
+            .semantics {
+                contentDescription = if (enabled) "加入购物车" else "暂不可选"
+            }
             .clickable(
                 enabled = enabled,
                 role = Role.Button,

@@ -67,6 +67,7 @@ private const val FIGMA_HEIGHT = 842.667f
 @Composable
 fun CartScreen(
     onBackClick: () -> Unit,
+    onCheckoutClick: () -> Unit,
     modifier: Modifier = Modifier,
     initialItems: List<CartItemUi> = MockShopMateData.cartItems
 ) {
@@ -202,6 +203,7 @@ fun CartScreen(
                 selectedCount = selectedCount,
                 totalText = formatYuan(selectedTotal),
                 scale = scale,
+                onCheckoutClick = onCheckoutClick,
                 onToggleAll = {
                     val nextSelected = !allSelected
                     cartLines = cartLines.map { line -> line.copy(selected = nextSelected) }
@@ -653,6 +655,7 @@ private fun CartFooter(
     selectedCount: Int,
     totalText: String,
     scale: Float,
+    onCheckoutClick: () -> Unit,
     onToggleAll: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -728,7 +731,7 @@ private fun CartFooter(
                 )
                 .clip(ShopMatePillShape)
                 .background(Brush.linearGradient(listOf(ShopMateLightGreen, ShopMateGreen)))
-                .clickable(role = Role.Button, onClick = {}),
+                .clickable(role = Role.Button, onClick = onCheckoutClick),
             contentAlignment = Alignment.Center
         ) {
             Text(
@@ -791,7 +794,10 @@ private fun cartVariantText(item: CartItemUi): String =
 @Composable
 private fun CartScreenTargetPreview() {
     ShopMateTheme {
-        CartScreen(onBackClick = {})
+        CartScreen(
+            onBackClick = {},
+            onCheckoutClick = {}
+        )
     }
 }
 
@@ -806,6 +812,7 @@ private fun CartScreenEmptyPreview() {
     ShopMateTheme {
         CartScreen(
             onBackClick = {},
+            onCheckoutClick = {},
             initialItems = emptyList()
         )
     }
@@ -820,6 +827,9 @@ private fun CartScreenEmptyPreview() {
 @Composable
 private fun CartScreenCompactPreview() {
     ShopMateTheme {
-        CartScreen(onBackClick = {})
+        CartScreen(
+            onBackClick = {},
+            onCheckoutClick = {}
+        )
     }
 }
