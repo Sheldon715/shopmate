@@ -140,6 +140,13 @@ function createProduct(): Product {
       },
     ],
     normalizedPayload: { product_id: "prod_cleanser_001" },
+    sourceDataset: "ecommerce_agent_dataset_v3",
+    sourceVersion: "v3",
+    sourceType: "synthetic_desensitized",
+    dataVersion: "catalog_v1",
+    isDesensitized: true,
+    ingestBatchId: "catalog_test_batch",
+    sourcePath: "beauty/data/prod_cleanser_001.json",
     skus: [
       {
         id: "sku_cleanser_001",

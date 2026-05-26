@@ -353,6 +353,28 @@ export async function findProducts(
   );
 }
 
+export async function findActiveProductsForRag(
+  client: ProductQueryClient,
+): Promise<Product[]> {
+  const result = await client.query<ProductRow>(
+    `
+      SELECT *
+      FROM products
+      WHERE status = 'active'
+      ORDER BY category ASC, sub_category ASC, name ASC, id ASC
+    `,
+  );
+
+  const skusByProductId = await findSkusByProductIds(
+    client,
+    result.rows.map((row) => row.id),
+  );
+
+  return result.rows.map((row) =>
+    mapProductRowToProduct(row, skusByProductId.get(row.id) ?? []),
+  );
+}
+
 export async function findProductById(
   client: ProductQueryClient,
   productId: string,

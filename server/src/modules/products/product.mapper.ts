@@ -228,6 +228,13 @@ export function mapProductRowToProduct(
     officialFaq: row.official_faq,
     userReviews: row.user_reviews,
     normalizedPayload: row.normalized_payload,
+    sourceDataset: row.source_dataset,
+    sourceVersion: row.source_version,
+    sourceType: row.source_type,
+    dataVersion: row.data_version,
+    isDesensitized: row.is_desensitized,
+    ingestBatchId: row.ingest_batch_id,
+    sourcePath: row.source_path,
     skus,
   };
 }
