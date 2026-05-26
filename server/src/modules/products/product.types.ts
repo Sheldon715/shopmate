@@ -93,8 +93,17 @@ export interface Product {
   recommendWhen: string[];
   avoidWhen: string[];
   compareWith: string[];
+  reviewSummary: JsonValue;
+  contentBlocks: JsonValue;
+  officialFaq: JsonValue;
+  userReviews: JsonValue;
   normalizedPayload: JsonValue;
   skus: ProductSku[];
+}
+
+export interface ProductPriceRangeCents {
+  min: number;
+  max: number;
 }
 
 export interface ProductCardDto {
@@ -103,28 +112,37 @@ export interface ProductCardDto {
   brand: string;
   category: string;
   subCategory: string | null;
-  imagePath: string | null;
-  imageCaption: string | null;
+  priceCents: number;
+  priceRangeCents: ProductPriceRangeCents;
   currency: string;
-  basePriceCents: number;
-  priceMinCents: number;
-  priceMaxCents: number;
+  imagePath: string | null;
   ratingAvg: number | null;
-  marketingDescription: string;
+  tags: string[];
+  available: boolean;
 }
 
 export interface ProductDetailDto extends ProductCardDto {
-  status: string;
-  knowledgeText: string;
-  categoryPath: string[];
-  visualTags: string[];
+  marketingDescription: string;
+  skus: ProductSku[];
   attributes: Record<string, string[]>;
   pros: string[];
   cons: string[];
   recommendWhen: string[];
   avoidWhen: string[];
-  compareWith: string[];
-  skus: ProductSku[];
+  reviewSummary: JsonValue;
+  officialFaq: JsonValue;
+  contentBlocks: JsonValue;
+}
+
+export interface ProductListQuery {
+  q?: string;
+  category?: string;
+  subCategory?: string;
+  brand?: string;
+  minPriceCents?: number;
+  maxPriceCents?: number;
+  limit: number;
+  offset: number;
 }
 
 export interface ProductSkuUpsertInput {

@@ -1,20 +1,44 @@
-# 当前功能
+# 当前功能：商品查询 API
 
 ## 状态
 
-未开始
+进行中
 
 ## 目标
 
-<!-- 在开始新功能前填写目标 -->
+- 新增 products 模块的 routes / controller / service 查询链路。
+- 实现 `GET /api/products` 商品列表接口，支持关键词、类目、品牌、价格范围和分页过滤。
+- 实现 `GET /api/products/:id` 商品详情接口，不存在时返回稳定错误码。
+- 使用统一 `ApiResponse<T>` JSON 返回格式。
+- 校验 query params 和 path params，保持错误码稳定，方便 Android 和后续测试判断。
 
 ## 待办事项
 
-<!-- 在开始新功能前填写检查清单 -->
+- [x] 新增 `server/src/modules/products/product.routes.ts`。
+- [x] 新增 `server/src/modules/products/product.controller.ts`。
+- [x] 新增 `server/src/modules/products/product.service.ts`。
+- [x] 扩展 `product.types.ts`，补齐列表、详情、查询参数和错误类型。
+- [x] 复用或扩展 `product.repository.ts`，只通过参数化 SQL 读取 PostgreSQL。
+- [x] 复用或扩展 `product.mapper.ts`，生成 `ProductCardDto` 和 `ProductDetailDto`。
+- [x] 在 `server/src/app.ts` 挂载 `/api/products` 路由。
+- [x] 校验 `q`、`category`、`subCategory`、`brand`、`minPriceCents`、`maxPriceCents`、`limit`、`offset` 和 `:id`。
+- [x] 验证 `GET /api/products` 返回统一格式和商品卡片字段。
+- [x] 验证 `GET /api/products?q=防晒` 能返回匹配商品。
+- [x] 验证 `GET /api/products?category=数码电子&maxPriceCents=50000` 能按条件过滤。
+- [x] 验证 `GET /api/products/:id` 返回详情字段和 SKU 列表。
+- [x] 验证不存在的 id 返回 `404 PRODUCT_NOT_FOUND`。
+- [x] 运行 `cd server && npm.cmd run build`。
 
 ## 备注
 
-<!-- 在开始新功能前填写备注 -->
+- 规格来源：`context/feature/product-api-spec.md`。
+- 本 spec 只做商品列表、详情和基础搜索 / 筛选接口，不实现 RAG、购物车或 Android 接入。
+- 商品导入和表结构已由 `product-schema-spec.md` 处理，本功能不得从 `data/raw/` 或 `data/processed/` 读取 API 数据。
+- 默认只返回 `status = active` 或当前数据集中可展示的商品；排序第一版保持稳定，例如 `name ASC, id ASC`。
+- `subCategory` 使用 camelCase query param，数据库字段仍为 `sub_category`。
+- 错误码要求：参数非法 `400 INVALID_PRODUCT_QUERY`；商品不存在 `404 PRODUCT_NOT_FOUND`；服务端异常 `500 INTERNAL_ERROR`。
+- 验证记录：`cd server && npm.cmd run build` 通过；`cd server && npm.cmd test` 仍是当前占位命令，输出 `No tests configured yet`。
+- 本地烟测记录：`GET /api/products?limit=1`、`GET /api/products?q=防晒&limit=5`、详情接口和不存在 id 均返回预期格式；`数码电子&maxPriceCents=50000` 返回成功空列表，因为当前 PostgreSQL 数据中 `数码电子` 最低 `price_min_cents` 为 `149900`。
 
 ## 历史记录
 
@@ -36,3 +60,5 @@
 - Android 购物车页：实现购物车页，支持本地选择、数量加减、删除、合计和空状态，仍使用 `MockShopMateData.cartItems`。
 - Android 首轮 UI 打磨：统一安全区、滚动 / padding、键盘避让、按钮状态和 Preview，修复第一轮页面的重叠、溢出和小屏问题。
 - Android Compose 共享组件抽取：新增顶部操作栏、圆形图标按钮、聊天气泡和 elevated surface 共享组件，统一页面背景光晕，调整聊天 / 详情滚动层与侧边栏层级，并通过 `cd client/android && .\gradlew.bat build installDebug` 验证。
+- 数据库基础设施：新增 PostgreSQL `pg` 连接池、SQL migration 执行器、catalog normalize / validate / import / rebuild 脚本，以 `ecommerce_agent_dataset_v3` 作为 175 条商品 canonical source，生成 processed 工件并记录真实 PostgreSQL import batch。
+- 商品结构化主库：新增 `products` / `product_skus` migration、商品类型 / mapper / repository，并扩展 `catalog:import` 幂等导入 175 条 products 和 736 条 SKUs；通过后端 build、两次 import 幂等验证和数据库计数复核。

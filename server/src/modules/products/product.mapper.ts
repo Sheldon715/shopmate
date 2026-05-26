@@ -4,12 +4,79 @@ import type {
 } from "../../lib/catalog/types";
 import type {
   JsonValue,
+  Product,
+  ProductCardDto,
+  ProductDetailDto,
+  ProductRow,
+  ProductSku,
+  ProductSkuRow,
   ProductSkuUpsertInput,
   ProductWithSkusUpsertInput,
 } from "./product.types";
 
 function toJsonValue(value: unknown): JsonValue {
   return value as JsonValue;
+}
+
+function toRecordOfStringArrays(value: JsonValue): Record<string, string[]> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  const result: Record<string, string[]> = {};
+
+  for (const [key, rawValue] of Object.entries(value)) {
+    if (Array.isArray(rawValue)) {
+      result[key] = rawValue.filter(
+        (item): item is string => typeof item === "string",
+      );
+      continue;
+    }
+
+    if (typeof rawValue === "string") {
+      result[key] = [rawValue];
+    }
+  }
+
+  return result;
+}
+
+function toStringArray(value: JsonValue): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((item): item is string => typeof item === "string");
+}
+
+function toStringRecord(value: JsonValue): Record<string, string> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  const result: Record<string, string> = {};
+
+  for (const [key, rawValue] of Object.entries(value)) {
+    if (
+      typeof rawValue === "string" ||
+      typeof rawValue === "number" ||
+      typeof rawValue === "boolean"
+    ) {
+      result[key] = String(rawValue);
+    }
+  }
+
+  return result;
+}
+
+function parseRating(value: string | number | null): number | null {
+  if (value === null) {
+    return null;
+  }
+
+  const parsed = typeof value === "number" ? value : Number(value);
+
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function optionalText(value: string | undefined): string | null {
@@ -113,4 +180,92 @@ export function mapNormalizedProductsToUpsertInputs(
   products: NormalizedProduct[],
 ): ProductWithSkusUpsertInput[] {
   return products.map((product) => mapNormalizedProductToUpsertInput(product));
+}
+
+export function mapProductSkuRowToProductSku(row: ProductSkuRow): ProductSku {
+  return {
+    id: row.id,
+    productId: row.product_id,
+    properties: toStringRecord(row.properties),
+    priceCents: row.price_cents,
+    currency: row.currency,
+    available: row.available,
+    stockLevel: row.stock_level,
+    sortOrder: row.sort_order,
+  };
+}
+
+export function mapProductRowToProduct(
+  row: ProductRow,
+  skus: ProductSku[] = [],
+): Product {
+  return {
+    id: row.id,
+    status: row.status,
+    name: row.name,
+    brand: row.brand,
+    category: row.category,
+    subCategory: row.sub_category,
+    imagePath: row.image_path,
+    imageCaption: row.image_caption,
+    currency: row.currency,
+    basePriceCents: row.base_price_cents,
+    priceMinCents: row.price_min_cents,
+    priceMaxCents: row.price_max_cents,
+    marketingDescription: row.marketing_description,
+    knowledgeText: row.knowledge_text,
+    ratingAvg: parseRating(row.rating_avg),
+    categoryPath: toStringArray(row.category_path),
+    visualTags: toStringArray(row.visual_tags),
+    attributes: toRecordOfStringArrays(row.attributes),
+    pros: toStringArray(row.pros),
+    cons: toStringArray(row.cons),
+    recommendWhen: toStringArray(row.recommend_when),
+    avoidWhen: toStringArray(row.avoid_when),
+    compareWith: toStringArray(row.compare_with),
+    reviewSummary: row.review_summary,
+    contentBlocks: row.content_blocks,
+    officialFaq: row.official_faq,
+    userReviews: row.user_reviews,
+    normalizedPayload: row.normalized_payload,
+    skus,
+  };
+}
+
+export function mapProductToCardDto(product: Product): ProductCardDto {
+  return {
+    id: product.id,
+    name: product.name,
+    brand: product.brand,
+    category: product.category,
+    subCategory: product.subCategory,
+    priceCents: product.basePriceCents,
+    priceRangeCents: {
+      min: product.priceMinCents,
+      max: product.priceMaxCents,
+    },
+    currency: product.currency,
+    imagePath: product.imagePath,
+    ratingAvg: product.ratingAvg,
+    tags: product.visualTags,
+    available: product.skus.length === 0
+      ? product.status === "active"
+      : product.skus.some((sku) => sku.available),
+  };
+}
+
+export function mapProductToDetailDto(product: Product): ProductDetailDto {
+  return {
+    ...mapProductToCardDto(product),
+    marketingDescription: product.marketingDescription,
+    skus: product.skus,
+    attributes: product.attributes,
+    pros: product.pros,
+    cons: product.cons,
+    recommendWhen: product.recommendWhen,
+    avoidWhen: product.avoidWhen,
+    reviewSummary: product.reviewSummary,
+    officialFaq: product.officialFaq,
+    contentBlocks: product.contentBlocks,
+  };
 }
