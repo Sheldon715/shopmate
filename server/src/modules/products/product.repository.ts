@@ -1,6 +1,15 @@
-import type { PoolClient } from "pg";
+import type { Pool, PoolClient } from "pg";
+import {
+  mapProductRowToProduct,
+  mapProductSkuRowToProductSku,
+} from "./product.mapper";
 import type {
   JsonValue,
+  Product,
+  ProductListQuery,
+  ProductRow,
+  ProductSku,
+  ProductSkuRow,
   ProductSkuUpsertInput,
   ProductUpsertInput,
   ProductWithSkusUpsertInput,
@@ -13,6 +22,89 @@ export interface ProductImportSummary {
 
 function stringifyJson(value: JsonValue): string {
   return JSON.stringify(value);
+}
+
+type ProductQueryClient = Pool | PoolClient;
+
+function buildProductFilters(query: ProductListQuery): {
+  whereSql: string;
+  values: (string | number)[];
+} {
+  const clauses = ["status = 'active'"];
+  const values: (string | number)[] = [];
+
+  function addValue(value: string | number): string {
+    values.push(value);
+    return `$${values.length}`;
+  }
+
+  if (query.q) {
+    const placeholder = addValue(`%${query.q.toLowerCase()}%`);
+    clauses.push(`
+      (
+        LOWER(name) LIKE ${placeholder}
+        OR LOWER(brand) LIKE ${placeholder}
+        OR LOWER(category) LIKE ${placeholder}
+        OR LOWER(COALESCE(sub_category, '')) LIKE ${placeholder}
+        OR LOWER(marketing_description) LIKE ${placeholder}
+      )
+    `);
+  }
+
+  if (query.category) {
+    clauses.push(`category = ${addValue(query.category)}`);
+  }
+
+  if (query.subCategory) {
+    clauses.push(`sub_category = ${addValue(query.subCategory)}`);
+  }
+
+  if (query.brand) {
+    clauses.push(`brand = ${addValue(query.brand)}`);
+  }
+
+  if (query.minPriceCents !== undefined) {
+    clauses.push(`price_max_cents >= ${addValue(query.minPriceCents)}`);
+  }
+
+  if (query.maxPriceCents !== undefined) {
+    clauses.push(`price_min_cents <= ${addValue(query.maxPriceCents)}`);
+  }
+
+  return {
+    whereSql: clauses.join(" AND "),
+    values,
+  };
+}
+
+async function findSkusByProductIds(
+  client: ProductQueryClient,
+  productIds: string[],
+): Promise<Map<string, ProductSku[]>> {
+  const skusByProductId = new Map<string, ProductSku[]>();
+
+  if (productIds.length === 0) {
+    return skusByProductId;
+  }
+
+  const result = await client.query<ProductSkuRow>(
+    `
+      SELECT *
+      FROM product_skus
+      WHERE product_id = ANY($1::text[])
+      ORDER BY product_id ASC, sort_order ASC, id ASC
+    `,
+    [productIds],
+  );
+
+  for (const row of result.rows) {
+    const sku = mapProductSkuRowToProductSku(row);
+    const existing = skusByProductId.get(sku.productId) ?? [];
+    existing.push(sku);
+    skusByProductId.set(sku.productId, existing);
+  }
+
+  return skusByProductId;
 }
 
 async function upsertProduct(
@@ -229,4 +321,60 @@ export async function upsertProductsWithSkus(
     productCount: items.length,
     skuCount,
   };
+}
+
+export async function findProducts(
+  client: ProductQueryClient,
+  query: ProductListQuery,
+): Promise<Product[]> {
+  const filters = buildProductFilters(query);
+  const limitPlaceholder = `$${filters.values.length + 1}`;
+  const offsetPlaceholder = `$${filters.values.length + 2}`;
+
+  const result = await client.query<ProductRow>(
+    `
+      SELECT *
+      FROM products
+      WHERE ${filters.whereSql}
+      ORDER BY name ASC, id ASC
+      LIMIT ${limitPlaceholder}
+      OFFSET ${offsetPlaceholder}
+    `,
+    [...filters.values, query.limit, query.offset],
+  );
+
+  const skusByProductId = await findSkusByProductIds(
+    client,
+    result.rows.map((row) => row.id),
+  );
+
+  return result.rows.map((row) =>
+    mapProductRowToProduct(row, skusByProductId.get(row.id) ?? []),
+  );
+}
+
+export async function findProductById(
+  client: ProductQueryClient,
+  productId: string,
+): Promise<Product | null> {
+  const result = await client.query<ProductRow>(
+    `
+      SELECT *
+      FROM products
+      WHERE id = $1
+        AND status = 'active'
+      LIMIT 1
+    `,
+    [productId],
+  );
+
+  const row = result.rows[0];
+
+  if (!row) {
+    return null;
+  }
+
+  const skusByProductId = await findSkusByProductIds(client, [productId]);
+
+  return mapProductRowToProduct(row, skusByProductId.get(productId) ?? []);
 }
