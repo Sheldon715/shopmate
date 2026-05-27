@@ -1,10 +1,7 @@
 import type { Response } from "express";
+import type { ChatStreamEventName } from "./chat.types";
 
-export type ChatStreamEventName =
-  | "message_delta"
-  | "product_cards"
-  | "done"
-  | "error";
+export type { ChatStreamEventName } from "./chat.types";
 
 export class SseSerializationError extends Error {
   readonly code = "SSE_SERIALIZATION_ERROR";
