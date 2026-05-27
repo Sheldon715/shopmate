@@ -12,6 +12,51 @@ export interface ChatHistoryMessage {
   content: string;
 }
 
+export type ChatStreamEventName =
+  | "message_delta"
+  | "product_cards"
+  | "done"
+  | "error";
+
+export interface ChatMessageDeltaPayload {
+  text: string;
+  index: number;
+}
+
+export interface ChatProductCardsPayload {
+  items: ProductCardDto[];
+}
+
+export interface ChatDonePayload {
+  recommendedProductIds: string[];
+  fallbackUsed: boolean;
+  fallbackReason?: RagChatFallbackReason | null;
+  retrieval: {
+    candidateCount: number;
+    returnedProductIds: string[];
+  };
+}
+
+export interface ChatErrorPayload {
+  code: string;
+  message: string;
+  retryable: boolean;
+}
+
+export interface ChatStreamEventPayloadByName {
+  message_delta: ChatMessageDeltaPayload;
+  product_cards: ChatProductCardsPayload;
+  done: ChatDonePayload;
+  error: ChatErrorPayload;
+}
+
+export type ChatStreamContractEvent = {
+  [EventName in ChatStreamEventName]: {
+    eventName: EventName;
+    payload: ChatStreamEventPayloadByName[EventName];
+  };
+}[ChatStreamEventName];
+
 export interface RagChatRequest {
   question: string;
   shortHistory?: ChatHistoryMessage[];

@@ -2,7 +2,12 @@ import { EventEmitter } from "node:events";
 import type { Request, Response } from "express";
 import { describe, expect, it, vi } from "vitest";
 import type { ProductCardDto } from "../products/product.types";
-import type { RagChatRequest, RagChatResult } from "./chat.types";
+import { chatContractFixtures } from "./chat-contract.fixture";
+import type {
+  ChatStreamContractEvent,
+  RagChatRequest,
+  RagChatResult,
+} from "./chat.types";
 import type { ChatAnswerService } from "./chat.controller";
 import { createChatStreamController } from "./chat.controller";
 
@@ -11,7 +16,7 @@ describe("createChatStreamController", () => {
     const calls: RagChatRequest[] = [];
     const service = createService(async (input) => {
       calls.push(input);
-      return createResult({ answer: "Use product one." });
+      return createResultFromFixture(chatContractFixtures.successStream.events);
     });
     const request = createRequest({
       message: " recommend one ",
@@ -39,23 +44,15 @@ describe("createChatStreamController", () => {
     expect(response.headers.get("content-type")).toBe(
       "text/event-stream; charset=utf-8",
     );
-    expect(response.events()).toEqual([
-      "message_delta",
-      "product_cards",
-      "done",
-    ]);
+    expect(response.streamEvents()).toEqual(
+      chatContractFixtures.successStream.events,
+    );
     expect(response.ended).toBe(true);
   });
 
   it("streams fallback results as successful done events", async () => {
     const service = createService(async () =>
-      createResult({
-        answer: "",
-        fallbackUsed: true,
-        fallbackReason: "NO_CANDIDATES",
-        productCards: [],
-        recommendedProductIds: [],
-      })
+      createResultFromFixture(chatContractFixtures.emptyAnswerFallback.events)
     );
     const request = createRequest({ message: "unknown product" });
     const response = new FakeResponse();
@@ -65,12 +62,9 @@ describe("createChatStreamController", () => {
       response.asResponse(),
     );
 
-    expect(response.events()).toEqual(["product_cards", "done"]);
-    expect(response.dataFor("done")).toMatchObject({
-      recommendedProductIds: [],
-      fallbackUsed: true,
-      fallbackReason: "NO_CANDIDATES",
-    });
+    expect(response.streamEvents()).toEqual(
+      chatContractFixtures.emptyAnswerFallback.events,
+    );
   });
 
   it("returns 400 JSON before SSE starts when request validation fails", async () => {
@@ -107,12 +101,27 @@ describe("createChatStreamController", () => {
       response.asResponse(),
     );
 
-    expect(response.events()).toEqual(["error"]);
-    expect(response.dataFor("error")).toEqual({
-      code: "CHAT_STREAM_ERROR",
-      message: "Chat stream failed.",
-      retryable: true,
-    });
+    expect(response.streamEvents()).toEqual(
+      chatContractFixtures.errorStream.events,
+    );
+    expect(response.ended).toBe(true);
+  });
+
+  it("streams no-product results with an empty product_cards payload", async () => {
+    const service = createService(async () =>
+      createResultFromFixture(chatContractFixtures.noProductStream.events)
+    );
+    const request = createRequest({ message: "unknown product" });
+    const response = new FakeResponse();
+
+    await createChatStreamController(service)(
+      request.asRequest(),
+      response.asResponse(),
+    );
+
+    expect(response.streamEvents()).toEqual(
+      chatContractFixtures.noProductStream.events,
+    );
     expect(response.ended).toBe(true);
   });
 
@@ -217,6 +226,26 @@ class FakeResponse {
     });
   }
 
+  streamEvents(): ChatStreamContractEvent[] {
+    return this.chunks.map((chunk) => {
+      const eventLine = chunk
+        .split("\n")
+        .find((line) => line.startsWith("event: "));
+      const dataLine = chunk
+        .split("\n")
+        .find((line) => line.startsWith("data: "));
+
+      if (!eventLine || !dataLine) {
+        throw new Error("SSE chunk is missing event or data line.");
+      }
+
+      return {
+        eventName: eventLine.slice("event: ".length),
+        payload: JSON.parse(dataLine.slice("data: ".length)),
+      } as ChatStreamContractEvent;
+    });
+  }
+
   dataFor(eventName: string): unknown {
     const chunk = this.chunks.find((item) =>
       item.startsWith(`event: ${eventName}\n`)
@@ -265,6 +294,52 @@ function createResult(
     },
     ...overrides,
   };
+}
+
+function createResultFromFixture(
+  events: ChatStreamContractEvent[],
+): RagChatResult {
+  const answer = events
+    .filter(
+      (
+        event,
+      ): event is Extract<
+        ChatStreamContractEvent,
+        { eventName: "message_delta" }
+      > => event.eventName === "message_delta",
+    )
+    .map((event) => event.payload.text)
+    .join("");
+  const productCardsPayload = payloadFor(
+    events,
+    "product_cards",
+  );
+  const donePayload = payloadFor(events, "done");
+
+  return createResult({
+    answer,
+    recommendedProductIds: donePayload.recommendedProductIds,
+    productCards: productCardsPayload.items,
+    fallbackUsed: donePayload.fallbackUsed,
+    fallbackReason: donePayload.fallbackReason ?? undefined,
+    retrieval: donePayload.retrieval,
+  });
+}
+
+function payloadFor<EventName extends ChatStreamContractEvent["eventName"]>(
+  events: ChatStreamContractEvent[],
+  eventName: EventName,
+): Extract<ChatStreamContractEvent, { eventName: EventName }>["payload"] {
+  const event = events.find((item) => item.eventName === eventName);
+
+  if (!event) {
+    throw new Error(`Missing fixture event ${eventName}.`);
+  }
+
+  return event.payload as Extract<
+    ChatStreamContractEvent,
+    { eventName: EventName }
+  >["payload"];
 }
 
 function createProductCard(): ProductCardDto {

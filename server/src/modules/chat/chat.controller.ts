@@ -1,7 +1,14 @@
 import { randomUUID } from "node:crypto";
 import type { Request, Response } from "express";
 import { fail } from "../../types/api-response";
-import type { RagChatRequest, RagChatResult } from "./chat.types";
+import type {
+  ChatDonePayload,
+  ChatErrorPayload,
+  ChatMessageDeltaPayload,
+  ChatProductCardsPayload,
+  RagChatRequest,
+  RagChatResult,
+} from "./chat.types";
 import {
   CHAT_STREAM_REQUEST_ERROR_CODE,
   ChatStreamRequestError,
@@ -113,30 +120,38 @@ function writeChatResult(
   const chunks = chunkMessageDelta(result.answer);
 
   for (const [index, text] of chunks.entries()) {
-    const status = safeWriteSseEvent(response, "message_delta", {
+    const payload: ChatMessageDeltaPayload = {
       text,
       index,
-    });
+    };
+    const status = safeWriteSseEvent(response, "message_delta", payload);
 
     if (status !== "ok") {
       return status;
     }
   }
 
-  const productCardsStatus = safeWriteSseEvent(response, "product_cards", {
+  const productCardsPayload: ChatProductCardsPayload = {
     items: result.productCards,
-  });
+  };
+  const productCardsStatus = safeWriteSseEvent(
+    response,
+    "product_cards",
+    productCardsPayload,
+  );
 
   if (productCardsStatus !== "ok") {
     return productCardsStatus;
   }
 
-  return safeWriteSseEvent(response, "done", {
+  const donePayload: ChatDonePayload = {
     recommendedProductIds: result.recommendedProductIds,
     fallbackUsed: result.fallbackUsed,
     fallbackReason: result.fallbackReason,
     retrieval: result.retrieval,
-  });
+  };
+
+  return safeWriteSseEvent(response, "done", donePayload);
 }
 
 function writeJsonError(response: Response, error: unknown): void {
@@ -156,11 +171,7 @@ function writeJsonError(response: Response, error: unknown): void {
   response.status(500).json(fail("INTERNAL_ERROR", "Chat stream failed."));
 }
 
-function mapStreamError(error: unknown): {
-  code: string;
-  message: string;
-  retryable: boolean;
-} {
+function mapStreamError(error: unknown): ChatErrorPayload {
   if (error instanceof RagChatError) {
     return {
       code: CHAT_STREAM_REQUEST_ERROR_CODE,
@@ -180,7 +191,7 @@ function mapStreamError(error: unknown): {
 
 function writeSseError(
   response: Response,
-  error: { code: string; message: string; retryable: boolean },
+  error: ChatErrorPayload,
 ): SseWriteStatus {
   return safeWriteSseEvent(response, "error", error);
 }
