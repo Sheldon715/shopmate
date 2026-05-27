@@ -1,6 +1,8 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { config as loadDotenv } from "dotenv";
+import { loadLlmConfig } from "../modules/llm/llm.config";
+import type { LlmConfig } from "../modules/llm/llm.config";
 import type { EmbeddingEndpointKind } from "../modules/vector/embedding.types";
 
 export type NodeEnv = "development" | "test" | "production";
@@ -28,6 +30,7 @@ export interface ServerEnv {
   embeddingTimeoutMs: number;
   embeddingMaxRetries: number;
   ragTopK: number;
+  llm: LlmConfig;
 }
 
 let cachedEnv: ServerEnv | undefined;
@@ -192,6 +195,7 @@ export function getEnv(): ServerEnv {
     embeddingTimeoutMs: readPositiveInteger("EMBEDDING_TIMEOUT_MS", 30000),
     embeddingMaxRetries: readPositiveInteger("EMBEDDING_MAX_RETRIES", 3),
     ragTopK: readPositiveInteger("RAG_TOP_K", 12),
+    llm: loadLlmConfig(process.env),
   };
 
   return cachedEnv;
