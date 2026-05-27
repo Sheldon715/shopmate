@@ -16,7 +16,8 @@
     "catalog:import": "tsx src/scripts/import-products.ts",
     "rag:documents": "tsx src/scripts/build-rag-documents.ts",
     "rag:index": "tsx src/scripts/index-product-vectors.ts",
-    "rag:search": "tsx src/scripts/search-product-vectors.ts"
+    "rag:search": "tsx src/scripts/search-product-vectors.ts",
+    "rag:evaluate": "tsx src/scripts/evaluate-rag.ts"
   },
   "keywords": [],
   "author": "",
