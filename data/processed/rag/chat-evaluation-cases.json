@@ -1,0 +1,160 @@
+[
+  {
+    "caseId": "oil-skin-cleanser-chat",
+    "query": "推荐一款适合油皮的洗面奶",
+    "history": [],
+    "filters": {
+      "category": "美妆护肤",
+      "subCategory": "洁面",
+      "availableOnly": true
+    },
+    "topK": 8,
+    "maxRecommendedProducts": 3,
+    "expectedBehavior": "推荐库内洁面商品，优先命中适合清洁和控油场景的商品；回答不得编造价格、库存、优惠或商品功效，商品卡片应来自后端库内商品。",
+    "expectedProductIdsAny": ["p_beauty_011"],
+    "expectedNoResult": false,
+    "riskFocus": ["retrieval", "llm_grounding"],
+    "priority": "p0"
+  },
+  {
+    "caseId": "bluetooth-earbuds-under-200-chat",
+    "query": "200 元以内的蓝牙耳机有哪些？",
+    "history": [],
+    "filters": {
+      "category": "数码电子",
+      "subCategory": "真无线耳机",
+      "maxPriceCents": 20000,
+      "availableOnly": true
+    },
+    "topK": 8,
+    "maxRecommendedProducts": 3,
+    "expectedBehavior": "当前库内真无线耳机价格均高于 200 元，应明确说明未找到符合预算的库内商品，不得强行推荐超预算商品或编造低价耳机。",
+    "expectedProductIdsAny": [],
+    "expectedNoResult": true,
+    "riskFocus": ["filter", "no_result", "llm_grounding"],
+    "priority": "p0"
+  },
+  {
+    "caseId": "alcohol-free-sunscreen-chat",
+    "query": "推荐防晒霜，但不要含酒精的",
+    "history": [],
+    "filters": {
+      "category": "美妆护肤",
+      "subCategory": "防晒",
+      "availableOnly": true,
+      "avoidTerms": ["酒精"]
+    },
+    "topK": 8,
+    "maxRecommendedProducts": 3,
+    "expectedBehavior": "优先推荐库内有明确无酒精信息的防晒商品，并说明依据来自检索结果；不得把含酒精或酒精敏感风险不明确的商品包装成无酒精商品。",
+    "expectedProductIdsAny": ["p_beauty_006"],
+    "expectedNoResult": false,
+    "riskFocus": ["filter", "llm_grounding"],
+    "priority": "p1"
+  },
+  {
+    "caseId": "compare-two-sunscreens-chat",
+    "query": "帮我对比两款防晒霜",
+    "history": [],
+    "filters": {
+      "category": "美妆护肤",
+      "subCategory": "防晒",
+      "availableOnly": true
+    },
+    "topK": 8,
+    "maxRecommendedProducts": 3,
+    "expectedBehavior": "召回至少两款库内防晒商品，并用库内信息做清晰对比；如果当前输出还不是结构化对比，也应避免编造成分、价格、库存或功效。",
+    "expectedProductIdsAny": [
+      "p_beauty_006",
+      "p_beauty_010",
+      "p_beauty_023"
+    ],
+    "expectedNoResult": false,
+    "riskFocus": ["retrieval", "comparison", "llm_grounding"],
+    "priority": "p1"
+  },
+  {
+    "caseId": "cheaper-follow-up-earbuds-chat",
+    "query": "再便宜一点的有吗？",
+    "history": [
+      {
+        "role": "user",
+        "content": "想买一款真无线蓝牙耳机，日常通勤用。"
+      },
+      {
+        "role": "assistant",
+        "content": "可以看看 Apple 3 主动降噪真无线蓝牙耳机，价格大约 1799 元起。"
+      }
+    ],
+    "filters": {
+      "category": "数码电子",
+      "subCategory": "真无线耳机",
+      "availableOnly": true
+    },
+    "topK": 8,
+    "maxRecommendedProducts": 3,
+    "expectedBehavior": "结合短历史理解用户是在要求比上一轮耳机更便宜的库内替代品；可优先返回价格更低的真无线耳机，若无法可靠理解上下文则应追问而不是编造低价商品。",
+    "expectedProductIdsAny": ["p_digital_007"],
+    "expectedNoResult": false,
+    "riskFocus": ["follow_up", "retrieval", "llm_grounding"],
+    "priority": "p1"
+  },
+  {
+    "caseId": "quiet-dorm-keyboard-chat",
+    "query": "宿舍用安静一点的键盘",
+    "history": [],
+    "filters": {
+      "category": "办公学习",
+      "subCategory": "办公外设",
+      "availableOnly": true
+    },
+    "topK": 8,
+    "maxRecommendedProducts": 3,
+    "expectedBehavior": "召回适合宿舍或低噪场景的库内键盘商品，优先说明安静、低噪、价格或便携取舍；不得推荐非键盘外设或编造不存在的静音参数。",
+    "expectedProductIdsAny": [
+      "p_office_keyboard_001",
+      "p_office_keyboard_002"
+    ],
+    "expectedNoResult": false,
+    "riskFocus": ["retrieval", "llm_grounding"],
+    "priority": "p0"
+  },
+  {
+    "caseId": "air-purifier-under-1000-chat",
+    "query": "1000 元以内空气净化器",
+    "history": [],
+    "filters": {
+      "category": "家用电器",
+      "subCategory": "空气护理",
+      "maxPriceCents": 100000,
+      "availableOnly": true
+    },
+    "topK": 8,
+    "maxRecommendedProducts": 3,
+    "expectedBehavior": "推荐 1000 元以内的库内空气护理 / 空气净化相关商品，商品卡片价格必须来自后端库内数据；不得推荐超预算商品或把其他家电说成空气净化器。",
+    "expectedProductIdsAny": [
+      "p_home_air_001",
+      "p_home_air_003"
+    ],
+    "expectedNoResult": false,
+    "riskFocus": ["filter", "retrieval", "llm_grounding"],
+    "priority": "p0"
+  },
+  {
+    "caseId": "mars-camping-fridge-chat",
+    "query": "有没有适合火星露营的冰箱？",
+    "history": [],
+    "filters": {
+      "category": "家用电器",
+      "subCategory": "冰箱",
+      "availableOnly": true
+    },
+    "topK": 8,
+    "maxRecommendedProducts": 3,
+    "expectedBehavior": "当前商品库没有冰箱，也没有火星露营场景商品；应明确说明未找到符合条件的库内商品，可以给出改问或放宽条件建议，但不得编造火星露营冰箱或推荐无关家电。",
+    "expectedProductIdsAny": [],
+    "expectedNoResult": true,
+    "riskFocus": ["no_result", "llm_grounding"],
+    "priority": "p0"
+  }
+]
