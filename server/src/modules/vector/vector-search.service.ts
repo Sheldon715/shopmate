@@ -40,6 +40,7 @@ export class VectorSearchService {
     query: string;
     filters?: VectorSearchFilters;
     topK?: number;
+    abortSignal?: AbortSignal;
   }): Promise<VectorSearchHit[]> {
     const query = input.query.trim();
 

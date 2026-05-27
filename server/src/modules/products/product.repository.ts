@@ -375,6 +375,44 @@ export async function findActiveProductsForRag(
   );
 }
 
+export async function findActiveProductsByIds(
+  client: ProductQueryClient,
+  productIds: string[],
+): Promise<Product[]> {
+  const uniqueIds = uniqueNonEmptyProductIds(productIds);
+
+  if (uniqueIds.length === 0) {
+    return [];
+  }
+
+  const result = await client.query<ProductRow>(
+    `
+      SELECT *
+      FROM products
+      WHERE id = ANY($1::text[])
+        AND status = 'active'
+    `,
+    [uniqueIds],
+  );
+
+  const skusByProductId = await findSkusByProductIds(
+    client,
+    result.rows.map((row) => row.id),
+  );
+  const productsById = new Map(
+    result.rows.map((row) => [
+      row.id,
+      mapProductRowToProduct(row, skusByProductId.get(row.id) ?? []),
+    ]),
+  );
+
+  return uniqueIds.flatMap((productId) => {
+    const product = productsById.get(productId);
+
+    return product ? [product] : [];
+  });
+}
+
 export async function findProductById(
   client: ProductQueryClient,
   productId: string,
@@ -399,4 +437,22 @@ export async function findProductById(
   const skusByProductId = await findSkusByProductIds(client, [productId]);
 
   return mapProductRowToProduct(row, skusByProductId.get(productId) ?? []);
+}
+
+function uniqueNonEmptyProductIds(productIds: string[]): string[] {
+  const seen = new Set<string>();
+  const uniqueIds: string[] = [];
+
+  for (const rawId of productIds) {
+    const productId = rawId.trim();
+
+    if (productId.length === 0 || seen.has(productId)) {
+      continue;
+    }
+
+    seen.add(productId);
+    uniqueIds.push(productId);
+  }
+
+  return uniqueIds;
 }
