@@ -1,0 +1,11 @@
+{
+  "collection_name": "shopmate_product_documents",
+  "embedding_model": "doubao-embedding-vision-250615",
+  "embedding_dimensions": 2048,
+  "distance": "Cosine",
+  "source_document_path": "C:\\Users\\lxd04\\Desktop\\WEB\\WEB PROJECT\\shopmate\\data\\processed\\rag\\product-documents.jsonl",
+  "source_document_count": 2064,
+  "indexed_document_count": 2064,
+  "ingest_batch_id": "catalog_20260526_014137189_06fa6e6f",
+  "generated_at": "2026-05-27T00:39:59.468Z"
+}

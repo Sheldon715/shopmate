@@ -1,0 +1,152 @@
+[
+  {
+    "caseId": "oil-skin-cleanser",
+    "query": "推荐一款适合油皮的洗面奶",
+    "filters": {
+      "category": "美妆护肤",
+      "subCategory": "洁面",
+      "availableOnly": true
+    },
+    "expectedCategory": "美妆护肤",
+    "expectedSubCategory": "洁面",
+    "expectedProductIdsAny": ["p_beauty_011"],
+    "expectedNoResult": false,
+    "passCriteria": {
+      "description": "top-k 至少命中洁面类目，并优先召回当前库内洁面商品。",
+      "minMatchingHits": 1,
+      "requireExpectedProductId": true
+    }
+  },
+  {
+    "caseId": "bluetooth-earbuds-under-200",
+    "query": "200 元以内的蓝牙耳机有哪些？",
+    "filters": {
+      "category": "数码电子",
+      "subCategory": "真无线耳机",
+      "maxPriceCents": 20000,
+      "availableOnly": true
+    },
+    "expectedCategory": "数码电子",
+    "expectedSubCategory": "真无线耳机",
+    "expectedProductIdsAny": [],
+    "expectedNoResult": true,
+    "passCriteria": {
+      "description": "当前商品库没有 200 元以内的真无线耳机，应合理返回 no result。"
+    }
+  },
+  {
+    "caseId": "alcohol-free-sunscreen",
+    "query": "推荐防晒霜，但不要含酒精的",
+    "filters": {
+      "category": "美妆护肤",
+      "subCategory": "防晒",
+      "availableOnly": true,
+      "avoidTerms": ["酒精"]
+    },
+    "expectedCategory": "美妆护肤",
+    "expectedSubCategory": "防晒",
+    "expectedProductIdsAny": ["p_beauty_006", "p_beauty_010", "p_beauty_023"],
+    "expectedNoResult": false,
+    "passCriteria": {
+      "description": "top-k 至少命中防晒类目，且不得包含被 avoidTerms 排除的结果。",
+      "minMatchingHits": 1
+    }
+  },
+  {
+    "caseId": "compare-two-sunscreens",
+    "query": "帮我比较两款防晒霜",
+    "filters": {
+      "category": "美妆护肤",
+      "subCategory": "防晒",
+      "availableOnly": true
+    },
+    "expectedCategory": "美妆护肤",
+    "expectedSubCategory": "防晒",
+    "expectedProductIdsAny": ["p_beauty_006", "p_beauty_010", "p_beauty_023"],
+    "expectedNoResult": false,
+    "passCriteria": {
+      "description": "top-k 至少返回两条防晒商品文档，便于后续 RAG 对比。",
+      "minMatchingHits": 2
+    }
+  },
+  {
+    "caseId": "dorm-small-appliances",
+    "query": "适合宿舍用的小电器有哪些？",
+    "filters": {
+      "category": "家用电器",
+      "availableOnly": true
+    },
+    "expectedCategory": "家用电器",
+    "expectedSubCategory": null,
+    "expectedProductIdsAny": [
+      "p_home_airfryer_001",
+      "p_home_water_001",
+      "p_home_water_003",
+      "p_home_air_004",
+      "p_home_washer_004"
+    ],
+    "expectedNoResult": false,
+    "passCriteria": {
+      "description": "top-k 至少命中家用电器类目中的宿舍可用小电器。",
+      "minMatchingHits": 1
+    }
+  },
+  {
+    "caseId": "light-running-shoes-under-500",
+    "query": "500 元以内轻量跑鞋",
+    "filters": {
+      "category": "服饰运动",
+      "subCategory": "跑步鞋",
+      "maxPriceCents": 50000,
+      "availableOnly": true
+    },
+    "expectedCategory": "服饰运动",
+    "expectedSubCategory": "跑步鞋",
+    "expectedProductIdsAny": [],
+    "expectedNoResult": true,
+    "passCriteria": {
+      "description": "当前跑步鞋价格均高于 500 元，应合理返回 no result。"
+    }
+  },
+  {
+    "caseId": "quiet-dorm-keyboard",
+    "query": "宿舍用安静一点的键盘",
+    "filters": {
+      "category": "办公学习",
+      "subCategory": "办公外设",
+      "availableOnly": true
+    },
+    "expectedCategory": "办公学习",
+    "expectedSubCategory": "办公外设",
+    "expectedProductIdsAny": [
+      "p_office_keyboard_001",
+      "p_office_keyboard_002",
+      "p_office_keyboard_003"
+    ],
+    "expectedNoResult": false,
+    "passCriteria": {
+      "description": "top-k 至少命中办公外设键盘商品。",
+      "minMatchingHits": 1,
+      "requireExpectedProductId": true
+    }
+  },
+  {
+    "caseId": "air-purifier-under-1000",
+    "query": "1000 元以内空气净化器",
+    "filters": {
+      "category": "家用电器",
+      "subCategory": "空气护理",
+      "maxPriceCents": 100000,
+      "availableOnly": true
+    },
+    "expectedCategory": "家用电器",
+    "expectedSubCategory": "空气护理",
+    "expectedProductIdsAny": ["p_home_air_001", "p_home_air_003"],
+    "expectedNoResult": false,
+    "passCriteria": {
+      "description": "top-k 至少命中 1000 元以内空气净化器商品。",
+      "minMatchingHits": 1,
+      "requireExpectedProductId": true
+    }
+  }
+]
