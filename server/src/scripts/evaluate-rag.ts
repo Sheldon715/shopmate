@@ -3,7 +3,7 @@ import path from "node:path";
 import type { Pool } from "pg";
 import { createDatabasePool } from "../lib/db/pool";
 import { getEnv } from "../lib/env";
-import { findProductById } from "../modules/products/product.repository";
+import { findActiveProductsByIds } from "../modules/products/product.repository";
 import type { Product } from "../modules/products/product.types";
 import {
   evaluateVectorSearchCases,
@@ -379,14 +379,42 @@ function resolveOutputPath(
 }
 
 function createProductLookup(pool: Pool): VectorEvaluationProductLookup {
+  const cachedProducts = new Map<string, VectorEvaluationProductSnapshot>();
+  const missingProductIds = new Set<string>();
+
   return async (productIds) => {
     const products = new Map<string, VectorEvaluationProductSnapshot>();
+    const uniqueIds = [...new Set(
+      productIds
+        .map((productId) => productId.trim())
+        .filter((productId) => productId.length > 0),
+    )];
+    const uncachedIds = uniqueIds.filter(
+      (productId) =>
+        !cachedProducts.has(productId) && !missingProductIds.has(productId),
+    );
 
-    for (const productId of [...new Set(productIds)]) {
-      const product = await findProductById(pool, productId);
+    if (uncachedIds.length > 0) {
+      const foundProducts = await findActiveProductsByIds(pool, uncachedIds);
+      const foundProductIds = new Set<string>();
 
-      if (product) {
-        products.set(productId, mapProductToSnapshot(product));
+      for (const product of foundProducts) {
+        foundProductIds.add(product.id);
+        cachedProducts.set(product.id, mapProductToSnapshot(product));
+      }
+
+      for (const productId of uncachedIds) {
+        if (!foundProductIds.has(productId)) {
+          missingProductIds.add(productId);
+        }
+      }
+    }
+
+    for (const productId of uniqueIds) {
+      const cachedProduct = cachedProducts.get(productId);
+
+      if (cachedProduct) {
+        products.set(productId, cachedProduct);
       }
     }
 

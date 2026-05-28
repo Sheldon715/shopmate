@@ -49,18 +49,28 @@ export class VectorSearchService {
     }
 
     try {
+      throwIfAborted(input.abortSignal);
       const embedding = validateEmbeddingResult(
-        await this.embeddingClient.embedQuery(query),
+        await this.embeddingClient.embedQuery(query, {
+          abortSignal: input.abortSignal,
+        }),
         1,
         this.embeddingDimensions,
       );
+      throwIfAborted(input.abortSignal);
 
-      return await this.vectorStore.search({
+      const searchInput: Parameters<VectorStore["search"]>[0] = {
         collectionName: this.collectionName,
         vector: embedding.vectors[0],
         filters: input.filters,
         topK: input.topK ?? this.topK,
-      });
+      };
+
+      if (input.abortSignal) {
+        searchInput.abortSignal = input.abortSignal;
+      }
+
+      return await this.vectorStore.search(searchInput);
     } catch (error) {
       if (error instanceof VectorSearchError) {
         throw error;
@@ -68,5 +78,13 @@ export class VectorSearchService {
 
       throw new VectorSearchError("Vector search failed.", { cause: error });
     }
+  }
+}
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) {
+    throw new VectorSearchError("Vector search was aborted.", {
+      cause: signal.reason,
+    });
   }
 }

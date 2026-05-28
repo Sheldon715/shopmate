@@ -1,5 +1,9 @@
 import { createHash } from "node:crypto";
-import type { EmbeddingClient, EmbeddingResult } from "./embedding.types";
+import type {
+  EmbeddingClient,
+  EmbeddingRequestOptions,
+  EmbeddingResult,
+} from "./embedding.types";
 
 export interface FakeEmbeddingClientOptions {
   model?: string;
@@ -15,7 +19,11 @@ export class FakeEmbeddingClient implements EmbeddingClient {
     this.dimensions = options.dimensions ?? 8;
   }
 
-  async embedDocuments(texts: string[]): Promise<EmbeddingResult> {
+  async embedDocuments(
+    texts: string[],
+    options: EmbeddingRequestOptions = {},
+  ): Promise<EmbeddingResult> {
+    throwIfAborted(options.abortSignal);
     validateEmbeddingTexts(texts);
 
     return {
@@ -25,7 +33,11 @@ export class FakeEmbeddingClient implements EmbeddingClient {
     };
   }
 
-  async embedQuery(text: string): Promise<EmbeddingResult> {
+  async embedQuery(
+    text: string,
+    options: EmbeddingRequestOptions = {},
+  ): Promise<EmbeddingResult> {
+    throwIfAborted(options.abortSignal);
     validateEmbeddingTexts([text]);
 
     return {
@@ -33,6 +45,12 @@ export class FakeEmbeddingClient implements EmbeddingClient {
       dimensions: this.dimensions,
       vectors: [createDeterministicVector(text, this.dimensions)],
     };
+  }
+}
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) {
+    throw new Error("Embedding request was aborted.");
   }
 }
 

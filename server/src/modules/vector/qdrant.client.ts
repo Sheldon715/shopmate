@@ -112,7 +112,9 @@ export class QdrantVectorStore implements VectorStore {
     vector: number[];
     filters?: VectorSearchFilters;
     topK: number;
+    abortSignal?: AbortSignal;
   }): Promise<VectorSearchHit[]> {
+    throwIfAborted(input.abortSignal);
     const results = await this.client.search(input.collectionName, {
       vector: input.vector,
       limit: input.topK,
@@ -120,6 +122,7 @@ export class QdrantVectorStore implements VectorStore {
       with_payload: true,
       with_vector: false,
     });
+    throwIfAborted(input.abortSignal);
 
     return results.map((point) =>
       mapQdrantScoredPointToVectorSearchHit(point as QdrantScoredPoint),
@@ -301,6 +304,12 @@ function getErrorMessage(error: unknown): string {
   }
 
   return String(error);
+}
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) {
+    throw new Error("Qdrant search was aborted.");
+  }
 }
 
 export function createRandomPointIdForTest(): string {

@@ -33,13 +33,17 @@ describe("chat contract fixtures", () => {
     ]);
   });
 
-  it("serializes every fixture event with writeSseEvent", () => {
+  it("serializes every fixture event with writeSseEvent", async () => {
     for (const fixture of chatContractFixtureList) {
       const response = new FakeSseResponse();
 
       for (const event of fixture.events) {
         expect(
-          writeSseEvent(response.asResponse(), event.eventName, event.payload),
+          await writeSseEvent(
+            response.asResponse(),
+            event.eventName,
+            event.payload,
+          ),
         ).toBe(true);
       }
 

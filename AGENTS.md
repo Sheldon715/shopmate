@@ -30,7 +30,7 @@ The Android and backend scaffolds now exist. On Windows, prefer `npm.cmd` for np
 
 - `cd server && npm.cmd run dev` to start the Express dev server
 - `cd server && npm.cmd run build` to compile TypeScript
-- `cd server && npm.cmd test` to run the current backend test command; it is still a placeholder until Vitest is configured
+- `cd server && npm.cmd test` to run the current Vitest backend test suite
 - Backend lint is not configured yet; add the lint script and dependencies before treating lint as a required gate
 - `cd client/android && .\gradlew.bat build` to build Android on Windows
 
@@ -48,7 +48,7 @@ Follow `context/coding-standards.md` as the default authority. Key rules:
 - Use branch names such as `feature/chat-streaming` or `fix/sse-disconnect`
 
 ## Testing Guidelines
-Backend tests are planned to use Vitest and live beside the implementation as `*.test.ts`; the current backend scaffold only has a placeholder `npm.cmd test` command. Prioritize services, utilities, RAG helpers, vector search wrappers, auth helpers, and parsers when tests are added. For Android, use `.\gradlew.bat build`; add tests for ViewModels, repositories, and API clients before UI automation.
+Backend tests use Vitest and live beside the implementation as `*.test.ts`. Prioritize services, utilities, RAG helpers, vector search wrappers, auth helpers, and parsers when tests are added. For Android, use `.\gradlew.bat build`; add tests for ViewModels, repositories, and API clients before UI automation.
 
 ## Commit & Pull Request Guidelines
 Git history is minimal and currently starts with `Initial commit`, so follow the documented standard: use Conventional Commits such as `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, and `chore:`. Before opening a PR, update `context/current-feature.md`, finish the checklist, and record any commands you could not run. Keep PRs scoped to one feature, include test/build status, and attach screenshots for UI work.

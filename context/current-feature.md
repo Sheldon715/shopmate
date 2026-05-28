@@ -1,4 +1,4 @@
-# 当前功能：商品查询 API
+# 当前功能：代码扫描后续修复
 
 ## 状态
 
@@ -6,42 +6,29 @@
 
 ## 目标
 
-- 新增 products 模块的 routes / controller / service 查询链路。
-- 实现 `GET /api/products` 商品列表接口，支持关键词、类目、品牌、价格范围和分页过滤。
-- 实现 `GET /api/products/:id` 商品详情接口，不存在时返回稳定错误码。
-- 使用统一 `ApiResponse<T>` JSON 返回格式。
-- 校验 query params 和 path params，保持错误码稳定，方便 Android 和后续测试判断。
+- 修复 code-scanner 报告中指定的后端可靠性、SSE 资源管理和 RAG 评估性能问题。
+- 同步项目工作流文档与当前真实工具状态，避免后续 agent 或队友被过期说明误导。
+- 更新 `ui-reviewer` agent 语境，使它贴合当前 Android Compose / Figma 审查场景。
 
 ## 待办事项
 
-- [x] 新增 `server/src/modules/products/product.routes.ts`。
-- [x] 新增 `server/src/modules/products/product.controller.ts`。
-- [x] 新增 `server/src/modules/products/product.service.ts`。
-- [x] 扩展 `product.types.ts`，补齐列表、详情、查询参数和错误类型。
-- [x] 复用或扩展 `product.repository.ts`，只通过参数化 SQL 读取 PostgreSQL。
-- [x] 复用或扩展 `product.mapper.ts`，生成 `ProductCardDto` 和 `ProductDetailDto`。
-- [x] 在 `server/src/app.ts` 挂载 `/api/products` 路由。
-- [x] 校验 `q`、`category`、`subCategory`、`brand`、`minPriceCents`、`maxPriceCents`、`limit`、`offset` 和 `:id`。
-- [x] 验证 `GET /api/products` 返回统一格式和商品卡片字段。
-- [x] 验证 `GET /api/products?q=防晒` 能返回匹配商品。
-- [x] 验证 `GET /api/products?category=数码电子&maxPriceCents=50000` 能按条件过滤。
-- [x] 验证 `GET /api/products/:id` 返回详情字段和 SKU 列表。
-- [x] 验证不存在的 id 返回 `404 PRODUCT_NOT_FOUND`。
-- [x] 运行 `cd server && npm.cmd run build`。
+- [x] [quickwin] 为 Express 增加统一 API 404 和 JSON parse error middleware，确保 malformed JSON 与未知 `/api/*` 路径返回统一 `ApiResponse` 错误格式。（来源：Warning 3，`server/src/app.ts`）
+- [x] [medium] 将 SSE 断连 `AbortSignal` 继续传递到 embedding 与 Qdrant 检索层，避免客户端断开后外部调用继续消耗资源。（来源：Warning 4，`server/src/modules/chat/chat.controller.ts`、`server/src/modules/vector/vector-search.service.ts`、`server/src/modules/vector/embedding.types.ts`）
+- [x] [medium] 修复 SSE writer 忽略 `response.write()` backpressure 的问题，在返回 `false` 时等待 `drain` 或连接关闭。（来源：Warning 5，`server/src/modules/chat/sse-writer.ts`）
+- [x] [quickwin] 更新 `AGENTS.md` 中后端测试说明，把 `npm.cmd test` 从 placeholder 改为当前已配置的 Vitest 测试命令。（来源：Suggestion 1，`AGENTS.md`、`server/package.json`）
+- [x] [quickwin] 同步 `context/spec-implementation-order.md` 里的工具说明，让 `list-components`、`auth-auditor` 等描述匹配当前 ShopMate / Express 语境。（来源：Suggestion 2，`context/spec-implementation-order.md`）
+- [x] [medium] 优化 RAG evaluation 商品回查，避免逐个 `findProductById` 造成 N+1 查询，改用批量查询和同次 evaluation 缓存。（来源：Suggestion 3，`server/src/scripts/evaluate-rag.ts`）
+- [x] [quickwin] 更新 `.codex/agents/ui-reviewer.toml`，从 Web / marketing 审查语境改为 Android Compose / Figma / 模拟器截图语境，或明确标注仅用于未来 Web 页面。（来源：Suggestion 4，`.codex/agents/ui-reviewer.toml`）
 
 ## 备注
 
-- 规格来源：`context/feature/product-api-spec.md`。
-- 本 spec 只做商品列表、详情和基础搜索 / 筛选接口，不实现 RAG、购物车或 Android 接入。
-- 商品导入和表结构已由 `product-schema-spec.md` 处理，本功能不得从 `data/raw/` 或 `data/processed/` 读取 API 数据。
-- 默认只返回 `status = active` 或当前数据集中可展示的商品；排序第一版保持稳定，例如 `name ASC, id ASC`。
-- `subCategory` 使用 camelCase query param，数据库字段仍为 `sub_category`。
-- 错误码要求：参数非法 `400 INVALID_PRODUCT_QUERY`；商品不存在 `404 PRODUCT_NOT_FOUND`；服务端异常 `500 INTERNAL_ERROR`。
-- 验证记录：`cd server && npm.cmd run build` 通过；`cd server && npm.cmd test` 仍是当前占位命令，输出 `No tests configured yet`。
-- 本地烟测记录：`GET /api/products?limit=1`、`GET /api/products?q=防晒&limit=5`、详情接口和不存在 id 均返回预期格式；`数码电子&maxPriceCents=50000` 返回成功空列表，因为当前 PostgreSQL 数据中 `数码电子` 最低 `price_min_cents` 为 `149900`。
+- 本次只纳入用户指定的 code-scanner 结果：Warnings 3、4、5，以及 Suggestions 1、2、3、4。
+- 暂不纳入 Warning 1、2、6；后续如需处理 feature scope、`.env.example` 或 Android 导航问题，应另行扩展 tracker 或拆分 feature。
+- 验证记录：`cd server && npm.cmd test` 通过，17 个测试文件 / 92 个测试通过。
+- 验证记录：`cd server && npm.cmd run build` 通过。
+- 验证记录：`.codex/agents/ui-reviewer.toml` 已做基础 TOML 结构检查，确认 triple-quote 和关键字段存在。
 
 ## 历史记录
-
 - 初始化前后端技术栈骨架：完成 Android Kotlin + Jetpack Compose 与 Node.js + TypeScript + Express 最小工程初始化，补充 README 与 Git 忽略配置，并通过后端构建与 Android `assembleDebug` 验证。
 - 开发顺序规划文档：新增 `context/spec-implementation-order.md`，梳理 Phase 2 之后的 spec 实现顺序、research 插入点、依赖关系和近期队列。
 - 开发顺序规划文档中文化：将 `context/spec-implementation-order.md` 从英文改为中文，保留原有结构、文件名和开发顺序。
@@ -62,3 +49,15 @@
 - Android Compose 共享组件抽取：新增顶部操作栏、圆形图标按钮、聊天气泡和 elevated surface 共享组件，统一页面背景光晕，调整聊天 / 详情滚动层与侧边栏层级，并通过 `cd client/android && .\gradlew.bat build installDebug` 验证。
 - 数据库基础设施：新增 PostgreSQL `pg` 连接池、SQL migration 执行器、catalog normalize / validate / import / rebuild 脚本，以 `ecommerce_agent_dataset_v3` 作为 175 条商品 canonical source，生成 processed 工件并记录真实 PostgreSQL import batch。
 - 商品结构化主库：新增 `products` / `product_skus` migration、商品类型 / mapper / repository，并扩展 `catalog:import` 幂等导入 175 条 products 和 736 条 SKUs；通过后端 build、两次 import 幂等验证和数据库计数复核。
+- 商品查询 API：新增 `/api/products` 列表和详情接口，支持关键词、类目、品牌、价格和分页过滤，统一 `ApiResponse<T>` 返回格式，并通过后端 build、占位 test、PostgreSQL 本地烟测和错误码验证。
+- 代码扫描 Quick Wins 与安全清理：移除仓库内淘宝 storage state，补充生成数据与登录态忽略规则，新增 ShopMate 语境的 code-scanner / auth-auditor agent，修正 feature test 与 list-components workflow，并补上 Android 加购按钮无障碍标签、购物相关占位反馈和顶层页面状态保存；通过 TOML 解析和 `cd client/android && .\gradlew.bat build` 验证。
+- 后端测试地基：接入 Vitest 和真实后端 `test` / `test:watch` 脚本，新增 product mapper、service 参数校验与 API response helper 单元测试，同步 feature test 说明，并通过 `cd server && npm.cmd run build` 与 `cd server && npm.cmd test` 验证。
+- Vector RAG Documents：新增 RAG document 类型、builder、测试和 `rag:documents` 脚本，默认从 PostgreSQL 生成 `product-documents.jsonl` 与 `document-manifest.json`，支持 processed fallback、dry-run 和 limit，并通过 `cd server && npm.cmd test`、`cd server && npm.cmd run build` 验证。
+- Vector Qdrant Index：接入 provider-neutral embedding wrapper、Qdrant collection / payload indexes、`rag:index` / `rag:search` 脚本和 `VectorSearchService`，完成 fake embedding / filter / payload mapping 单元测试，并通过后端 test、build、Qdrant Cloud 小批量索引与搜索联调。
+- Vector Search Evaluation：新增固定离线检索评估集、`rag:evaluate` 脚本、vector evaluation 服务和 Vitest 测试，记录全量 Qdrant 索引 manifest 与评估结果；通过后端 test / build，`rag:evaluate` 达到 7/8 passed，剩余“不要含酒精”反选语义留给后续 negative constraint spec。
+- LLM Client：新增 provider-neutral `LlmClient`、OpenAI-compatible Chat Completions adapter、LLM env config / validation、固定错误映射、mock client 和 Vitest 覆盖；通过 `cd server && npm.cmd test`、`cd server && npm.cmd run build`，并完成 Ark 真实 smoke test。
+- RAG Chat Service：新增 `server/src/modules/chat/` 编排层，串联向量检索、PostgreSQL 商品回查、RAG prompt、LLM JSON parser 和稳定 fallback，确保商品卡片来自 PostgreSQL DTO；通过 `cd server && npm.cmd test` 与 `cd server && npm.cmd run build` 验证。
+- Chat SSE API：新增 `POST /api/chat/stream` 流式接口，请求校验、SSE writer、chat controller 和 route 挂载，按 `message_delta`、`product_cards`、`done`、`error` 输出事件，并通过 `cd server && npm.cmd test` 与 `cd server && npm.cmd run build` 验证。
+- Chat Contract Fixtures：新增后端聊天 SSE contract fixture、稳定 payload 类型和 fixture 对齐测试，固定 success、fallback、error 与 no product stream 场景；通过 `cd server && npm.cmd test` 与 `cd server && npm.cmd run build` 验证。
+- RAG Evaluation Cases：新增第一轮 Chat SSE 黑盒测试 case 集，覆盖 8 个问题、P0 / P1 风险、短历史追问、filter / no result / grounding / comparison 观察点，并通过 Node 脚本验证 JSON 结构、唯一 caseId、合法 filter 字段和期望商品 ID。
+- Chat SSE 与 RAG LLM 调用修复：修复 `request.close` 误触发 SSE abort、移除当前 Ark 模型不支持的 JSON response_format，并提高 RAG completion token 上限；通过 `cd server && npm.cmd test` 与 `cd server && npm.cmd run build` 验证。

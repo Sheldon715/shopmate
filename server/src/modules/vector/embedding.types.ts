@@ -11,9 +11,19 @@ export interface EmbeddingResult {
   usage?: EmbeddingUsage;
 }
 
+export interface EmbeddingRequestOptions {
+  abortSignal?: AbortSignal;
+}
+
 export interface EmbeddingClient {
-  embedDocuments(texts: string[]): Promise<EmbeddingResult>;
-  embedQuery(text: string): Promise<EmbeddingResult>;
+  embedDocuments(
+    texts: string[],
+    options?: EmbeddingRequestOptions,
+  ): Promise<EmbeddingResult>;
+  embedQuery(
+    text: string,
+    options?: EmbeddingRequestOptions,
+  ): Promise<EmbeddingResult>;
 }
 
 export interface EmbeddingClientConfig {
