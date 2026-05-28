@@ -56,7 +56,7 @@ async function handleChatStream(
     }
   };
 
-  request.on("close", handleClientClose);
+  response.on("close", handleClientClose);
 
   try {
     const body = parseChatStreamRequestBody(request.body);
@@ -109,7 +109,7 @@ async function handleChatStream(
       response.end();
     }
   } finally {
-    request.off("close", handleClientClose);
+    response.off("close", handleClientClose);
   }
 }
 
