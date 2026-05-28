@@ -49,6 +49,37 @@ class ChatStreamEventParserTest {
     }
 
     @Test
+    fun parsesRealProductCardsPayloadFromBackend() {
+        val event = parseChatStreamEvent(
+            "product_cards",
+            """
+                {
+                  "items": [
+                    {
+                      "id": "p_food_024",
+                      "name": "元气森林 苏打气泡水 ×12 0糖0脂0卡",
+                      "brand": "元气森林",
+                      "category": "食品饮料",
+                      "subCategory": "碳酸饮料",
+                      "priceCents": 5200,
+                      "priceRangeCents": { "min": 4800, "max": 10000 },
+                      "currency": "CNY",
+                      "imagePath": "food/images/p_food_024_main.jpg",
+                      "ratingAvg": 4,
+                      "tags": ["食品饮料", "碳酸饮料", "主图"],
+                      "available": true
+                    }
+                  ]
+                }
+            """.trimIndent(),
+        )
+
+        val productCards = assertIs<ChatStreamEvent.ProductCards>(event)
+        assertEquals("p_food_024", productCards.items.single().id)
+        assertEquals(4.0, productCards.items.single().ratingAvg)
+    }
+
+    @Test
     fun parsesDone() {
         val event = parseChatStreamEvent(
             "done",

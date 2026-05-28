@@ -8,13 +8,16 @@ import android.view.WindowInsets
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.shopmate.app.ui.cart.CartScreen
 import com.shopmate.app.ui.chat.ChatRecommendationScreen
+import com.shopmate.app.ui.chat.ChatViewModel
 import com.shopmate.app.ui.comparison.ProductComparisonScreen
 import com.shopmate.app.ui.home.HomeChatEntryScreen
 import com.shopmate.app.ui.model.HistoryConversationUi
@@ -23,6 +26,8 @@ import com.shopmate.app.ui.product.ProductDetailScreen
 import com.shopmate.app.ui.theme.ShopMateTheme
 
 class MainActivity : ComponentActivity() {
+    private val appContainer by lazy { ShopMateAppContainer() }
+
     @Suppress("DEPRECATION")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -72,6 +77,10 @@ class MainActivity : ComponentActivity() {
                         else -> currentScreen
                     }
                 }
+                val chatViewModel: ChatViewModel = viewModel(
+                    factory = appContainer.chatViewModelFactory()
+                )
+                val chatUiState by chatViewModel.uiState.collectAsState()
 
                 when (currentScreen) {
                     ShopMateScreen.Onboarding -> OnboardingScreen(
@@ -89,6 +98,10 @@ class MainActivity : ComponentActivity() {
                     )
 
                     ShopMateScreen.ChatRecommendation -> ChatRecommendationScreen(
+                        state = chatUiState,
+                        onComposerTextChange = chatViewModel::onComposerTextChange,
+                        onSend = chatViewModel::sendMessage,
+                        onRetry = chatViewModel::retryLastMessage,
                         onNewChatClick = {
                             currentScreen = ShopMateScreen.HomeChatEntry
                         },

@@ -33,6 +33,8 @@ export function buildRagPrompt(input: BuildRagPromptInput): LlmMessage[] {
         "不要编造价格、库存、优惠、折扣、功效、认证或物流时效。",
         "PostgreSQL 商品字段是事实来源；vector snippets 只用于解释上下文，不能覆盖商品字段。",
         "如果没有合适商品，可以说明暂时没有合适推荐，不要硬推荐。",
+        "answer 要适合移动端聊天列表展示：最多 70 个中文字符，用 1 句话概括推荐方向，不要逐条复述商品名、价格或详细参数。",
+        "商品优势、限制、参数和长解释交给 product_cards 或商品详情页承载，answer 只做简短导购引导。",
         "只输出 JSON object，格式为 {\"answer\":\"string\",\"recommended_product_ids\":[\"product_id\"]}。",
         "recommended_product_ids 只能使用候选列表中的 product_id。",
       ].join("\n"),

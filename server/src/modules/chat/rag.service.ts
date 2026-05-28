@@ -55,6 +55,7 @@ interface RetrievedProductCandidate {
 const DEFAULT_MAX_RECOMMENDED_PRODUCTS = 3;
 const DEFAULT_MAX_SNIPPETS_PER_PRODUCT = 3;
 const RAG_LLM_MAX_COMPLETION_TOKENS = 2000;
+const MAX_CHAT_ANSWER_CHARS = 72;
 
 export class RagChatError extends Error {
   readonly code = "INVALID_RAG_CHAT_REQUEST";
@@ -145,7 +146,11 @@ export class RagChatService {
         );
       }
 
-      return createSuccessResult(parsed.answer, recommendedProductIds, contexts);
+      return createSuccessResult(
+        compactAnswer(parsed.answer),
+        recommendedProductIds,
+        contexts,
+      );
     } catch (error) {
       return createRetrievedFallbackResult(
         contexts,
@@ -263,7 +268,7 @@ function createRetrievedFallbackResult(
   const recommendedProductIds = products.map((product) => product.id);
 
   return {
-    answer: "根据当前商品数据，先给你这些候选商品。你可以继续补充预算、品牌偏好或使用场景，我再帮你缩小范围。",
+    answer: "先给你几款候选商品，更多优势和参数可以点进商品详情慢慢看。",
     recommendedProductIds,
     productCards,
     fallbackUsed: true,
@@ -301,6 +306,22 @@ function createSuccessResult(
       returnedProductIds,
     },
   };
+}
+
+function compactAnswer(answer: string): string {
+  const normalized = answer.replace(/\s+/g, " ").trim();
+
+  if (Array.from(normalized).length <= MAX_CHAT_ANSWER_CHARS) {
+    return normalized;
+  }
+
+  const firstSentence = normalized.split(/[。！？!?]/u)[0]?.trim();
+
+  if (firstSentence && Array.from(firstSentence).length <= MAX_CHAT_ANSWER_CHARS) {
+    return `${firstSentence}。`;
+  }
+
+  return `${Array.from(normalized).slice(0, MAX_CHAT_ANSWER_CHARS).join("").trimEnd()}...`;
 }
 
 function normalizeMaxRecommendedProducts(

@@ -48,6 +48,7 @@ class OkHttpChatStreamClient(
             .header("Accept", SSE_ACCEPT)
             .build()
 
+        var terminalEventReceived = false
         val listener = object : EventSourceListener() {
             override fun onEvent(
                 eventSource: EventSource,
@@ -59,6 +60,7 @@ class OkHttpChatStreamClient(
                 trySend(event)
 
                 if (event is ChatStreamEvent.Done || event is ChatStreamEvent.Error) {
+                    terminalEventReceived = true
                     eventSource.cancel()
                     close()
                 }
@@ -73,6 +75,11 @@ class OkHttpChatStreamClient(
                 t: Throwable?,
                 response: Response?,
             ) {
+                if (terminalEventReceived) {
+                    close()
+                    return
+                }
+
                 val error = if (response != null && !response.isSuccessful) {
                     ShopMateNetworkError.HttpNonSuccess(response.code)
                 } else {

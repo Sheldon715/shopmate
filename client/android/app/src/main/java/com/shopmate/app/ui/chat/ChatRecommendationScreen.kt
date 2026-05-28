@@ -1,12 +1,18 @@
 package com.shopmate.app.ui.chat
 
-import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -14,8 +20,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -24,6 +33,7 @@ import com.shopmate.app.R
 import com.shopmate.app.data.mock.MockShopMateData
 import com.shopmate.app.ui.components.ChatComposer
 import com.shopmate.app.ui.components.ChatMessageBubble
+import com.shopmate.app.ui.components.ChatTypingIndicatorBubble
 import com.shopmate.app.ui.components.ProductCard
 import com.shopmate.app.ui.components.ShopMateFigmaFrameWidth
 import com.shopmate.app.ui.components.ShopMateStatusMessage
@@ -34,26 +44,24 @@ import com.shopmate.app.ui.sidebar.SidebarHistoryDrawer
 import com.shopmate.app.ui.theme.ShopMateTheme
 import com.shopmate.app.ui.theme.shopMateScreenBackground
 
-private const val USER_MESSAGE = "推荐一款适合通勤的蓝牙耳机，预算 200 以内"
-private const val ASSISTANT_MESSAGE =
-    "好的！为你筛选了几款 200 元以内、适合通勤的蓝牙耳机，综合音质、续航、降噪和佩戴舒适度，看看有没有喜欢的。"
-
 @Composable
 fun ChatRecommendationScreen(
+    state: ChatUiState,
+    onComposerTextChange: (String) -> Unit,
+    onSend: () -> Unit,
+    onRetry: () -> Unit,
     onNewChatClick: () -> Unit,
     onCartClick: () -> Unit,
     onProductClick: (String) -> Unit,
     onHistoryClick: (HistoryConversationUi) -> Unit,
     modifier: Modifier = Modifier,
-    showEmptyState: Boolean = false
 ) {
-    var composerText by rememberSaveable { mutableStateOf("") }
     var isSidebarOpen by rememberSaveable { mutableStateOf(false) }
 
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
-            .shopMateScreenBackground()
+            .shopMateScreenBackground(),
     ) {
         val scale = maxWidth.value / ShopMateFigmaFrameWidth
 
@@ -64,81 +72,62 @@ fun ChatRecommendationScreen(
         val composerHeight = 52f.s()
         val composerBottom = 18f.s()
         val composerTop = maxHeight - composerHeight - composerBottom
-        val scrollBodyHeight = if (showEmptyState) {
-            390f.s()
-        } else {
-            725.443f.s() + 132f.s()
-        }
-        val scrollContentHeight =
-            (contentTop + scrollBodyHeight + composerHeight + composerBottom + 28f.s())
-                .coerceAtLeast(maxHeight + 1.dp)
+        val topScrimHeight = 84f.s()
+        val bottomScrimTop = composerTop - 28f.s()
+        val scrollBottomPadding = (maxHeight - bottomScrimTop) + 18f.s()
 
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .clipToBounds()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(rememberScrollState()),
         ) {
-            Box(
-                modifier = Modifier
-                    .size(width = ShopMateFigmaFrameWidth.s(), height = scrollContentHeight)
-            ) {
-                if (showEmptyState) {
-                    ChatMessageBubble(
-                        text = "帮我找一款 50 元以内的主动降噪耳机",
-                        fromUser = true,
-                        textScale = scale,
-                        modifier = Modifier
-                            .offset(x = 88f.s(), y = contentTop + 14f.s())
-                            .size(width = 284.667f.s(), height = 43.198f.s())
-                    )
-                    ShopMateStatusMessage(
-                        title = "暂时没有找到结果",
-                        message = "当前商品库里没有同时满足预算和降噪的耳机，可以放宽价格再试试。",
-                        actionText = "调整需求",
-                        onActionClick = onNewChatClick,
-                        scale = scale,
-                        modifier = Modifier
-                            .offset(x = 18f.s(), y = contentTop + 76f.s())
-                            .size(width = 352.667f.s(), height = 246f.s())
-                    )
-                } else {
-                    ChatMessageBubble(
-                        text = USER_MESSAGE,
-                        fromUser = true,
-                        textScale = scale,
-                        modifier = Modifier
-                            .offset(x = 100.45f.s(), y = contentTop + 14f.s())
-                            .size(width = 272.219f.s(), height = 43.198f.s())
-                    )
-                    ChatMessageBubble(
-                        text = ASSISTANT_MESSAGE,
-                        fromUser = false,
-                        textScale = scale,
-                        modifier = Modifier
-                            .offset(x = 16f.s(), y = contentTop + 67.2f.s())
-                            .size(width = 285f.s(), height = 82.927f.s())
-                    )
-
-                    MockShopMateData.bluetoothEarbuds.forEachIndexed { index, product ->
-                        ProductCard(
-                            product = product,
-                            enabled = product.id != "ui-redmi-buds-4-lite",
-                            onClick = {
-                                onProductClick(product.id)
-                            },
-                            onAddCartClick = onCartClick,
-                            modifier = Modifier
-                                .offset(
-                                    x = 14f.s(),
-                                    y = contentTop + (160.13f + index * 191.104f).s()
-                                )
-                                .size(width = 360.667f.s(), height = 179.104f.s())
-                        )
-                    }
-                }
-            }
+            ChatStreamColumnContent(
+                state = state,
+                scale = scale,
+                contentTop = contentTop,
+                bottomPadding = scrollBottomPadding,
+                onRetry = onRetry,
+                onNewChatClick = onNewChatClick,
+                onCartClick = onCartClick,
+                onProductClick = onProductClick,
+            )
         }
+
+        Box(
+            modifier = Modifier
+                .offset(x = 0.dp, y = 0.dp)
+                .size(width = ShopMateFigmaFrameWidth.s(), height = topScrimHeight)
+                .zIndex(1f)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.White,
+                            Color.White.copy(alpha = 0.82f),
+                            Color.Transparent,
+                        ),
+                    ),
+                ),
+        )
+
+        Box(
+            modifier = Modifier
+                .offset(x = 0.dp, y = bottomScrimTop)
+                .size(
+                    width = ShopMateFigmaFrameWidth.s(),
+                    height = (maxHeight - bottomScrimTop).coerceAtLeast(1.dp),
+                )
+                .zIndex(1f)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            Color.White.copy(alpha = 0.82f),
+                            Color.White,
+                        ),
+                    ),
+                ),
+        )
 
         ShopMateTopActionBar(
             scale = scale,
@@ -151,22 +140,23 @@ fun ChatRecommendationScreen(
             modifier = Modifier
                 .offset(x = 0.dp, y = headerTop)
                 .size(width = ShopMateFigmaFrameWidth.s(), height = 44f.s())
-                .zIndex(2f)
+                .zIndex(2f),
         )
 
         ChatComposer(
-            value = composerText,
-            onValueChange = { composerText = it },
-            onSend = {},
+            value = state.composerText,
+            onValueChange = onComposerTextChange,
+            onSend = onSend,
             onVoiceClick = {},
             onImageClick = {},
             shadowElevation = 0.dp,
+            sendEnabled = state.composerText.isNotBlank() && !state.isSending,
             modifier = Modifier
                 .offset(x = 18f.s(), y = composerTop)
                 .imePadding()
                 .navigationBarsPadding()
                 .size(width = 352.667f.s(), height = composerHeight)
-                .zIndex(2f)
+                .zIndex(2f),
         )
 
         SidebarHistoryDrawer(
@@ -182,25 +172,125 @@ fun ChatRecommendationScreen(
             onHistoryClick = { conversation ->
                 isSidebarOpen = false
                 onHistoryClick(conversation)
-            }
+            },
         )
     }
 }
+
+@Composable
+private fun ChatStreamColumnContent(
+    state: ChatUiState,
+    scale: Float,
+    contentTop: Dp,
+    bottomPadding: Dp,
+    onRetry: () -> Unit,
+    onNewChatClick: () -> Unit,
+    onCartClick: () -> Unit,
+    onProductClick: (String) -> Unit,
+) {
+    fun Float.s(): Dp = scaledDp(scale)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = contentTop + 14f.s(), bottom = bottomPadding),
+        verticalArrangement = Arrangement.spacedBy(10f.s()),
+    ) {
+        if (state.messages.isEmpty() && state.productCards.isEmpty() && state.errorMessage == null) {
+            ChatMessageBubble(
+                text = "说说你想买什么，我会从商品库里帮你筛选合适选择。",
+                fromUser = false,
+                textScale = scale,
+                modifier = Modifier
+                    .padding(start = 16f.s(), end = 18f.s())
+                    .align(Alignment.Start)
+                    .widthIn(max = 285f.s()),
+            )
+            return@Column
+        }
+
+        state.messages.forEach { message ->
+            if (message.isTypingPlaceholder()) {
+                ChatTypingIndicatorBubble(
+                    textScale = scale,
+                    modifier = Modifier
+                        .padding(start = 16f.s())
+                        .align(Alignment.Start)
+                        .size(width = 66f.s(), height = 34f.s()),
+                )
+            } else {
+                ChatMessageBubble(
+                    text = message.displayText(),
+                    fromUser = message.fromUser,
+                    textScale = scale,
+                    modifier = Modifier
+                        .padding(
+                            start = if (message.fromUser) 72f.s() else 16f.s(),
+                            end = if (message.fromUser) 16f.s() else 18f.s(),
+                        )
+                        .align(if (message.fromUser) Alignment.End else Alignment.Start)
+                        .widthIn(max = if (message.fromUser) 272f.s() else 285f.s()),
+                )
+            }
+        }
+
+        state.productCards.forEach { product ->
+            ProductCard(
+                product = product,
+                enabled = true,
+                onClick = {
+                    onProductClick(product.id)
+                },
+                onAddCartClick = onCartClick,
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .size(width = 360.667f.s(), height = 179.104f.s()),
+            )
+        }
+
+        state.errorMessage?.let { errorMessage ->
+            ShopMateStatusMessage(
+                title = "导购暂时无法回复",
+                message = errorMessage,
+                actionText = if (state.canRetry) "重试" else "重新输入",
+                onActionClick = if (state.canRetry) onRetry else onNewChatClick,
+                scale = scale,
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .size(width = 352.667f.s(), height = 246f.s()),
+            )
+        }
+    }
+}
+
+private fun ChatMessageUi.displayText(): String =
+    if (text.isBlank() && isStreaming) {
+        "正在为你整理推荐..."
+    } else {
+        text
+    }
+
+private fun ChatMessageUi.isTypingPlaceholder(): Boolean =
+    !fromUser && isStreaming && text.isBlank()
 
 @Preview(
     name = "Chat recommendation - 389 x 843",
     widthDp = 389,
     heightDp = 843,
-    showBackground = true
+    showBackground = true,
 )
 @Composable
 private fun ChatRecommendationScreenTargetPreview() {
     ShopMateTheme {
         ChatRecommendationScreen(
+            state = ChatPreviewUiState,
+            onComposerTextChange = {},
+            onSend = {},
+            onRetry = {},
             onNewChatClick = {},
             onCartClick = {},
             onProductClick = {},
-            onHistoryClick = {}
+            onHistoryClick = {},
         )
     }
 }
@@ -209,16 +299,20 @@ private fun ChatRecommendationScreenTargetPreview() {
     name = "Chat recommendation - 360 x 740",
     widthDp = 360,
     heightDp = 740,
-    showBackground = true
+    showBackground = true,
 )
 @Composable
 private fun ChatRecommendationScreenCompactPreview() {
     ShopMateTheme {
         ChatRecommendationScreen(
+            state = ChatPreviewUiState,
+            onComposerTextChange = {},
+            onSend = {},
+            onRetry = {},
             onNewChatClick = {},
             onCartClick = {},
             onProductClick = {},
-            onHistoryClick = {}
+            onHistoryClick = {},
         )
     }
 }
@@ -227,17 +321,20 @@ private fun ChatRecommendationScreenCompactPreview() {
     name = "Chat recommendation empty - 360 x 740",
     widthDp = 360,
     heightDp = 740,
-    showBackground = true
+    showBackground = true,
 )
 @Composable
 private fun ChatRecommendationScreenEmptyCompactPreview() {
     ShopMateTheme {
         ChatRecommendationScreen(
+            state = ChatEmptyPreviewUiState,
+            onComposerTextChange = {},
+            onSend = {},
+            onRetry = {},
             onNewChatClick = {},
             onCartClick = {},
             onProductClick = {},
             onHistoryClick = {},
-            showEmptyState = true
         )
     }
 }
