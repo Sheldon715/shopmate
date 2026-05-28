@@ -54,6 +54,7 @@ interface RetrievedProductCandidate {
 
 const DEFAULT_MAX_RECOMMENDED_PRODUCTS = 3;
 const DEFAULT_MAX_SNIPPETS_PER_PRODUCT = 3;
+const RAG_LLM_MAX_COMPLETION_TOKENS = 2000;
 
 export class RagChatError extends Error {
   readonly code = "INVALID_RAG_CHAT_REQUEST";
@@ -123,7 +124,7 @@ export class RagChatService {
           candidates: contexts,
           generatedAt: this.now(),
         }),
-        responseFormat: { type: "json_object" },
+        maxCompletionTokens: RAG_LLM_MAX_COMPLETION_TOKENS,
         requestId: input.requestId,
         abortSignal: input.abortSignal,
       });

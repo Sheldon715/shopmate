@@ -125,7 +125,7 @@ describe("createChatStreamController", () => {
     expect(response.ended).toBe(true);
   });
 
-  it("aborts the downstream request and skips writes after client close", async () => {
+  it("does not treat request body close as a client disconnect", async () => {
     let capturedSignal: AbortSignal | undefined;
     let resolveAnswer: ((result: RagChatResult) => void) | undefined;
     const service = createService((input) => {
@@ -142,6 +142,35 @@ describe("createChatStreamController", () => {
     );
 
     request.emit("close");
+    expect(capturedSignal?.aborted).toBe(false);
+    resolveAnswer?.(createResult());
+    await controllerPromise;
+
+    expect(response.streamEvents().map((event) => event.eventName)).toEqual([
+      "message_delta",
+      "product_cards",
+      "done",
+    ]);
+    expect(response.ended).toBe(true);
+  });
+
+  it("aborts the downstream request and skips writes after client close", async () => {
+    let capturedSignal: AbortSignal | undefined;
+    let resolveAnswer: ((result: RagChatResult) => void) | undefined;
+    const service = createService((input) => {
+      capturedSignal = input.abortSignal;
+      return new Promise<RagChatResult>((resolve) => {
+        resolveAnswer = resolve;
+      });
+    });
+    const request = createRequest({ message: "recommend one" });
+    const response = new FakeResponse();
+    const controllerPromise = createChatStreamController(service)(
+      request.asRequest(),
+      response.asResponse(),
+    );
+
+    response.emit("close");
     expect(capturedSignal?.aborted).toBe(true);
     resolveAnswer?.(createResult());
     await controllerPromise;
@@ -168,7 +197,7 @@ class FakeRequest extends EventEmitter {
   }
 }
 
-class FakeResponse {
+class FakeResponse extends EventEmitter {
   readonly headers = new Map<string, string>();
   readonly chunks: string[] = [];
   statusCode = 200;
@@ -176,6 +205,10 @@ class FakeResponse {
   ended = false;
   writableEnded = false;
   destroyed = false;
+
+  constructor() {
+    super();
+  }
 
   asResponse(): Response {
     return this as unknown as Response;

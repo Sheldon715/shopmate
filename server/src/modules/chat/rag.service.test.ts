@@ -51,11 +51,14 @@ describe("RagChatService", () => {
     });
 
     expect(productReaderCalls).toEqual([["product_001", "product_002"]]);
-    expect(llmRequest?.responseFormat).toEqual({ type: "json_object" });
+    expect(llmRequest?.responseFormat).toBeUndefined();
+    expect(llmRequest?.maxCompletionTokens).toBe(2000);
     expect(llmRequest?.messages.map((message) => message.content).join("\n"))
       .toContain("first snippet");
     expect(llmRequest?.messages.map((message) => message.content).join("\n"))
       .toContain("second snippet");
+    expect(llmRequest?.messages.map((message) => message.content).join("\n"))
+      .toContain("只输出 JSON object");
     expect(result).toMatchObject({
       answer: "Product 2 is the best match.",
       recommendedProductIds: ["product_002"],
