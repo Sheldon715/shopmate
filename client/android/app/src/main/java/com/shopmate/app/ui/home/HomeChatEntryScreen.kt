@@ -42,16 +42,15 @@ import androidx.compose.ui.unit.sp
 import com.shopmate.app.R
 import com.shopmate.app.data.mock.MockShopMateData
 import com.shopmate.app.ui.components.ChatComposer
+import com.shopmate.app.ui.components.ShopMateFigmaFrameWidth
 import com.shopmate.app.ui.components.ShopMateCircleIconButton
+import com.shopmate.app.ui.components.scaledDp
 import com.shopmate.app.ui.model.HistoryConversationUi
 import com.shopmate.app.ui.model.PromptSuggestionUi
 import com.shopmate.app.ui.sidebar.SidebarHistoryDrawer
 import com.shopmate.app.ui.theme.ShopMateGreen
 import com.shopmate.app.ui.theme.ShopMateTextPrimary
 import com.shopmate.app.ui.theme.shopMateScreenBackground
-
-private const val FIGMA_WIDTH = 388.667f
-private const val FIGMA_HEIGHT = 842.667f
 
 @Composable
 fun HomeChatEntryScreen(
@@ -68,10 +67,10 @@ fun HomeChatEntryScreen(
             .fillMaxSize()
             .shopMateScreenBackground()
     ) {
-        val scale = maxWidth.value / FIGMA_WIDTH
+        val scale = maxWidth.value / ShopMateFigmaFrameWidth
         val textScale = scale.coerceIn(0.88f, 1.08f)
 
-        fun Float.s(): Dp = (this * scale).dp
+        fun Float.s(): Dp = scaledDp(scale)
 
         val composerHeight = 52f.s()
         val composerBottom = 18f.s()
@@ -194,7 +193,7 @@ private fun BrandCopy(
     scale: Float,
     modifier: Modifier = Modifier
 ) {
-    fun Float.s(): Dp = (this * scale).dp
+    fun Float.s(): Dp = scaledDp(scale)
 
     Box(modifier = modifier.height(44.667f.s())) {
         Text(
@@ -226,7 +225,7 @@ private fun BrandCopy(
 private fun HeroMascot(
     scale: Float
 ) {
-    fun Float.s(): Dp = (this * scale).dp
+    fun Float.s(): Dp = scaledDp(scale)
 
     Box(
         modifier = Modifier
@@ -278,7 +277,7 @@ private fun PromptPanel(
     onPromptClick: (PromptSuggestionUi) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    fun Float.s(): Dp = (this * scale).dp
+    fun Float.s(): Dp = scaledDp(scale)
 
     Box(
         modifier = modifier
@@ -371,7 +370,7 @@ private fun PromptRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    fun Float.s(): Dp = (this * scale).dp
+    fun Float.s(): Dp = scaledDp(scale)
 
     val borderColor = if (selected) {
         ShopMateGreen.copy(alpha = 0.32f)

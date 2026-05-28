@@ -10,6 +10,10 @@ import type {
 } from "./chat.types";
 import type { ChatAnswerService } from "./chat.controller";
 import { createChatStreamController } from "./chat.controller";
+import {
+  parseSseEvents,
+  payloadFor,
+} from "./sse-test-utils";
 
 describe("createChatStreamController", () => {
   it("streams message deltas, product cards, and done events in order", async () => {
@@ -260,43 +264,14 @@ class FakeResponse extends EventEmitter {
   }
 
   streamEvents(): ChatStreamContractEvent[] {
-    return this.chunks.map((chunk) => {
-      const eventLine = chunk
-        .split("\n")
-        .find((line) => line.startsWith("event: "));
-      const dataLine = chunk
-        .split("\n")
-        .find((line) => line.startsWith("data: "));
-
-      if (!eventLine || !dataLine) {
-        throw new Error("SSE chunk is missing event or data line.");
-      }
-
-      return {
-        eventName: eventLine.slice("event: ".length),
-        payload: JSON.parse(dataLine.slice("data: ".length)),
-      } as ChatStreamContractEvent;
-    });
+    return parseSseEvents(this.chunks);
   }
 
   dataFor(eventName: string): unknown {
-    const chunk = this.chunks.find((item) =>
-      item.startsWith(`event: ${eventName}\n`)
+    return payloadFor(
+      parseSseEvents(this.chunks),
+      eventName as ChatStreamContractEvent["eventName"],
     );
-
-    if (!chunk) {
-      throw new Error(`Missing ${eventName} event.`);
-    }
-
-    const dataLine = chunk
-      .split("\n")
-      .find((line) => line.startsWith("data: "));
-
-    if (!dataLine) {
-      throw new Error(`Missing ${eventName} data.`);
-    }
-
-    return JSON.parse(dataLine.slice("data: ".length));
   }
 }
 
@@ -357,22 +332,6 @@ function createResultFromFixture(
     fallbackReason: donePayload.fallbackReason ?? undefined,
     retrieval: donePayload.retrieval,
   });
-}
-
-function payloadFor<EventName extends ChatStreamContractEvent["eventName"]>(
-  events: ChatStreamContractEvent[],
-  eventName: EventName,
-): Extract<ChatStreamContractEvent, { eventName: EventName }>["payload"] {
-  const event = events.find((item) => item.eventName === eventName);
-
-  if (!event) {
-    throw new Error(`Missing fixture event ${eventName}.`);
-  }
-
-  return event.payload as Extract<
-    ChatStreamContractEvent,
-    { eventName: EventName }
-  >["payload"];
 }
 
 function createProductCard(): ProductCardDto {

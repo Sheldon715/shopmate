@@ -1,6 +1,12 @@
 import { getEnv } from "../lib/env";
 import { VectorSearchService } from "../modules/vector/vector-search.service";
 import type { VectorSearchFilters } from "../modules/vector/vector-search.types";
+import {
+  parseCsv,
+  parsePositiveInteger,
+  readNext,
+  readText,
+} from "../utils/cli";
 
 interface SearchProductVectorsOptions {
   query: string;
@@ -152,43 +158,6 @@ function parseArgs(argv: string[]): SearchProductVectorsOptions {
   }
 
   return options;
-}
-
-function readText(arg: string, prefix: string): string {
-  const value = arg.slice(prefix.length).trim();
-
-  if (value.length === 0) {
-    throw new Error(`${prefix.slice(0, -1)} cannot be empty.`);
-  }
-
-  return value;
-}
-
-function readNext(argv: string[], index: number, name: string): string {
-  const value = argv[index + 1]?.trim();
-
-  if (!value) {
-    throw new Error(`${name} requires a value.`);
-  }
-
-  return value;
-}
-
-function parsePositiveInteger(value: string, name: string): number {
-  const parsed = Number(value);
-
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new Error(`${name} must be a positive integer.`);
-  }
-
-  return parsed;
-}
-
-function parseCsv(value: string): string[] {
-  return value
-    .split(",")
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0);
 }
 
 export async function searchProductVectorsCommand(

@@ -9,6 +9,10 @@ import type {
   ChatProductCardsPayload,
   ChatStreamContractEvent,
 } from "./chat.types";
+import {
+  eventNames,
+  parseSseEvents,
+} from "./sse-test-utils";
 import { writeSseEvent } from "./sse-writer";
 
 describe("chat contract fixtures", () => {
@@ -122,28 +126,8 @@ class FakeSseResponse {
   }
 
   events(): ChatStreamContractEvent[] {
-    return this.chunks.map((chunk) => {
-      const eventLine = chunk
-        .split("\n")
-        .find((line) => line.startsWith("event: "));
-      const dataLine = chunk
-        .split("\n")
-        .find((line) => line.startsWith("data: "));
-
-      if (!eventLine || !dataLine) {
-        throw new Error("SSE chunk is missing event or data line.");
-      }
-
-      return {
-        eventName: eventLine.slice("event: ".length),
-        payload: JSON.parse(dataLine.slice("data: ".length)),
-      } as ChatStreamContractEvent;
-    });
+    return parseSseEvents(this.chunks);
   }
-}
-
-function eventNames(events: ChatStreamContractEvent[]): string[] {
-  return events.map((event) => event.eventName);
 }
 
 function productCardPayloads(): ChatProductCardsPayload[] {

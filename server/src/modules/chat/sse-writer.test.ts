@@ -2,6 +2,7 @@ import { EventEmitter } from "node:events";
 import type { Response } from "express";
 import { describe, expect, it } from "vitest";
 import type { ProductCardDto } from "../products/product.types";
+import { parseSseChunk } from "./sse-test-utils";
 import {
   SseSerializationError,
   chunkMessageDelta,
@@ -50,7 +51,7 @@ describe("sse-writer", () => {
       }),
     ).toBe(true);
 
-    expect(parseSseData(response.chunks[0])).toEqual({ items: [card] });
+    expect(parseSseChunk(response.chunks[0]).payload).toEqual({ items: [card] });
   });
 
   it("throws a fixed error when event payload serialization fails", () => {
@@ -128,18 +129,6 @@ class FakeSseResponse extends EventEmitter {
     this.chunks.push(chunk);
     return !this.options.backpressure;
   }
-}
-
-function parseSseData(chunk: string): unknown {
-  const dataLine = chunk
-    .split("\n")
-    .find((line) => line.startsWith("data: "));
-
-  if (!dataLine) {
-    throw new Error("SSE chunk does not include a data line.");
-  }
-
-  return JSON.parse(dataLine.slice("data: ".length));
 }
 
 function createProductCard(): ProductCardDto {

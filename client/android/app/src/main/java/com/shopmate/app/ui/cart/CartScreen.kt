@@ -52,7 +52,9 @@ import com.shopmate.app.R
 import com.shopmate.app.data.mock.MockShopMateData
 import com.shopmate.app.ui.components.ShopMateCircleIconButton
 import com.shopmate.app.ui.components.ShopMateElevatedSurface
+import com.shopmate.app.ui.components.ShopMateFigmaFrameWidth
 import com.shopmate.app.ui.components.ShopMateStatusMessage
+import com.shopmate.app.ui.components.scaledDp
 import com.shopmate.app.ui.model.CartItemUi
 import com.shopmate.app.ui.theme.ShopMateGreen
 import com.shopmate.app.ui.theme.ShopMateLightGreen
@@ -60,9 +62,6 @@ import com.shopmate.app.ui.theme.ShopMatePillShape
 import com.shopmate.app.ui.theme.ShopMateTextPrimary
 import com.shopmate.app.ui.theme.ShopMateTheme
 import com.shopmate.app.ui.theme.shopMateScreenBackground
-
-private const val FIGMA_WIDTH = 388.667f
-private const val FIGMA_HEIGHT = 842.667f
 
 @Composable
 fun CartScreen(
@@ -96,7 +95,7 @@ fun CartScreen(
             .fillMaxSize()
             .shopMateScreenBackground()
     ) {
-        val scale = maxWidth.value / FIGMA_WIDTH
+        val scale = maxWidth.value / ShopMateFigmaFrameWidth
         val textScale = scale.coerceIn(0.88f, 1.08f)
 
         fun Float.s(): Dp = scaledDp(scale)
@@ -769,8 +768,6 @@ private data class CartLineState(
     val quantity: Int,
     val selected: Boolean
 )
-
-private fun Float.scaledDp(scale: Float): Dp = (this * scale).dp
 
 private fun parseYuanPrice(priceText: String): Int =
     priceText.filter { char -> char.isDigit() }.toIntOrNull() ?: 0
