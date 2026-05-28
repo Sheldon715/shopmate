@@ -1,4 +1,3 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { Pool } from "pg";
 import { createDatabasePool } from "../lib/db/pool";
@@ -16,6 +15,16 @@ import type {
 } from "../modules/vector/vector-evaluation.types";
 import { VectorSearchService } from "../modules/vector/vector-search.service";
 import type { VectorSearchFilters } from "../modules/vector/vector-search.types";
+import {
+  parseCsv,
+  parsePositiveInteger,
+  readNext,
+  readText,
+} from "../utils/cli";
+import {
+  readJsonFile,
+  writeJsonlFile,
+} from "../utils/json-files";
 
 interface EvaluateRagOptions {
   caseIds: string[];
@@ -83,48 +92,10 @@ function parseArgs(argv: string[]): EvaluateRagOptions {
   return options;
 }
 
-function readText(arg: string, prefix: string): string {
-  const value = arg.slice(prefix.length).trim();
-
-  if (value.length === 0) {
-    throw new Error(`${prefix.slice(0, -1)} cannot be empty.`);
-  }
-
-  return value;
-}
-
-function readNext(argv: string[], index: number, name: string): string {
-  const value = argv[index + 1]?.trim();
-
-  if (!value) {
-    throw new Error(`${name} requires a value.`);
-  }
-
-  return value;
-}
-
-function parsePositiveInteger(value: string, name: string): number {
-  const parsed = Number(value);
-
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new Error(`${name} must be a positive integer.`);
-  }
-
-  return parsed;
-}
-
-function parseCsv(value: string): string[] {
-  return value
-    .split(",")
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0);
-}
-
 async function readEvaluationCases(
   filePath: string,
 ): Promise<VectorEvaluationCase[]> {
-  const raw = await readFile(filePath, "utf8");
-  const parsed: unknown = JSON.parse(raw);
+  const parsed: unknown = await readJsonFile(filePath);
 
   if (!Array.isArray(parsed)) {
     throw new Error(`${filePath} must contain a JSON array.`);
@@ -335,11 +306,9 @@ async function readOptionalIndexCoverageNote(
   ragDataDir: string,
 ): Promise<string | undefined> {
   try {
-    const raw = await readFile(
-      path.join(ragDataDir, VECTOR_INDEX_MANIFEST_FILE),
-      "utf8",
+    const manifest = readVectorIndexManifest(
+      await readJsonFile(path.join(ragDataDir, VECTOR_INDEX_MANIFEST_FILE)),
     );
-    const manifest = readVectorIndexManifest(JSON.parse(raw));
 
     if (manifest.indexed_document_count >= manifest.source_document_count) {
       return undefined;
@@ -462,12 +431,7 @@ export async function evaluateRagCommand(
 
     const failedCount = results.filter((result) => !result.passed).length;
 
-    await mkdir(path.dirname(outputPath), { recursive: true });
-    await writeFile(
-      outputPath,
-      `${results.map((result) => JSON.stringify(result)).join("\n")}\n`,
-      "utf8",
-    );
+    await writeJsonlFile(outputPath, results);
 
     console.log(
       `Evaluated ${results.length} case(s): ${results.length - failedCount} passed, ${failedCount} failed.`,

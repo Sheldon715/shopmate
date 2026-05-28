@@ -25,15 +25,15 @@ import com.shopmate.app.data.mock.MockShopMateData
 import com.shopmate.app.ui.components.ChatComposer
 import com.shopmate.app.ui.components.ChatMessageBubble
 import com.shopmate.app.ui.components.ProductCard
+import com.shopmate.app.ui.components.ShopMateFigmaFrameWidth
 import com.shopmate.app.ui.components.ShopMateStatusMessage
 import com.shopmate.app.ui.components.ShopMateTopActionBar
+import com.shopmate.app.ui.components.scaledDp
 import com.shopmate.app.ui.model.HistoryConversationUi
 import com.shopmate.app.ui.sidebar.SidebarHistoryDrawer
 import com.shopmate.app.ui.theme.ShopMateTheme
 import com.shopmate.app.ui.theme.shopMateScreenBackground
 
-private const val FIGMA_WIDTH = 388.667f
-private const val FIGMA_HEIGHT = 842.667f
 private const val USER_MESSAGE = "推荐一款适合通勤的蓝牙耳机，预算 200 以内"
 private const val ASSISTANT_MESSAGE =
     "好的！为你筛选了几款 200 元以内、适合通勤的蓝牙耳机，综合音质、续航、降噪和佩戴舒适度，看看有没有喜欢的。"
@@ -55,9 +55,9 @@ fun ChatRecommendationScreen(
             .fillMaxSize()
             .shopMateScreenBackground()
     ) {
-        val scale = maxWidth.value / FIGMA_WIDTH
+        val scale = maxWidth.value / ShopMateFigmaFrameWidth
 
-        fun Float.s(): Dp = (this * scale).dp
+        fun Float.s(): Dp = scaledDp(scale)
 
         val headerTop = 36f.s()
         val contentTop = 80f.s()
@@ -81,7 +81,7 @@ fun ChatRecommendationScreen(
         ) {
             Box(
                 modifier = Modifier
-                    .size(width = FIGMA_WIDTH.s(), height = scrollContentHeight)
+                    .size(width = ShopMateFigmaFrameWidth.s(), height = scrollContentHeight)
             ) {
                 if (showEmptyState) {
                     ChatMessageBubble(
@@ -150,7 +150,7 @@ fun ChatRecommendationScreen(
             onRightClick = onCartClick,
             modifier = Modifier
                 .offset(x = 0.dp, y = headerTop)
-                .size(width = FIGMA_WIDTH.s(), height = 44f.s())
+                .size(width = ShopMateFigmaFrameWidth.s(), height = 44f.s())
                 .zIndex(2f)
         )
 

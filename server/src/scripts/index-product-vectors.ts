@@ -1,4 +1,3 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { getEnv } from "../lib/env";
 import {
@@ -12,6 +11,15 @@ import type {
   RagDocumentManifest,
 } from "../modules/vector/rag-document.types";
 import type { EmbeddedRagDocument } from "../modules/vector/qdrant.types";
+import {
+  parsePositiveInteger,
+  readNext,
+} from "../utils/cli";
+import {
+  readJsonFile,
+  readJsonlFile,
+  writeJsonFile,
+} from "../utils/json-files";
 
 interface IndexProductVectorsOptions {
   dryRun: boolean;
@@ -56,18 +64,21 @@ function parseArgs(argv: string[]): IndexProductVectorsOptions {
     }
 
     if (arg.startsWith("--limit=")) {
-      options.limit = parseLimit(arg.slice("--limit=".length));
+      options.limit = parsePositiveInteger(
+        arg.slice("--limit=".length),
+        "--limit",
+      );
       continue;
     }
 
     if (arg === "--limit") {
-      const value = argv[index + 1];
-
-      if (!value) {
-        throw new Error("--limit requires a positive integer.");
-      }
-
-      options.limit = parseLimit(value);
+      options.limit = parsePositiveInteger(
+        readNext(argv, index, "--limit", {
+          missingMessage: "--limit requires a positive integer.",
+          trim: false,
+        }),
+        "--limit",
+      );
       index += 1;
       continue;
     }
@@ -78,28 +89,8 @@ function parseArgs(argv: string[]): IndexProductVectorsOptions {
   return options;
 }
 
-function parseLimit(value: string): number {
-  const parsed = Number(value);
-
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new Error("--limit must be a positive integer.");
-  }
-
-  return parsed;
-}
-
-async function readJsonFile<T>(filePath: string): Promise<T> {
-  const raw = await readFile(filePath, "utf8");
-  return JSON.parse(raw) as T;
-}
-
 async function readRagDocuments(filePath: string): Promise<RagDocument[]> {
-  const raw = await readFile(filePath, "utf8");
-
-  return raw
-    .split(/\r?\n/)
-    .filter((line) => line.trim().length > 0)
-    .map((line) => JSON.parse(line) as RagDocument);
+  return readJsonlFile<RagDocument>(filePath);
 }
 
 function applyLimit<T>(items: T[], limit?: number): T[] {
@@ -171,11 +162,9 @@ async function writeManifest(
   ragDataDir: string,
   manifest: VectorIndexManifest,
 ): Promise<void> {
-  await mkdir(ragDataDir, { recursive: true });
-  await writeFile(
+  await writeJsonFile(
     path.join(ragDataDir, VECTOR_INDEX_MANIFEST_FILE),
-    `${JSON.stringify(manifest, null, 2)}\n`,
-    "utf8",
+    manifest,
   );
 }
 

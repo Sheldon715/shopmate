@@ -52,8 +52,10 @@ import com.shopmate.app.R
 import com.shopmate.app.data.mock.MockShopMateData
 import com.shopmate.app.ui.components.ChatComposer
 import com.shopmate.app.ui.components.ChatMessageBubble
+import com.shopmate.app.ui.components.ShopMateFigmaFrameWidth
 import com.shopmate.app.ui.components.ShopMateRoundedIconButton
 import com.shopmate.app.ui.components.ShopMateTopActionBar
+import com.shopmate.app.ui.components.scaledDp
 import com.shopmate.app.ui.model.ComparisonRowUi
 import com.shopmate.app.ui.model.ComparisonUi
 import com.shopmate.app.ui.model.HistoryConversationUi
@@ -62,9 +64,6 @@ import com.shopmate.app.ui.sidebar.SidebarHistoryDrawer
 import com.shopmate.app.ui.theme.ShopMateGreen
 import com.shopmate.app.ui.theme.ShopMateTheme
 import com.shopmate.app.ui.theme.shopMateScreenBackground
-
-private const val FIGMA_WIDTH = 388.667f
-private const val FIGMA_HEIGHT = 842.667f
 
 @Composable
 fun ProductComparisonScreen(
@@ -83,7 +82,7 @@ fun ProductComparisonScreen(
             .fillMaxSize()
             .shopMateScreenBackground()
     ) {
-        val scale = maxWidth.value / FIGMA_WIDTH
+        val scale = maxWidth.value / ShopMateFigmaFrameWidth
 
         fun Float.s(): Dp = scaledDp(scale)
 
@@ -104,7 +103,7 @@ fun ProductComparisonScreen(
         ) {
             Box(
                 modifier = Modifier.size(
-                    width = FIGMA_WIDTH.s(),
+                    width = ShopMateFigmaFrameWidth.s(),
                     height = scrollContentHeight
                 )
             ) {
@@ -147,7 +146,7 @@ fun ProductComparisonScreen(
             onRightClick = onCartClick,
             modifier = Modifier
                 .offset(x = 0.dp, y = headerTop)
-                .size(width = FIGMA_WIDTH.s(), height = 44f.s())
+                .size(width = ShopMateFigmaFrameWidth.s(), height = 44f.s())
                 .zIndex(2f)
         )
 
@@ -621,8 +620,6 @@ private fun RecommendationConclusion(
         }
     }
 }
-
-private fun Float.scaledDp(scale: Float): Dp = (this * scale).dp
 
 private fun comparisonTileTitle(product: ProductCardUi): String =
     when (product.id) {

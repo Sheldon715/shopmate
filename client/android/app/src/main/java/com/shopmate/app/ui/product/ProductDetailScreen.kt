@@ -48,9 +48,12 @@ import androidx.compose.ui.zIndex
 import com.shopmate.app.R
 import com.shopmate.app.data.mock.MockShopMateData
 import com.shopmate.app.ui.components.ShopMateElevatedSurface
+import com.shopmate.app.ui.components.ShopMateFigmaFrameHeight
+import com.shopmate.app.ui.components.ShopMateFigmaFrameWidth
 import com.shopmate.app.ui.components.ShopMateRoundedIconButton
 import com.shopmate.app.ui.components.ShopMateStatusMessage
 import com.shopmate.app.ui.components.ShopMateTopActionBar
+import com.shopmate.app.ui.components.scaledDp
 import com.shopmate.app.ui.model.ProductDetailSpecUi
 import com.shopmate.app.ui.model.ProductDetailUi
 import com.shopmate.app.ui.theme.ShopMateGreen
@@ -59,9 +62,6 @@ import com.shopmate.app.ui.theme.ShopMatePillShape
 import com.shopmate.app.ui.theme.ShopMateTextPrimary
 import com.shopmate.app.ui.theme.ShopMateTheme
 import com.shopmate.app.ui.theme.shopMateScreenBackground
-
-private const val FIGMA_WIDTH = 388.667f
-private const val FIGMA_HEIGHT = 842.667f
 
 @Composable
 fun ProductDetailScreen(
@@ -98,9 +98,12 @@ private fun ProductDetailScreenContent(
             .fillMaxSize()
             .shopMateScreenBackground()
     ) {
-        val scale = minOf(maxWidth.value / FIGMA_WIDTH, maxHeight.value / FIGMA_HEIGHT)
+        val scale = minOf(
+            maxWidth.value / ShopMateFigmaFrameWidth,
+            maxHeight.value / ShopMateFigmaFrameHeight
+        )
         val screenWidth = maxWidth
-        val frameStart = ((maxWidth.value - FIGMA_WIDTH * scale) / 2f).dp
+        val frameStart = ((maxWidth.value - ShopMateFigmaFrameWidth * scale) / 2f).dp
 
         fun Float.s(): Dp = scaledDp(scale)
 
@@ -182,7 +185,7 @@ private fun ProductDetailScreenContent(
             onRightClick = onCartClick,
             modifier = Modifier
                 .offset(x = frameStart, y = headerTop)
-                .size(width = FIGMA_WIDTH.s(), height = 44f.s())
+                .size(width = ShopMateFigmaFrameWidth.s(), height = 44f.s())
                 .zIndex(2f)
         )
 
@@ -703,8 +706,6 @@ private fun ProductNotFoundCard(
         modifier = modifier
     )
 }
-
-private fun Float.scaledDp(scale: Float): Dp = (this * scale).dp
 
 @Preview(
     name = "Product detail - 389 x 843",

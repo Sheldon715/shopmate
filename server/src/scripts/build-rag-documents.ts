@@ -1,5 +1,4 @@
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { getCatalogPaths, readNormalizedProducts } from "../lib/catalog/catalog-pipeline";
 import type { CatalogManifest, NormalizedProduct } from "../lib/catalog/types";
@@ -15,6 +14,15 @@ import type {
   RagDocument,
   RagDocumentManifest,
 } from "../modules/vector/rag-document.types";
+import {
+  parsePositiveInteger,
+  readNext,
+} from "../utils/cli";
+import {
+  readJsonFile,
+  writeJsonFile,
+  writeJsonlFile,
+} from "../utils/json-files";
 
 type RagSource = "postgres" | "processed";
 
@@ -54,30 +62,32 @@ function parseArgs(argv: string[]): BuildRagDocumentsOptions {
     }
 
     if (arg === "--source") {
-      const value = argv[index + 1];
-
-      if (!value) {
-        throw new Error("--source requires postgres or processed.");
-      }
-
-      options.source = parseSource(value);
+      options.source = parseSource(
+        readNext(argv, index, "--source", {
+          missingMessage: "--source requires postgres or processed.",
+          trim: false,
+        }),
+      );
       index += 1;
       continue;
     }
 
     if (arg.startsWith("--limit=")) {
-      options.limit = parseLimit(arg.slice("--limit=".length));
+      options.limit = parsePositiveInteger(
+        arg.slice("--limit=".length),
+        "--limit",
+      );
       continue;
     }
 
     if (arg === "--limit") {
-      const value = argv[index + 1];
-
-      if (!value) {
-        throw new Error("--limit requires a positive integer.");
-      }
-
-      options.limit = parseLimit(value);
+      options.limit = parsePositiveInteger(
+        readNext(argv, index, "--limit", {
+          missingMessage: "--limit requires a positive integer.",
+          trim: false,
+        }),
+        "--limit",
+      );
       index += 1;
       continue;
     }
@@ -94,21 +104,6 @@ function parseSource(value: string): RagSource {
   }
 
   throw new Error("--source must be postgres or processed.");
-}
-
-function parseLimit(value: string): number {
-  const parsed = Number(value);
-
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new Error("--limit must be a positive integer.");
-  }
-
-  return parsed;
-}
-
-async function readJsonFile<T>(filePath: string): Promise<T> {
-  const raw = await readFile(filePath, "utf8");
-  return JSON.parse(raw) as T;
 }
 
 async function readOptionalCatalogManifest(
@@ -288,18 +283,8 @@ async function writeRagDocuments(
   documents: RagDocument[],
   manifest: RagDocumentManifest,
 ): Promise<void> {
-  await mkdir(ragDataDir, { recursive: true });
-
-  await writeFile(
-    path.join(ragDataDir, OUTPUT_DOCUMENTS_FILE),
-    `${documents.map((document) => JSON.stringify(document)).join("\n")}\n`,
-    "utf8",
-  );
-  await writeFile(
-    path.join(ragDataDir, OUTPUT_MANIFEST_FILE),
-    `${JSON.stringify(manifest, null, 2)}\n`,
-    "utf8",
-  );
+  await writeJsonlFile(path.join(ragDataDir, OUTPUT_DOCUMENTS_FILE), documents);
+  await writeJsonFile(path.join(ragDataDir, OUTPUT_MANIFEST_FILE), manifest);
 }
 
 export async function buildRagDocumentsCommand(
