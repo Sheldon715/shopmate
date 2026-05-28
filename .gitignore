@@ -15,6 +15,9 @@ client/android/app/build/
 client/android/local.properties
 client/android/gradle/gradle-daemon-jvm.properties
 
+# Local planning tracker
+context/spec-implementation-order.md
+
 # Generated data/tooling artifacts
 __pycache__/
 *.pyc
