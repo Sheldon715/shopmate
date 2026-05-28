@@ -76,10 +76,10 @@ async function handleChatStream(
       return;
     }
 
-    const writeStatus = writeChatResult(response, result);
+    const writeStatus = await writeChatResult(response, result);
 
     if (writeStatus === "serialization_error") {
-      writeSseError(response, {
+      await writeSseError(response, {
         code: "SSE_SERIALIZATION_ERROR",
         message: "Chat stream payload could not be serialized.",
         retryable: false,
@@ -102,7 +102,7 @@ async function handleChatStream(
     }
 
     const chatError = mapStreamError(error);
-    const writeStatus = writeSseError(response, chatError);
+    const writeStatus = await writeSseError(response, chatError);
 
     if (writeStatus !== "closed") {
       responseFinished = true;
@@ -113,10 +113,10 @@ async function handleChatStream(
   }
 }
 
-function writeChatResult(
+async function writeChatResult(
   response: Response,
   result: RagChatResult,
-): SseWriteStatus {
+): Promise<SseWriteStatus> {
   const chunks = chunkMessageDelta(result.answer);
 
   for (const [index, text] of chunks.entries()) {
@@ -124,7 +124,7 @@ function writeChatResult(
       text,
       index,
     };
-    const status = safeWriteSseEvent(response, "message_delta", payload);
+    const status = await safeWriteSseEvent(response, "message_delta", payload);
 
     if (status !== "ok") {
       return status;
@@ -134,7 +134,7 @@ function writeChatResult(
   const productCardsPayload: ChatProductCardsPayload = {
     items: result.productCards,
   };
-  const productCardsStatus = safeWriteSseEvent(
+  const productCardsStatus = await safeWriteSseEvent(
     response,
     "product_cards",
     productCardsPayload,
@@ -192,17 +192,17 @@ function mapStreamError(error: unknown): ChatErrorPayload {
 function writeSseError(
   response: Response,
   error: ChatErrorPayload,
-): SseWriteStatus {
+): Promise<SseWriteStatus> {
   return safeWriteSseEvent(response, "error", error);
 }
 
-function safeWriteSseEvent(
+async function safeWriteSseEvent(
   response: Response,
   eventName: Parameters<typeof writeSseEvent>[1],
   data: unknown,
-): SseWriteStatus {
+): Promise<SseWriteStatus> {
   try {
-    return writeSseEvent(response, eventName, data) ? "ok" : "closed";
+    return await writeSseEvent(response, eventName, data) ? "ok" : "closed";
   } catch (error) {
     if (error instanceof SseSerializationError) {
       return "serialization_error";

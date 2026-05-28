@@ -1,3 +1,4 @@
+import { EventEmitter } from "node:events";
 import type { Response } from "express";
 import { describe, expect, it } from "vitest";
 import type { ProductCardDto } from "../products/product.types";
@@ -10,11 +11,11 @@ import {
 } from "./sse-writer";
 
 describe("sse-writer", () => {
-  it("writes standard event and data lines followed by a blank line", () => {
+  it("writes standard event and data lines followed by a blank line", async () => {
     const response = new FakeSseResponse();
 
     expect(
-      writeSseEvent(response.asResponse(), "message_delta", {
+      await writeSseEvent(response.asResponse(), "message_delta", {
         text: "hello",
         index: 0,
       }),
@@ -25,11 +26,11 @@ describe("sse-writer", () => {
     ]);
   });
 
-  it("sets SSE headers and can write comment heartbeats", () => {
+  it("sets SSE headers and can write comment heartbeats", async () => {
     const response = new FakeSseResponse();
 
     startSseStream(response.asResponse());
-    expect(writeSseComment(response.asResponse(), "ping")).toBe(true);
+    expect(await writeSseComment(response.asResponse(), "ping")).toBe(true);
 
     expect(response.headers.get("content-type")).toBe(
       "text/event-stream; charset=utf-8",
@@ -39,12 +40,12 @@ describe("sse-writer", () => {
     expect(response.chunks).toEqual([": ping\n\n"]);
   });
 
-  it("serializes product card events", () => {
+  it("serializes product card events", async () => {
     const response = new FakeSseResponse();
     const card = createProductCard();
 
     expect(
-      writeSseEvent(response.asResponse(), "product_cards", {
+      await writeSseEvent(response.asResponse(), "product_cards", {
         items: [card],
       }),
     ).toBe(true);
@@ -57,9 +58,37 @@ describe("sse-writer", () => {
     const circular: Record<string, unknown> = {};
     circular.self = circular;
 
-    expect(() =>
-      writeSseEvent(response.asResponse(), "done", circular)
-    ).toThrow(SseSerializationError);
+    expect(() => writeSseEvent(response.asResponse(), "done", circular))
+      .toThrow(SseSerializationError);
+  });
+
+  it("waits for drain when the response applies backpressure", async () => {
+    const response = new FakeSseResponse({ backpressure: true });
+    const writePromise = writeSseEvent(response.asResponse(), "message_delta", {
+      text: "hello",
+      index: 0,
+    });
+
+    await Promise.resolve();
+    expect(response.chunks).toHaveLength(1);
+
+    response.emit("drain");
+
+    await expect(writePromise).resolves.toBe(true);
+  });
+
+  it("returns false if the response closes while waiting for drain", async () => {
+    const response = new FakeSseResponse({ backpressure: true });
+    const writePromise = writeSseEvent(response.asResponse(), "message_delta", {
+      text: "hello",
+      index: 0,
+    });
+
+    await Promise.resolve();
+    response.destroyed = true;
+    response.emit("close");
+
+    await expect(writePromise).resolves.toBe(false);
   });
 
   it("chunks messages without corrupting Chinese text or emoji code points", () => {
@@ -71,12 +100,16 @@ describe("sse-writer", () => {
   });
 });
 
-class FakeSseResponse {
+class FakeSseResponse extends EventEmitter {
   readonly headers = new Map<string, string>();
   readonly chunks: string[] = [];
   writableEnded = false;
   destroyed = false;
   flushed = false;
+
+  constructor(private readonly options: { backpressure?: boolean } = {}) {
+    super();
+  }
 
   asResponse(): Response {
     return this as unknown as Response;
@@ -93,7 +126,7 @@ class FakeSseResponse {
 
   write(chunk: string): boolean {
     this.chunks.push(chunk);
-    return true;
+    return !this.options.backpressure;
   }
 }
 

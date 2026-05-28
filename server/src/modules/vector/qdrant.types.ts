@@ -58,5 +58,6 @@ export interface VectorStore {
     vector: number[];
     filters?: VectorSearchFilters;
     topK: number;
+    abortSignal?: AbortSignal;
   }): Promise<VectorSearchHit[]>;
 }

@@ -25,9 +25,9 @@ export function writeSseEvent(
   response: Response,
   eventName: ChatStreamEventName,
   data: unknown,
-): boolean {
+): Promise<boolean> {
   if (isResponseClosed(response)) {
-    return false;
+    return Promise.resolve(false);
   }
 
   let payload: string;
@@ -38,28 +38,61 @@ export function writeSseEvent(
     throw new SseSerializationError(error);
   }
 
-  try {
-    response.write(`event: ${eventName}\ndata: ${payload}\n\n`);
-    return true;
-  } catch {
-    return false;
-  }
+  return writeSseChunk(response, `event: ${eventName}\ndata: ${payload}\n\n`);
 }
 
 export function writeSseComment(
   response: Response,
   comment: string,
-): boolean {
+): Promise<boolean> {
   if (isResponseClosed(response)) {
-    return false;
+    return Promise.resolve(false);
   }
 
+  return writeSseChunk(response, `: ${comment}\n\n`);
+}
+
+async function writeSseChunk(
+  response: Response,
+  chunk: string,
+): Promise<boolean> {
   try {
-    response.write(`: ${comment}\n\n`);
-    return true;
+    const canContinue = response.write(chunk);
+
+    if (canContinue) {
+      return true;
+    }
+
+    return await waitForDrainOrClose(response);
   } catch {
     return false;
   }
+}
+
+function waitForDrainOrClose(response: Response): Promise<boolean> {
+  if (isResponseClosed(response)) {
+    return Promise.resolve(false);
+  }
+
+  return new Promise((resolve) => {
+    const cleanup = () => {
+      response.off("drain", handleDrain);
+      response.off("close", handleClose);
+      response.off("error", handleClose);
+    };
+    const handleDrain = () => {
+      cleanup();
+      resolve(!isResponseClosed(response));
+    };
+    const handleClose = () => {
+      cleanup();
+      resolve(false);
+    };
+
+    response.once("drain", handleDrain);
+    response.once("close", handleClose);
+    response.once("error", handleClose);
+  });
 }
 
 export function chunkMessageDelta(

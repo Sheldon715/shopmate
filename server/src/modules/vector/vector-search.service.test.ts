@@ -181,6 +181,49 @@ describe("VectorSearchService", () => {
       },
     ]);
   });
+
+  it("passes abortSignal to embedding and vector store calls", async () => {
+    const abortController = new AbortController();
+    let embeddingSignal: AbortSignal | undefined;
+    let vectorStoreSignal: AbortSignal | undefined;
+    const embeddingClient: EmbeddingClient = {
+      embedDocuments: async () => ({
+        model: "fake",
+        dimensions: 3,
+        vectors: [],
+      }),
+      embedQuery: async (_text, options) => {
+        embeddingSignal = options?.abortSignal;
+
+        return {
+          model: "fake",
+          dimensions: 3,
+          vectors: [[0.1, 0.2, 0.3]],
+        };
+      },
+    };
+    const service = new VectorSearchService({
+      embeddingClient,
+      embeddingDimensions: 3,
+      collectionName: "test_collection",
+      vectorStore: {
+        ensureCollection: async () => undefined,
+        upsertDocuments: async () => undefined,
+        search: async (input) => {
+          vectorStoreSignal = input.abortSignal;
+          return [];
+        },
+      },
+    });
+
+    await service.search({
+      query: "蓝牙耳机",
+      abortSignal: abortController.signal,
+    });
+
+    expect(embeddingSignal).toBe(abortController.signal);
+    expect(vectorStoreSignal).toBe(abortController.signal);
+  });
 });
 
 function createScoredPoint(): QdrantScoredPoint {

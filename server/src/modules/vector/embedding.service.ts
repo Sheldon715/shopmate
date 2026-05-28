@@ -4,6 +4,7 @@ import { FakeEmbeddingClient } from "./fake-embedding.service";
 import type {
   EmbeddingClient,
   EmbeddingClientConfig,
+  EmbeddingRequestOptions,
   EmbeddingResult,
   EmbeddingUsage,
 } from "./embedding.types";
@@ -71,32 +72,44 @@ export class HttpEmbeddingClient implements EmbeddingClient {
     this.config = config;
   }
 
-  async embedDocuments(texts: string[]): Promise<EmbeddingResult> {
+  async embedDocuments(
+    texts: string[],
+    options: EmbeddingRequestOptions = {},
+  ): Promise<EmbeddingResult> {
+    throwIfAborted(options.abortSignal);
     validateEmbeddingTexts(texts);
 
     return validateEmbeddingResult(
-      await this.requestEmbeddings(texts),
+      await this.requestEmbeddings(texts, options),
       texts.length,
       this.config.dimensions,
     );
   }
 
-  async embedQuery(text: string): Promise<EmbeddingResult> {
+  async embedQuery(
+    text: string,
+    options: EmbeddingRequestOptions = {},
+  ): Promise<EmbeddingResult> {
+    throwIfAborted(options.abortSignal);
     validateEmbeddingTexts([text]);
 
     return validateEmbeddingResult(
-      await this.requestEmbeddings([text]),
+      await this.requestEmbeddings([text], options),
       1,
       this.config.dimensions,
     );
   }
 
-  private async requestEmbeddings(texts: string[]): Promise<EmbeddingResult> {
+  private async requestEmbeddings(
+    texts: string[],
+    options: EmbeddingRequestOptions,
+  ): Promise<EmbeddingResult> {
     if (this.config.endpointKind === "multimodal_embeddings" && texts.length > 1) {
       const results: EmbeddingResult[] = [];
 
       for (const text of texts) {
-        results.push(await this.requestEmbeddingBatch([text]));
+        throwIfAborted(options.abortSignal);
+        results.push(await this.requestEmbeddingBatch([text], options));
       }
 
       return {
@@ -107,10 +120,13 @@ export class HttpEmbeddingClient implements EmbeddingClient {
       };
     }
 
-    return this.requestEmbeddingBatch(texts);
+    return this.requestEmbeddingBatch(texts, options);
   }
 
-  private async requestEmbeddingBatch(texts: string[]): Promise<EmbeddingResult> {
+  private async requestEmbeddingBatch(
+    texts: string[],
+    options: EmbeddingRequestOptions,
+  ): Promise<EmbeddingResult> {
     if (!this.config.baseUrl) {
       throw new EmbeddingError("EMBEDDING_BASE_URL is required.");
     }
@@ -127,8 +143,17 @@ export class HttpEmbeddingClient implements EmbeddingClient {
     let lastError: unknown;
 
     for (let attempt = 0; attempt <= this.config.maxRetries; attempt += 1) {
+      throwIfAborted(options.abortSignal);
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), this.config.timeoutMs);
+      let timedOut = false;
+      const timeout = setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, this.config.timeoutMs);
+      const removeAbortListener = pipeAbortSignal(
+        options.abortSignal,
+        controller,
+      );
 
       try {
         const response = await fetch(endpoint, {
@@ -163,6 +188,12 @@ export class HttpEmbeddingClient implements EmbeddingClient {
           throw error;
         }
 
+        if (!timedOut && isAbortError(error)) {
+          throw new EmbeddingError("Embedding request was aborted.", {
+            cause: error,
+          });
+        }
+
         if (attempt === this.config.maxRetries) {
           break;
         }
@@ -170,6 +201,7 @@ export class HttpEmbeddingClient implements EmbeddingClient {
         await sleep(250 * 2 ** attempt);
       } finally {
         clearTimeout(timeout);
+        removeAbortListener();
       }
     }
 
@@ -199,6 +231,40 @@ export function createEmbeddingClient(): EmbeddingClient {
     timeoutMs: env.embeddingTimeoutMs,
     maxRetries: env.embeddingMaxRetries,
   });
+}
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) {
+    throw new EmbeddingError("Embedding request was aborted.", {
+      cause: signal.reason,
+    });
+  }
+}
+
+function pipeAbortSignal(
+  source: AbortSignal | undefined,
+  controller: AbortController,
+): () => void {
+  if (!source) {
+    return () => undefined;
+  }
+
+  if (source.aborted) {
+    controller.abort(source.reason);
+    return () => undefined;
+  }
+
+  const onAbort = () => controller.abort(source.reason);
+  source.addEventListener("abort", onAbort, { once: true });
+
+  return () => source.removeEventListener("abort", onAbort);
+}
+
+function isAbortError(error: unknown): boolean {
+  return (
+    error instanceof Error
+    && (error.name === "AbortError" || error.name === "TimeoutError")
+  );
 }
 
 function resolveEmbeddingEndpoint(
