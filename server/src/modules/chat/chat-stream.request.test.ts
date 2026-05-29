@@ -47,6 +47,21 @@ describe("parseChatStreamRequestBody", () => {
     });
   });
 
+  it("deduplicates and trims filter arrays", () => {
+    const request = parseChatStreamRequestBody({
+      message: "hello",
+      filters: {
+        tagsAny: [" wireless ", "wireless", "commute"],
+        avoidTerms: [" heavy ", "heavy"],
+      },
+    });
+
+    expect(request.filters).toEqual({
+      tagsAny: ["wireless", "commute"],
+      avoidTerms: ["heavy"],
+    });
+  });
+
   it("rejects invalid message values", () => {
     expect(() => parseChatStreamRequestBody({ message: "   " })).toThrow(
       ChatStreamRequestError,
@@ -118,6 +133,26 @@ describe("parseChatStreamRequestBody", () => {
       parseChatStreamRequestBody({
         message: "hello",
         filters: { minPriceCents: 50000, maxPriceCents: 10000 },
+      })
+    ).toThrow(ChatStreamRequestError);
+  });
+
+  it("rejects oversized filter arrays and terms", () => {
+    expect(() =>
+      parseChatStreamRequestBody({
+        message: "hello",
+        filters: {
+          tagsAny: Array.from({ length: 13 }, (_, index) => `tag-${index}`),
+        },
+      })
+    ).toThrow(ChatStreamRequestError);
+
+    expect(() =>
+      parseChatStreamRequestBody({
+        message: "hello",
+        filters: {
+          avoidTerms: ["a".repeat(81)],
+        },
       })
     ).toThrow(ChatStreamRequestError);
   });

@@ -10,6 +10,8 @@ const TOP_K_MIN = 1;
 const TOP_K_MAX = 20;
 const MAX_RECOMMENDED_PRODUCTS_MIN = 1;
 const MAX_RECOMMENDED_PRODUCTS_MAX = 5;
+const FILTER_ARRAY_MAX_ITEMS = 12;
+const FILTER_ARRAY_ITEM_MAX_LENGTH = 80;
 
 const FILTER_FIELDS = [
   "category",
@@ -196,9 +198,29 @@ function readOptionalStringArray(
     throw new ChatStreamRequestError(`${fieldName} must be an array`);
   }
 
-  return value.map((item, index) =>
-    readRequiredString(item, `${fieldName}[${index}]`, HISTORY_CONTENT_MAX_LENGTH)
-  );
+  if (value.length > FILTER_ARRAY_MAX_ITEMS) {
+    throw new ChatStreamRequestError(
+      `${fieldName} can include at most ${FILTER_ARRAY_MAX_ITEMS} items`,
+    );
+  }
+
+  const seen = new Set<string>();
+  const normalizedValues: string[] = [];
+
+  value.forEach((item, index) => {
+    const normalizedValue = readRequiredString(
+      item,
+      `${fieldName}[${index}]`,
+      FILTER_ARRAY_ITEM_MAX_LENGTH,
+    );
+
+    if (!seen.has(normalizedValue)) {
+      seen.add(normalizedValue);
+      normalizedValues.push(normalizedValue);
+    }
+  });
+
+  return normalizedValues.length > 0 ? normalizedValues : undefined;
 }
 
 function readOptionalBoolean(

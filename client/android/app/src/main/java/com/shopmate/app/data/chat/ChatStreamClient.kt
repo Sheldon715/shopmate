@@ -25,7 +25,7 @@ interface ChatStreamClient {
 
 class OkHttpChatStreamClient(
     apiConfig: ShopMateApiConfig = ShopMateApiConfig.default(),
-    private val okHttpClient: OkHttpClient = ShopMateHttpClient.create(),
+    private val okHttpClient: OkHttpClient = ShopMateHttpClient.createSseClient(),
     private val json: Json = ShopMateJson.instance,
 ) : ChatStreamClient {
     private val streamUrl = apiConfig.resolve(CHAT_STREAM_PATH)

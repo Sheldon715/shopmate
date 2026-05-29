@@ -18,7 +18,7 @@ interface ProductApiClient {
 
 class OkHttpProductApiClient(
     apiConfig: ShopMateApiConfig = ShopMateApiConfig.default(),
-    private val okHttpClient: OkHttpClient = ShopMateHttpClient.create(),
+    private val okHttpClient: OkHttpClient = ShopMateHttpClient.createJsonApiClient(),
     private val json: Json = ShopMateJson.instance,
 ) : ProductApiClient {
     private val productsBaseUrl = apiConfig.resolve(PRODUCTS_PATH)

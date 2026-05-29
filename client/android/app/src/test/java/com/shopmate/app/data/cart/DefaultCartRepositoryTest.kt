@@ -1,8 +1,10 @@
 package com.shopmate.app.data.cart
 
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
@@ -76,6 +78,15 @@ class DefaultCartRepositoryTest {
         assertIs<CartOperationError.ProductUnavailable>(result.exceptionOrNull())
     }
 
+    @Test
+    fun getCartRethrowsCancellation() = runTest {
+        val repository = DefaultCartRepository(CancellingCartApiClient)
+
+        assertFailsWith<CancellationException> {
+            repository.getCart()
+        }
+    }
+
     private class FakeCartApiClient(
         private val response: CartApiResponseDto<CartDto>,
     ) : CartApiClient {
@@ -106,6 +117,35 @@ class DefaultCartRepositoryTest {
 
         override suspend fun selectAll(selected: Boolean): CartApiResponseDto<CartDto> =
             response
+    }
+
+    private object CancellingCartApiClient : CartApiClient {
+        override suspend fun getCart(): CartApiResponseDto<CartDto> {
+            throw CancellationException("cancelled")
+        }
+
+        override suspend fun addCartItem(
+            productId: String,
+            quantity: Int,
+        ): CartApiResponseDto<CartDto> {
+            throw CancellationException("cancelled")
+        }
+
+        override suspend fun updateCartItem(
+            itemId: String,
+            quantity: Int?,
+            selected: Boolean?,
+        ): CartApiResponseDto<CartDto> {
+            throw CancellationException("cancelled")
+        }
+
+        override suspend fun deleteCartItem(itemId: String): CartApiResponseDto<CartDto> {
+            throw CancellationException("cancelled")
+        }
+
+        override suspend fun selectAll(selected: Boolean): CartApiResponseDto<CartDto> {
+            throw CancellationException("cancelled")
+        }
     }
 
     private fun successResponse(): CartApiResponseDto<CartDto> =

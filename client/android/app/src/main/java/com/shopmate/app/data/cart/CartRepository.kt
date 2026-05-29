@@ -2,6 +2,7 @@ package com.shopmate.app.data.cart
 
 import com.shopmate.app.data.network.ShopMateNetworkError
 import com.shopmate.app.ui.cart.CartContentUi
+import kotlinx.coroutines.CancellationException
 
 interface CartRepository {
     suspend fun getCart(): Result<CartContentUi>
@@ -113,6 +114,8 @@ class DefaultCartRepository(
             Result.failure(CartOperationError.NetworkFailure(error))
         } catch (error: ShopMateNetworkError.InvalidBaseUrl) {
             Result.failure(CartOperationError.NetworkFailure(error))
+        } catch (error: CancellationException) {
+            throw error
         } catch (error: RuntimeException) {
             Result.failure(CartOperationError.Unknown)
         }

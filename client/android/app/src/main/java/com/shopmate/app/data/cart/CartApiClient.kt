@@ -31,7 +31,7 @@ interface CartApiClient {
 
 class OkHttpCartApiClient(
     apiConfig: ShopMateApiConfig = ShopMateApiConfig.default(),
-    private val okHttpClient: OkHttpClient = ShopMateHttpClient.create(),
+    private val okHttpClient: OkHttpClient = ShopMateHttpClient.createJsonApiClient(),
     private val json: Json = ShopMateJson.instance,
 ) : CartApiClient {
     private val cartBaseUrl = apiConfig.resolve(CART_PATH)
