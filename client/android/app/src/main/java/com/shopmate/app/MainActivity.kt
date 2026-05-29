@@ -23,6 +23,7 @@ import com.shopmate.app.ui.home.HomeChatEntryScreen
 import com.shopmate.app.ui.model.HistoryConversationUi
 import com.shopmate.app.ui.onboarding.OnboardingScreen
 import com.shopmate.app.ui.product.ProductDetailScreen
+import com.shopmate.app.ui.product.ProductDetailViewModel
 import com.shopmate.app.ui.theme.ShopMateTheme
 
 class MainActivity : ComponentActivity() {
@@ -123,15 +124,25 @@ class MainActivity : ComponentActivity() {
                         onHistoryClick = openHistoryConversation
                     )
 
-                    is ShopMateScreen.ProductDetail -> ProductDetailScreen(
-                        productId = (currentScreen as ShopMateScreen.ProductDetail).productId,
-                        onBackClick = {
-                            currentScreen = ShopMateScreen.ChatRecommendation
-                        },
-                        onCartClick = openCart,
-                        onAddCartClick = openCartPreview,
-                        onBuyNowClick = openCartPreview
-                    )
+                    is ShopMateScreen.ProductDetail -> {
+                        val productId = (currentScreen as ShopMateScreen.ProductDetail).productId
+                        val productDetailViewModel: ProductDetailViewModel = viewModel(
+                            key = "product-detail-$productId",
+                            factory = appContainer.productDetailViewModelFactory(productId)
+                        )
+                        val productDetailState by productDetailViewModel.uiState.collectAsState()
+
+                        ProductDetailScreen(
+                            state = productDetailState,
+                            onBackClick = {
+                                currentScreen = ShopMateScreen.ChatRecommendation
+                            },
+                            onCartClick = openCart,
+                            onRetry = productDetailViewModel::retry,
+                            onAddCartClick = openCartPreview,
+                            onBuyNowClick = openCartPreview
+                        )
+                    }
 
                     is ShopMateScreen.Cart -> CartScreen(
                         onBackClick = {

@@ -18,6 +18,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -52,7 +53,6 @@ import com.shopmate.app.ui.components.ShopMateFigmaFrameHeight
 import com.shopmate.app.ui.components.ShopMateFigmaFrameWidth
 import com.shopmate.app.ui.components.ShopMateRoundedIconButton
 import com.shopmate.app.ui.components.ShopMateStatusMessage
-import com.shopmate.app.ui.components.ShopMateTopActionBar
 import com.shopmate.app.ui.components.scaledDp
 import com.shopmate.app.ui.model.ProductDetailSpecUi
 import com.shopmate.app.ui.model.ProductDetailUi
@@ -65,17 +65,19 @@ import com.shopmate.app.ui.theme.shopMateScreenBackground
 
 @Composable
 fun ProductDetailScreen(
-    productId: String,
+    state: ProductDetailUiState,
     onBackClick: () -> Unit,
     onCartClick: () -> Unit,
+    onRetry: () -> Unit,
     onAddCartClick: () -> Unit,
     onBuyNowClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     ProductDetailScreenContent(
-        product = MockShopMateData.findProductDetail(productId),
+        state = state,
         onBackClick = onBackClick,
         onCartClick = onCartClick,
+        onRetry = onRetry,
         onAddCartClick = onAddCartClick,
         onBuyNowClick = onBuyNowClick,
         modifier = modifier
@@ -84,13 +86,15 @@ fun ProductDetailScreen(
 
 @Composable
 private fun ProductDetailScreenContent(
-    product: ProductDetailUi?,
+    state: ProductDetailUiState,
     onBackClick: () -> Unit,
     onCartClick: () -> Unit,
+    onRetry: () -> Unit,
     onAddCartClick: () -> Unit,
     onBuyNowClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val product = state.product
     var isFavorite by rememberSaveable(product?.id) { mutableStateOf(false) }
 
     BoxWithConstraints(
@@ -129,10 +133,20 @@ private fun ProductDetailScreenContent(
                     height = scrollContentHeight
                 )
             ) {
-                if (product == null) {
-                    ProductNotFoundCard(
+                if (state.isLoading) {
+                    ProductLoadingCard(
                         scale = scale,
-                        onBackClick = onBackClick,
+                        modifier = Modifier
+                            .offset(x = frameStart + 18f.s(), y = contentTop + 18f.s())
+                            .size(width = 352.667f.s(), height = 252f.s())
+                    )
+                } else if (product == null) {
+                    ProductDetailStatusCard(
+                        title = "暂时无法加载商品",
+                        message = state.errorMessage ?: "可能是推荐结果已更新，返回后可以重新选择一个商品。",
+                        actionText = if (state.canRetry) "重试" else "返回推荐结果",
+                        onActionClick = if (state.canRetry) onRetry else onBackClick,
+                        scale = scale,
                         modifier = Modifier
                             .offset(x = frameStart + 18f.s(), y = contentTop + 18f.s())
                             .size(width = 352.667f.s(), height = 252f.s())
@@ -175,19 +189,20 @@ private fun ProductDetailScreenContent(
             }
         }
 
-        ShopMateTopActionBar(
-            scale = scale,
-            leftIcon = R.drawable.ic_menu,
-            leftContentDescription = "返回推荐结果",
-            onLeftClick = onBackClick,
-            rightIcon = R.drawable.ic_cart,
-            rightContentDescription = "购物车",
-            onRightClick = onCartClick,
+        ShopMateRoundedIconButton(
+            onClick = onBackClick,
+            backgroundColor = Color.White.copy(alpha = 0.92f),
             modifier = Modifier
-                .offset(x = frameStart, y = headerTop)
-                .size(width = ShopMateFigmaFrameWidth.s(), height = 44f.s())
+                .offset(x = frameStart + 14f.s(), y = headerTop + 3f.s())
+                .size(38f.s())
                 .zIndex(2f)
-        )
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.ic_back),
+                contentDescription = "返回推荐结果",
+                modifier = Modifier.size(16f.s())
+            )
+        }
 
         if (product != null) {
             ProductDetailFooter(
@@ -692,16 +707,41 @@ private fun ProductDetailFooter(
 }
 
 @Composable
-private fun ProductNotFoundCard(
+private fun ProductLoadingCard(
     scale: Float,
-    onBackClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    ShopMateElevatedSurface(
+        modifier = modifier,
+        shape = RoundedCornerShape(24f.scaledDp(scale)),
+        elevation = 14f.scaledDp(scale)
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(
+                color = ShopMateGreen,
+                modifier = Modifier.size(36f.scaledDp(scale))
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProductDetailStatusCard(
+    title: String,
+    message: String,
+    actionText: String,
+    onActionClick: () -> Unit,
+    scale: Float,
     modifier: Modifier = Modifier
 ) {
     ShopMateStatusMessage(
-        title = "暂时找不到这个商品",
-        message = "可能是推荐结果已更新，返回后可以重新选择一个商品。",
-        actionText = "返回推荐结果",
-        onActionClick = onBackClick,
+        title = title,
+        message = message,
+        actionText = actionText,
+        onActionClick = onActionClick,
         scale = scale,
         modifier = modifier
     )
@@ -717,9 +757,13 @@ private fun ProductNotFoundCard(
 private fun ProductDetailScreenTargetPreview() {
     ShopMateTheme {
         ProductDetailScreenContent(
-            product = MockShopMateData.findProductDetail("ui-edifier-zero-air"),
+            state = ProductDetailUiState(
+                productId = "ui-edifier-zero-air",
+                product = MockShopMateData.findProductDetail("ui-edifier-zero-air")
+            ),
             onBackClick = {},
             onCartClick = {},
+            onRetry = {},
             onAddCartClick = {},
             onBuyNowClick = {}
         )
@@ -736,9 +780,13 @@ private fun ProductDetailScreenTargetPreview() {
 private fun ProductDetailNotFoundPreview() {
     ShopMateTheme {
         ProductDetailScreenContent(
-            product = null,
+            state = ProductDetailUiState(
+                productId = "missing",
+                errorMessage = "商品不存在或已下架。"
+            ),
             onBackClick = {},
             onCartClick = {},
+            onRetry = {},
             onAddCartClick = {},
             onBuyNowClick = {}
         )
@@ -755,9 +803,13 @@ private fun ProductDetailNotFoundPreview() {
 private fun ProductDetailCompactPreview() {
     ShopMateTheme {
         ProductDetailScreenContent(
-            product = MockShopMateData.findProductDetail("ui-la-roche-posay-sunscreen"),
+            state = ProductDetailUiState(
+                productId = "ui-la-roche-posay-sunscreen",
+                product = MockShopMateData.findProductDetail("ui-la-roche-posay-sunscreen")
+            ),
             onBackClick = {},
             onCartClick = {},
+            onRetry = {},
             onAddCartClick = {},
             onBuyNowClick = {}
         )
