@@ -3,6 +3,7 @@ package com.shopmate.app.ui.sidebar
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -134,14 +136,20 @@ private fun SidebarPanel(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        conversations.take(5).forEach { conversation ->
-            HistoryConversationRow(
-                conversation = conversation,
-                onClick = { onHistoryClick(conversation) }
-            )
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+        ) {
+            conversations.forEach { conversation ->
+                HistoryConversationRow(
+                    conversation = conversation,
+                    onClick = { onHistoryClick(conversation) }
+                )
+            }
         }
 
-        Spacer(modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.height(18.dp))
 
         SidebarActionRow(
             icon = R.drawable.ic_sidebar_settings,
