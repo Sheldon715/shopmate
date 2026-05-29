@@ -11,8 +11,14 @@ sealed class ShopMateNetworkError(message: String, cause: Throwable? = null) :
     class ResponseParseFailed(eventName: String, cause: Throwable) :
         ShopMateNetworkError("Failed to parse chat stream event: $eventName", cause)
 
+    class ProductResponseParseFailed(cause: Throwable) :
+        ShopMateNetworkError("Failed to parse product detail response.", cause)
+
     class StreamConnectionFailed(cause: Throwable? = null) :
         ShopMateNetworkError("Chat stream connection failed.", cause)
+
+    class ProductConnectionFailed(cause: Throwable? = null) :
+        ShopMateNetworkError("Product detail connection failed.", cause)
 
     class HttpNonSuccess(val statusCode: Int) :
         ShopMateNetworkError("Chat stream request failed with HTTP $statusCode.")
