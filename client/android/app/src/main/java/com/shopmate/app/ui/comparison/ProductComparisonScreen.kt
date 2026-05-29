@@ -69,9 +69,13 @@ import com.shopmate.app.ui.theme.shopMateScreenBackground
 fun ProductComparisonScreen(
     onNewChatClick: () -> Unit,
     onCartClick: () -> Unit,
+    onAddCartClick: () -> Unit,
     onProductClick: (String) -> Unit,
     onHistoryClick: (HistoryConversationUi) -> Unit,
     historyConversations: List<HistoryConversationUi> = MockShopMateData.historyConversations,
+    editableConversationIds: Set<String> = emptySet(),
+    onRenameHistory: (String, String) -> Unit = { _, _ -> },
+    onDeleteHistory: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val comparison = MockShopMateData.sunscreenComparison
@@ -129,7 +133,7 @@ fun ProductComparisonScreen(
                     comparison = comparison,
                     scale = scale,
                     onProductClick = onProductClick,
-                    onAddCartClick = onCartClick,
+                    onAddCartClick = onAddCartClick,
                     modifier = Modifier
                         .offset(x = 14f.s(), y = contentTop + 188f.s())
                         .size(width = 360.667f.s(), height = 668f.s())
@@ -179,7 +183,10 @@ fun ProductComparisonScreen(
             onHistoryClick = { conversation ->
                 isSidebarOpen = false
                 onHistoryClick(conversation)
-            }
+            },
+            editableConversationIds = editableConversationIds,
+            onRenameHistory = onRenameHistory,
+            onDeleteHistory = onDeleteHistory
         )
     }
 }
@@ -648,6 +655,7 @@ private fun ProductComparisonScreenTargetPreview() {
         ProductComparisonScreen(
             onNewChatClick = {},
             onCartClick = {},
+            onAddCartClick = {},
             onProductClick = {},
             onHistoryClick = {}
         )
@@ -666,6 +674,7 @@ private fun ProductComparisonScreenCompactPreview() {
         ProductComparisonScreen(
             onNewChatClick = {},
             onCartClick = {},
+            onAddCartClick = {},
             onProductClick = {},
             onHistoryClick = {}
         )

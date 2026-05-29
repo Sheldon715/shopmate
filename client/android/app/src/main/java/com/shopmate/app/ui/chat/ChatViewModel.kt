@@ -116,6 +116,55 @@ class ChatViewModel(
         return true
     }
 
+    fun renameHistoryConversation(conversationId: String, title: String): Boolean {
+        val normalizedTitle = title.trim().take(MAX_HISTORY_TITLE_LENGTH)
+        if (normalizedTitle.isBlank() || !sessionSnapshots.containsKey(conversationId)) {
+            return false
+        }
+
+        _uiState.update { state ->
+            state.copy(
+                historyConversations = state.historyConversations.map { conversation ->
+                    if (conversation.id == conversationId) {
+                        conversation.copy(title = normalizedTitle)
+                    } else {
+                        conversation
+                    }
+                },
+            )
+        }
+        return true
+    }
+
+    fun deleteHistoryConversation(conversationId: String): Boolean {
+        if (!sessionSnapshots.containsKey(conversationId)) {
+            return false
+        }
+
+        sessionSnapshots.remove(conversationId)
+        val wasCurrentSession = currentSessionId == conversationId
+        if (wasCurrentSession) {
+            streamJob?.cancel()
+            streamJob = null
+            currentSessionId = null
+            lastSentMessage = null
+        }
+
+        _uiState.update { state ->
+            val historyConversations = state.historyConversations
+                .filterNot { conversation -> conversation.id == conversationId }
+
+            if (wasCurrentSession) {
+                ChatUiState(historyConversations = historyConversations)
+            } else {
+                state.copy(historyConversations = historyConversations)
+            }
+        }
+        return true
+    }
+
+    fun editableHistoryConversationIds(): Set<String> = sessionSnapshots.keys.toSet()
+
     private fun ChatUiState.hasActiveConversation(): Boolean =
         messages.isNotEmpty() || productCards.isNotEmpty() || isSending
 

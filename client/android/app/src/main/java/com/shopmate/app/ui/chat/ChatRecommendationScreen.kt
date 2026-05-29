@@ -53,8 +53,12 @@ fun ChatRecommendationScreen(
     onNewChatClick: () -> Unit,
     onCartClick: () -> Unit,
     onProductClick: (String) -> Unit,
+    onAddCartClick: (String) -> Unit,
     onHistoryClick: (HistoryConversationUi) -> Unit,
     historyConversations: List<HistoryConversationUi> = MockShopMateData.historyConversations,
+    editableConversationIds: Set<String> = emptySet(),
+    onRenameHistory: (String, String) -> Unit = { _, _ -> },
+    onDeleteHistory: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var isSidebarOpen by rememberSaveable { mutableStateOf(false) }
@@ -92,6 +96,7 @@ fun ChatRecommendationScreen(
                 onNewChatClick = onNewChatClick,
                 onCartClick = onCartClick,
                 onProductClick = onProductClick,
+                onAddCartClick = onAddCartClick,
             )
         }
 
@@ -174,6 +179,9 @@ fun ChatRecommendationScreen(
                 isSidebarOpen = false
                 onHistoryClick(conversation)
             },
+            editableConversationIds = editableConversationIds,
+            onRenameHistory = onRenameHistory,
+            onDeleteHistory = onDeleteHistory,
         )
     }
 }
@@ -188,6 +196,7 @@ private fun ChatStreamColumnContent(
     onNewChatClick: () -> Unit,
     onCartClick: () -> Unit,
     onProductClick: (String) -> Unit,
+    onAddCartClick: (String) -> Unit,
 ) {
     fun Float.s(): Dp = scaledDp(scale)
 
@@ -242,7 +251,9 @@ private fun ChatStreamColumnContent(
                 onClick = {
                     onProductClick(product.id)
                 },
-                onAddCartClick = onCartClick,
+                onAddCartClick = {
+                    onAddCartClick(product.id)
+                },
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
                     .size(width = 360.667f.s(), height = 179.104f.s()),
@@ -291,6 +302,7 @@ private fun ChatRecommendationScreenTargetPreview() {
             onNewChatClick = {},
             onCartClick = {},
             onProductClick = {},
+            onAddCartClick = {},
             onHistoryClick = {},
         )
     }
@@ -313,6 +325,7 @@ private fun ChatRecommendationScreenCompactPreview() {
             onNewChatClick = {},
             onCartClick = {},
             onProductClick = {},
+            onAddCartClick = {},
             onHistoryClick = {},
         )
     }
@@ -335,6 +348,7 @@ private fun ChatRecommendationScreenEmptyCompactPreview() {
             onNewChatClick = {},
             onCartClick = {},
             onProductClick = {},
+            onAddCartClick = {},
             onHistoryClick = {},
         )
     }

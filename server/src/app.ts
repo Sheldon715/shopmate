@@ -1,5 +1,6 @@
 import express from "express";
 import type { ErrorRequestHandler, RequestHandler } from "express";
+import { cartRouter } from "./modules/cart/cart.routes";
 import { chatRouter } from "./modules/chat/chat.routes";
 import { productRouter } from "./modules/products/product.routes";
 import { fail } from "./types/api-response";
@@ -36,6 +37,7 @@ const apiErrorHandler: ErrorRequestHandler = (
 
 app.use(express.json());
 app.use("/api/chat", chatRouter);
+app.use("/api/cart", cartRouter);
 app.use("/api/products", productRouter);
 app.use("/api", apiNotFoundHandler);
 

@@ -343,6 +343,40 @@ class ChatViewModelTest {
         assertFalse(viewModel.openHistoryConversation("missing"))
     }
 
+    @Test
+    fun renameHistoryConversationUpdatesLocalHistoryTitle() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("推荐耳机")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+        val historyId = viewModel.uiState.value.historyConversations.single().id
+
+        assertTrue(viewModel.renameHistoryConversation(historyId, "通勤耳机备选"))
+
+        assertEquals("通勤耳机备选", viewModel.uiState.value.historyConversations.single().title)
+    }
+
+    @Test
+    fun deleteCurrentHistoryConversationClearsConversation() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("推荐耳机")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+        val historyId = viewModel.uiState.value.historyConversations.single().id
+
+        assertTrue(viewModel.deleteHistoryConversation(historyId))
+
+        val state = viewModel.uiState.value
+        assertEquals(emptyList(), state.historyConversations)
+        assertEquals(emptyList(), state.messages)
+        assertEquals(emptyList(), state.productCards)
+        assertFalse(state.isSending)
+    }
+
     private class FakeChatRepository : ChatRepository {
         val events = MutableSharedFlow<ChatStreamEvent>()
         var streamCalls = 0

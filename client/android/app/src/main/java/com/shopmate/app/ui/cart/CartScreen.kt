@@ -20,16 +20,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
@@ -65,30 +61,27 @@ import com.shopmate.app.ui.theme.shopMateScreenBackground
 
 @Composable
 fun CartScreen(
+    state: CartUiState,
     onBackClick: () -> Unit,
     onCheckoutClick: () -> Unit,
+    onRetry: () -> Unit,
+    onToggleSelected: (CartItemUi) -> Unit,
+    onQuantityChange: (CartItemUi, Int) -> Unit,
+    onDelete: (CartItemUi) -> Unit,
+    onToggleAll: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
-    initialItems: List<CartItemUi> = MockShopMateData.cartItems
 ) {
-    var cartLines by remember(initialItems) {
-        mutableStateOf(
-            initialItems.map { item ->
-                CartLineState(
-                    item = item,
-                    quantity = item.quantity.coerceAtLeast(1),
-                    selected = true
-                )
-            }
+    val cartLines = state.items.map { item ->
+        CartLineState(
+            item = item,
+            quantity = item.quantity.coerceAtLeast(1),
+            selected = item.selected,
+            inFlight = state.operationInFlightItemId == item.id
         )
     }
-
-    val selectedCount = cartLines
-        .filter { line -> line.selected }
-        .sumOf { line -> line.quantity }
-    val selectedTotal = cartLines
-        .filter { line -> line.selected }
-        .sumOf { line -> parseYuanPrice(line.item.product.priceText) * line.quantity }
+    val selectedCount = state.summary.selectedCount
     val allSelected = cartLines.isNotEmpty() && cartLines.all { line -> line.selected }
+    val showInlineError = state.errorMessage != null && cartLines.isNotEmpty()
 
     BoxWithConstraints(
         modifier = modifier
@@ -103,15 +96,18 @@ fun CartScreen(
         val footerHeight = 58f.s()
         val footerBottom = 18f.s()
         val footerTop = maxHeight - footerHeight - footerBottom
-        val listTop = 244f.s()
+        val listTop = if (showInlineError) 294f.s() else 244f.s()
         val listBottomGap = 18f.s()
         val listHeight = (footerTop - listTop - listBottomGap).coerceAtLeast(242.dp)
         val itemHeight = 151.927f.s()
         val itemSpacing = 14f.s()
+        val listShadowPadding = 8f.s()
+        val listViewportWidth = 368.667f.s()
+        val listViewportHeight = listHeight + listShadowPadding * 2
         val itemContentHeight = if (cartLines.isEmpty()) {
-            listHeight
+            listViewportHeight
         } else {
-            itemHeight * cartLines.size + itemSpacing * (cartLines.size - 1)
+            itemHeight * cartLines.size + itemSpacing * (cartLines.size - 1) + listShadowPadding * 2
         }
 
         CartHeader(
@@ -130,23 +126,53 @@ fun CartScreen(
                 .size(width = 352.667f.s(), height = 82f.s())
         )
 
+        if (showInlineError) {
+            CartInlineErrorCard(
+                message = state.errorMessage.orEmpty(),
+                scale = scale,
+                onRetry = onRetry,
+                modifier = Modifier
+                    .offset(x = 18f.s(), y = 235f.s())
+                    .size(width = 352.667f.s(), height = 44f.s())
+            )
+        }
+
         Box(
             modifier = Modifier
-                .offset(x = 18f.s(), y = listTop)
-                .size(width = 352.667f.s(), height = listHeight)
-                .clipToBounds()
+                .offset(x = 10f.s(), y = listTop - listShadowPadding)
+                .size(width = listViewportWidth, height = listViewportHeight)
                 .verticalScroll(rememberScrollState())
         ) {
-            if (cartLines.isEmpty()) {
+            if (state.isLoading && cartLines.isEmpty()) {
+                CartLoadingState(
+                    scale = scale,
+                    modifier = Modifier
+                        .offset(x = listShadowPadding, y = listShadowPadding)
+                        .size(width = 352.667f.s(), height = listHeight)
+                )
+            } else if (state.errorMessage != null && cartLines.isEmpty()) {
+                CartErrorState(
+                    message = state.errorMessage,
+                    canRetry = state.canRetry,
+                    scale = scale,
+                    onRetry = onRetry,
+                    onBackClick = onBackClick,
+                    modifier = Modifier
+                        .offset(x = listShadowPadding, y = listShadowPadding)
+                        .size(width = 352.667f.s(), height = listHeight)
+                )
+            } else if (cartLines.isEmpty()) {
                 EmptyCartState(
                     scale = scale,
                     onBackClick = onBackClick,
-                    modifier = Modifier.size(width = 352.667f.s(), height = listHeight)
+                    modifier = Modifier
+                        .offset(x = listShadowPadding, y = listShadowPadding)
+                        .size(width = 352.667f.s(), height = listHeight)
                 )
             } else {
                 Box(
                     modifier = Modifier.size(
-                        width = 352.667f.s(),
+                        width = listViewportWidth,
                         height = itemContentHeight
                     )
                 ) {
@@ -156,39 +182,22 @@ fun CartScreen(
                             scale = scale,
                             textScale = textScale,
                             onSelectedChange = {
-                                cartLines = cartLines.map { current ->
-                                    if (current.item.id == line.item.id) {
-                                        current.copy(selected = !current.selected)
-                                    } else {
-                                        current
-                                    }
-                                }
+                                onToggleSelected(line.item)
                             },
                             onDecrease = {
-                                cartLines = cartLines.map { current ->
-                                    if (current.item.id == line.item.id) {
-                                        current.copy(quantity = (current.quantity - 1).coerceAtLeast(1))
-                                    } else {
-                                        current
-                                    }
-                                }
+                                onQuantityChange(line.item, (line.quantity - 1).coerceAtLeast(1))
                             },
                             onIncrease = {
-                                cartLines = cartLines.map { current ->
-                                    if (current.item.id == line.item.id) {
-                                        current.copy(quantity = current.quantity + 1)
-                                    } else {
-                                        current
-                                    }
-                                }
+                                onQuantityChange(line.item, (line.quantity + 1).coerceAtMost(MAX_CART_QUANTITY))
                             },
                             onDelete = {
-                                cartLines = cartLines.filterNot { current ->
-                                    current.item.id == line.item.id
-                                }
+                                onDelete(line.item)
                             },
                             modifier = Modifier
-                                .offset(y = (itemHeight + itemSpacing) * index)
+                                .offset(
+                                    x = listShadowPadding,
+                                    y = listShadowPadding + (itemHeight + itemSpacing) * index
+                                )
                                 .size(width = 352.667f.s(), height = itemHeight)
                         )
                     }
@@ -196,23 +205,22 @@ fun CartScreen(
             }
         }
 
-        if (cartLines.isNotEmpty()) {
-            CartFooter(
-                allSelected = allSelected,
-                selectedCount = selectedCount,
-                totalText = formatYuan(selectedTotal),
-                scale = scale,
-                onCheckoutClick = onCheckoutClick,
-                onToggleAll = {
-                    val nextSelected = !allSelected
-                    cartLines = cartLines.map { line -> line.copy(selected = nextSelected) }
-                },
-                modifier = Modifier
-                    .offset(x = 12f.s(), y = footerTop)
-                    .navigationBarsPadding()
-                    .size(width = 364.667f.s(), height = footerHeight)
-            )
-        }
+        CartFooter(
+            allSelected = allSelected,
+            selectedCount = selectedCount,
+            totalText = state.summary.selectedTotalText,
+            scale = scale,
+            enabled = cartLines.isNotEmpty() && !state.isSelectAllInFlight,
+            checkoutEnabled = selectedCount > 0,
+            onCheckoutClick = onCheckoutClick,
+            onToggleAll = {
+                onToggleAll(!allSelected)
+            },
+            modifier = Modifier
+                .offset(x = 12f.s(), y = footerTop)
+                .navigationBarsPadding()
+                .size(width = 364.667f.s(), height = footerHeight)
+        )
     }
 }
 
@@ -388,8 +396,8 @@ private fun CartItemCard(
 ) {
     fun Float.s(): Dp = scaledDp(scale)
 
-    val unitPrice = parseYuanPrice(line.item.product.priceText)
-    val subtotalText = formatYuan(unitPrice * line.quantity)
+    val subtotalText = line.item.subtotalText
+    val isEnabled = line.item.available && !line.inFlight
 
     ShopMateElevatedSurface(
         modifier = modifier,
@@ -400,6 +408,7 @@ private fun CartItemCard(
     ) {
         SelectableCheckButton(
             selected = line.selected,
+            enabled = isEnabled,
             onClick = onSelectedChange,
             modifier = Modifier
                 .offset(x = 14f.s(), y = 58.29f.s())
@@ -440,6 +449,7 @@ private fun CartItemCard(
             icon = R.drawable.ic_cart_delete,
             contentDescription = "删除 ${line.item.product.name}",
             onClick = onDelete,
+            enabled = isEnabled,
             modifier = Modifier
                 .offset(x = 307.33f.s(), y = 14f.s())
                 .size(30f.s()),
@@ -484,16 +494,17 @@ private fun CartItemCard(
             letterSpacing = 0.sp,
             modifier = Modifier
                 .offset(x = 174f.s(), y = 111f.s())
-                .width(58f.s())
+                .width(62f.s())
         )
 
         QuantityStepper(
             quantity = line.quantity,
+            enabled = isEnabled,
             onDecrease = onDecrease,
             onIncrease = onIncrease,
             scale = scale,
             modifier = Modifier
-                .offset(x = 242f.s(), y = 107.59f.s())
+                .offset(x = 239f.s(), y = 107.59f.s())
                 .size(width = 95.333f.s(), height = 28f.s())
         )
     }
@@ -502,6 +513,7 @@ private fun CartItemCard(
 @Composable
 private fun SelectableCheckButton(
     selected: Boolean,
+    enabled: Boolean = true,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -522,7 +534,7 @@ private fun SelectableCheckButton(
                 color = if (selected) ShopMateGreen.copy(alpha = 0.22f) else Color(0xFFDDE6E3),
                 shape = CircleShape
             )
-            .clickable(role = Role.Checkbox, onClick = onClick),
+            .clickable(enabled = enabled, role = Role.Checkbox, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         if (selected) {
@@ -563,6 +575,7 @@ private fun CartTag(
 @Composable
 private fun QuantityStepper(
     quantity: Int,
+    enabled: Boolean,
     onDecrease: () -> Unit,
     onIncrease: () -> Unit,
     scale: Float,
@@ -579,7 +592,7 @@ private fun QuantityStepper(
         StepperButton(
             icon = R.drawable.ic_cart_minus,
             contentDescription = "减少数量",
-            enabled = quantity > 1,
+            enabled = enabled && quantity > 1,
             onClick = onDecrease,
             modifier = Modifier
                 .offset(x = 0.dp, y = 0.dp)
@@ -613,7 +626,7 @@ private fun QuantityStepper(
         StepperButton(
             icon = R.drawable.ic_cart_plus,
             contentDescription = "增加数量",
-            enabled = true,
+            enabled = enabled && quantity < MAX_CART_QUANTITY,
             onClick = onIncrease,
             modifier = Modifier
                 .offset(x = 64f.s(), y = 0.dp)
@@ -654,11 +667,18 @@ private fun CartFooter(
     selectedCount: Int,
     totalText: String,
     scale: Float,
+    enabled: Boolean,
+    checkoutEnabled: Boolean,
     onCheckoutClick: () -> Unit,
     onToggleAll: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     fun Float.s(): Dp = scaledDp(scale)
+    val checkoutBrush = if (checkoutEnabled) {
+        Brush.linearGradient(listOf(ShopMateLightGreen, ShopMateGreen))
+    } else {
+        Brush.linearGradient(listOf(Color(0xFFDDECE7), Color(0xFFD2E7DE)))
+    }
 
     Box(
         modifier = modifier
@@ -675,11 +695,12 @@ private fun CartFooter(
             modifier = Modifier
                 .offset(x = 10f.s(), y = 14f.s())
                 .size(width = 71f.s(), height = 30f.s())
-                .clickable(role = Role.Checkbox, onClick = onToggleAll),
+                .clickable(enabled = enabled, role = Role.Checkbox, onClick = onToggleAll),
             verticalAlignment = Alignment.CenterVertically
         ) {
             SelectableCheckButton(
                 selected = allSelected,
+                enabled = enabled,
                 onClick = onToggleAll,
                 modifier = Modifier.size(28f.s())
             )
@@ -729,13 +750,13 @@ private fun CartFooter(
                     clip = false
                 )
                 .clip(ShopMatePillShape)
-                .background(Brush.linearGradient(listOf(ShopMateLightGreen, ShopMateGreen)))
-                .clickable(role = Role.Button, onClick = onCheckoutClick),
+                .background(checkoutBrush)
+                .clickable(enabled = checkoutEnabled, role = Role.Button, onClick = onCheckoutClick),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = "去结算 ($selectedCount)",
-                color = Color.White,
+                color = Color.White.copy(alpha = if (checkoutEnabled) 1f else 0.72f),
                 fontSize = (14f * scale).sp,
                 lineHeight = (18f * scale).sp,
                 fontWeight = FontWeight.Bold,
@@ -752,27 +773,154 @@ private fun EmptyCartState(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    fun Float.s(): Dp = scaledDp(scale)
+
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier.size(width = 276f.s(), height = 196f.s())
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.cart_shopmate_buddy),
+                contentDescription = "Shopmate Buddy",
+                modifier = Modifier
+                    .offset(x = 103f.s(), y = 0.dp)
+                    .size(70f.s()),
+                contentScale = ContentScale.Fit
+            )
+
+            Text(
+                text = "购物车还是空的",
+                color = ShopMateTextPrimary,
+                fontSize = (20f * scale).sp,
+                lineHeight = (27f * scale).sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                letterSpacing = 0.sp,
+                modifier = Modifier
+                    .offset(x = 0.dp, y = 82f.s())
+                    .width(276f.s())
+            )
+
+            Text(
+                text = "回到推荐页继续挑选，喜欢的商品会先放在这里。",
+                color = Color(0xFF6E7781),
+                fontSize = (13f * scale).sp,
+                lineHeight = (20f * scale).sp,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                letterSpacing = 0.sp,
+                modifier = Modifier
+                    .offset(x = 14f.s(), y = 116f.s())
+                    .width(248f.s())
+            )
+
+            Box(
+                modifier = Modifier
+                    .offset(x = 56f.s(), y = 164f.s())
+                    .size(width = 164f.s(), height = 38f.s())
+                    .clip(ShopMatePillShape)
+                    .background(Color(0xFFE9FBF3))
+                    .clickable(role = Role.Button, onClick = onBackClick),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "返回继续购物",
+                    color = ShopMateGreen,
+                    fontSize = (13f * scale).sp,
+                    lineHeight = (17f * scale).sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CartLoadingState(
+    scale: Float,
+    modifier: Modifier = Modifier
+) {
+    ShopMateElevatedSurface(
+        modifier = modifier,
+        shape = RoundedCornerShape(22f.scaledDp(scale)),
+        elevation = 8f.scaledDp(scale)
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(
+                color = ShopMateGreen,
+                modifier = Modifier.size(36f.scaledDp(scale))
+            )
+        }
+    }
+}
+
+@Composable
+private fun CartErrorState(
+    message: String,
+    canRetry: Boolean,
+    scale: Float,
+    onRetry: () -> Unit,
+    onBackClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     ShopMateStatusMessage(
-        title = "购物车还是空的",
-        message = "回到推荐页继续挑选，喜欢的商品会先放在这里。",
-        actionText = "返回继续购物",
-        onActionClick = onBackClick,
+        title = "暂时无法加载购物车",
+        message = message,
+        actionText = if (canRetry) "重试" else "返回继续购物",
+        onActionClick = if (canRetry) onRetry else onBackClick,
         mascot = R.drawable.cart_shopmate_buddy,
         scale = scale,
         modifier = modifier
     )
 }
 
+@Composable
+private fun CartInlineErrorCard(
+    message: String,
+    scale: Float,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(16f.scaledDp(scale)))
+            .background(Color.White.copy(alpha = 0.95f))
+            .border(
+                width = 0.667.dp,
+                color = Color(0xFFFFD7C7),
+                shape = RoundedCornerShape(16f.scaledDp(scale))
+            )
+            .clickable(role = Role.Button, onClick = onRetry)
+            .padding(horizontal = 14f.scaledDp(scale), vertical = 9f.scaledDp(scale)),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        Text(
+            text = message,
+            color = Color(0xFFB04D2D),
+            fontSize = (12f * scale).sp,
+            lineHeight = (16f * scale).sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            letterSpacing = 0.sp
+        )
+    }
+}
+
 private data class CartLineState(
     val item: CartItemUi,
     val quantity: Int,
-    val selected: Boolean
+    val selected: Boolean,
+    val inFlight: Boolean
 )
-
-private fun parseYuanPrice(priceText: String): Int =
-    priceText.filter { char -> char.isDigit() }.toIntOrNull() ?: 0
-
-private fun formatYuan(amount: Int): String = "¥$amount"
 
 private fun cartVariantText(item: CartItemUi): String =
     when (item.product.id) {
@@ -781,6 +929,8 @@ private fun cartVariantText(item: CartItemUi): String =
         "ui-shopmate-canvas-bag" -> "薄荷绿"
         else -> item.product.tags.firstOrNull().orEmpty()
     }
+
+private const val MAX_CART_QUANTITY = 99
 
 @Preview(
     name = "Cart screen - 389 x 843",
@@ -792,8 +942,14 @@ private fun cartVariantText(item: CartItemUi): String =
 private fun CartScreenTargetPreview() {
     ShopMateTheme {
         CartScreen(
+            state = MockShopMateData.cartItems.toPreviewCartUiState(),
             onBackClick = {},
-            onCheckoutClick = {}
+            onCheckoutClick = {},
+            onRetry = {},
+            onToggleSelected = {},
+            onQuantityChange = { _, _ -> },
+            onDelete = {},
+            onToggleAll = {}
         )
     }
 }
@@ -808,9 +964,14 @@ private fun CartScreenTargetPreview() {
 private fun CartScreenEmptyPreview() {
     ShopMateTheme {
         CartScreen(
+            state = emptyList<CartItemUi>().toPreviewCartUiState(),
             onBackClick = {},
             onCheckoutClick = {},
-            initialItems = emptyList()
+            onRetry = {},
+            onToggleSelected = {},
+            onQuantityChange = { _, _ -> },
+            onDelete = {},
+            onToggleAll = {}
         )
     }
 }
@@ -825,8 +986,33 @@ private fun CartScreenEmptyPreview() {
 private fun CartScreenCompactPreview() {
     ShopMateTheme {
         CartScreen(
+            state = MockShopMateData.cartItems.toPreviewCartUiState(),
             onBackClick = {},
-            onCheckoutClick = {}
+            onCheckoutClick = {},
+            onRetry = {},
+            onToggleSelected = {},
+            onQuantityChange = { _, _ -> },
+            onDelete = {},
+            onToggleAll = {}
         )
     }
+}
+
+private fun List<CartItemUi>.toPreviewCartUiState(): CartUiState {
+    val selectedItems = filter { item -> item.selected }
+    val totalCount = sumOf { item -> item.quantity.coerceAtLeast(1) }
+    val selectedCount = selectedItems.sumOf { item -> item.quantity.coerceAtLeast(1) }
+    val selectedTotal = selectedItems.sumOf { item ->
+        item.subtotalText.filter { char -> char.isDigit() }.toIntOrNull() ?: 0
+    }
+
+    return CartUiState(
+        items = this,
+        summary = CartSummaryUi(
+            totalCount = totalCount,
+            selectedCount = selectedCount,
+            selectedTotalCents = selectedTotal * 100,
+            selectedTotalText = "¥$selectedTotal",
+        )
+    )
 }

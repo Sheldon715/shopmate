@@ -9,6 +9,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.Saver
@@ -17,6 +18,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.shopmate.app.data.mock.MockShopMateData
 import com.shopmate.app.ui.cart.CartScreen
+import com.shopmate.app.ui.cart.CartViewModel
 import com.shopmate.app.ui.chat.ChatRecommendationScreen
 import com.shopmate.app.ui.chat.ChatViewModel
 import com.shopmate.app.ui.comparison.ProductComparisonScreen
@@ -58,8 +60,34 @@ class MainActivity : ComponentActivity() {
                     factory = appContainer.chatViewModelFactory()
                 )
                 val chatUiState by chatViewModel.uiState.collectAsState()
+                val cartViewModel: CartViewModel = viewModel(
+                    factory = appContainer.cartViewModelFactory()
+                )
+                val cartUiState by cartViewModel.uiState.collectAsState()
+                cartUiState.operationMessage?.let { message ->
+                    LaunchedEffect(message.id) {
+                        Toast.makeText(
+                            this@MainActivity,
+                            message.text,
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        cartViewModel.consumeOperationMessage(message.id)
+                    }
+                }
                 val historyConversations =
                     chatUiState.historyConversations + MockShopMateData.historyConversations
+                val editableHistoryIds = chatViewModel.editableHistoryConversationIds()
+                val renameHistory: (String, String) -> Unit = { conversationId, title ->
+                    chatViewModel.renameHistoryConversation(conversationId, title)
+                }
+                val deleteHistory: (String) -> Unit = { conversationId ->
+                    chatViewModel.deleteHistoryConversation(conversationId)
+                    if (!chatViewModel.hasActiveConversation() &&
+                        currentScreen == ShopMateScreen.ChatRecommendation
+                    ) {
+                        currentScreen = ShopMateScreen.HomeChatEntry
+                    }
+                }
                 val startNewChat: () -> Unit = {
                     chatViewModel.startNewChat()
                     currentScreen = ShopMateScreen.HomeChatEntry
@@ -74,13 +102,8 @@ class MainActivity : ComponentActivity() {
                 val openCart: () -> Unit = {
                     currentScreen = ShopMateScreen.Cart(previousScreen = currentScreen)
                 }
-                val openCartPreview: () -> Unit = {
-                    Toast.makeText(
-                        this@MainActivity,
-                        "购物车接口尚未接入，先打开购物车预览",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                    openCart()
+                val addProductToCart: (String) -> Unit = { productId ->
+                    cartViewModel.addProduct(productId)
                 }
                 val showCheckoutPending: () -> Unit = {
                     Toast.makeText(
@@ -116,7 +139,10 @@ class MainActivity : ComponentActivity() {
                         onSend = sendHomeChatMessage,
                         onCartClick = openCart,
                         onNewChatClick = startNewChat,
-                        onHistoryClick = openHistoryConversation
+                        onHistoryClick = openHistoryConversation,
+                        editableConversationIds = editableHistoryIds,
+                        onRenameHistory = renameHistory,
+                        onDeleteHistory = deleteHistory
                     )
 
                     ShopMateScreen.ChatRecommendation -> ChatRecommendationScreen(
@@ -129,18 +155,32 @@ class MainActivity : ComponentActivity() {
                         onProductClick = { productId ->
                             currentScreen = ShopMateScreen.ProductDetail(productId)
                         },
+                        onAddCartClick = addProductToCart,
                         onHistoryClick = openHistoryConversation,
-                        historyConversations = historyConversations
+                        historyConversations = historyConversations,
+                        editableConversationIds = editableHistoryIds,
+                        onRenameHistory = renameHistory,
+                        onDeleteHistory = deleteHistory
                     )
 
                     ShopMateScreen.ProductComparison -> ProductComparisonScreen(
                         onNewChatClick = startNewChat,
                         onCartClick = openCart,
+                        onAddCartClick = {
+                            Toast.makeText(
+                                this@MainActivity,
+                                "商品对比页仍使用预览数据，请从聊天推荐或详情页加购",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        },
                         onProductClick = { productId ->
                             currentScreen = ShopMateScreen.ProductDetail(productId)
                         },
                         onHistoryClick = openHistoryConversation,
-                        historyConversations = historyConversations
+                        historyConversations = historyConversations,
+                        editableConversationIds = editableHistoryIds,
+                        onRenameHistory = renameHistory,
+                        onDeleteHistory = deleteHistory
                     )
 
                     is ShopMateScreen.ProductDetail -> {
@@ -158,18 +198,34 @@ class MainActivity : ComponentActivity() {
                             },
                             onCartClick = openCart,
                             onRetry = productDetailViewModel::retry,
-                            onAddCartClick = openCartPreview,
-                            onBuyNowClick = openCartPreview
+                            onAddCartClick = {
+                                addProductToCart(productId)
+                            },
+                            onBuyNowClick = {
+                                addProductToCart(productId)
+                            }
                         )
                     }
 
                     is ShopMateScreen.Cart -> CartScreen(
+                        state = cartUiState,
                         onBackClick = {
                             currentScreen = restoreCartPrevious(
                                 (currentScreen as ShopMateScreen.Cart).previousScreen
                             )
                         },
-                        onCheckoutClick = showCheckoutPending
+                        onCheckoutClick = showCheckoutPending,
+                        onRetry = cartViewModel::retry,
+                        onToggleSelected = { item ->
+                            cartViewModel.updateSelected(item.id, !item.selected)
+                        },
+                        onQuantityChange = { item, quantity ->
+                            cartViewModel.updateQuantity(item.id, quantity)
+                        },
+                        onDelete = { item ->
+                            cartViewModel.removeItem(item.id)
+                        },
+                        onToggleAll = cartViewModel::selectAll
                     )
                 }
             }

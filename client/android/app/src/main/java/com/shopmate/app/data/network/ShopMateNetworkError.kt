@@ -14,11 +14,17 @@ sealed class ShopMateNetworkError(message: String, cause: Throwable? = null) :
     class ProductResponseParseFailed(cause: Throwable) :
         ShopMateNetworkError("Failed to parse product detail response.", cause)
 
+    class CartResponseParseFailed(cause: Throwable) :
+        ShopMateNetworkError("Failed to parse cart response.", cause)
+
     class StreamConnectionFailed(cause: Throwable? = null) :
         ShopMateNetworkError("Chat stream connection failed.", cause)
 
     class ProductConnectionFailed(cause: Throwable? = null) :
         ShopMateNetworkError("Product detail connection failed.", cause)
+
+    class CartConnectionFailed(cause: Throwable? = null) :
+        ShopMateNetworkError("Cart request failed.", cause)
 
     class HttpNonSuccess(val statusCode: Int) :
         ShopMateNetworkError("Chat stream request failed with HTTP $statusCode.")

@@ -62,7 +62,10 @@ fun HomeChatEntryScreen(
     onMenuClick: () -> Unit = {},
     onCartClick: () -> Unit = {},
     onNewChatClick: () -> Unit = {},
-    onHistoryClick: (HistoryConversationUi) -> Unit = {}
+    onHistoryClick: (HistoryConversationUi) -> Unit = {},
+    editableConversationIds: Set<String> = emptySet(),
+    onRenameHistory: (String, String) -> Unit = { _, _ -> },
+    onDeleteHistory: (String) -> Unit = {},
 ) {
     var isSidebarOpen by rememberSaveable { mutableStateOf(false) }
 
@@ -148,7 +151,10 @@ fun HomeChatEntryScreen(
             onHistoryClick = { conversation ->
                 isSidebarOpen = false
                 onHistoryClick(conversation)
-            }
+            },
+            editableConversationIds = editableConversationIds,
+            onRenameHistory = onRenameHistory,
+            onDeleteHistory = onDeleteHistory
         )
     }
 }
