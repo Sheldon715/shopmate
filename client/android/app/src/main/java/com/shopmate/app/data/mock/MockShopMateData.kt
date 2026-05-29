@@ -167,12 +167,12 @@ object MockShopMateData {
             categoryText = "数码电子",
             brandText = "漫步者",
             tags = listOf("半入耳舒适", "20h 续航"),
-            recommendationReason = "轻盈半入耳，佩戴无感，通勤久戴不累，通话清晰，日常使用足够省心。",
-            description = "你想要一款轻巧、价格适中、适合日常通勤和办公的真无线耳机。",
+            recommendationReason = "这款更适合想要通勤和办公使用的用户，主要亮点是半入耳轻盈、通话清晰。",
+            description = "轻巧半入耳设计，适合日常通勤、办公会议和长时间佩戴，预算也比较容易控制。",
             highlights = listOf(
-                "半入耳设计更轻盈，适合通勤长时间佩戴",
-                "预算控制在 200 元以内，价格友好",
-                "通话清晰、续航够用，日常使用负担小"
+                "半入耳轻盈佩戴",
+                "200 元内预算友好",
+                "通话清晰续航够用"
             ),
             specs = listOf(
                 ProductDetailSpecUi(label = "佩戴", value = "半入耳式"),
@@ -180,7 +180,7 @@ object MockShopMateData {
                 ProductDetailSpecUi(label = "场景", value = "通勤 / 办公"),
                 ProductDetailSpecUi(label = "预算", value = "200 元内")
             ),
-            suitedForText = "你想要一款轻巧、价格适中、适合日常通勤和办公的真无线耳机。"
+            suitedForText = "适合通勤和办公场景。如果你需要强降噪，建议先谨慎比较。"
         ),
         ProductDetailUi(
             id = "ui-la-roche-posay-sunscreen",
@@ -190,16 +190,16 @@ object MockShopMateData {
             categoryText = "美妆护肤",
             brandText = "理肤泉",
             tags = listOf("防晒", "清透", "SPF50+"),
-            recommendationReason = "防护力高，质地相对清爽，适合日常通勤和夏季防晒。",
-            description = "适合需要高倍日常防晒的用户，页面 mock 阶段用于展示商品详情信息结构。",
-            highlights = listOf("SPF50+ PA++++", "清透肤感", "适合夏季通勤"),
+            recommendationReason = "这款更适合想要日常通勤防晒的用户，主要亮点是清透肤感、SPF50+ 防护。",
+            description = "适合需要高倍日常防晒的人群，质地相对清爽，通勤和夏季户外短时活动都比较好搭配。",
+            highlights = listOf("SPF50+ 防护", "清透肤感", "适合夏季通勤"),
             specs = listOf(
                 ProductDetailSpecUi(label = "肤感", value = "清透"),
                 ProductDetailSpecUi(label = "防晒力", value = "SPF50+"),
                 ProductDetailSpecUi(label = "场景", value = "夏季通勤"),
                 ProductDetailSpecUi(label = "预算", value = "200 元内")
             ),
-            suitedForText = "你想要一款防护力高、肤感清爽、适合日常通勤的防晒乳。"
+            suitedForText = "适合日常通勤和夏季防晒。如果是敏感肌，建议先做局部测试。"
         )
     )
 
