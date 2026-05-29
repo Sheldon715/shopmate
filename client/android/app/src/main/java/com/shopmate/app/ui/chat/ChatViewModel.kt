@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.shopmate.app.data.chat.ChatRepository
 import com.shopmate.app.data.chat.ChatStreamEvent
 import com.shopmate.app.data.chat.toProductCardUiList
+import com.shopmate.app.ui.model.HistoryConversationUi
+import com.shopmate.app.ui.model.ProductCardUi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,6 +25,9 @@ class ChatViewModel(
     private var streamJob: Job? = null
     private var lastSentMessage: String? = null
     private var messageSequence = 0
+    private var sessionSequence = 0
+    private var currentSessionId: String? = null
+    private val sessionSnapshots = mutableMapOf<String, ChatSessionSnapshot>()
 
     fun onComposerTextChange(text: String) {
         _uiState.update { state ->
@@ -75,6 +80,110 @@ class ChatViewModel(
         }
     }
 
+    fun startNewChat() {
+        val state = _uiState.value
+        val historyConversations = saveCurrentSession(state)
+        streamJob?.cancel()
+        streamJob = null
+        lastSentMessage = null
+        currentSessionId = null
+        _uiState.value = ChatUiState(historyConversations = historyConversations)
+    }
+
+    fun hasActiveConversation(): Boolean {
+        val state = _uiState.value
+        return state.hasActiveConversation()
+    }
+
+    fun openHistoryConversation(conversationId: String): Boolean {
+        val snapshot = sessionSnapshots[conversationId] ?: return false
+
+        streamJob?.cancel()
+        streamJob = null
+        currentSessionId = conversationId
+        lastSentMessage = snapshot.messages.lastOrNull { message -> message.fromUser }?.text
+
+        _uiState.update { state ->
+            state.copy(
+                messages = snapshot.messages,
+                productCards = snapshot.productCards,
+                composerText = "",
+                isSending = false,
+                errorMessage = null,
+                canRetry = false,
+            )
+        }
+        return true
+    }
+
+    private fun ChatUiState.hasActiveConversation(): Boolean =
+        messages.isNotEmpty() || productCards.isNotEmpty() || isSending
+
+    private fun saveCurrentSession(state: ChatUiState): List<HistoryConversationUi> {
+        if (!state.hasActiveConversation()) {
+            return state.historyConversations
+        }
+
+        val sessionId = currentSessionId ?: nextSessionId()
+        val snapshot = ChatSessionSnapshot(
+            messages = state.messages.map { message -> message.copy(isStreaming = false) },
+            productCards = state.productCards,
+        )
+        sessionSnapshots[sessionId] = snapshot
+
+        val historyItem = HistoryConversationUi(
+            id = sessionId,
+            title = snapshot.title(),
+            timeText = "刚刚",
+        )
+
+        return listOf(historyItem) +
+            state.historyConversations.filterNot { conversation -> conversation.id == sessionId }
+    }
+
+    private fun ensureCurrentSessionHistory(
+        state: ChatUiState,
+        userMessage: ChatMessageUi,
+    ): Pair<String, List<HistoryConversationUi>> {
+        val sessionId = currentSessionId ?: nextSessionId().also { id ->
+            currentSessionId = id
+        }
+        val existingTitle = state.historyConversations
+            .firstOrNull { conversation -> conversation.id == sessionId }
+            ?.title
+        val historyItem = HistoryConversationUi(
+            id = sessionId,
+            title = existingTitle
+                ?: userMessage.text.trim().ifBlank { "新的聊天" }.take(MAX_HISTORY_TITLE_LENGTH),
+            timeText = "刚刚",
+        )
+        val historyConversations = listOf(historyItem) +
+            state.historyConversations.filterNot { conversation -> conversation.id == sessionId }
+
+        return sessionId to historyConversations
+    }
+
+    private fun nextSessionId(): String {
+        sessionSequence += 1
+        return "local-chat-session-$sessionSequence"
+    }
+
+    private fun ChatSessionSnapshot.title(): String {
+        val rawTitle = messages.firstOrNull { message ->
+            message.fromUser && message.text.isNotBlank()
+        }?.text?.trim().orEmpty()
+        return if (rawTitle.isBlank()) {
+            "新的聊天"
+        } else {
+            rawTitle.take(MAX_HISTORY_TITLE_LENGTH)
+        }
+    }
+
+    private data class ChatSessionSnapshot(
+        val messages: List<ChatMessageUi>,
+        val productCards: List<ProductCardUi>,
+    )
+
     private fun startStream(
         message: String,
         history: List<ChatMessageUi>,
@@ -96,9 +205,19 @@ class ChatViewModel(
         )
 
         _uiState.update { state ->
+            val (sessionId, historyConversations) = ensureCurrentSessionHistory(
+                state = state,
+                userMessage = userMessage,
+            )
+            sessionSnapshots[sessionId] = ChatSessionSnapshot(
+                messages = history + userMessage + assistantMessage.copy(isStreaming = false),
+                productCards = emptyList(),
+            )
+
             state.copy(
                 messages = history + userMessage + assistantMessage,
                 productCards = emptyList(),
+                historyConversations = historyConversations,
                 composerText = if (clearComposer) "" else state.composerText,
                 isSending = true,
                 errorMessage = null,
@@ -128,6 +247,7 @@ class ChatViewModel(
             is ChatStreamEvent.ProductCards -> {
                 _uiState.update { state ->
                     state.copy(productCards = event.items.toProductCardUiList())
+                        .also(::saveCurrentSession)
                 }
             }
 
@@ -142,7 +262,7 @@ class ChatViewModel(
                             null
                         },
                         canRetry = false,
-                    )
+                    ).also(::saveCurrentSession)
                 }
             }
 
@@ -153,7 +273,7 @@ class ChatViewModel(
                         isSending = false,
                         errorMessage = event.toDisplayMessage(),
                         canRetry = event.retryable,
-                    )
+                    ).also(::saveCurrentSession)
                 }
             }
 
@@ -167,7 +287,7 @@ class ChatViewModel(
                 messages = state.messages.replaceLastAssistant { assistant ->
                     assistant.copy(text = assistant.text + text)
                 },
-            )
+            ).also(::saveCurrentSession)
         }
     }
 
@@ -178,7 +298,7 @@ class ChatViewModel(
                 isSending = false,
                 errorMessage = error.toDisplayMessage(),
                 canRetry = true,
-            )
+            ).also(::saveCurrentSession)
         }
     }
 
@@ -192,7 +312,7 @@ class ChatViewModel(
                     isSending = false,
                     errorMessage = "导购连接已结束，请重试。",
                     canRetry = true,
-                )
+                ).also(::saveCurrentSession)
             }
         }
     }
@@ -205,6 +325,7 @@ class ChatViewModel(
     companion object {
         private const val USER_MESSAGE_PREFIX = "user"
         private const val ASSISTANT_MESSAGE_PREFIX = "assistant"
+        private const val MAX_HISTORY_TITLE_LENGTH = 24
     }
 }
 

@@ -168,6 +168,181 @@ class ChatViewModelTest {
         assertEquals(2, viewModel.uiState.value.messages.size)
     }
 
+    @Test
+    fun startNewChatClearsConversationAndStopsSending() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("推荐耳机")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+        repository.events.emit(ChatStreamEvent.MessageDelta("推荐这款。", 0))
+        repository.events.emit(ChatStreamEvent.ProductCards(listOf(productDto())))
+        advanceUntilIdle()
+
+        viewModel.startNewChat()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isSending)
+        assertEquals(emptyList(), state.messages)
+        assertEquals(emptyList(), state.productCards)
+        assertEquals("", state.composerText)
+        assertEquals(null, state.errorMessage)
+        assertFalse(state.canRetry)
+    }
+
+    @Test
+    fun startNewChatClearsErrorAndRetryState() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("推荐耳机")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+        repository.events.emit(
+            ChatStreamEvent.Error(
+                code = "CHAT_STREAM_CONNECTION_FAILED",
+                message = "failed",
+                retryable = true,
+            ),
+        )
+        advanceUntilIdle()
+
+        viewModel.startNewChat()
+
+        val state = viewModel.uiState.value
+        assertEquals(emptyList(), state.messages)
+        assertEquals(null, state.errorMessage)
+        assertFalse(state.canRetry)
+    }
+
+    @Test
+    fun hasActiveConversationReflectsConversationState() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        assertFalse(viewModel.hasActiveConversation())
+
+        viewModel.onComposerTextChange("推荐耳机")
+        assertFalse(viewModel.hasActiveConversation())
+
+        viewModel.sendMessage()
+        advanceUntilIdle()
+        assertTrue(viewModel.hasActiveConversation())
+
+        repository.events.emit(
+            ChatStreamEvent.Done(
+                recommendedProductIds = emptyList(),
+                fallbackUsed = false,
+                fallbackReason = null,
+                retrieval = ChatRetrievalDto(candidateCount = 0),
+            ),
+        )
+        advanceUntilIdle()
+        assertTrue(viewModel.hasActiveConversation())
+
+        viewModel.startNewChat()
+        assertFalse(viewModel.hasActiveConversation())
+    }
+
+    @Test
+    fun startNewChatAddsCurrentConversationToInMemoryHistory() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("推荐一款适合通勤的蓝牙耳机，预算 200 以内")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        viewModel.startNewChat()
+
+        val state = viewModel.uiState.value
+        assertEquals(1, state.historyConversations.size)
+        assertEquals(
+            "推荐一款适合通勤的蓝牙耳机，预算 200 以内",
+            state.historyConversations.single().title,
+        )
+        assertEquals("刚刚", state.historyConversations.single().timeText)
+        assertEquals(emptyList(), state.messages)
+    }
+
+    @Test
+    fun sendMessageAddsCurrentConversationToHistoryImmediately() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("你好")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(1, state.historyConversations.size)
+        assertEquals("你好", state.historyConversations.single().title)
+        assertEquals("刚刚", state.historyConversations.single().timeText)
+    }
+
+    @Test
+    fun followUpMessageKeepsFirstUserMessageAsHistoryTitle() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("你好")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+        repository.events.emit(
+            ChatStreamEvent.Done(
+                recommendedProductIds = emptyList(),
+                fallbackUsed = false,
+                fallbackReason = null,
+                retrieval = ChatRetrievalDto(candidateCount = 0),
+            ),
+        )
+        advanceUntilIdle()
+
+        viewModel.onComposerTextChange("再推荐一个")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(1, state.historyConversations.size)
+        assertEquals("你好", state.historyConversations.single().title)
+    }
+
+    @Test
+    fun openHistoryConversationRestoresSavedSessionSnapshot() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("推荐耳机")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+        repository.events.emit(ChatStreamEvent.MessageDelta("推荐这款。", 0))
+        repository.events.emit(ChatStreamEvent.ProductCards(listOf(productDto())))
+        advanceUntilIdle()
+
+        viewModel.startNewChat()
+        val historyId = viewModel.uiState.value.historyConversations.single().id
+
+        assertTrue(viewModel.openHistoryConversation(historyId))
+
+        val restoredState = viewModel.uiState.value
+        assertEquals("推荐耳机", restoredState.messages.first().text)
+        assertEquals("推荐这款。", restoredState.messages.last().text)
+        assertFalse(restoredState.messages.last().isStreaming)
+        assertEquals("product_001", restoredState.productCards.single().id)
+        assertEquals("", restoredState.composerText)
+        assertFalse(restoredState.isSending)
+    }
+
+    @Test
+    fun openHistoryConversationReturnsFalseForMockOrUnknownHistoryIds() = runTest {
+        val viewModel = ChatViewModel(FakeChatRepository())
+
+        assertFalse(viewModel.openHistoryConversation("history-commute-earbuds"))
+        assertFalse(viewModel.openHistoryConversation("missing"))
+    }
+
     private class FakeChatRepository : ChatRepository {
         val events = MutableSharedFlow<ChatStreamEvent>()
         var streamCalls = 0

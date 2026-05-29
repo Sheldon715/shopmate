@@ -71,6 +71,7 @@ fun ProductComparisonScreen(
     onCartClick: () -> Unit,
     onProductClick: (String) -> Unit,
     onHistoryClick: (HistoryConversationUi) -> Unit,
+    historyConversations: List<HistoryConversationUi> = MockShopMateData.historyConversations,
     modifier: Modifier = Modifier
 ) {
     val comparison = MockShopMateData.sunscreenComparison
@@ -167,7 +168,7 @@ fun ProductComparisonScreen(
 
         SidebarHistoryDrawer(
             isOpen = isSidebarOpen,
-            conversations = MockShopMateData.historyConversations,
+            conversations = historyConversations,
             onDismiss = { isSidebarOpen = false },
             onNewChatClick = {
                 isSidebarOpen = false

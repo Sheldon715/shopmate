@@ -1,6 +1,7 @@
 package com.shopmate.app.ui.chat
 
 import com.shopmate.app.data.mock.MockShopMateData
+import com.shopmate.app.ui.model.HistoryConversationUi
 import com.shopmate.app.ui.model.ProductCardUi
 
 data class ChatMessageUi(
@@ -13,6 +14,7 @@ data class ChatMessageUi(
 data class ChatUiState(
     val messages: List<ChatMessageUi> = emptyList(),
     val productCards: List<ProductCardUi> = emptyList(),
+    val historyConversations: List<HistoryConversationUi> = emptyList(),
     val composerText: String = "",
     val isSending: Boolean = false,
     val errorMessage: String? = null,

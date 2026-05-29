@@ -54,6 +54,7 @@ fun ChatRecommendationScreen(
     onCartClick: () -> Unit,
     onProductClick: (String) -> Unit,
     onHistoryClick: (HistoryConversationUi) -> Unit,
+    historyConversations: List<HistoryConversationUi> = MockShopMateData.historyConversations,
     modifier: Modifier = Modifier,
 ) {
     var isSidebarOpen by rememberSaveable { mutableStateOf(false) }
@@ -161,7 +162,7 @@ fun ChatRecommendationScreen(
 
         SidebarHistoryDrawer(
             isOpen = isSidebarOpen,
-            conversations = MockShopMateData.historyConversations,
+            conversations = historyConversations,
             onDismiss = { isSidebarOpen = false },
             onNewChatClick = {
                 isSidebarOpen = false

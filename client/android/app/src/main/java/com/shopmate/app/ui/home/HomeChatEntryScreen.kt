@@ -54,12 +54,16 @@ import com.shopmate.app.ui.theme.shopMateScreenBackground
 
 @Composable
 fun HomeChatEntryScreen(
+    composerText: String = "",
+    isSending: Boolean = false,
+    historyConversations: List<HistoryConversationUi> = MockShopMateData.historyConversations,
+    onComposerTextChange: (String) -> Unit = {},
+    onSend: () -> Unit = {},
     onMenuClick: () -> Unit = {},
     onCartClick: () -> Unit = {},
     onNewChatClick: () -> Unit = {},
     onHistoryClick: (HistoryConversationUi) -> Unit = {}
 ) {
-    var composerText by rememberSaveable { mutableStateOf("") }
     var isSidebarOpen by rememberSaveable { mutableStateOf(false) }
 
     BoxWithConstraints(
@@ -111,7 +115,7 @@ fun HomeChatEntryScreen(
             prompts = MockShopMateData.promptSuggestions,
             textScale = textScale,
             scale = scale,
-            onPromptClick = { prompt -> composerText = prompt.title },
+            onPromptClick = { prompt -> onComposerTextChange(prompt.title) },
             modifier = Modifier
                 .offset(x = 20f.s(), y = promptPanelTop)
                 .size(width = 348.667f.s(), height = promptPanelHeight)
@@ -119,10 +123,11 @@ fun HomeChatEntryScreen(
 
         ChatComposer(
             value = composerText,
-            onValueChange = { composerText = it },
-            onSend = {},
+            onValueChange = onComposerTextChange,
+            onSend = onSend,
             onVoiceClick = {},
             onImageClick = {},
+            sendEnabled = composerText.isNotBlank() && !isSending,
             modifier = Modifier
                 .offset(x = 18f.s(), y = composerTop)
                 .imePadding()
@@ -132,7 +137,7 @@ fun HomeChatEntryScreen(
 
         SidebarHistoryDrawer(
             isOpen = isSidebarOpen,
-            conversations = MockShopMateData.historyConversations,
+            conversations = historyConversations,
             onDismiss = { isSidebarOpen = false },
             onNewChatClick = {
                 isSidebarOpen = false
@@ -422,7 +427,7 @@ private fun PromptRow(
 )
 @Composable
 private fun HomeChatEntryScreenTargetPreview() {
-    HomeChatEntryScreen()
+    HomeChatEntryScreenPreviewContent()
 }
 
 @Preview(
@@ -433,5 +438,15 @@ private fun HomeChatEntryScreenTargetPreview() {
 )
 @Composable
 private fun HomeChatEntryScreenCompactPreview() {
-    HomeChatEntryScreen()
+    HomeChatEntryScreenPreviewContent()
+}
+
+@Composable
+private fun HomeChatEntryScreenPreviewContent() {
+    var composerText by rememberSaveable { mutableStateOf("") }
+
+    HomeChatEntryScreen(
+        composerText = composerText,
+        onComposerTextChange = { composerText = it },
+    )
 }
