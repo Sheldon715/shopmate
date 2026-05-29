@@ -116,7 +116,12 @@ private fun ProductDetailScreenContent(
         val footerHeight = 58f.s()
         val footerBottom = 18f.s()
         val footerTop = maxHeight - footerHeight - footerBottom
-        val scrollBodyHeight = if (product == null) 430f.s() else 918f.s()
+        val recommendationHeight = product?.recommendationCardHeight(scale) ?: 201.01f.s()
+        val recommendationGap = 14f.s()
+        val specTop = contentTop + 437.531f.s() + recommendationHeight + recommendationGap
+        val suitabilityTop = specTop + 176f.s()
+        val productBodyBottom = suitabilityTop + 95.188f.s()
+        val scrollBodyHeight = if (product == null) 430f.s() else productBodyBottom - contentTop
         val scrollContentHeight =
             (contentTop + scrollBodyHeight + footerHeight + footerBottom + 28f.s())
                 .coerceAtLeast(maxHeight + 1.dp)
@@ -167,14 +172,14 @@ private fun ProductDetailScreenContent(
                         scale = scale,
                         modifier = Modifier
                             .offset(x = frameStart + 18f.s(), y = contentTop + 437.531f.s())
-                            .size(width = 352.667f.s(), height = 201.01f.s())
+                            .size(width = 352.667f.s(), height = recommendationHeight)
                     )
 
                     ProductSpecGrid(
                         specs = product.specs,
                         scale = scale,
                         modifier = Modifier
-                            .offset(x = frameStart + 18f.s(), y = contentTop + 652.541f.s())
+                            .offset(x = frameStart + 18f.s(), y = specTop)
                             .size(width = 352.667f.s(), height = 162f.s())
                     )
 
@@ -182,7 +187,7 @@ private fun ProductDetailScreenContent(
                         product = product,
                         scale = scale,
                         modifier = Modifier
-                            .offset(x = frameStart + 18f.s(), y = contentTop + 828.541f.s())
+                            .offset(x = frameStart + 18f.s(), y = suitabilityTop)
                             .size(width = 352.667f.s(), height = 95.188f.s())
                     )
                 }
@@ -217,6 +222,26 @@ private fun ProductDetailScreenContent(
             )
         }
     }
+}
+
+private fun ProductDetailUi.recommendationCardHeight(scale: Float): Dp {
+    val reasonLines = estimatedLineCount(recommendationReason, charsPerLine = 24, maxLines = 2)
+    val highlightLines = highlights.take(3).sumOf { highlight ->
+        estimatedLineCount(highlight, charsPerLine = 25, maxLines = 2)
+    }
+    val baseHeight = 86f + reasonLines * 21.45f + highlightLines * 18.6f +
+        (highlights.take(3).size.coerceAtLeast(1) - 1) * 8f
+    return baseHeight.coerceIn(166f, 268f).scaledDp(scale)
+}
+
+private fun estimatedLineCount(
+    text: String,
+    charsPerLine: Int,
+    maxLines: Int,
+): Int {
+    val count = ((text.length + charsPerLine - 1) / charsPerLine)
+        .coerceAtLeast(1)
+    return count.coerceAtMost(maxLines)
 }
 
 @Composable
@@ -409,6 +434,14 @@ private fun RecommendationReasonCard(
         shape = cardShape,
         elevation = 14f.scaledDp(scale)
     ) {
+        val reasonLines = estimatedLineCount(
+            product.recommendationReason,
+            charsPerLine = 24,
+            maxLines = 2
+        )
+        val reasonHeight = (reasonLines * 21.45f).scaledDp(scale)
+        var highlightTop = 60f + reasonLines * 21.45f + 10f
+
         Box(
             modifier = Modifier
                 .offset(x = 16f.scaledDp(scale), y = 16.667f.scaledDp(scale))
@@ -425,7 +458,7 @@ private fun RecommendationReasonCard(
         }
 
         Text(
-            text = "AI 推荐理由",
+            text = "导购推荐理由",
             color = ShopMateTextPrimary,
             fontSize = (15f * scale).sp,
             lineHeight = (20f * scale).sp,
@@ -441,24 +474,31 @@ private fun RecommendationReasonCard(
             fontSize = (13f * scale).sp,
             lineHeight = (21.45f * scale).sp,
             letterSpacing = 0.sp,
-            maxLines = 3,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier
                 .offset(x = 16f.scaledDp(scale), y = 58f.scaledDp(scale))
-                .size(width = 320f.scaledDp(scale), height = 58f.scaledDp(scale))
+                .size(width = 320f.scaledDp(scale), height = reasonHeight)
         )
 
-        product.highlights.take(3).forEachIndexed { index, highlight ->
+        product.highlights.take(3).forEach { highlight ->
+            val highlightLines = estimatedLineCount(
+                text = highlight,
+                charsPerLine = 25,
+                maxLines = 2
+            )
+            val highlightHeight = highlightLines * 18.6f
             HighlightRow(
                 text = highlight,
                 scale = scale,
                 modifier = Modifier
                     .offset(
                         x = 16f.scaledDp(scale),
-                        y = (116f + index * 26.6f).scaledDp(scale)
+                        y = highlightTop.scaledDp(scale)
                     )
-                    .size(width = 319.333f.scaledDp(scale), height = 19f.scaledDp(scale))
+                    .size(width = 319.333f.scaledDp(scale), height = highlightHeight.scaledDp(scale))
             )
+            highlightTop += highlightHeight + 8f
         }
     }
 }
@@ -483,9 +523,11 @@ private fun HighlightRow(
             fontSize = (12f * scale).sp,
             lineHeight = (18.6f * scale).sp,
             letterSpacing = 0.sp,
-            maxLines = 1,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.offset(x = 18f.scaledDp(scale), y = 0.dp)
+            modifier = Modifier
+                .offset(x = 18f.scaledDp(scale), y = 0.dp)
+                .width(296f.scaledDp(scale))
         )
     }
 }
@@ -546,14 +588,14 @@ private fun ProductSpecTile(
         Text(
             text = spec.value,
             color = ShopMateTextPrimary,
-            fontSize = (15f * scale).sp,
-            lineHeight = (18.75f * scale).sp,
+            fontSize = (14f * scale).sp,
+            lineHeight = (17f * scale).sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 0.sp,
-            maxLines = 1,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier
-                .offset(x = 14f.scaledDp(scale), y = 39f.scaledDp(scale))
+                .offset(x = 14f.scaledDp(scale), y = 36f.scaledDp(scale))
                 .width(142f.scaledDp(scale))
         )
     }
@@ -583,7 +625,7 @@ private fun SuitabilityCard(
             )
     ) {
         Text(
-            text = "适合你如果",
+            text = "选择建议",
             color = ShopMateTextPrimary,
             fontSize = (15f * scale).sp,
             lineHeight = (20f * scale).sp,
