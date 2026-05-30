@@ -3,7 +3,7 @@
   "data_version": "v1",
   "source_type": "synthetic_desensitized",
   "status": "active",
-  "title": "美的 MF-KZC6502XM 空气炸锅",
+  "title": "美的大容量空气炸锅",
   "brand": "美的",
   "category": "家用电器",
   "sub_category": "厨房电器",
@@ -155,7 +155,7 @@
     {
       "block_id": "p_home_airfryer_001_sku_001",
       "block_type": "sku",
-      "title": "SKU 摘要",
+      "title": "规格摘要",
       "content": "美的 MF-KZC6502XM 空气炸锅 当前包含 2 个 SKU，购买前应确认规格属性与实际需求一致。",
       "keywords": [
         "SKU",

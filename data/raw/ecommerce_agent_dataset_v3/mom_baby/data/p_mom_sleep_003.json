@@ -3,7 +3,7 @@
   "data_version": "v1",
   "source_type": "synthetic_desensitized",
   "status": "active",
-  "title": "HALO SleepSack 婴儿睡袋",
+  "title": "哈罗婴儿睡袋",
   "brand": "Halo",
   "category": "母婴用品",
   "sub_category": "婴童寝居",
@@ -155,7 +155,7 @@
     {
       "block_id": "p_mom_sleep_003_sku_001",
       "block_type": "sku",
-      "title": "SKU 摘要",
+      "title": "规格摘要",
       "content": "HALO SleepSack 婴儿睡袋 当前包含 2 个 SKU，购买前应确认规格属性与实际需求一致。",
       "keywords": [
         "SKU",

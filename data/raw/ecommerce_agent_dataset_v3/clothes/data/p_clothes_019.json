@@ -3,7 +3,7 @@
   "data_version": "v1",
   "source_type": "synthetic_desensitized",
   "status": "active",
-  "title": "Nike Heritage86 Futura Logo 经典刺绣棒球帽",
+  "title": "耐克经典刺绣棒球帽",
   "brand": "Nike",
   "category": "服饰运动",
   "sub_category": "帽子",
@@ -212,7 +212,7 @@
     {
       "block_id": "p_clothes_019_sku_001",
       "block_type": "sku",
-      "title": "SKU 摘要",
+      "title": "规格摘要",
       "content": "Nike Heritage86 Futura Logo 经典刺绣棒球帽 当前包含 6 个 SKU，购买前应确认规格属性与实际需求一致。",
       "keywords": [
         "SKU",

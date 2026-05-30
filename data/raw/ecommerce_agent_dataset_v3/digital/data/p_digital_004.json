@@ -3,7 +3,7 @@
   "data_version": "v1",
   "source_type": "synthetic_desensitized",
   "status": "active",
-  "title": "华为HUAWEI MateBook 14 14英寸轻薄高性能生产力笔记本",
+  "title": "华为笔记本十四英寸轻薄高性能生产力笔记本",
   "brand": "华为",
   "category": "数码电子",
   "sub_category": "笔记本电脑",
@@ -176,7 +176,7 @@
     {
       "block_id": "p_digital_004_sku_001",
       "block_type": "sku",
-      "title": "SKU 摘要",
+      "title": "规格摘要",
       "content": "华为HUAWEI MateBook 14 14英寸轻薄高性能生产力笔记本 当前包含 4 个 SKU，购买前应确认规格属性与实际需求一致。",
       "keywords": [
         "SKU",

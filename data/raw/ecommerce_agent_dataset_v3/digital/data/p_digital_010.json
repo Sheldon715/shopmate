@@ -3,7 +3,7 @@
   "data_version": "v1",
   "source_type": "synthetic_desensitized",
   "status": "active",
-  "title": "小米 MIX Fold 5 内折大屏旗舰折叠屏手机多任务办公影音利器",
+  "title": "小米折叠五代内折大屏旗舰折叠屏手机多任务办公影音利器",
   "brand": "小米",
   "category": "数码电子",
   "sub_category": "智能手机",
@@ -176,7 +176,7 @@
     {
       "block_id": "p_digital_010_sku_001",
       "block_type": "sku",
-      "title": "SKU 摘要",
+      "title": "规格摘要",
       "content": "小米 MIX Fold 5 内折大屏旗舰折叠屏手机多任务办公影音利器 当前包含 4 个 SKU，购买前应确认规格属性与实际需求一致。",
       "keywords": [
         "SKU",

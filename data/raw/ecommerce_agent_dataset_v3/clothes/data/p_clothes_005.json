@@ -3,7 +3,7 @@
   "data_version": "v1",
   "source_type": "synthetic_desensitized",
   "status": "active",
-  "title": "李宁 运动生活系列 男子连帽套头卫衣 基础Logo印花上衣",
+  "title": "李宁运动生活系列男子连帽套头卫衣基础标识印花上衣",
   "brand": "李宁",
   "category": "服饰运动",
   "sub_category": "卫衣",
@@ -236,7 +236,7 @@
     {
       "block_id": "p_clothes_005_sku_001",
       "block_type": "sku",
-      "title": "SKU 摘要",
+      "title": "规格摘要",
       "content": "李宁 运动生活系列 男子连帽套头卫衣 基础Logo印花上衣 当前包含 9 个 SKU，购买前应确认规格属性与实际需求一致。",
       "keywords": [
         "SKU",

@@ -3,7 +3,7 @@
   "data_version": "v1",
   "source_type": "synthetic_desensitized",
   "status": "active",
-  "title": "农夫山泉 水溶C100 饮料 ×15 瓶装 维生素C饮品",
+  "title": "农夫山泉水溶维生素饮料十五瓶装维生素饮品",
   "brand": "农夫山泉",
   "category": "食品饮料",
   "sub_category": "功能饮料",
@@ -184,7 +184,7 @@
     {
       "block_id": "p_food_025_sku_001",
       "block_type": "sku",
-      "title": "SKU 摘要",
+      "title": "规格摘要",
       "content": "农夫山泉 水溶C100 饮料 ×15 瓶装 维生素C饮品 当前包含 4 个 SKU，购买前应确认规格属性与实际需求一致。",
       "keywords": [
         "SKU",

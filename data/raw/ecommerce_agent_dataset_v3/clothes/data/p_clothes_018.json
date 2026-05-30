@@ -3,7 +3,7 @@
   "data_version": "v1",
   "source_type": "synthetic_desensitized",
   "status": "active",
-  "title": "The North Face Borealis 多功能通勤户外双肩背包",
+  "title": "北面经典通勤户外多功能双肩背包",
   "brand": "The North Face",
   "category": "服饰运动",
   "sub_category": "背包",
@@ -167,7 +167,7 @@
     {
       "block_id": "p_clothes_018_sku_001",
       "block_type": "sku",
-      "title": "SKU 摘要",
+      "title": "规格摘要",
       "content": "The North Face Borealis 多功能通勤户外双肩背包 当前包含 3 个 SKU，购买前应确认规格属性与实际需求一致。",
       "keywords": [
         "SKU",

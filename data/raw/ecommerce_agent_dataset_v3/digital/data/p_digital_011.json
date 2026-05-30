@@ -3,7 +3,7 @@
   "data_version": "v1",
   "source_type": "synthetic_desensitized",
   "status": "active",
-  "title": "小米平板 8 Pro 12.1英寸高刷大屏影音娱乐学习办公平板电脑",
+  "title": "小米平板八专业版十二点一英寸高刷大屏影音娱乐学习办公平板电脑",
   "brand": "小米",
   "category": "数码电子",
   "sub_category": "平板电脑",
@@ -180,7 +180,7 @@
     {
       "block_id": "p_digital_011_sku_001",
       "block_type": "sku",
-      "title": "SKU 摘要",
+      "title": "规格摘要",
       "content": "小米平板 8 Pro 12.1英寸高刷大屏影音娱乐学习办公平板电脑 当前包含 4 个 SKU，购买前应确认规格属性与实际需求一致。",
       "keywords": [
         "SKU",

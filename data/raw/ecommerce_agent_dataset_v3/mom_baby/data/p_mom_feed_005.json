@@ -3,7 +3,7 @@
   "data_version": "v1",
   "source_type": "synthetic_desensitized",
   "status": "active",
-  "title": "THERMOS 儿童保温辅食碗",
+  "title": "膳魔师儿童保温辅食碗",
   "brand": "膳魔师",
   "category": "母婴用品",
   "sub_category": "喂养用品",
@@ -155,7 +155,7 @@
     {
       "block_id": "p_mom_feed_005_sku_001",
       "block_type": "sku",
-      "title": "SKU 摘要",
+      "title": "规格摘要",
       "content": "THERMOS 儿童保温辅食碗 当前包含 2 个 SKU，购买前应确认规格属性与实际需求一致。",
       "keywords": [
         "SKU",

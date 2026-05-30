@@ -3,7 +3,7 @@
   "data_version": "v1",
   "source_type": "synthetic_desensitized",
   "status": "active",
-  "title": "Apple MacBook 专业高性能笔记本电脑",
+  "title": "苹果专业高性能笔记本电脑",
   "brand": "Apple 苹果",
   "category": "数码电子",
   "sub_category": "笔记本电脑",
@@ -368,7 +368,7 @@
     {
       "block_id": "p_digital_006_sku_001",
       "block_type": "sku",
-      "title": "SKU 摘要",
+      "title": "规格摘要",
       "content": "Apple MacBook 专业高性能笔记本电脑 当前包含 16 个 SKU，购买前应确认规格属性与实际需求一致。",
       "keywords": [
         "SKU",

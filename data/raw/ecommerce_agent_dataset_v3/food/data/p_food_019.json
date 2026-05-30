@@ -3,7 +3,7 @@
   "data_version": "v1",
   "source_type": "synthetic_desensitized",
   "status": "active",
-  "title": "百草味 每日坚果A款 /30袋 混合坚果零食礼盒",
+  "title": "百草味每日坚果经典款三十袋混合坚果零食礼盒",
   "brand": "百草味",
   "category": "食品饮料",
   "sub_category": "坚果/零食",
@@ -176,7 +176,7 @@
     {
       "block_id": "p_food_019_sku_001",
       "block_type": "sku",
-      "title": "SKU 摘要",
+      "title": "规格摘要",
       "content": "百草味 每日坚果A款 /30袋 混合坚果零食礼盒 当前包含 4 个 SKU，购买前应确认规格属性与实际需求一致。",
       "keywords": [
         "SKU",

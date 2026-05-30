@@ -3,7 +3,7 @@
   "data_version": "v1",
   "source_type": "synthetic_desensitized",
   "status": "active",
-  "title": "Apple iPhone 17 Pro A19 Pro 全网通旗舰手机",
+  "title": "苹果手机十七专业版十九代专业芯片全网通旗舰手机",
   "brand": "Apple 苹果",
   "category": "数码电子",
   "sub_category": "智能手机",
@@ -245,7 +245,7 @@
     {
       "block_id": "p_digital_001_sku_001",
       "block_type": "sku",
-      "title": "SKU 摘要",
+      "title": "规格摘要",
       "content": "Apple iPhone 17 Pro A19 Pro 全网通旗舰手机 当前包含 9 个 SKU，购买前应确认规格属性与实际需求一致。",
       "keywords": [
         "SKU",

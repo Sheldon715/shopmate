@@ -3,7 +3,7 @@
   "data_version": "v1",
   "source_type": "synthetic_desensitized",
   "status": "active",
-  "title": "Nike Sportswear Club 男子针织运动长裤 基础休闲束脚裤",
+  "title": "耐克运动生活俱乐部男子针织运动长裤基础休闲束脚裤",
   "brand": "Nike",
   "category": "服饰运动",
   "sub_category": "运动长裤",
@@ -200,7 +200,7 @@
     {
       "block_id": "p_clothes_006_sku_001",
       "block_type": "sku",
-      "title": "SKU 摘要",
+      "title": "规格摘要",
       "content": "Nike Sportswear Club 男子针织运动长裤 基础休闲束脚裤 当前包含 6 个 SKU，购买前应确认规格属性与实际需求一致。",
       "keywords": [
         "SKU",

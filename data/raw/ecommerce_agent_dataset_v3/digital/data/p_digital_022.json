@@ -3,7 +3,7 @@
   "data_version": "v1",
   "source_type": "synthetic_desensitized",
   "status": "active",
-  "title": "联想 ThinkPad X1 Carbon Aura AI 元启版2026 14英寸高端商务轻薄本",
+  "title": "联想高端商务轻薄本元启智能版二零二六十四英寸高端商务轻薄本",
   "brand": "联想",
   "category": "数码电子",
   "sub_category": "笔记本电脑",
@@ -176,7 +176,7 @@
     {
       "block_id": "p_digital_022_sku_001",
       "block_type": "sku",
-      "title": "SKU 摘要",
+      "title": "规格摘要",
       "content": "联想 ThinkPad X1 Carbon Aura AI 元启版2026 14英寸高端商务轻薄本 当前包含 4 个 SKU，购买前应确认规格属性与实际需求一致。",
       "keywords": [
         "SKU",

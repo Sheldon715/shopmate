@@ -3,7 +3,7 @@
   "data_version": "v1",
   "source_type": "synthetic_desensitized",
   "status": "active",
-  "title": "三只松鼠 每日坚果750g/ 混合坚果仁干果礼盒独立小包装",
+  "title": "三只松鼠每日坚果七百五十克混合坚果仁干果礼盒独立小包装",
   "brand": "三只松鼠",
   "category": "食品饮料",
   "sub_category": "坚果/零食",
@@ -176,7 +176,7 @@
     {
       "block_id": "p_food_009_sku_001",
       "block_type": "sku",
-      "title": "SKU 摘要",
+      "title": "规格摘要",
       "content": "三只松鼠 每日坚果750g/ 混合坚果仁干果礼盒独立小包装 当前包含 4 个 SKU，购买前应确认规格属性与实际需求一致。",
       "keywords": [
         "SKU",

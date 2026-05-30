@@ -3,7 +3,7 @@
   "data_version": "v1",
   "source_type": "synthetic_desensitized",
   "status": "active",
-  "title": "IKEA MICKE 米克书桌",
+  "title": "宜家米克书桌",
   "brand": "宜家",
   "category": "办公学习",
   "sub_category": "办公家具",
@@ -155,7 +155,7 @@
     {
       "block_id": "p_office_furniture_004_sku_001",
       "block_type": "sku",
-      "title": "SKU 摘要",
+      "title": "规格摘要",
       "content": "IKEA MICKE 米克书桌 当前包含 2 个 SKU，购买前应确认规格属性与实际需求一致。",
       "keywords": [
         "SKU",

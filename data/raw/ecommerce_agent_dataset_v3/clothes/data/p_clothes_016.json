@@ -3,7 +3,7 @@
   "data_version": "v1",
   "source_type": "synthetic_desensitized",
   "status": "active",
-  "title": "Lululemon Align 高腰紧身裤 女士瑜伽裤柔软裸感运动裤",
+  "title": "露露乐蒙裸感高腰紧身裤女士瑜伽裤柔软裸感运动裤",
   "brand": "露露乐蒙",
   "category": "服饰运动",
   "sub_category": "瑜伽裤",
@@ -352,7 +352,7 @@
     {
       "block_id": "p_clothes_016_sku_001",
       "block_type": "sku",
-      "title": "SKU 摘要",
+      "title": "规格摘要",
       "content": "Lululemon Align 高腰紧身裤 女士瑜伽裤柔软裸感运动裤 当前包含 16 个 SKU，购买前应确认规格属性与实际需求一致。",
       "keywords": [
         "SKU",

@@ -3,7 +3,7 @@
   "data_version": "v1",
   "source_type": "synthetic_desensitized",
   "status": "active",
-  "title": "Osprey DAYLITE PLUS 日光+ 户外多功能双肩背包轻量通勤包",
+  "title": "小鹰日光加大版户外多功能双肩背包轻量通勤包",
   "brand": "Osprey",
   "category": "服饰运动",
   "sub_category": "背包",
@@ -180,7 +180,7 @@
     {
       "block_id": "p_clothes_025_sku_001",
       "block_type": "sku",
-      "title": "SKU 摘要",
+      "title": "规格摘要",
       "content": "Osprey DAYLITE PLUS 日光+ 户外多功能双肩背包轻量通勤包 当前包含 4 个 SKU，购买前应确认规格属性与实际需求一致。",
       "keywords": [
         "SKU",

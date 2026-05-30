@@ -3,7 +3,7 @@
   "data_version": "v1",
   "source_type": "synthetic_desensitized",
   "status": "active",
-  "title": "Nest Designs 婴儿睡袋 春秋款",
+  "title": "巢设计婴儿睡袋春秋款",
   "brand": "Nest Designs",
   "category": "母婴用品",
   "sub_category": "婴童寝居",
@@ -155,7 +155,7 @@
     {
       "block_id": "p_mom_sleep_001_sku_001",
       "block_type": "sku",
-      "title": "SKU 摘要",
+      "title": "规格摘要",
       "content": "Nest Designs 婴儿睡袋 春秋款 当前包含 2 个 SKU，购买前应确认规格属性与实际需求一致。",
       "keywords": [
         "SKU",

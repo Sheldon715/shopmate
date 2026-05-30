@@ -3,7 +3,7 @@
   "data_version": "v1",
   "source_type": "synthetic_desensitized",
   "status": "active",
-  "title": "追觅 V16 Pro 无线吸尘器",
+  "title": "追觅十六代专业版无线吸尘器",
   "brand": "追觅",
   "category": "家用电器",
   "sub_category": "清洁电器",
@@ -155,7 +155,7 @@
     {
       "block_id": "p_home_vacuum_002_sku_001",
       "block_type": "sku",
-      "title": "SKU 摘要",
+      "title": "规格摘要",
       "content": "追觅 V16 Pro 无线吸尘器 当前包含 2 个 SKU，购买前应确认规格属性与实际需求一致。",
       "keywords": [
         "SKU",

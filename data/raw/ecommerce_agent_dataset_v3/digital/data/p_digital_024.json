@@ -3,7 +3,7 @@
   "data_version": "v1",
   "source_type": "synthetic_desensitized",
   "status": "active",
-  "title": "Apple iPad Pro M4 芯片 平板电脑",
+  "title": "苹果平板专业版第四代芯片平板电脑",
   "brand": "Apple 苹果",
   "category": "数码电子",
   "sub_category": "平板电脑",
@@ -308,7 +308,7 @@
     {
       "block_id": "p_digital_024_sku_001",
       "block_type": "sku",
-      "title": "SKU 摘要",
+      "title": "规格摘要",
       "content": "Apple iPad Pro M4 芯片 平板电脑 当前包含 12 个 SKU，购买前应确认规格属性与实际需求一致。",
       "keywords": [
         "SKU",

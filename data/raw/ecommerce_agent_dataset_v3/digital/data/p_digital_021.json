@@ -3,7 +3,7 @@
   "data_version": "v1",
   "source_type": "synthetic_desensitized",
   "status": "active",
-  "title": "华为 MatePad Pro 柔性OLED高刷屏轻办公创作旗舰平板电脑",
+  "title": "华为平板专业版柔性有机发光高刷屏轻办公创作旗舰平板电脑",
   "brand": "华为",
   "category": "数码电子",
   "sub_category": "平板电脑",
@@ -212,7 +212,7 @@
     {
       "block_id": "p_digital_021_sku_001",
       "block_type": "sku",
-      "title": "SKU 摘要",
+      "title": "规格摘要",
       "content": "华为 MatePad Pro 柔性OLED高刷屏轻办公创作旗舰平板电脑 当前包含 6 个 SKU，购买前应确认规格属性与实际需求一致。",
       "keywords": [
         "SKU",

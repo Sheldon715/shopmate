@@ -3,7 +3,7 @@
   "data_version": "v1",
   "source_type": "synthetic_desensitized",
   "status": "active",
-  "title": "Britax Marathon ClickTight 儿童安全座椅",
+  "title": "宝得适安全带固定儿童安全座椅",
   "brand": "Britax",
   "category": "母婴用品",
   "sub_category": "出行用品",
@@ -155,7 +155,7 @@
     {
       "block_id": "p_mom_travel_005_sku_001",
       "block_type": "sku",
-      "title": "SKU 摘要",
+      "title": "规格摘要",
       "content": "Britax Marathon ClickTight 儿童安全座椅 当前包含 2 个 SKU，购买前应确认规格属性与实际需求一致。",
       "keywords": [
         "SKU",

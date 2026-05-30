@@ -3,7 +3,7 @@
   "data_version": "v1",
   "source_type": "synthetic_desensitized",
   "status": "active",
-  "title": "Nike Dri-FIT Miler 男子速干短袖跑步上衣轻薄透气公路训练T恤",
+  "title": "耐克速干米勒男子短袖跑步上衣轻薄透气公路训练短袖",
   "brand": "耐克",
   "category": "服饰运动",
   "sub_category": "速干T恤",
@@ -388,7 +388,7 @@
     {
       "block_id": "p_clothes_021_sku_001",
       "block_type": "sku",
-      "title": "SKU 摘要",
+      "title": "规格摘要",
       "content": "Nike Dri-FIT Miler 男子速干短袖跑步上衣轻薄透气公路训练T恤 当前包含 20 个 SKU，购买前应确认规格属性与实际需求一致。",
       "keywords": [
         "SKU",

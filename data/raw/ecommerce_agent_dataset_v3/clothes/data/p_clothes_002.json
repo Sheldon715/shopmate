@@ -3,7 +3,7 @@
   "data_version": "v1",
   "source_type": "synthetic_desensitized",
   "status": "active",
-  "title": "优衣库 DRY-EX 超快干圆领短袖T恤 男装 运动训练上衣",
+  "title": "优衣库超快干圆领短袖上衣男装运动训练上衣",
   "brand": "优衣库",
   "category": "服饰运动",
   "sub_category": "短袖T恤",
@@ -236,7 +236,7 @@
     {
       "block_id": "p_clothes_002_sku_001",
       "block_type": "sku",
-      "title": "SKU 摘要",
+      "title": "规格摘要",
       "content": "优衣库 DRY-EX 超快干圆领短袖T恤 男装 运动训练上衣 当前包含 9 个 SKU，购买前应确认规格属性与实际需求一致。",
       "keywords": [
         "SKU",

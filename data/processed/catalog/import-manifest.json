@@ -1,5 +1,5 @@
 {
-  "ingest_batch_id": "catalog_20260525_151356130_f5935a86",
+  "ingest_batch_id": "catalog_20260529_135129348_6e99a055",
   "source_dataset": "ecommerce_agent_dataset_v3",
   "source_version": "v3",
   "source_type": "synthetic_desensitized",
@@ -9,7 +9,7 @@
   "raw_item_count": 175,
   "processed_item_count": 175,
   "error_count": 0,
-  "generated_at": "2026-05-25T15:13:56.214Z",
+  "generated_at": "2026-05-29T13:51:29.437Z",
   "normalized_output_path": "catalog/products.normalized.jsonl",
   "errors": []
 }

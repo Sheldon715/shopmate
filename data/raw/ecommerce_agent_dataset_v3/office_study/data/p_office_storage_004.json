@@ -3,7 +3,7 @@
   "data_version": "v1",
   "source_type": "synthetic_desensitized",
   "status": "active",
-  "title": "MUJI 聚丙烯收纳盒",
+  "title": "无印良品聚丙烯收纳盒",
   "brand": "无印良品",
   "category": "办公学习",
   "sub_category": "文件收纳",
@@ -155,7 +155,7 @@
     {
       "block_id": "p_office_storage_004_sku_001",
       "block_type": "sku",
-      "title": "SKU 摘要",
+      "title": "规格摘要",
       "content": "MUJI 聚丙烯收纳盒 当前包含 2 个 SKU，购买前应确认规格属性与实际需求一致。",
       "keywords": [
         "SKU",

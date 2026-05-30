@@ -3,7 +3,7 @@
   "data_version": "v1",
   "source_type": "synthetic_desensitized",
   "status": "active",
-  "title": "SK-II护肤精华露神仙水晶透保湿调理角质收缩毛孔",
+  "title": "神仙水护肤精华露晶透保湿调理角质收缩毛孔",
   "brand": "SK-II",
   "category": "美妆护肤",
   "sub_category": "化妆水",
@@ -161,7 +161,7 @@
     {
       "block_id": "p_beauty_003_sku_001",
       "block_type": "sku",
-      "title": "SKU 摘要",
+      "title": "规格摘要",
       "content": "SK-II护肤精华露神仙水晶透保湿调理角质收缩毛孔 当前包含 3 个 SKU，购买前应确认规格属性与实际需求一致。",
       "keywords": [
         "SKU",

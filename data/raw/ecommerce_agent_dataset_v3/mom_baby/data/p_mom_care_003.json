@@ -3,7 +3,7 @@
   "data_version": "v1",
   "source_type": "synthetic_desensitized",
   "status": "active",
-  "title": "Desitin Maximum Strength Diaper Rash Paste",
+  "title": "德斯汀强效婴儿护臀膏",
   "brand": "Desitin",
   "category": "母婴用品",
   "sub_category": "洗护用品",
@@ -155,7 +155,7 @@
     {
       "block_id": "p_mom_care_003_sku_001",
       "block_type": "sku",
-      "title": "SKU 摘要",
+      "title": "规格摘要",
       "content": "Desitin Maximum Strength Diaper Rash Paste 当前包含 2 个 SKU，购买前应确认规格属性与实际需求一致。",
       "keywords": [
         "SKU",
