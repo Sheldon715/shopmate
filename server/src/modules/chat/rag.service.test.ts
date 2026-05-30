@@ -4,6 +4,8 @@ import { MockLlmClient } from "../llm/mock-llm.client";
 import type { LlmGenerateRequest, LlmGenerateResponse } from "../llm/llm.types";
 import type { Product } from "../products/product.types";
 import type { VectorSearchHit } from "../vector/vector-search.types";
+import { ChatContextMemoryStore } from "./chat-context-memory.store";
+import { ChatContextMemoryService } from "./chat-context-memory.service";
 import type { RagProductReader, RagVectorSearchClient } from "./rag.service";
 import { RagChatService } from "./rag.service";
 
@@ -225,6 +227,69 @@ describe("RagChatService", () => {
     ]);
     expect(llmRequest?.requestId).toBe("request_123");
     expect(llmRequest?.abortSignal).toBe(abortController.signal);
+  });
+
+  it("uses conversation memory for follow-up retrieval, prompt context, and done summary", async () => {
+    const vectorCalls: Array<Parameters<RagVectorSearchClient["search"]>[0]> = [];
+    const llmRequests: LlmGenerateRequest[] = [];
+    const now = () => new Date("2026-05-30T00:00:00.000Z");
+    const contextMemoryService = new ChatContextMemoryService({
+      store: new ChatContextMemoryStore({ now }),
+      now,
+    });
+    const service = new RagChatService({
+      vectorSearch: {
+        search: async (input) => {
+          vectorCalls.push(input);
+          return [createHit("product_001")];
+        },
+      },
+      productReader: createProductReader(),
+      contextMemoryService,
+      llmClient: new MockLlmClient({
+        handler: (request) => {
+          llmRequests.push(request);
+          return createLlmResponse(
+            JSON.stringify({
+              answer: "Use product 1.",
+              recommended_product_ids: ["product_001"],
+            }),
+          );
+        },
+      }),
+    });
+
+    await service.answer({
+      conversationId: "local-chat-session-1",
+      question: "帮我推荐跑鞋",
+    });
+    const result = await service.answer({
+      conversationId: "local-chat-session-1",
+      question: "要轻量的，预算 500 以内",
+    });
+
+    expect(vectorCalls[1]).toMatchObject({
+      query: expect.stringContaining("帮我推荐跑鞋") as unknown as string,
+      filters: {
+        category: "服饰运动",
+        subCategory: "跑步鞋",
+        maxPriceCents: 50000,
+      },
+    });
+    expect(vectorCalls[1]?.query).toContain("轻量");
+    expect(llmRequests[1]?.messages.map((message) => message.content).join("\n"))
+      .toContain("当前会话记忆");
+    expect(result.contextMemory).toMatchObject({
+      conversationId: "local-chat-session-1",
+      lastIntent: "帮我推荐跑鞋",
+      constraints: {
+        category: "服饰运动",
+        subCategory: "跑步鞋",
+        maxPriceCents: 50000,
+        preferenceTerms: ["轻量"],
+      },
+      lastRecommendedProductIds: ["product_001"],
+    });
   });
 
   it("uses invalid-output fallback for malformed LLM JSON", async () => {

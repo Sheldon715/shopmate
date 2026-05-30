@@ -18,6 +18,7 @@ import type {
   RagChatResult,
   RetrievedProductContext,
 } from "./chat.types";
+import { ChatContextMemoryService } from "./chat-context-memory.service";
 import { buildRagPrompt, normalizeChatHistory } from "./prompt.builder";
 import {
   RagLlmOutputParseError,
@@ -42,6 +43,7 @@ export interface RagChatServiceOptions {
   productReader?: RagProductReader;
   llmClient?: LlmClient;
   now?: () => Date;
+  contextMemoryService?: ChatContextMemoryService;
   maxSnippetsPerProduct?: number;
   defaultMaxRecommendedProducts?: number;
   publicImageBaseUrl?: string;
@@ -73,6 +75,7 @@ export class RagChatService {
   private readonly productReader: RagProductReader;
   private readonly llmClient: LlmClient;
   private readonly now: () => Date;
+  private readonly contextMemoryService: ChatContextMemoryService;
   private readonly maxSnippetsPerProduct: number;
   private readonly defaultMaxRecommendedProducts: number;
   private readonly publicImageBaseUrl?: string;
@@ -82,6 +85,9 @@ export class RagChatService {
     this.productReader = options.productReader ?? createDefaultProductReader();
     this.llmClient = options.llmClient ?? createLlmClient();
     this.now = options.now ?? (() => new Date());
+    this.contextMemoryService =
+      options.contextMemoryService
+      ?? new ChatContextMemoryService({ now: this.now });
     this.maxSnippetsPerProduct =
       options.maxSnippetsPerProduct ?? DEFAULT_MAX_SNIPPETS_PER_PRODUCT;
     this.defaultMaxRecommendedProducts =
@@ -101,16 +107,24 @@ export class RagChatService {
       input.maxRecommendedProducts,
       this.defaultMaxRecommendedProducts,
     );
-    const hits = await this.vectorSearch.search({
-      query: question,
+    const memoryResolution = this.contextMemoryService.resolve({
+      conversationId: input.conversationId,
+      question,
       filters: input.filters,
+    });
+    const hits = await this.vectorSearch.search({
+      query: memoryResolution.retrievalQuery,
+      filters: memoryResolution.filters,
       topK: input.topK,
       abortSignal: input.abortSignal,
     });
     const candidates = dedupeVectorHits(hits, this.maxSnippetsPerProduct);
 
     if (candidates.length === 0) {
-      return createNoCandidatesResult();
+      return this.withContextMemory(
+        memoryResolution,
+        createNoCandidatesResult(),
+      );
     }
 
     const products = await this.productReader.findActiveByIds(
@@ -119,7 +133,10 @@ export class RagChatService {
     const contexts = createRetrievedContexts(candidates, products);
 
     if (contexts.length === 0) {
-      return createNoCandidatesResult();
+      return this.withContextMemory(
+        memoryResolution,
+        createNoCandidatesResult(),
+      );
     }
 
     try {
@@ -127,6 +144,7 @@ export class RagChatService {
         messages: buildRagPrompt({
           question,
           shortHistory: normalizeChatHistory(input.shortHistory ?? []),
+          contextMemory: memoryResolution.contextMemory,
           candidates: contexts,
           generatedAt: this.now(),
         }),
@@ -144,30 +162,53 @@ export class RagChatService {
       );
 
       if (recommendedProductIds.length === 0) {
-        return createRetrievedFallbackResult(
-          contexts,
-          maxRecommendedProducts,
-          "NO_VALID_PRODUCT_IDS",
-          this.publicImageBaseUrl,
+        return this.withContextMemory(
+          memoryResolution,
+          createRetrievedFallbackResult(
+            contexts,
+            maxRecommendedProducts,
+            "NO_VALID_PRODUCT_IDS",
+            this.publicImageBaseUrl,
+          ),
         );
       }
 
-      return createSuccessResult(
-        compactAnswer(parsed.answer),
-        recommendedProductIds,
-        contexts,
-        this.publicImageBaseUrl,
+      return this.withContextMemory(
+        memoryResolution,
+        createSuccessResult(
+          compactAnswer(parsed.answer),
+          recommendedProductIds,
+          contexts,
+          this.publicImageBaseUrl,
+        ),
       );
     } catch (error) {
-      return createRetrievedFallbackResult(
-        contexts,
-        maxRecommendedProducts,
-        error instanceof RagLlmOutputParseError
-          ? "LLM_INVALID_OUTPUT"
-          : "LLM_ERROR",
-        this.publicImageBaseUrl,
+      return this.withContextMemory(
+        memoryResolution,
+        createRetrievedFallbackResult(
+          contexts,
+          maxRecommendedProducts,
+          error instanceof RagLlmOutputParseError
+            ? "LLM_INVALID_OUTPUT"
+            : "LLM_ERROR",
+          this.publicImageBaseUrl,
+        ),
       );
     }
+  }
+
+  private withContextMemory(
+    memoryResolution: ReturnType<ChatContextMemoryService["resolve"]>,
+    result: RagChatResult,
+  ): RagChatResult {
+    const contextMemory = this.contextMemoryService.commit(
+      memoryResolution,
+      result.recommendedProductIds,
+    );
+
+    return contextMemory
+      ? { ...result, contextMemory }
+      : result;
   }
 }
 

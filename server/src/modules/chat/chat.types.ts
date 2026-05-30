@@ -6,6 +6,7 @@ import type {
   VectorSearchFilters,
   VectorSearchHitMetadata,
 } from "../vector/vector-search.types";
+import type { ChatContextMemorySummary } from "./chat-context-memory.types";
 
 export interface ChatHistoryMessage {
   role: "user" | "assistant";
@@ -35,6 +36,7 @@ export interface ChatDonePayload {
     candidateCount: number;
     returnedProductIds: string[];
   };
+  contextMemory?: ChatContextMemorySummary;
 }
 
 export interface ChatErrorPayload {
@@ -58,6 +60,7 @@ export type ChatStreamContractEvent = {
 }[ChatStreamEventName];
 
 export interface RagChatRequest {
+  conversationId?: string;
   question: string;
   shortHistory?: ChatHistoryMessage[];
   filters?: VectorSearchFilters;
@@ -90,4 +93,5 @@ export interface RagChatResult {
     candidateCount: number;
     returnedProductIds: string[];
   };
+  contextMemory?: ChatContextMemorySummary;
 }

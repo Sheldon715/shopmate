@@ -45,6 +45,7 @@ class ChatStreamClientTest {
             val events = withTimeout(5_000) {
                 client.streamChat(
                     ChatStreamRequestDto(
+                        conversationId = "local-chat-session-1",
                         message = "推荐耳机",
                         history = listOf(
                             ChatHistoryMessageDto("user", "oldest"),
@@ -71,6 +72,7 @@ class ChatStreamClientTest {
             )
 
             val body = recordedRequest.body.readUtf8()
+            assertTrue(body.contains(""""conversationId":"local-chat-session-1""""))
             assertTrue(body.contains(""""message":"推荐耳机""""))
             assertTrue(body.contains(""""content":"four""""))
             assertTrue(!body.contains(""""content":"oldest""""))

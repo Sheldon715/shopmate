@@ -149,6 +149,7 @@ async function writeChatResult(
     fallbackUsed: result.fallbackUsed,
     fallbackReason: result.fallbackReason,
     retrieval: result.retrieval,
+    contextMemory: result.contextMemory,
   };
 
   return safeWriteSseEvent(response, "done", donePayload);

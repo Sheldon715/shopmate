@@ -194,11 +194,9 @@ class ChatViewModel(
 
     private fun ensureCurrentSessionHistory(
         state: ChatUiState,
+        sessionId: String,
         userMessage: ChatMessageUi,
     ): Pair<String, List<HistoryConversationUi>> {
-        val sessionId = currentSessionId ?: nextSessionId().also { id ->
-            currentSessionId = id
-        }
         val existingTitle = state.historyConversations
             .firstOrNull { conversation -> conversation.id == sessionId }
             ?.title
@@ -242,6 +240,9 @@ class ChatViewModel(
     ) {
         streamJob?.cancel()
         lastSentMessage = message
+        val conversationId = currentSessionId ?: nextSessionId().also { id ->
+            currentSessionId = id
+        }
 
         val userMessage = ChatMessageUi(
             id = nextMessageId(USER_MESSAGE_PREFIX),
@@ -258,6 +259,7 @@ class ChatViewModel(
         _uiState.update { state ->
             val (sessionId, historyConversations) = ensureCurrentSessionHistory(
                 state = state,
+                sessionId = conversationId,
                 userMessage = userMessage,
             )
             sessionSnapshots[sessionId] = ChatSessionSnapshot(
@@ -277,7 +279,7 @@ class ChatViewModel(
         }
 
         streamJob = viewModelScope.launch {
-            chatRepository.streamChat(message, history)
+            chatRepository.streamChat(message, conversationId, history)
                 .catch { error ->
                     applyFailure(error)
                 }

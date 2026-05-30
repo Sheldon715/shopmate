@@ -1,5 +1,6 @@
 import type { LlmMessage } from "../llm/llm.types";
 import type { Product } from "../products/product.types";
+import type { ChatContextMemorySummary } from "./chat-context-memory.types";
 import type {
   ChatHistoryMessage,
   RetrievedProductContext,
@@ -14,6 +15,7 @@ const MAX_SNIPPETS_PER_PRODUCT = 3;
 export interface BuildRagPromptInput {
   question: string;
   shortHistory?: ChatHistoryMessage[];
+  contextMemory?: ChatContextMemorySummary;
   candidates: RetrievedProductContext[];
   generatedAt?: Date;
 }
@@ -32,6 +34,7 @@ export function buildRagPrompt(input: BuildRagPromptInput): LlmMessage[] {
         "你只能基于候选商品回答，不能编造候选列表外的商品。",
         "不要编造价格、库存、优惠、折扣、功效、认证或物流时效。",
         "PostgreSQL 商品字段是事实来源；vector snippets 只用于解释上下文，不能覆盖商品字段。",
+        "会话记忆只能辅助理解当前用户问题，不能覆盖用户最新表达，也不能当作商品事实来源。",
         "如果没有合适商品，可以说明暂时没有合适推荐，不要硬推荐。",
         "answer 要适合移动端聊天列表展示：最多 70 个中文字符，用 1 句话概括推荐方向，不要逐条复述商品名、价格或详细参数。",
         "商品优势、限制、参数和长解释交给 product_cards 或商品详情页承载，answer 只做简短导购引导。",
@@ -44,10 +47,48 @@ export function buildRagPrompt(input: BuildRagPromptInput): LlmMessage[] {
       content: [
         `用户问题：${truncateText(input.question.trim(), 1000)}`,
         formatHistory(history),
+        formatContextMemory(input.contextMemory),
         formatCandidates(input.candidates),
       ].filter((section) => section.length > 0).join("\n\n"),
     },
   ];
+}
+
+function formatContextMemory(
+  memory: ChatContextMemorySummary | undefined,
+): string {
+  if (!memory) {
+    return "";
+  }
+
+  const constraints = [
+    memory.constraints.category ? `类目：${memory.constraints.category}` : "",
+    memory.constraints.subCategory
+      ? `子类目：${memory.constraints.subCategory}`
+      : "",
+    memory.constraints.brand ? `品牌：${memory.constraints.brand}` : "",
+    memory.constraints.minPriceCents !== undefined
+      ? `最低预算：${formatCny(memory.constraints.minPriceCents)}`
+      : "",
+    memory.constraints.maxPriceCents !== undefined
+      ? `预算上限：${formatCny(memory.constraints.maxPriceCents)}`
+      : "",
+    memory.constraints.preferenceTerms.length > 0
+      ? `偏好：${formatList(memory.constraints.preferenceTerms)}`
+      : "",
+    memory.constraints.avoidTerms.length > 0
+      ? `已记录否定词：${formatList(memory.constraints.avoidTerms)}`
+      : "",
+  ].filter((line) => line.length > 0);
+
+  const lines = [
+    "当前会话记忆：",
+    `- 最近意图：${memory.lastIntent ?? "无"}`,
+    `- 已知约束：${constraints.length > 0 ? constraints.join("；") : "无"}`,
+    `- 上一轮推荐商品：${formatList(memory.lastRecommendedProductIds)}`,
+  ];
+
+  return lines.join("\n");
 }
 
 export function normalizeChatHistory(
@@ -127,6 +168,10 @@ function formatSnippets(snippets: string[]): string[] {
 
 function formatList(values: string[]): string {
   return values.length > 0 ? values.join("、") : "无";
+}
+
+function formatCny(priceCents: number): string {
+  return `${Math.round(priceCents / 100)} 元`;
 }
 
 function isProductAvailable(product: Product): boolean {
