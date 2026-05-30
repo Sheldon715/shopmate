@@ -1,12 +1,15 @@
 package com.shopmate.app.data.chat
 
 import com.shopmate.app.R
+import com.shopmate.app.data.network.ShopMateImageUrlResolver
 import com.shopmate.app.ui.model.ProductCardUi
 import java.util.Locale
 
 private const val MAX_PRODUCT_TAGS = 3
 
-fun ChatProductCardDto.toProductCardUi(): ProductCardUi =
+fun ChatProductCardDto.toProductCardUi(
+    imageUrlResolver: ShopMateImageUrlResolver? = null,
+): ProductCardUi =
     ProductCardUi(
         id = id,
         name = name,
@@ -14,10 +17,13 @@ fun ChatProductCardDto.toProductCardUi(): ProductCardUi =
         imageRes = resolveProductImageRes(),
         tags = tags.take(MAX_PRODUCT_TAGS),
         recommendationReason = buildRecommendationReason(),
+        imageUrl = imageUrlResolver?.resolve(imagePath),
     )
 
-fun List<ChatProductCardDto>.toProductCardUiList(): List<ProductCardUi> =
-    map { product -> product.toProductCardUi() }
+fun List<ChatProductCardDto>.toProductCardUiList(
+    imageUrlResolver: ShopMateImageUrlResolver? = null,
+): List<ProductCardUi> =
+    map { product -> product.toProductCardUi(imageUrlResolver) }
 
 private fun ChatProductCardDto.formatProductPrice(): String {
     val minPrice = priceRangeCents.min

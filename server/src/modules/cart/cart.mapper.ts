@@ -1,5 +1,10 @@
+import { resolvePublicProductImagePath } from "../images/image.service";
 import type { Product } from "../products/product.types";
 import type { CartDto, CartItemDto, CartItemRecord, CartItemRow } from "./cart.types";
+
+export interface CartMapperOptions {
+  publicImageBaseUrl?: string;
+}
 
 export function mapCartItemRowToRecord(row: CartItemRow): CartItemRecord {
   return {
@@ -16,6 +21,7 @@ export function mapCartItemRowToRecord(row: CartItemRow): CartItemRecord {
 export function mapCartToDto(
   items: CartItemRecord[],
   products: Product[],
+  options: CartMapperOptions = {},
 ): CartDto {
   const productsById = new Map(
     products.map((product) => [product.id, product]),
@@ -43,6 +49,10 @@ export function mapCartToDto(
       subtotalCents,
       available: isProductAvailable(product),
       tags: product.visualTags,
+      imagePath: resolvePublicProductImagePath(
+        product.imagePath,
+        options.publicImageBaseUrl,
+      ),
     }];
   });
 

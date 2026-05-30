@@ -58,6 +58,7 @@ describe("CartService", () => {
       quantity: 2,
       selected: true,
       subtotalCents: 39800,
+      imagePath: "/images/products/digital/images/product_001.png",
     });
     expect(cart.summary).toEqual({
       totalCount: 2,
@@ -272,7 +273,7 @@ function productFixture(
     brand: "示例品牌",
     category: "数码电子",
     subCategory: "耳机",
-    imagePath: null,
+    imagePath: "digital/images/product_001.png",
     imageCaption: null,
     currency: "CNY",
     basePriceCents: 19900,

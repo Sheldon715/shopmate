@@ -43,6 +43,7 @@ data class CartItemDto(
     val subtotalCents: Int = 0,
     val available: Boolean = true,
     val tags: List<String> = emptyList(),
+    val imagePath: String? = null,
 )
 
 @Serializable

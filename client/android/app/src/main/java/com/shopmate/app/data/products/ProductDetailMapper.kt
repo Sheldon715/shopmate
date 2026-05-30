@@ -1,6 +1,7 @@
 package com.shopmate.app.data.products
 
 import com.shopmate.app.R
+import com.shopmate.app.data.network.ShopMateImageUrlResolver
 import com.shopmate.app.ui.model.ProductDetailSpecUi
 import com.shopmate.app.ui.model.ProductDetailUi
 import java.util.Locale
@@ -57,7 +58,9 @@ private val CautionCopyMarkers = listOf(
     "长痘",
 )
 
-fun ProductDetailDto.toProductDetailUi(): ProductDetailUi =
+fun ProductDetailDto.toProductDetailUi(
+    imageUrlResolver: ShopMateImageUrlResolver? = null,
+): ProductDetailUi =
     ProductDetailUi(
         id = id,
         name = name.ifBlank { "未命名商品" },
@@ -74,6 +77,7 @@ fun ProductDetailDto.toProductDetailUi(): ProductDetailUi =
         highlights = buildHighlights(),
         specs = buildSpecs(),
         suitedForText = buildSuitabilityText(),
+        imageUrl = imageUrlResolver?.resolve(imagePath),
     )
 
 private fun ProductDetailDto.formatProductPrice(): String {

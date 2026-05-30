@@ -1,6 +1,8 @@
 package com.shopmate.app.data.chat
 
 import com.shopmate.app.R
+import com.shopmate.app.data.network.ShopMateApiConfig
+import com.shopmate.app.data.network.ShopMateImageUrlResolver
 import kotlin.test.assertEquals
 import org.junit.Test
 
@@ -18,6 +20,18 @@ class ChatProductMapperTest {
         assertEquals(R.drawable.product_zero_air, ui.imageRes)
         assertEquals(listOf("通勤", "蓝牙", "轻巧"), ui.tags)
         assertEquals("推荐理由：漫步者 · 数码电子，当前可选。", ui.recommendationReason)
+    }
+
+    @Test
+    fun mapsProductImagePathToRemoteUrlWhenResolverIsProvided() {
+        val ui = productDto(priceCents = 17900).toProductCardUi(
+            ShopMateImageUrlResolver(ShopMateApiConfig("https://api.example.test/")),
+        )
+
+        assertEquals(
+            "https://api.example.test/images/product_001.png",
+            ui.imageUrl,
+        )
     }
 
     @Test

@@ -51,6 +51,7 @@ import com.shopmate.app.data.mock.MockShopMateData
 import com.shopmate.app.ui.components.ShopMateElevatedSurface
 import com.shopmate.app.ui.components.ShopMateFigmaFrameHeight
 import com.shopmate.app.ui.components.ShopMateFigmaFrameWidth
+import com.shopmate.app.ui.components.ShopMateProductImage
 import com.shopmate.app.ui.components.ShopMateRoundedIconButton
 import com.shopmate.app.ui.components.ShopMateStatusMessage
 import com.shopmate.app.ui.components.scaledDp
@@ -267,8 +268,9 @@ private fun ProductHeroCard(
                 .background(Brush.verticalGradient(listOf(Color(0xFFF8FAF9), Color.White))),
             contentAlignment = Alignment.Center
         ) {
-            Image(
-                painter = painterResource(id = product.imageRes),
+            ShopMateProductImage(
+                imageUrl = product.imageUrl,
+                placeholderRes = product.imageRes,
                 contentDescription = product.name,
                 modifier = Modifier
                     .size(width = 226f.scaledDp(scale), height = 209.438f.scaledDp(scale))

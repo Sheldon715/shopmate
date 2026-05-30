@@ -12,7 +12,8 @@ data class ProductDetailUi(
     val description: String,
     val highlights: List<String>,
     val specs: List<ProductDetailSpecUi> = emptyList(),
-    val suitedForText: String = ""
+    val suitedForText: String = "",
+    val imageUrl: String? = null
 )
 
 data class ProductDetailSpecUi(

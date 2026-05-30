@@ -49,6 +49,7 @@ import com.shopmate.app.data.mock.MockShopMateData
 import com.shopmate.app.ui.components.ShopMateCircleIconButton
 import com.shopmate.app.ui.components.ShopMateElevatedSurface
 import com.shopmate.app.ui.components.ShopMateFigmaFrameWidth
+import com.shopmate.app.ui.components.ShopMateProductImage
 import com.shopmate.app.ui.components.ShopMateStatusMessage
 import com.shopmate.app.ui.components.scaledDp
 import com.shopmate.app.ui.model.CartItemUi
@@ -423,8 +424,9 @@ private fun CartItemCard(
                 .background(Color(0xFFF8F8F8)),
             contentAlignment = Alignment.Center
         ) {
-            Image(
-                painter = painterResource(id = line.item.product.imageRes),
+            ShopMateProductImage(
+                imageUrl = line.item.product.imageUrl,
+                placeholderRes = line.item.product.imageRes,
                 contentDescription = line.item.product.name,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop

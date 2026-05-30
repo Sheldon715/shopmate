@@ -1,5 +1,7 @@
 package com.shopmate.app.data.cart
 
+import com.shopmate.app.data.network.ShopMateApiConfig
+import com.shopmate.app.data.network.ShopMateImageUrlResolver
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
@@ -24,6 +26,23 @@ class DefaultCartRepositoryTest {
         assertEquals("¥398", content.items.single().subtotalText)
         assertEquals(2, content.summary.selectedCount)
         assertEquals("¥398", content.summary.selectedTotalText)
+    }
+
+    @Test
+    fun getCartResolvesProductImageUrl() = runTest {
+        val repository = DefaultCartRepository(
+            cartApiClient = FakeCartApiClient(response = successResponse()),
+            imageUrlResolver = ShopMateImageUrlResolver(
+                ShopMateApiConfig("https://api.example.test/base/"),
+            ),
+        )
+
+        val result = repository.getCart()
+
+        assertEquals(
+            "https://api.example.test/base/images/products/digital/images/product_001.png",
+            result.getOrThrow().items.single().product.imageUrl,
+        )
     }
 
     @Test
@@ -166,6 +185,7 @@ class DefaultCartRepositoryTest {
                         subtotalCents = 39800,
                         available = true,
                         tags = listOf("通勤", "蓝牙"),
+                        imagePath = "/images/products/digital/images/product_001.png",
                     ),
                 ),
                 summary = CartSummaryDto(

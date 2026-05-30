@@ -196,7 +196,8 @@ class CartApiClientTest {
                 "selected": true,
                 "subtotalCents": 39800,
                 "available": true,
-                "tags": ["通勤", "蓝牙"]
+                "tags": ["通勤", "蓝牙"],
+                "imagePath": "/images/products/digital/images/product_001.png"
               }
             ],
             "summary": {

@@ -1,5 +1,6 @@
 package com.shopmate.app.data.cart
 
+import com.shopmate.app.data.network.ShopMateImageUrlResolver
 import com.shopmate.app.data.network.ShopMateNetworkError
 import com.shopmate.app.ui.cart.CartContentUi
 import kotlinx.coroutines.CancellationException
@@ -15,6 +16,7 @@ interface CartRepository {
 
 class DefaultCartRepository(
     private val cartApiClient: CartApiClient,
+    private val imageUrlResolver: ShopMateImageUrlResolver? = null,
 ) : CartRepository {
     override suspend fun getCart(): Result<CartContentUi> =
         requestCart { cartApiClient.getCart() }
@@ -89,7 +91,7 @@ class DefaultCartRepository(
             val response = block()
             when {
                 response.success && response.data != null ->
-                    Result.success(response.data.toCartContentUi())
+                    Result.success(response.data.toCartContentUi(imageUrlResolver))
 
                 response.error?.code == PRODUCT_NOT_FOUND_CODE ->
                     Result.failure(CartOperationError.ProductNotFound)

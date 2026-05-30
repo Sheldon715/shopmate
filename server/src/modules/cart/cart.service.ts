@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getDatabasePool } from "../../lib/db/pool";
+import { getEnv } from "../../lib/env";
 import {
   findActiveProductsByIds,
   findProductById,
@@ -35,6 +36,7 @@ export interface PatchCartItemInput {
 }
 
 export interface CartServiceDependencies {
+  publicImageBaseUrl?: string;
   findCartItems(userKey: string): Promise<CartItemRecord[]>;
   findProductsByIds(productIds: string[]): Promise<Product[]>;
   findProductById(productId: string): Promise<Product | null>;
@@ -171,7 +173,9 @@ export class CartService {
       items.map((item) => item.productId),
     );
 
-    return mapCartToDto(items, products);
+    return mapCartToDto(items, products, {
+      publicImageBaseUrl: this.dependencies.publicImageBaseUrl,
+    });
   }
 }
 
@@ -216,7 +220,10 @@ export function parseCartItemIdParam(value: unknown): string {
 }
 
 function createDefaultCartServiceDependencies(): CartServiceDependencies {
+  const { publicImageBaseUrl } = getEnv();
+
   return {
+    publicImageBaseUrl,
     findCartItems: (userKey) => findCartItems(getDatabasePool(), userKey),
     findProductsByIds: (productIds) =>
       findActiveProductsByIds(getDatabasePool(), productIds),

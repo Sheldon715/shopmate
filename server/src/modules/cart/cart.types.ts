@@ -31,6 +31,7 @@ export interface CartItemDto {
   subtotalCents: number;
   available: boolean;
   tags: string[];
+  imagePath: string | null;
 }
 
 export interface CartDto {

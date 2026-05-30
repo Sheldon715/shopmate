@@ -1,5 +1,6 @@
 package com.shopmate.app.data.products
 
+import com.shopmate.app.data.network.ShopMateImageUrlResolver
 import com.shopmate.app.data.network.ShopMateNetworkError
 import com.shopmate.app.ui.model.ProductDetailUi
 
@@ -9,6 +10,7 @@ interface ProductRepository {
 
 class DefaultProductRepository(
     private val productApiClient: ProductApiClient,
+    private val imageUrlResolver: ShopMateImageUrlResolver? = null,
 ) : ProductRepository {
     override suspend fun getProductDetail(productId: String): Result<ProductDetailUi> {
         val normalizedProductId = productId.trim()
@@ -20,7 +22,7 @@ class DefaultProductRepository(
             val response = productApiClient.getProductDetail(normalizedProductId)
             when {
                 response.success && response.data != null ->
-                    Result.success(response.data.toProductDetailUi())
+                    Result.success(response.data.toProductDetailUi(imageUrlResolver))
 
                 response.error?.code == PRODUCT_NOT_FOUND_CODE ->
                     Result.failure(ProductDetailError.NotFound)

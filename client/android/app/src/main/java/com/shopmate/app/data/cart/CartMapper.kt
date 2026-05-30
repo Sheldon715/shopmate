@@ -1,19 +1,24 @@
 package com.shopmate.app.data.cart
 
 import com.shopmate.app.R
+import com.shopmate.app.data.network.ShopMateImageUrlResolver
 import com.shopmate.app.ui.cart.CartContentUi
 import com.shopmate.app.ui.cart.CartSummaryUi
 import com.shopmate.app.ui.model.CartItemUi
 import com.shopmate.app.ui.model.ProductCardUi
 import java.util.Locale
 
-fun CartDto.toCartContentUi(): CartContentUi =
+fun CartDto.toCartContentUi(
+    imageUrlResolver: ShopMateImageUrlResolver? = null,
+): CartContentUi =
     CartContentUi(
-        items = items.map { item -> item.toCartItemUi() },
+        items = items.map { item -> item.toCartItemUi(imageUrlResolver) },
         summary = summary.toCartSummaryUi(),
     )
 
-private fun CartItemDto.toCartItemUi(): CartItemUi =
+private fun CartItemDto.toCartItemUi(
+    imageUrlResolver: ShopMateImageUrlResolver?,
+): CartItemUi =
     CartItemUi(
         id = id,
         product = ProductCardUi(
@@ -23,6 +28,7 @@ private fun CartItemDto.toCartItemUi(): CartItemUi =
             imageRes = resolveProductImageRes(),
             tags = tags.filter { tag -> tag.isNotBlank() }.take(MAX_CART_TAGS),
             recommendationReason = buildCartReason(),
+            imageUrl = imageUrlResolver?.resolve(imagePath),
         ),
         quantity = quantity.coerceAtLeast(1),
         subtotalText = subtotalCents.formatPriceText(),

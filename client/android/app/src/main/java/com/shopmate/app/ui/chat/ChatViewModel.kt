@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.shopmate.app.data.chat.ChatRepository
 import com.shopmate.app.data.chat.ChatStreamEvent
 import com.shopmate.app.data.chat.toProductCardUiList
+import com.shopmate.app.data.network.ShopMateImageUrlResolver
 import com.shopmate.app.ui.model.HistoryConversationUi
 import com.shopmate.app.ui.model.ProductCardUi
 import kotlinx.coroutines.Job
@@ -18,6 +19,7 @@ import kotlinx.coroutines.launch
 
 class ChatViewModel(
     private val chatRepository: ChatRepository,
+    private val imageUrlResolver: ShopMateImageUrlResolver? = null,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
@@ -295,7 +297,7 @@ class ChatViewModel(
             is ChatStreamEvent.MessageDelta -> appendAssistantDelta(event.text)
             is ChatStreamEvent.ProductCards -> {
                 _uiState.update { state ->
-                    state.copy(productCards = event.items.toProductCardUiList())
+                    state.copy(productCards = event.items.toProductCardUiList(imageUrlResolver))
                         .also(::saveCurrentSession)
                 }
             }

@@ -8,6 +8,8 @@ import com.shopmate.app.data.chat.ChatRepository
 import com.shopmate.app.data.chat.ChatStreamClient
 import com.shopmate.app.data.chat.DefaultChatRepository
 import com.shopmate.app.data.chat.OkHttpChatStreamClient
+import com.shopmate.app.data.network.ShopMateApiConfig
+import com.shopmate.app.data.network.ShopMateImageUrlResolver
 import com.shopmate.app.data.products.DefaultProductRepository
 import com.shopmate.app.data.products.OkHttpProductApiClient
 import com.shopmate.app.data.products.ProductApiClient
@@ -17,8 +19,16 @@ import com.shopmate.app.ui.chat.ChatViewModelFactory
 import com.shopmate.app.ui.product.ProductDetailViewModelFactory
 
 class ShopMateAppContainer {
+    val apiConfig: ShopMateApiConfig by lazy {
+        ShopMateApiConfig.default()
+    }
+
+    val imageUrlResolver: ShopMateImageUrlResolver by lazy {
+        ShopMateImageUrlResolver(apiConfig)
+    }
+
     val chatStreamClient: ChatStreamClient by lazy {
-        OkHttpChatStreamClient()
+        OkHttpChatStreamClient(apiConfig = apiConfig)
     }
 
     val chatRepository: ChatRepository by lazy {
@@ -26,23 +36,23 @@ class ShopMateAppContainer {
     }
 
     val productApiClient: ProductApiClient by lazy {
-        OkHttpProductApiClient()
+        OkHttpProductApiClient(apiConfig = apiConfig)
     }
 
     val productRepository: ProductRepository by lazy {
-        DefaultProductRepository(productApiClient)
+        DefaultProductRepository(productApiClient, imageUrlResolver)
     }
 
     val cartApiClient: CartApiClient by lazy {
-        OkHttpCartApiClient()
+        OkHttpCartApiClient(apiConfig = apiConfig)
     }
 
     val cartRepository: CartRepository by lazy {
-        DefaultCartRepository(cartApiClient)
+        DefaultCartRepository(cartApiClient, imageUrlResolver)
     }
 
     fun chatViewModelFactory(): ChatViewModelFactory =
-        ChatViewModelFactory(chatRepository)
+        ChatViewModelFactory(chatRepository, imageUrlResolver)
 
     fun productDetailViewModelFactory(productId: String): ProductDetailViewModelFactory =
         ProductDetailViewModelFactory(productId, productRepository)

@@ -6,5 +6,6 @@ data class ProductCardUi(
     val priceText: String,
     val imageRes: Int,
     val tags: List<String>,
-    val recommendationReason: String
+    val recommendationReason: String,
+    val imageUrl: String? = null
 )

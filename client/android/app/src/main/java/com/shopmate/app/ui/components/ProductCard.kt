@@ -179,8 +179,9 @@ private fun ProductImage(
             .background(Color(0xFFF7F8F8)),
         contentAlignment = Alignment.Center
     ) {
-        Image(
-            painter = painterResource(id = product.imageRes),
+        ShopMateProductImage(
+            imageUrl = product.imageUrl,
+            placeholderRes = product.imageRes,
             contentDescription = product.name,
             modifier = Modifier
                 .fillMaxSize()

@@ -1,5 +1,7 @@
 package com.shopmate.app.data.products
 
+import com.shopmate.app.data.network.ShopMateApiConfig
+import com.shopmate.app.data.network.ShopMateImageUrlResolver
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -22,6 +24,20 @@ class ProductDetailMapperTest {
         assertTrue(ui.highlights.contains("半入耳轻盈"))
         assertTrue(ui.suitedForText.contains("适合通勤"))
         assertTrue(ui.suitedForText.contains("强降噪"))
+    }
+
+    @Test
+    fun mapsProductImagePathToRemoteUrlWhenResolverIsProvided() {
+        val ui = productDto().copy(
+            imagePath = "digital/images/product_001.png",
+        ).toProductDetailUi(
+            ShopMateImageUrlResolver(ShopMateApiConfig("https://api.example.test/")),
+        )
+
+        assertEquals(
+            "https://api.example.test/images/products/digital/images/product_001.png",
+            ui.imageUrl,
+        )
     }
 
     @Test
