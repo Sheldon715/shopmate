@@ -4,6 +4,26 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
+fun String.asBuildConfigString(): String = "\"${replace("\\", "\\\\").replace("\"", "\\\"")}\""
+
+fun gradlePropertyOrDefault(name: String, defaultValue: String): String =
+    providers.gradleProperty(name).orNull?.trim()?.takeIf { it.isNotEmpty() } ?: defaultValue
+
+fun requireHttpsApiBaseUrl(buildType: String, url: String) {
+    require(url.startsWith("https://", ignoreCase = true)) {
+        "$buildType SHOPMATE_API_BASE_URL must use HTTPS. Configure the matching Gradle property."
+    }
+}
+
+val defaultDebugApiBaseUrl = "http://10.0.2.2:3000/"
+val defaultDemoApiBaseUrl = "https://shopmate-api.example.invalid/"
+val debugApiBaseUrl = gradlePropertyOrDefault("SHOPMATE_DEBUG_API_BASE_URL", defaultDebugApiBaseUrl)
+val demoApiBaseUrl = gradlePropertyOrDefault("SHOPMATE_DEMO_API_BASE_URL", defaultDemoApiBaseUrl)
+val releaseApiBaseUrl = gradlePropertyOrDefault("SHOPMATE_RELEASE_API_BASE_URL", demoApiBaseUrl)
+
+requireHttpsApiBaseUrl("demo", demoApiBaseUrl)
+requireHttpsApiBaseUrl("release", releaseApiBaseUrl)
+
 android {
     namespace = "com.shopmate.app"
     compileSdk = 36
@@ -14,17 +34,34 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
-
-        buildConfigField(
-            "String",
-            "SHOPMATE_API_BASE_URL",
-            "\"http://10.0.2.2:3000/\"",
-        )
     }
 
     buildTypes {
+        debug {
+            buildConfigField(
+                "String",
+                "SHOPMATE_API_BASE_URL",
+                debugApiBaseUrl.asBuildConfigString(),
+            )
+        }
+
         release {
             isMinifyEnabled = false
+            buildConfigField(
+                "String",
+                "SHOPMATE_API_BASE_URL",
+                releaseApiBaseUrl.asBuildConfigString(),
+            )
+        }
+
+        create("demo") {
+            initWith(getByName("release"))
+            matchingFallbacks += listOf("release")
+            buildConfigField(
+                "String",
+                "SHOPMATE_API_BASE_URL",
+                demoApiBaseUrl.asBuildConfigString(),
+            )
         }
     }
 
