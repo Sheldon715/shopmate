@@ -8,10 +8,12 @@ class DefaultChatRepository(
 ) : ChatRepository {
     override fun streamChat(
         message: String,
+        conversationId: String,
         history: List<ChatMessageUi>,
     ): Flow<ChatStreamEvent> =
         chatStreamClient.streamChat(
             ChatStreamRequestDto(
+                conversationId = conversationId,
                 message = message.trim(),
                 history = history
                     .filter { chatMessage -> chatMessage.text.isNotBlank() }

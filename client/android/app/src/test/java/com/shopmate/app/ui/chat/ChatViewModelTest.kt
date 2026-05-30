@@ -7,6 +7,7 @@ import com.shopmate.app.data.chat.ChatStreamEvent
 import com.shopmate.app.data.chat.PriceRangeCentsDto
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -114,6 +115,7 @@ class ChatViewModelTest {
             object : ChatRepository {
                 override fun streamChat(
                     message: String,
+                    conversationId: String,
                     history: List<ChatMessageUi>,
                 ): Flow<ChatStreamEvent> = flow {
                     throw IllegalStateException("offline")
@@ -137,6 +139,7 @@ class ChatViewModelTest {
             object : ChatRepository {
                 override fun streamChat(
                     message: String,
+                    conversationId: String,
                     history: List<ChatMessageUi>,
                 ): Flow<ChatStreamEvent> = emptyFlow()
             },
@@ -310,6 +313,58 @@ class ChatViewModelTest {
     }
 
     @Test
+    fun newChatUsesNewConversationId() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("帮我推荐跑鞋")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+        repository.events.emit(
+            ChatStreamEvent.Done(
+                recommendedProductIds = emptyList(),
+                fallbackUsed = false,
+                fallbackReason = null,
+                retrieval = ChatRetrievalDto(candidateCount = 0),
+            ),
+        )
+        advanceUntilIdle()
+        val firstConversationId = repository.conversationIds.single()
+
+        viewModel.startNewChat()
+        viewModel.onComposerTextChange("帮我推荐手机")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        assertEquals(2, repository.conversationIds.size)
+        assertNotEquals(firstConversationId, repository.conversationIds.last())
+    }
+
+    @Test
+    fun retryKeepsCurrentConversationId() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("帮我推荐跑鞋")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+        repository.events.emit(
+            ChatStreamEvent.Error(
+                code = "CHAT_STREAM_CONNECTION_FAILED",
+                message = "failed",
+                retryable = true,
+            ),
+        )
+        advanceUntilIdle()
+        val firstConversationId = repository.conversationIds.single()
+
+        viewModel.retryLastMessage()
+        advanceUntilIdle()
+
+        assertEquals(listOf(firstConversationId, firstConversationId), repository.conversationIds)
+    }
+
+    @Test
     fun openHistoryConversationRestoresSavedSessionSnapshot() = runTest {
         val repository = FakeChatRepository()
         val viewModel = ChatViewModel(repository)
@@ -333,6 +388,38 @@ class ChatViewModelTest {
         assertEquals("product_001", restoredState.productCards.single().id)
         assertEquals("", restoredState.composerText)
         assertFalse(restoredState.isSending)
+    }
+
+    @Test
+    fun restoredHistoryConversationContinuesWithOriginalConversationId() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("帮我推荐跑鞋")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+        repository.events.emit(
+            ChatStreamEvent.Done(
+                recommendedProductIds = emptyList(),
+                fallbackUsed = false,
+                fallbackReason = null,
+                retrieval = ChatRetrievalDto(candidateCount = 0),
+            ),
+        )
+        advanceUntilIdle()
+        val originalConversationId = repository.conversationIds.single()
+
+        viewModel.startNewChat()
+        assertTrue(viewModel.openHistoryConversation(originalConversationId))
+        viewModel.onComposerTextChange("要轻量的")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(originalConversationId, originalConversationId),
+            repository.conversationIds,
+        )
+        assertEquals(2, repository.histories.last().size)
     }
 
     @Test
@@ -380,12 +467,17 @@ class ChatViewModelTest {
     private class FakeChatRepository : ChatRepository {
         val events = MutableSharedFlow<ChatStreamEvent>()
         var streamCalls = 0
+        val conversationIds = mutableListOf<String>()
+        val histories = mutableListOf<List<ChatMessageUi>>()
 
         override fun streamChat(
             message: String,
+            conversationId: String,
             history: List<ChatMessageUi>,
         ): Flow<ChatStreamEvent> {
             streamCalls += 1
+            conversationIds += conversationId
+            histories += history
             return events
         }
     }

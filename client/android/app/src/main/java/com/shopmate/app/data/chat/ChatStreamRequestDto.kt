@@ -4,6 +4,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class ChatStreamRequestDto(
+    val conversationId: String? = null,
     val message: String,
     val history: List<ChatHistoryMessageDto> = emptyList(),
     val filters: ChatStreamFiltersDto? = null,

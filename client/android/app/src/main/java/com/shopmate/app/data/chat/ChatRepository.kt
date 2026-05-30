@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.Flow
 interface ChatRepository {
     fun streamChat(
         message: String,
+        conversationId: String,
         history: List<ChatMessageUi>,
     ): Flow<ChatStreamEvent>
 }

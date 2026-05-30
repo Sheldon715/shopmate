@@ -18,7 +18,7 @@ const commutingHeadphonesCard: ProductCardDto = {
   name: "通勤蓝牙耳机 A",
   brand: "示例品牌",
   category: "数码电子",
-  subCategory: "耳机",
+  subCategory: "真无线耳机",
   priceCents: 19900,
   priceRangeCents: {
     min: 17900,
@@ -36,7 +36,7 @@ const fallbackHeadphonesCard: ProductCardDto = {
   name: "长续航降噪耳机 B",
   brand: "示例品牌",
   category: "数码电子",
-  subCategory: "耳机",
+  subCategory: "真无线耳机",
   priceCents: 45900,
   priceRangeCents: {
     min: 42900,
@@ -70,6 +70,18 @@ const successDone: ChatDonePayload = {
   retrieval: {
     candidateCount: 3,
     returnedProductIds: ["product_001"],
+  },
+  contextMemory: {
+    conversationId: "local-chat-session-1",
+    lastIntent: "推荐通勤蓝牙耳机",
+    constraints: {
+      category: "数码电子",
+      subCategory: "真无线耳机",
+      maxPriceCents: 50000,
+      preferenceTerms: ["轻量"],
+      avoidTerms: [],
+    },
+    lastRecommendedProductIds: ["product_001"],
   },
 };
 

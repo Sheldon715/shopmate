@@ -23,6 +23,7 @@ describe("createChatStreamController", () => {
       return createResultFromFixture(chatContractFixtures.successStream.events);
     });
     const request = createRequest({
+      conversationId: "local-chat-session-1",
       message: " recommend one ",
       history: [{ role: "user", content: " light please " }],
       filters: { category: "Electronics" },
@@ -38,6 +39,7 @@ describe("createChatStreamController", () => {
 
     expect(calls[0]).toMatchObject({
       question: "recommend one",
+      conversationId: "local-chat-session-1",
       shortHistory: [{ role: "user", content: "light please" }],
       filters: { category: "Electronics" },
       topK: 8,
@@ -331,6 +333,7 @@ function createResultFromFixture(
     fallbackUsed: donePayload.fallbackUsed,
     fallbackReason: donePayload.fallbackReason ?? undefined,
     retrieval: donePayload.retrieval,
+    contextMemory: donePayload.contextMemory,
   });
 }
 

@@ -14,6 +14,7 @@ class DefaultChatRepositoryTest {
 
         repository.streamChat(
             message = "  推荐耳机  ",
+            conversationId = "local-chat-session-1",
             history = listOf(
                 ChatMessageUi(id = "1", text = "oldest", fromUser = true),
                 ChatMessageUi(id = "2", text = "one", fromUser = false),
@@ -25,6 +26,7 @@ class DefaultChatRepositoryTest {
         )
 
         val request = client.lastRequest
+        assertEquals("local-chat-session-1", request.conversationId)
         assertEquals("推荐耳机", request.message)
         assertEquals(
             listOf(

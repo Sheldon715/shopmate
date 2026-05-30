@@ -7,6 +7,7 @@ import {
 describe("parseChatStreamRequestBody", () => {
   it("maps a valid request body to a RagChatRequest", () => {
     const request = parseChatStreamRequestBody({
+      conversationId: "local-chat-session-1",
       message: "  recommend commuting headphones  ",
       history: [
         { role: "user", content: "  I care about battery life. " },
@@ -27,6 +28,7 @@ describe("parseChatStreamRequestBody", () => {
     });
 
     expect(request).toEqual({
+      conversationId: "local-chat-session-1",
       question: "recommend commuting headphones",
       shortHistory: [
         { role: "user", content: "I care about battery life." },
@@ -68,6 +70,27 @@ describe("parseChatStreamRequestBody", () => {
     );
     expect(() =>
       parseChatStreamRequestBody({ message: "a".repeat(1001) })
+    ).toThrow(ChatStreamRequestError);
+  });
+
+  it("accepts safe optional conversation ids and rejects unsafe values", () => {
+    expect(parseChatStreamRequestBody({
+      conversationId: "session_1.demo-2",
+      message: "hello",
+    }).conversationId).toBe("session_1.demo-2");
+
+    expect(() =>
+      parseChatStreamRequestBody({
+        conversationId: "session/1",
+        message: "hello",
+      })
+    ).toThrow(ChatStreamRequestError);
+
+    expect(() =>
+      parseChatStreamRequestBody({
+        conversationId: "a".repeat(81),
+        message: "hello",
+      })
     ).toThrow(ChatStreamRequestError);
   });
 

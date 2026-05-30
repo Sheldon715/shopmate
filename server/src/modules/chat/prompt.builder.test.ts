@@ -12,6 +12,16 @@ describe("buildRagPrompt", () => {
     const messages = buildRagPrompt({
       question: "I need a sunscreen for commuting.",
       generatedAt: new Date("2026-05-27T10:00:00.000Z"),
+      contextMemory: {
+        conversationId: "local-chat-session-1",
+        lastIntent: "推荐防晒霜",
+        constraints: {
+          maxPriceCents: 50000,
+          preferenceTerms: ["轻量"],
+          avoidTerms: ["酒精"],
+        },
+        lastRecommendedProductIds: ["product_001"],
+      },
       shortHistory: [
         { role: "user", content: "oldest message should be dropped" },
         { role: "assistant", content: "first kept answer" },
@@ -28,6 +38,12 @@ describe("buildRagPrompt", () => {
     expect(text).toContain("synthetic");
     expect(text).toContain("curated demo catalog");
     expect(text).toContain("I need a sunscreen for commuting.");
+    expect(text).toContain("当前会话记忆");
+    expect(text).toContain("推荐防晒霜");
+    expect(text).toContain("预算上限：500 元");
+    expect(text).toContain("会话记忆只能辅助理解当前用户问题");
+    expect(text).not.toContain("conversationId");
+    expect(text).not.toContain("local-chat-session-1");
     expect(text).toContain("first kept answer");
     expect(text).toContain("latest kept question");
     expect(text).not.toContain("oldest message should be dropped");

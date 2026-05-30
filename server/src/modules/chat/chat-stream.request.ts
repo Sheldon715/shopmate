@@ -4,6 +4,8 @@ import type { VectorSearchFilters } from "../vector/vector-search.types";
 export const CHAT_STREAM_REQUEST_ERROR_CODE = "INVALID_CHAT_REQUEST";
 
 const MESSAGE_MAX_LENGTH = 1000;
+const CONVERSATION_ID_MAX_LENGTH = 80;
+const CONVERSATION_ID_PATTERN = /^[A-Za-z0-9._-]+$/u;
 const HISTORY_MAX_ITEMS = 4;
 const HISTORY_CONTENT_MAX_LENGTH = 500;
 const TOP_K_MIN = 1;
@@ -41,6 +43,7 @@ export function parseChatStreamRequestBody(body: unknown): RagChatRequest {
   }
 
   return {
+    conversationId: readConversationId(body.conversationId),
     question: readRequiredString(body.message, "message", MESSAGE_MAX_LENGTH),
     shortHistory: readHistory(body.history),
     filters: readFilters(body.filters),
@@ -52,6 +55,28 @@ export function parseChatStreamRequestBody(body: unknown): RagChatRequest {
       MAX_RECOMMENDED_PRODUCTS_MAX,
     ),
   };
+}
+
+function readConversationId(value: unknown): string | undefined {
+  const conversationId = readOptionalString(value, "conversationId");
+
+  if (conversationId === undefined) {
+    return undefined;
+  }
+
+  if (Array.from(conversationId).length > CONVERSATION_ID_MAX_LENGTH) {
+    throw new ChatStreamRequestError(
+      `conversationId cannot be longer than ${CONVERSATION_ID_MAX_LENGTH} characters`,
+    );
+  }
+
+  if (!CONVERSATION_ID_PATTERN.test(conversationId)) {
+    throw new ChatStreamRequestError(
+      "conversationId can only include letters, numbers, -, _, and .",
+    );
+  }
+
+  return conversationId;
 }
 
 function readHistory(value: unknown): ChatHistoryMessage[] | undefined {
