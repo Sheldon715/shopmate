@@ -20,7 +20,7 @@ function createNormalizedProduct(): NormalizedProduct {
     currency: "CNY",
     base_price: 199.99,
     price_range: [199.99, 219.5],
-    image_path: "beauty/prod_cleanser_001/main.png",
+    image_path: "beauty/images/prod_cleanser_001_main.png",
     image_caption: "洁面乳主图",
     visual_tags: ["控油", "温和"],
     skus: [
@@ -91,7 +91,7 @@ function createProduct(): Product {
     brand: "示例品牌",
     category: "美妆护肤",
     subCategory: "洁面",
-    imagePath: "beauty/prod_cleanser_001/main.png",
+    imagePath: "beauty/images/prod_cleanser_001_main.png",
     imageCaption: "洁面乳主图",
     currency: "CNY",
     basePriceCents: 19999,
@@ -231,7 +231,7 @@ describe("mapProductToCardDto", () => {
         max: 21950,
       },
       currency: "CNY",
-      imagePath: "beauty/prod_cleanser_001/main.png",
+      imagePath: "/images/products/beauty/images/prod_cleanser_001_main.png",
       ratingAvg: 4.7,
       tags: ["控油", "温和"],
       available: true,
@@ -257,5 +257,15 @@ describe("mapProductToDetailDto", () => {
       officialFaq: product.officialFaq,
       contentBlocks: product.contentBlocks,
     });
+  });
+
+  it("can map image paths to an absolute public image base URL", () => {
+    const detail = mapProductToDetailDto(createProduct(), {
+      publicImageBaseUrl: "https://api.example",
+    });
+
+    expect(detail.imagePath).toBe(
+      "https://api.example/images/products/beauty/images/prod_cleanser_001_main.png",
+    );
   });
 });

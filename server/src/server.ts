@@ -1,8 +1,18 @@
 import { app } from "./app";
 import { getEnv } from "./lib/env";
 
-const { port } = getEnv();
+const { host, port } = getEnv();
 
-app.listen(port, () => {
-  console.log(`ShopMate server listening on port ${port}`);
-});
+const onListening = (): void => {
+  console.log(
+    host
+      ? `ShopMate server listening on ${host}:${port}`
+      : `ShopMate server listening on port ${port}`,
+  );
+};
+
+if (host) {
+  app.listen(port, host, onListening);
+} else {
+  app.listen(port, onListening);
+}

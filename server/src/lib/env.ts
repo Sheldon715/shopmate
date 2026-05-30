@@ -9,12 +9,16 @@ export type NodeEnv = "development" | "test" | "production";
 
 export interface ServerEnv {
   port: number;
+  host?: string;
   nodeEnv: NodeEnv;
   logLevel: string;
+  corsAllowedOrigins: string[];
   databaseUrl?: string;
   rawDataDir: string;
   processedDataDir: string;
   ragDataDir: string;
+  staticImageRoot: string;
+  publicImageBaseUrl?: string;
   importDryRun: boolean;
   importStrict: boolean;
   qdrantUrl: string;
@@ -123,6 +127,19 @@ function readOptionalString(name: string): string | undefined {
   return value && value.length > 0 ? value : undefined;
 }
 
+function readStringList(name: string): string[] {
+  const value = process.env[name];
+
+  if (!value) {
+    return [];
+  }
+
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+}
+
 function readEmbeddingEndpointKind(): EmbeddingEndpointKind {
   const value = process.env.EMBEDDING_ENDPOINT_KIND ?? "multimodal_embeddings";
 
@@ -169,15 +186,24 @@ export function getEnv(): ServerEnv {
     path.join(processedDataDir, "rag"),
     projectRoot,
   );
+  const staticImageRoot = resolveProjectPath(
+    process.env.SHOPMATE_STATIC_IMAGE_ROOT,
+    path.join(projectRoot, "data", "raw", "ecommerce_agent_dataset_v3"),
+    projectRoot,
+  );
 
   cachedEnv = {
     port: readNumber("PORT", 3000),
+    host: readOptionalString("HOST"),
     nodeEnv: readNodeEnv(),
     logLevel: process.env.LOG_LEVEL ?? "info",
+    corsAllowedOrigins: readStringList("CORS_ALLOWED_ORIGINS"),
     databaseUrl: process.env.DATABASE_URL,
     rawDataDir,
     processedDataDir,
     ragDataDir,
+    staticImageRoot,
+    publicImageBaseUrl: readOptionalString("PUBLIC_IMAGE_BASE_URL"),
     importDryRun: readBoolean("IMPORT_DRY_RUN", true),
     importStrict: readBoolean("IMPORT_STRICT", false),
     qdrantUrl: process.env.QDRANT_URL ?? "http://localhost:6333",

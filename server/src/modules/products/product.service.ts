@@ -1,4 +1,5 @@
 import { getDatabasePool } from "../../lib/db/pool";
+import { getEnv } from "../../lib/env";
 import { findProductById, findProducts } from "./product.repository";
 import {
   mapProductToCardDto,
@@ -128,8 +129,11 @@ export async function listProducts(
   query: ProductListQuery,
 ): Promise<ProductCardDto[]> {
   const products = await findProducts(getDatabasePool(), query);
+  const { publicImageBaseUrl } = getEnv();
 
-  return products.map((product) => mapProductToCardDto(product));
+  return products.map((product) =>
+    mapProductToCardDto(product, { publicImageBaseUrl })
+  );
 }
 
 export async function getProductDetail(
@@ -141,5 +145,7 @@ export async function getProductDetail(
     throw new ProductNotFoundError(productId);
   }
 
-  return mapProductToDetailDto(product);
+  return mapProductToDetailDto(product, {
+    publicImageBaseUrl: getEnv().publicImageBaseUrl,
+  });
 }

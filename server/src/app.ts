@@ -1,11 +1,16 @@
 import express from "express";
 import type { ErrorRequestHandler, RequestHandler } from "express";
+import { getEnv } from "./lib/env";
+import { createCorsMiddleware } from "./middleware/cors";
 import { cartRouter } from "./modules/cart/cart.routes";
 import { chatRouter } from "./modules/chat/chat.routes";
+import { healthRouter } from "./modules/health/health.routes";
+import { productImageRouter } from "./modules/images/image.routes";
 import { productRouter } from "./modules/products/product.routes";
 import { fail } from "./types/api-response";
 
 export const app = express();
+const { corsAllowedOrigins } = getEnv();
 
 const apiNotFoundHandler: RequestHandler = (request, response) => {
   response
@@ -35,9 +40,12 @@ const apiErrorHandler: ErrorRequestHandler = (
   response.status(500).json(fail("INTERNAL_ERROR", "Internal server error."));
 };
 
+app.use(createCorsMiddleware(corsAllowedOrigins));
 app.use(express.json());
+app.use("/images/products", productImageRouter);
 app.use("/api/chat", chatRouter);
 app.use("/api/cart", cartRouter);
+app.use("/api/health", healthRouter);
 app.use("/api/products", productRouter);
 app.use("/api", apiNotFoundHandler);
 

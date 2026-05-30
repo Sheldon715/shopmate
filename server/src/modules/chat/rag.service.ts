@@ -1,4 +1,5 @@
 import { getDatabasePool } from "../../lib/db/pool";
+import { getEnv } from "../../lib/env";
 import type { LlmClient } from "../llm/llm.types";
 import { createLlmClient } from "../llm/openai-compatible-chat.client";
 import { mapProductToCardDto } from "../products/product.mapper";
@@ -43,6 +44,7 @@ export interface RagChatServiceOptions {
   now?: () => Date;
   maxSnippetsPerProduct?: number;
   defaultMaxRecommendedProducts?: number;
+  publicImageBaseUrl?: string;
 }
 
 interface RetrievedProductCandidate {
@@ -73,6 +75,7 @@ export class RagChatService {
   private readonly now: () => Date;
   private readonly maxSnippetsPerProduct: number;
   private readonly defaultMaxRecommendedProducts: number;
+  private readonly publicImageBaseUrl?: string;
 
   constructor(options: RagChatServiceOptions = {}) {
     this.vectorSearch = options.vectorSearch ?? new VectorSearchService();
@@ -83,6 +86,8 @@ export class RagChatService {
       options.maxSnippetsPerProduct ?? DEFAULT_MAX_SNIPPETS_PER_PRODUCT;
     this.defaultMaxRecommendedProducts =
       options.defaultMaxRecommendedProducts ?? DEFAULT_MAX_RECOMMENDED_PRODUCTS;
+    this.publicImageBaseUrl =
+      options.publicImageBaseUrl ?? getEnv().publicImageBaseUrl;
   }
 
   async answer(input: RagChatRequest): Promise<RagChatResult> {
@@ -143,6 +148,7 @@ export class RagChatService {
           contexts,
           maxRecommendedProducts,
           "NO_VALID_PRODUCT_IDS",
+          this.publicImageBaseUrl,
         );
       }
 
@@ -150,6 +156,7 @@ export class RagChatService {
         compactAnswer(parsed.answer),
         recommendedProductIds,
         contexts,
+        this.publicImageBaseUrl,
       );
     } catch (error) {
       return createRetrievedFallbackResult(
@@ -158,6 +165,7 @@ export class RagChatService {
         error instanceof RagLlmOutputParseError
           ? "LLM_INVALID_OUTPUT"
           : "LLM_ERROR",
+        this.publicImageBaseUrl,
       );
     }
   }
@@ -260,11 +268,14 @@ function createRetrievedFallbackResult(
   contexts: RetrievedProductContext[],
   maxRecommendedProducts: number,
   fallbackReason: RagChatFallbackReason,
+  publicImageBaseUrl?: string,
 ): RagChatResult {
   const products = contexts
     .slice(0, maxRecommendedProducts)
     .map((context) => context.product);
-  const productCards = products.map((product) => mapProductToCardDto(product));
+  const productCards = products.map((product) =>
+    mapProductToCardDto(product, { publicImageBaseUrl })
+  );
   const recommendedProductIds = products.map((product) => product.id);
 
   return {
@@ -284,6 +295,7 @@ function createSuccessResult(
   answer: string,
   recommendedProductIds: string[],
   contexts: RetrievedProductContext[],
+  publicImageBaseUrl?: string,
 ): RagChatResult {
   const productsById = new Map(
     contexts.map((context) => [context.product.id, context.product]),
@@ -293,7 +305,9 @@ function createSuccessResult(
 
     return product ? [product] : [];
   });
-  const productCards = products.map((product) => mapProductToCardDto(product));
+  const productCards = products.map((product) =>
+    mapProductToCardDto(product, { publicImageBaseUrl })
+  );
   const returnedProductIds = productCards.map((card) => card.id);
 
   return {

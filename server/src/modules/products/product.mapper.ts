@@ -2,6 +2,7 @@ import type {
   NormalizedProduct,
   NormalizedSku,
 } from "../../lib/catalog/types";
+import { resolvePublicProductImagePath } from "../images/image.service";
 import type {
   JsonValue,
   Product,
@@ -13,6 +14,10 @@ import type {
   ProductSkuUpsertInput,
   ProductWithSkusUpsertInput,
 } from "./product.types";
+
+export interface ProductMapperOptions {
+  publicImageBaseUrl?: string;
+}
 
 function toJsonValue(value: unknown): JsonValue {
   return value as JsonValue;
@@ -239,7 +244,10 @@ export function mapProductRowToProduct(
   };
 }
 
-export function mapProductToCardDto(product: Product): ProductCardDto {
+export function mapProductToCardDto(
+  product: Product,
+  options: ProductMapperOptions = {},
+): ProductCardDto {
   return {
     id: product.id,
     name: product.name,
@@ -252,7 +260,10 @@ export function mapProductToCardDto(product: Product): ProductCardDto {
       max: product.priceMaxCents,
     },
     currency: product.currency,
-    imagePath: product.imagePath,
+    imagePath: resolvePublicProductImagePath(
+      product.imagePath,
+      options.publicImageBaseUrl,
+    ),
     ratingAvg: product.ratingAvg,
     tags: product.visualTags,
     available: product.skus.length === 0
@@ -261,9 +272,12 @@ export function mapProductToCardDto(product: Product): ProductCardDto {
   };
 }
 
-export function mapProductToDetailDto(product: Product): ProductDetailDto {
+export function mapProductToDetailDto(
+  product: Product,
+  options: ProductMapperOptions = {},
+): ProductDetailDto {
   return {
-    ...mapProductToCardDto(product),
+    ...mapProductToCardDto(product, options),
     marketingDescription: product.marketingDescription,
     skus: product.skus,
     attributes: product.attributes,
