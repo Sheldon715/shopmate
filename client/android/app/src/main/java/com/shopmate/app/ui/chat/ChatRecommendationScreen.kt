@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
@@ -16,10 +17,12 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -40,6 +43,7 @@ import com.shopmate.app.ui.components.ShopMateStatusMessage
 import com.shopmate.app.ui.components.ShopMateTopActionBar
 import com.shopmate.app.ui.components.scaledDp
 import com.shopmate.app.ui.model.HistoryConversationUi
+import com.shopmate.app.ui.model.ProductCardUi
 import com.shopmate.app.ui.sidebar.SidebarHistoryDrawer
 import com.shopmate.app.ui.theme.ShopMateTheme
 import com.shopmate.app.ui.theme.shopMateScreenBackground
@@ -81,11 +85,23 @@ fun ChatRecommendationScreen(
         val bottomScrimTop = composerTop - 28f.s()
         val scrollBottomPadding = (maxHeight - bottomScrimTop) + 18f.s()
 
+        val scrollState = rememberScrollState()
+
+        LaunchedEffect(
+            state.messages.size,
+            state.messages.lastOrNull()?.text,
+            state.productCards.size,
+            state.errorMessage,
+        ) {
+            withFrameNanos { }
+            scrollState.animateScrollTo(scrollState.maxValue)
+        }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .clipToBounds()
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(scrollState),
         ) {
             ChatStreamColumnContent(
                 state = state,
@@ -220,43 +236,30 @@ private fun ChatStreamColumnContent(
         }
 
         state.messages.forEach { message ->
-            if (message.isTypingPlaceholder()) {
-                ChatTypingIndicatorBubble(
-                    textScale = scale,
-                    modifier = Modifier
-                        .padding(start = 16f.s())
-                        .align(Alignment.Start)
-                        .size(width = 66f.s(), height = 34f.s()),
-                )
-            } else {
-                ChatMessageBubble(
-                    text = message.displayText(),
-                    fromUser = message.fromUser,
-                    textScale = scale,
-                    modifier = Modifier
-                        .padding(
-                            start = if (message.fromUser) 72f.s() else 16f.s(),
-                            end = if (message.fromUser) 16f.s() else 18f.s(),
-                        )
-                        .align(if (message.fromUser) Alignment.End else Alignment.Start)
-                        .widthIn(max = if (message.fromUser) 272f.s() else 285f.s()),
+            ChatMessageItem(
+                message = message,
+                scale = scale,
+                modifier = Modifier.align(
+                    if (message.fromUser) Alignment.End else Alignment.Start,
+                ),
+            )
+
+            if (message.id == state.productCardsAnchorMessageId) {
+                ProductCardList(
+                    products = state.productCards,
+                    scale = scale,
+                    onProductClick = onProductClick,
+                    onAddCartClick = onAddCartClick,
                 )
             }
         }
 
-        state.productCards.forEach { product ->
-            ProductCard(
-                product = product,
-                enabled = true,
-                onClick = {
-                    onProductClick(product.id)
-                },
-                onAddCartClick = {
-                    onAddCartClick(product.id)
-                },
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .size(width = 360.667f.s(), height = 179.104f.s()),
+        if (state.productCardsAnchorMessageId == null) {
+            ProductCardList(
+                products = state.productCards,
+                scale = scale,
+                onProductClick = onProductClick,
+                onAddCartClick = onAddCartClick,
             )
         }
 
@@ -272,6 +275,62 @@ private fun ChatStreamColumnContent(
                     .size(width = 352.667f.s(), height = 246f.s()),
             )
         }
+    }
+}
+
+@Composable
+private fun ChatMessageItem(
+    message: ChatMessageUi,
+    scale: Float,
+    modifier: Modifier = Modifier,
+) {
+    fun Float.s(): Dp = scaledDp(scale)
+
+    if (message.isTypingPlaceholder()) {
+        ChatTypingIndicatorBubble(
+            textScale = scale,
+            modifier = modifier
+                .padding(start = 16f.s())
+                .size(width = 66f.s(), height = 34f.s()),
+        )
+    } else {
+        ChatMessageBubble(
+            text = message.displayText(),
+            fromUser = message.fromUser,
+            textScale = scale,
+            modifier = modifier
+                .padding(
+                    start = if (message.fromUser) 72f.s() else 16f.s(),
+                    end = if (message.fromUser) 16f.s() else 18f.s(),
+                )
+                .widthIn(max = if (message.fromUser) 272f.s() else 285f.s()),
+        )
+    }
+}
+
+@Composable
+private fun ColumnScope.ProductCardList(
+    products: List<ProductCardUi>,
+    scale: Float,
+    onProductClick: (String) -> Unit,
+    onAddCartClick: (String) -> Unit,
+) {
+    fun Float.s(): Dp = scaledDp(scale)
+
+    products.forEach { product ->
+        ProductCard(
+            product = product,
+            enabled = true,
+            onClick = {
+                onProductClick(product.id)
+            },
+            onAddCartClick = {
+                onAddCartClick(product.id)
+            },
+            modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+                .size(width = 360.667f.s(), height = 179.104f.s()),
+        )
     }
 }
 

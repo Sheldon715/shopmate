@@ -1,5 +1,11 @@
 import { getDatabasePool } from "../../lib/db/pool";
 import { getEnv } from "../../lib/env";
+import {
+  CartProductNotFoundError,
+  CartProductUnavailableError,
+  CartService,
+} from "../cart/cart.service";
+import type { CartDto } from "../cart/cart.types";
 import type { LlmClient } from "../llm/llm.types";
 import { createLlmClient } from "../llm/openai-compatible-chat.client";
 import { mapProductToCardDto } from "../products/product.mapper";
@@ -18,6 +24,12 @@ import type {
   RagChatResult,
   RetrievedProductContext,
 } from "./chat.types";
+import { CartCommandService } from "./cart-command.service";
+import { CartCommandIntentService } from "./cart-command-intent.service";
+import type {
+  CartActionResult,
+  CartCommandDetection,
+} from "./cart-command.types";
 import { ChatContextMemoryService } from "./chat-context-memory.service";
 import { ClarificationService } from "./clarification.service";
 import type {
@@ -43,13 +55,25 @@ export interface RagProductReader {
   findActiveByIds(productIds: string[]): Promise<Product[]>;
 }
 
+export interface RagCartWriter {
+  addItem(input: { productId: string; quantity: number }): Promise<CartDto>;
+}
+
+export type RagCartCommandIntentDetector = Pick<
+  CartCommandIntentService,
+  "detect"
+>;
+
 export interface RagChatServiceOptions {
   vectorSearch?: RagVectorSearchClient;
   productReader?: RagProductReader;
+  cartWriter?: RagCartWriter;
   llmClient?: LlmClient;
   now?: () => Date;
   contextMemoryService?: ChatContextMemoryService;
   clarificationService?: ClarificationService;
+  cartCommandService?: CartCommandService;
+  cartCommandIntentService?: RagCartCommandIntentDetector;
   maxSnippetsPerProduct?: number;
   defaultMaxRecommendedProducts?: number;
   publicImageBaseUrl?: string;
@@ -79,10 +103,13 @@ export class RagChatError extends Error {
 export class RagChatService {
   private readonly vectorSearch: RagVectorSearchClient;
   private readonly productReader: RagProductReader;
+  private readonly cartWriter: RagCartWriter;
   private readonly llmClient: LlmClient;
   private readonly now: () => Date;
   private readonly contextMemoryService: ChatContextMemoryService;
   private readonly clarificationService: ClarificationService;
+  private readonly cartCommandService: CartCommandService;
+  private readonly cartCommandIntentService: RagCartCommandIntentDetector;
   private readonly maxSnippetsPerProduct: number;
   private readonly defaultMaxRecommendedProducts: number;
   private readonly publicImageBaseUrl?: string;
@@ -90,6 +117,7 @@ export class RagChatService {
   constructor(options: RagChatServiceOptions = {}) {
     this.vectorSearch = options.vectorSearch ?? new VectorSearchService();
     this.productReader = options.productReader ?? createDefaultProductReader();
+    this.cartWriter = options.cartWriter ?? new CartService();
     this.llmClient = options.llmClient ?? createLlmClient();
     this.now = options.now ?? (() => new Date());
     this.contextMemoryService =
@@ -97,6 +125,14 @@ export class RagChatService {
       ?? new ChatContextMemoryService({ now: this.now });
     this.clarificationService =
       options.clarificationService ?? new ClarificationService();
+    this.cartCommandService =
+      options.cartCommandService ?? new CartCommandService();
+    this.cartCommandIntentService =
+      options.cartCommandIntentService
+      ?? new CartCommandIntentService({
+        llmClient: this.llmClient,
+        cartCommandService: this.cartCommandService,
+      });
     this.maxSnippetsPerProduct =
       options.maxSnippetsPerProduct ?? DEFAULT_MAX_SNIPPETS_PER_PRODUCT;
     this.defaultMaxRecommendedProducts =
@@ -121,6 +157,23 @@ export class RagChatService {
       question,
       filters: input.filters,
     });
+    const cartCommandDetection = await this.cartCommandIntentService.detect({
+      question,
+      contextMemory: memoryResolution.contextMemory,
+      requestId: input.requestId,
+      abortSignal: input.abortSignal,
+    });
+
+    if (cartCommandDetection.isCartCommand) {
+      return this.withContextMemory(
+        memoryResolution,
+        await this.answerCartCommand(
+          cartCommandDetection,
+          memoryResolution.contextMemory?.lastRecommendedProductIds ?? [],
+        ),
+      );
+    }
+
     const clarificationDecision = this.clarificationService.decide({
       question,
       contextMemory: memoryResolution.contextMemory,
@@ -240,6 +293,114 @@ export class RagChatService {
       ? { ...result, contextMemory }
       : result;
   }
+
+  private async answerCartCommand(
+    detection: Extract<CartCommandDetection, { isCartCommand: true }>,
+    recentProductIds: string[],
+  ): Promise<RagChatResult> {
+    const products = orderProductsByIds(
+      await this.productReader.findActiveByIds(recentProductIds),
+      recentProductIds,
+    );
+    const productCards = products.map((product) =>
+      mapProductToCardDto(product, { publicImageBaseUrl: this.publicImageBaseUrl })
+    );
+    const recommendedProductIds = productCards.map((card) => card.id);
+    const resolvedTarget = this.cartCommandService.resolveTarget({
+      detection,
+      products,
+    });
+    const baseRetrieval = {
+      candidateCount: products.length,
+      returnedProductIds: recommendedProductIds,
+    };
+
+    if (resolvedTarget.status === "missing") {
+      return createCartCommandResult({
+        answer: "我还没有可加购的推荐商品。你可以先让我推荐几款，再说加第几个。",
+        productCards,
+        recommendedProductIds,
+        fallbackReason: "CART_TARGET_MISSING",
+        retrieval: baseRetrieval,
+        cartAction: {
+          type: "add",
+          status: "needs_target",
+          quantity: detection.quantity,
+          message: "缺少可加购的推荐商品",
+        },
+      });
+    }
+
+    if (resolvedTarget.status === "ambiguous") {
+      return createCartCommandResult({
+        answer: "你想加哪一款？可以说“加第二个”，或直接点商品卡片加购。",
+        productCards,
+        recommendedProductIds,
+        fallbackReason: "CART_TARGET_AMBIGUOUS",
+        retrieval: baseRetrieval,
+        cartAction: {
+          type: "add",
+          status: "needs_target",
+          quantity: detection.quantity,
+          message: "需要确认要加入购物车的商品",
+        },
+      });
+    }
+
+    if (resolvedTarget.status === "not_found" || !resolvedTarget.product) {
+      return createCartCommandResult({
+        answer: "我没能在最近推荐里找到你说的那款商品。你可以说“加第一个”或点商品卡片加购。",
+        productCards,
+        recommendedProductIds,
+        fallbackReason: "CART_TARGET_MISSING",
+        retrieval: baseRetrieval,
+        cartAction: {
+          type: "add",
+          status: "not_found",
+          quantity: detection.quantity,
+          message: "最近推荐里没有匹配商品",
+        },
+      });
+    }
+
+    try {
+      await this.cartWriter.addItem({
+        productId: resolvedTarget.product.id,
+        quantity: detection.quantity,
+      });
+
+      return createCartCommandResult({
+        answer: "已把这款商品加入购物车，你可以点右上角购物车查看。",
+        productCards,
+        recommendedProductIds,
+        fallbackUsed: false,
+        retrieval: baseRetrieval,
+        cartAction: {
+          type: "add",
+          status: "success",
+          productId: resolvedTarget.product.id,
+          productName: resolvedTarget.product.name,
+          quantity: detection.quantity,
+          message: "已加入购物车",
+        },
+      });
+    } catch (error) {
+      const cartAction = mapCartAddErrorToAction(
+        error,
+        resolvedTarget.product,
+        detection.quantity,
+      );
+
+      return createCartCommandResult({
+        answer: cartAction.message,
+        productCards,
+        recommendedProductIds,
+        fallbackReason: "CART_ADD_FAILED",
+        retrieval: baseRetrieval,
+        cartAction,
+      });
+    }
+  }
 }
 
 function createClarificationResult(
@@ -266,6 +427,19 @@ function createDefaultProductReader(): RagProductReader {
     findActiveByIds: (productIds) =>
       findActiveProductsByIds(getDatabasePool(), productIds),
   };
+}
+
+function orderProductsByIds(
+  products: Product[],
+  productIds: string[],
+): Product[] {
+  const productsById = new Map(products.map((product) => [product.id, product]));
+
+  return productIds.flatMap((productId) => {
+    const product = productsById.get(productId);
+
+    return product ? [product] : [];
+  });
 }
 
 function dedupeVectorHits(
@@ -409,6 +583,63 @@ function createSuccessResult(
       candidateCount: contexts.length,
       returnedProductIds,
     },
+  };
+}
+
+function createCartCommandResult(input: {
+  answer: string;
+  productCards: ReturnType<typeof mapProductToCardDto>[];
+  recommendedProductIds: string[];
+  fallbackUsed?: boolean;
+  fallbackReason?: RagChatFallbackReason;
+  retrieval: RagChatResult["retrieval"];
+  cartAction: CartActionResult;
+}): RagChatResult {
+  return {
+    answer: input.answer,
+    recommendedProductIds: input.recommendedProductIds,
+    productCards: input.productCards,
+    fallbackUsed: input.fallbackUsed ?? true,
+    fallbackReason: input.fallbackReason,
+    retrieval: input.retrieval,
+    cartAction: input.cartAction,
+  };
+}
+
+function mapCartAddErrorToAction(
+  error: unknown,
+  product: Product,
+  quantity: number,
+): CartActionResult {
+  if (error instanceof CartProductUnavailableError) {
+    return {
+      type: "add",
+      status: "unavailable",
+      productId: product.id,
+      productName: product.name,
+      quantity,
+      message: "这款商品当前不可加购，可以看看其他推荐商品。",
+    };
+  }
+
+  if (error instanceof CartProductNotFoundError) {
+    return {
+      type: "add",
+      status: "not_found",
+      productId: product.id,
+      productName: product.name,
+      quantity,
+      message: "这款商品不存在或已下架，可以看看其他推荐商品。",
+    };
+  }
+
+  return {
+    type: "add",
+    status: "failed",
+    productId: product.id,
+    productName: product.name,
+    quantity,
+    message: "暂时没能加入购物车，请稍后再试。",
   };
 }
 

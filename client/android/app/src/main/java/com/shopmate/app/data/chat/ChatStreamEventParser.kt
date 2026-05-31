@@ -35,6 +35,7 @@ fun parseChatStreamEvent(
                     fallbackReason = payload.fallbackReason,
                     clarification = payload.clarification,
                     retrieval = payload.retrieval,
+                    cartAction = payload.cartAction,
                 )
             }
 
@@ -83,6 +84,7 @@ private data class DonePayloadDto(
     val fallbackReason: String? = null,
     val clarification: ChatClarificationDto? = null,
     val retrieval: ChatRetrievalDto,
+    val cartAction: ChatCartActionDto? = null,
 )
 
 @Serializable

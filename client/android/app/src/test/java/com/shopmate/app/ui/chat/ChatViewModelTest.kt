@@ -1,5 +1,6 @@
 package com.shopmate.app.ui.chat
 
+import com.shopmate.app.data.chat.ChatCartActionDto
 import com.shopmate.app.data.chat.ChatProductCardDto
 import com.shopmate.app.data.chat.ChatRepository
 import com.shopmate.app.data.chat.ChatClarificationDto
@@ -8,13 +9,16 @@ import com.shopmate.app.data.chat.ChatStreamEvent
 import com.shopmate.app.data.chat.PriceRangeCentsDto
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -83,7 +87,89 @@ class ChatViewModelTest {
         assertEquals("好的，推荐这款。", state.messages.last().text)
         assertFalse(state.messages.last().isStreaming)
         assertEquals("product_001", state.productCards.single().id)
+        assertEquals(state.messages.last().id, state.productCardsAnchorMessageId)
         assertEquals(null, state.errorMessage)
+    }
+
+    @Test
+    fun addCartCommandKeepsExistingProductCardsWhileStreaming() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("推荐耳机")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+        repository.events.emit(ChatStreamEvent.ProductCards(listOf(productDto())))
+        repository.events.emit(
+            ChatStreamEvent.Done(
+                recommendedProductIds = listOf("product_001"),
+                fallbackUsed = false,
+                fallbackReason = null,
+                retrieval = ChatRetrievalDto(candidateCount = 1),
+            ),
+        )
+        advanceUntilIdle()
+
+        viewModel.onComposerTextChange("把这个加到购物车")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.isSending)
+        assertEquals("product_001", state.productCards.single().id)
+        val originalCardAnchorMessageId = state.productCardsAnchorMessageId
+        assertEquals(false, state.messages.last().id == originalCardAnchorMessageId)
+        assertEquals("把这个加到购物车", state.messages.dropLast(1).last().text)
+
+        repository.events.emit(ChatStreamEvent.ProductCards(listOf(productDto())))
+        advanceUntilIdle()
+
+        assertEquals(originalCardAnchorMessageId, viewModel.uiState.value.productCardsAnchorMessageId)
+    }
+
+    @Test
+    fun existingProductCardAnchorDoesNotMoveWhenSendingLaterMessages() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("推荐耳机")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+        repository.events.emit(ChatStreamEvent.ProductCards(listOf(productDto())))
+        repository.events.emit(
+            ChatStreamEvent.Done(
+                recommendedProductIds = listOf("product_001"),
+                fallbackUsed = false,
+                fallbackReason = null,
+                retrieval = ChatRetrievalDto(candidateCount = 1),
+            ),
+        )
+        advanceUntilIdle()
+        val originalCardAnchorMessageId = viewModel.uiState.value.productCardsAnchorMessageId
+
+        viewModel.onComposerTextChange("把第一个加进购物车")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+        repository.events.emit(ChatStreamEvent.MessageDelta("已加入购物车。", 0))
+        repository.events.emit(ChatStreamEvent.ProductCards(listOf(productDto())))
+        repository.events.emit(
+            ChatStreamEvent.Done(
+                recommendedProductIds = listOf("product_001"),
+                fallbackUsed = false,
+                fallbackReason = null,
+                retrieval = ChatRetrievalDto(candidateCount = 1),
+            ),
+        )
+        advanceUntilIdle()
+
+        viewModel.onComposerTextChange("第一个也是")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(originalCardAnchorMessageId, state.productCardsAnchorMessageId)
+        assertEquals("第一个也是", state.messages.dropLast(1).last().text)
+        assertEquals(false, state.messages.last().id == originalCardAnchorMessageId)
     }
 
     @Test
@@ -135,6 +221,91 @@ class ChatViewModelTest {
 
         assertEquals(2, repository.conversationIds.size)
         assertEquals(repository.conversationIds.first(), repository.conversationIds.last())
+    }
+
+    @Test
+    fun successfulCartActionEmitsRefreshCartSideEffectWithoutChatError() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("把第二个加进去")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        val sideEffect = backgroundScope.async {
+            viewModel.sideEffects.first()
+        }
+        repository.events.emit(
+            ChatStreamEvent.MessageDelta(
+                text = "已把这款商品加入购物车，你可以点右上角购物车查看。",
+                index = 0,
+            ),
+        )
+        repository.events.emit(ChatStreamEvent.ProductCards(listOf(productDto())))
+        repository.events.emit(
+            ChatStreamEvent.Done(
+                recommendedProductIds = listOf("product_001"),
+                fallbackUsed = false,
+                fallbackReason = null,
+                retrieval = ChatRetrievalDto(candidateCount = 1),
+                cartAction = ChatCartActionDto(
+                    type = "add",
+                    status = "success",
+                    productId = "product_001",
+                    productName = "通勤蓝牙耳机",
+                    quantity = 1,
+                    message = "已加入购物车",
+                ),
+            ),
+        )
+        advanceUntilIdle()
+
+        assertIs<ChatSideEffect.RefreshCart>(sideEffect.await())
+        val state = viewModel.uiState.value
+        assertFalse(state.isSending)
+        assertEquals(null, state.errorMessage)
+        assertEquals("已把这款商品加入购物车，你可以点右上角购物车查看。", state.messages.last().text)
+        assertEquals("product_001", state.productCards.single().id)
+    }
+
+    @Test
+    fun nonSuccessCartActionDoesNotEmitRefreshOrChatError() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("把这个加到购物车")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        repository.events.emit(
+            ChatStreamEvent.MessageDelta(
+                text = "我看到有多款推荐，你想加第几个？可以说“加第二个”。",
+                index = 0,
+            ),
+        )
+        repository.events.emit(ChatStreamEvent.ProductCards(listOf(productDto())))
+        repository.events.emit(
+            ChatStreamEvent.Done(
+                recommendedProductIds = listOf("product_001"),
+                fallbackUsed = true,
+                fallbackReason = "CART_TARGET_AMBIGUOUS",
+                retrieval = ChatRetrievalDto(candidateCount = 1),
+                cartAction = ChatCartActionDto(
+                    type = "add",
+                    status = "needs_target",
+                    quantity = 1,
+                    message = "需要确认要加入购物车的商品",
+                ),
+            ),
+        )
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(null, state.errorMessage)
+        assertFalse(state.canRetry)
+        assertEquals("product_001", state.productCards.single().id)
+        assertEquals("我看到有多款推荐，你想加第几个？可以说“加第二个”。", state.messages.last().text)
+        assertEquals(0, viewModel.sideEffects.replayCache.size)
     }
 
     @Test

@@ -40,6 +40,11 @@ describe("chat contract fixtures", () => {
       "product_cards",
       "done",
     ]);
+    expect(eventNames(chatContractFixtures.cartAddStream.events)).toEqual([
+      "message_delta",
+      "product_cards",
+      "done",
+    ]);
   });
 
   it("serializes every fixture event with writeSseEvent", async () => {
@@ -104,6 +109,13 @@ describe("chat contract fixtures", () => {
       if (event.payload.fallbackReason === "NEEDS_CLARIFICATION") {
         expect(event.payload.clarification).toEqual({
           missingSlots: ["budget", "priority"],
+        });
+      }
+      if (event.payload.cartAction) {
+        expect(event.payload.cartAction).toMatchObject({
+          type: "add",
+          status: expect.any(String) as unknown as string,
+          message: expect.any(String) as unknown as string,
         });
       }
     }

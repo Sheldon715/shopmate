@@ -20,6 +20,7 @@ import com.shopmate.app.data.mock.MockShopMateData
 import com.shopmate.app.ui.cart.CartScreen
 import com.shopmate.app.ui.cart.CartViewModel
 import com.shopmate.app.ui.chat.ChatRecommendationScreen
+import com.shopmate.app.ui.chat.ChatSideEffect
 import com.shopmate.app.ui.chat.ChatViewModel
 import com.shopmate.app.ui.comparison.ProductComparisonScreen
 import com.shopmate.app.ui.home.HomeChatEntryScreen
@@ -64,6 +65,13 @@ class MainActivity : ComponentActivity() {
                     factory = appContainer.cartViewModelFactory()
                 )
                 val cartUiState by cartViewModel.uiState.collectAsState()
+                LaunchedEffect(chatViewModel) {
+                    chatViewModel.sideEffects.collect { effect ->
+                        when (effect) {
+                            is ChatSideEffect.RefreshCart -> cartViewModel.refresh()
+                        }
+                    }
+                }
                 cartUiState.operationMessage?.let { message ->
                     LaunchedEffect(message.id) {
                         Toast.makeText(

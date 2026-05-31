@@ -2,6 +2,7 @@ package com.shopmate.app.ui.chat
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.shopmate.app.data.chat.ChatCartActionDto
 import com.shopmate.app.data.chat.ChatRepository
 import com.shopmate.app.data.chat.ChatStreamEvent
 import com.shopmate.app.data.chat.toProductCardUiList
@@ -9,8 +10,11 @@ import com.shopmate.app.data.network.ShopMateImageUrlResolver
 import com.shopmate.app.ui.model.HistoryConversationUi
 import com.shopmate.app.ui.model.ProductCardUi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.onCompletion
@@ -23,12 +27,15 @@ class ChatViewModel(
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
+    private val _sideEffects = MutableSharedFlow<ChatSideEffect>()
+    val sideEffects: SharedFlow<ChatSideEffect> = _sideEffects.asSharedFlow()
 
     private var streamJob: Job? = null
     private var lastSentMessage: String? = null
     private var messageSequence = 0
     private var sessionSequence = 0
     private var currentSessionId: String? = null
+    private var preservingProductCardsForCurrentStream = false
     private val sessionSnapshots = mutableMapOf<String, ChatSessionSnapshot>()
 
     fun onComposerTextChange(text: String) {
@@ -87,6 +94,7 @@ class ChatViewModel(
         val historyConversations = saveCurrentSession(state)
         streamJob?.cancel()
         streamJob = null
+        preservingProductCardsForCurrentStream = false
         lastSentMessage = null
         currentSessionId = null
         _uiState.value = ChatUiState(historyConversations = historyConversations)
@@ -109,6 +117,7 @@ class ChatViewModel(
             state.copy(
                 messages = snapshot.messages,
                 productCards = snapshot.productCards,
+                productCardsAnchorMessageId = snapshot.productCardsAnchorMessageId,
                 composerText = "",
                 isSending = false,
                 errorMessage = null,
@@ -148,6 +157,7 @@ class ChatViewModel(
         if (wasCurrentSession) {
             streamJob?.cancel()
             streamJob = null
+            preservingProductCardsForCurrentStream = false
             currentSessionId = null
             lastSentMessage = null
         }
@@ -179,6 +189,7 @@ class ChatViewModel(
         val snapshot = ChatSessionSnapshot(
             messages = state.messages.map { message -> message.copy(isStreaming = false) },
             productCards = state.productCards,
+            productCardsAnchorMessageId = state.productCardsAnchorMessageId,
         )
         sessionSnapshots[sessionId] = snapshot
 
@@ -231,6 +242,7 @@ class ChatViewModel(
     private data class ChatSessionSnapshot(
         val messages: List<ChatMessageUi>,
         val productCards: List<ProductCardUi>,
+        val productCardsAnchorMessageId: String?,
     )
 
     private fun startStream(
@@ -240,6 +252,7 @@ class ChatViewModel(
     ) {
         streamJob?.cancel()
         lastSentMessage = message
+        preservingProductCardsForCurrentStream = false
         val conversationId = currentSessionId ?: nextSessionId().also { id ->
             currentSessionId = id
         }
@@ -255,6 +268,8 @@ class ChatViewModel(
             fromUser = false,
             isStreaming = true,
         )
+        val shouldKeepProductCards = shouldKeepProductCardsForMessage(message)
+        preservingProductCardsForCurrentStream = shouldKeepProductCards
 
         _uiState.update { state ->
             val (sessionId, historyConversations) = ensureCurrentSessionHistory(
@@ -262,14 +277,17 @@ class ChatViewModel(
                 sessionId = conversationId,
                 userMessage = userMessage,
             )
+            val nextProductCards = state.productCards
             sessionSnapshots[sessionId] = ChatSessionSnapshot(
                 messages = history + userMessage + assistantMessage.copy(isStreaming = false),
-                productCards = emptyList(),
+                productCards = nextProductCards,
+                productCardsAnchorMessageId = state.productCardsAnchorMessageId,
             )
 
             state.copy(
                 messages = history + userMessage + assistantMessage,
-                productCards = emptyList(),
+                productCards = nextProductCards,
+                productCardsAnchorMessageId = state.productCardsAnchorMessageId,
                 historyConversations = historyConversations,
                 composerText = if (clearComposer) "" else state.composerText,
                 isSending = true,
@@ -299,12 +317,23 @@ class ChatViewModel(
             is ChatStreamEvent.MessageDelta -> appendAssistantDelta(event.text)
             is ChatStreamEvent.ProductCards -> {
                 _uiState.update { state ->
-                    state.copy(productCards = event.items.toProductCardUiList(imageUrlResolver))
+                    val lastAssistantId = state.messages.lastOrNull { message ->
+                        !message.fromUser
+                    }?.id
+                    state.copy(
+                        productCards = event.items.toProductCardUiList(imageUrlResolver),
+                        productCardsAnchorMessageId = if (preservingProductCardsForCurrentStream) {
+                            state.productCardsAnchorMessageId
+                        } else {
+                            lastAssistantId
+                        },
+                    )
                         .also(::saveCurrentSession)
                 }
             }
 
             is ChatStreamEvent.Done -> {
+                emitCartActionSideEffect(event.cartAction)
                 _uiState.update { state ->
                     state.copy(
                         messages = state.messages.markAssistantDone(),
@@ -317,6 +346,7 @@ class ChatViewModel(
                         canRetry = false,
                     ).also(::saveCurrentSession)
                 }
+                preservingProductCardsForCurrentStream = false
             }
 
             is ChatStreamEvent.Error -> {
@@ -328,6 +358,7 @@ class ChatViewModel(
                         canRetry = event.retryable,
                     ).also(::saveCurrentSession)
                 }
+                preservingProductCardsForCurrentStream = false
             }
 
             is ChatStreamEvent.Unknown -> Unit
@@ -344,6 +375,18 @@ class ChatViewModel(
         }
     }
 
+    private fun emitCartActionSideEffect(cartAction: ChatCartActionDto?) {
+        if (cartAction?.type != CART_ACTION_ADD_TYPE ||
+            cartAction.status != CART_ACTION_SUCCESS_STATUS
+        ) {
+            return
+        }
+
+        viewModelScope.launch {
+            _sideEffects.emit(ChatSideEffect.RefreshCart(cartAction.message))
+        }
+    }
+
     private fun applyFailure(error: Throwable) {
         _uiState.update { state ->
             state.copy(
@@ -353,6 +396,7 @@ class ChatViewModel(
                 canRetry = true,
             ).also(::saveCurrentSession)
         }
+        preservingProductCardsForCurrentStream = false
     }
 
     private fun applyIncompleteStreamCompletion() {
@@ -368,6 +412,7 @@ class ChatViewModel(
                 ).also(::saveCurrentSession)
             }
         }
+        preservingProductCardsForCurrentStream = false
     }
 
     private fun nextMessageId(prefix: String): String {
@@ -416,4 +461,16 @@ private fun ChatStreamEvent.Done.shouldShowNoMatchError(
         fallbackUsed &&
         fallbackReason != NEEDS_CLARIFICATION_REASON
 
+private fun shouldKeepProductCardsForMessage(message: String): Boolean {
+    val normalized = message.replace(Regex("\\s+"), "")
+    val hasAddIntent = listOf("加", "加入", "放", "我要").any(normalized::contains)
+    val hasCartContext = listOf("购物车", "车里", "进去", "加进去").any(normalized::contains)
+    val hasTargetHint = Regex("第?\\d{1,2}|第?[一二两三四五六七八九十]|这个|这款|那款").containsMatchIn(normalized)
+    val isAlsoOrdinalFollowUp = hasTargetHint && Regex("也|也是|一起|同样|也要").containsMatchIn(normalized)
+
+    return isAlsoOrdinalFollowUp || hasAddIntent && (hasCartContext || hasTargetHint)
+}
+
 private const val NEEDS_CLARIFICATION_REASON = "NEEDS_CLARIFICATION"
+private const val CART_ACTION_ADD_TYPE = "add"
+private const val CART_ACTION_SUCCESS_STATUS = "success"

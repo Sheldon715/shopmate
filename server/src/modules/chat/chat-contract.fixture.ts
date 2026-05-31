@@ -146,6 +146,32 @@ const clarificationDone: ChatDonePayload = {
   },
 };
 
+const cartAddMessageDelta: ChatMessageDeltaPayload = {
+  text: "已把这款商品加入购物车，你可以点右上角购物车查看。",
+  index: 0,
+};
+
+const cartAddProductCards: ChatProductCardsPayload = {
+  items: [commutingHeadphonesCard],
+};
+
+const cartAddDone: ChatDonePayload = {
+  recommendedProductIds: ["product_001"],
+  fallbackUsed: false,
+  retrieval: {
+    candidateCount: 1,
+    returnedProductIds: ["product_001"],
+  },
+  cartAction: {
+    type: "add",
+    status: "success",
+    productId: "product_001",
+    productName: "通勤蓝牙耳机 A",
+    quantity: 1,
+    message: "已加入购物车",
+  },
+};
+
 export const chatContractFixtures = {
   successStream: {
     name: "success stream",
@@ -188,6 +214,15 @@ export const chatContractFixtures = {
       { eventName: "message_delta", payload: clarificationMessageDelta },
       { eventName: "product_cards", payload: clarificationProductCards },
       { eventName: "done", payload: clarificationDone },
+    ],
+  },
+  cartAddStream: {
+    name: "cart add stream",
+    description: "A cart add assistant message, product cards, and cartAction done payload.",
+    events: [
+      { eventName: "message_delta", payload: cartAddMessageDelta },
+      { eventName: "product_cards", payload: cartAddProductCards },
+      { eventName: "done", payload: cartAddDone },
     ],
   },
 } satisfies Record<string, ChatContractFixture>;

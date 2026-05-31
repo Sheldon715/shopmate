@@ -14,12 +14,17 @@ data class ChatMessageUi(
 data class ChatUiState(
     val messages: List<ChatMessageUi> = emptyList(),
     val productCards: List<ProductCardUi> = emptyList(),
+    val productCardsAnchorMessageId: String? = null,
     val historyConversations: List<HistoryConversationUi> = emptyList(),
     val composerText: String = "",
     val isSending: Boolean = false,
     val errorMessage: String? = null,
     val canRetry: Boolean = false,
 )
+
+sealed interface ChatSideEffect {
+    data class RefreshCart(val message: String? = null) : ChatSideEffect
+}
 
 internal val ChatPreviewUiState = ChatUiState(
     messages = listOf(

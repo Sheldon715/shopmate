@@ -149,6 +149,24 @@ describe("createChatStreamController", () => {
     expect(response.ended).toBe(true);
   });
 
+  it("streams cart action results in the done payload", async () => {
+    const service = createService(async () =>
+      createResultFromFixture(chatContractFixtures.cartAddStream.events)
+    );
+    const request = createRequest({ message: "把这个加到购物车" });
+    const response = new FakeResponse();
+
+    await createChatStreamController(service)(
+      request.asRequest(),
+      response.asResponse(),
+    );
+
+    expect(response.streamEvents()).toEqual(
+      chatContractFixtures.cartAddStream.events,
+    );
+    expect(response.ended).toBe(true);
+  });
+
   it("does not treat request body close as a client disconnect", async () => {
     let capturedSignal: AbortSignal | undefined;
     let resolveAnswer: ((result: RagChatResult) => void) | undefined;
@@ -353,6 +371,7 @@ function createResultFromFixture(
     clarification: donePayload.clarification,
     retrieval: donePayload.retrieval,
     contextMemory: donePayload.contextMemory,
+    cartAction: donePayload.cartAction,
   });
 }
 

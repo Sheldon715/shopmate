@@ -102,6 +102,37 @@ class ChatStreamEventParserTest {
     }
 
     @Test
+    fun parsesDoneCartAction() {
+        val event = parseChatStreamEvent(
+            "done",
+            """
+                {
+                  "recommendedProductIds": ["product_001"],
+                  "fallbackUsed": false,
+                  "retrieval": {
+                    "candidateCount": 1,
+                    "returnedProductIds": ["product_001"]
+                  },
+                  "cartAction": {
+                    "type": "add",
+                    "status": "success",
+                    "productId": "product_001",
+                    "productName": "通勤蓝牙耳机 A",
+                    "quantity": 1,
+                    "message": "已加入购物车"
+                  }
+                }
+            """.trimIndent(),
+        )
+
+        val done = assertIs<ChatStreamEvent.Done>(event)
+        assertEquals("add", done.cartAction?.type)
+        assertEquals("success", done.cartAction?.status)
+        assertEquals("product_001", done.cartAction?.productId)
+        assertEquals("已加入购物车", done.cartAction?.message)
+    }
+
+    @Test
     fun parsesClarificationDone() {
         val event = parseChatStreamEvent(
             "done",

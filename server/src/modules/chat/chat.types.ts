@@ -7,6 +7,7 @@ import type {
   VectorSearchHitMetadata,
 } from "../vector/vector-search.types";
 import type { ChatContextMemorySummary } from "./chat-context-memory.types";
+import type { CartActionResult, CartCommandFallbackReason } from "./cart-command.types";
 import type { ClarificationSlot } from "./clarification.types";
 
 export interface ChatHistoryMessage {
@@ -41,6 +42,7 @@ export interface ChatDonePayload {
     returnedProductIds: string[];
   };
   contextMemory?: ChatContextMemorySummary;
+  cartAction?: CartActionResult;
 }
 
 export interface ChatErrorPayload {
@@ -82,6 +84,7 @@ export interface RetrievedProductContext {
 }
 
 export type RagChatFallbackReason =
+  | CartCommandFallbackReason
   | "NEEDS_CLARIFICATION"
   | "NO_CANDIDATES"
   | "LLM_ERROR"
@@ -102,4 +105,5 @@ export interface RagChatResult {
     returnedProductIds: string[];
   };
   contextMemory?: ChatContextMemorySummary;
+  cartAction?: CartActionResult;
 }
