@@ -124,6 +124,28 @@ const noProductDone: ChatDonePayload = {
   },
 };
 
+const clarificationMessageDelta: ChatMessageDeltaPayload = {
+  text: "你更看重拍照、续航、预算还是性价比？告诉我一两个重点，我再帮你筛。",
+  index: 0,
+};
+
+const clarificationProductCards: ChatProductCardsPayload = {
+  items: [],
+};
+
+const clarificationDone: ChatDonePayload = {
+  recommendedProductIds: [],
+  fallbackUsed: true,
+  fallbackReason: "NEEDS_CLARIFICATION",
+  clarification: {
+    missingSlots: ["budget", "priority"],
+  },
+  retrieval: {
+    candidateCount: 0,
+    returnedProductIds: [],
+  },
+};
+
 export const chatContractFixtures = {
   successStream: {
     name: "success stream",
@@ -157,6 +179,15 @@ export const chatContractFixtures = {
       { eventName: "message_delta", payload: noProductMessageDelta },
       { eventName: "product_cards", payload: noProductCards },
       { eventName: "done", payload: noProductDone },
+    ],
+  },
+  clarificationStream: {
+    name: "clarification stream",
+    description: "A clarification question, no product cards, and a done event.",
+    events: [
+      { eventName: "message_delta", payload: clarificationMessageDelta },
+      { eventName: "product_cards", payload: clarificationProductCards },
+      { eventName: "done", payload: clarificationDone },
     ],
   },
 } satisfies Record<string, ChatContractFixture>;

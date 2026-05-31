@@ -7,6 +7,7 @@ import type {
   VectorSearchHitMetadata,
 } from "../vector/vector-search.types";
 import type { ChatContextMemorySummary } from "./chat-context-memory.types";
+import type { ClarificationSlot } from "./clarification.types";
 
 export interface ChatHistoryMessage {
   role: "user" | "assistant";
@@ -32,6 +33,9 @@ export interface ChatDonePayload {
   recommendedProductIds: string[];
   fallbackUsed: boolean;
   fallbackReason?: RagChatFallbackReason | null;
+  clarification?: {
+    missingSlots: ClarificationSlot[];
+  };
   retrieval: {
     candidateCount: number;
     returnedProductIds: string[];
@@ -78,6 +82,7 @@ export interface RetrievedProductContext {
 }
 
 export type RagChatFallbackReason =
+  | "NEEDS_CLARIFICATION"
   | "NO_CANDIDATES"
   | "LLM_ERROR"
   | "LLM_INVALID_OUTPUT"
@@ -89,6 +94,9 @@ export interface RagChatResult {
   productCards: ProductCardDto[];
   fallbackUsed: boolean;
   fallbackReason?: RagChatFallbackReason;
+  clarification?: {
+    missingSlots: ClarificationSlot[];
+  };
   retrieval: {
     candidateCount: number;
     returnedProductIds: string[];

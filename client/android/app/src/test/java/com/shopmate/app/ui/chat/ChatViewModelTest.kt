@@ -2,6 +2,7 @@ package com.shopmate.app.ui.chat
 
 import com.shopmate.app.data.chat.ChatProductCardDto
 import com.shopmate.app.data.chat.ChatRepository
+import com.shopmate.app.data.chat.ChatClarificationDto
 import com.shopmate.app.data.chat.ChatRetrievalDto
 import com.shopmate.app.data.chat.ChatStreamEvent
 import com.shopmate.app.data.chat.PriceRangeCentsDto
@@ -83,6 +84,82 @@ class ChatViewModelTest {
         assertFalse(state.messages.last().isStreaming)
         assertEquals("product_001", state.productCards.single().id)
         assertEquals(null, state.errorMessage)
+    }
+
+    @Test
+    fun clarificationDoneKeepsAssistantTextEditableComposerAndNoRetry() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("推荐一款手机")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        repository.events.emit(
+            ChatStreamEvent.MessageDelta(
+                text = "你更看重拍照、续航、预算还是性价比？告诉我一两个重点，我再帮你筛。",
+                index = 0,
+            ),
+        )
+        repository.events.emit(ChatStreamEvent.ProductCards(emptyList()))
+        repository.events.emit(
+            ChatStreamEvent.Done(
+                recommendedProductIds = emptyList(),
+                fallbackUsed = true,
+                fallbackReason = "NEEDS_CLARIFICATION",
+                clarification = ChatClarificationDto(
+                    missingSlots = listOf("budget", "priority"),
+                ),
+                retrieval = ChatRetrievalDto(candidateCount = 0),
+            ),
+        )
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isSending)
+        assertEquals(
+            "你更看重拍照、续航、预算还是性价比？告诉我一两个重点，我再帮你筛。",
+            state.messages.last().text,
+        )
+        assertFalse(state.messages.last().isStreaming)
+        assertEquals(null, state.errorMessage)
+        assertFalse(state.canRetry)
+        assertEquals(1, state.historyConversations.size)
+        assertEquals("推荐一款手机", state.historyConversations.single().title)
+
+        viewModel.onComposerTextChange("预算 3000 左右，拍照好一点")
+        assertEquals("预算 3000 左右，拍照好一点", viewModel.uiState.value.composerText)
+
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        assertEquals(2, repository.conversationIds.size)
+        assertEquals(repository.conversationIds.first(), repository.conversationIds.last())
+    }
+
+    @Test
+    fun unknownEmptyFallbackReasonStillShowsNoMatchMessage() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("很难匹配的需求")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        repository.events.emit(ChatStreamEvent.ProductCards(emptyList()))
+        repository.events.emit(
+            ChatStreamEvent.Done(
+                recommendedProductIds = emptyList(),
+                fallbackUsed = true,
+                fallbackReason = "SOME_NEW_REASON",
+                retrieval = ChatRetrievalDto(candidateCount = 0),
+            ),
+        )
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals("当前商品库暂时没有完全匹配的商品，可以调整需求再试试。", state.errorMessage)
+        assertFalse(state.canRetry)
     }
 
     @Test

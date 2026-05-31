@@ -162,6 +162,113 @@ describe("RagChatService", () => {
     });
   });
 
+  it("returns clarification for a broad product request before vector search or LLM", async () => {
+    let vectorSearchCalled = false;
+    let productLookupCalled = false;
+    let llmCalled = false;
+    const service = new RagChatService({
+      vectorSearch: {
+        search: async () => {
+          vectorSearchCalled = true;
+          return [];
+        },
+      },
+      productReader: {
+        findActiveByIds: async () => {
+          productLookupCalled = true;
+          return [];
+        },
+      },
+      llmClient: new MockLlmClient({
+        handler: () => {
+          llmCalled = true;
+          return createLlmResponse("{}");
+        },
+      }),
+      contextMemoryService: new ChatContextMemoryService({
+        store: new ChatContextMemoryStore(),
+      }),
+    });
+
+    const result = await service.answer({
+      conversationId: "clarify-demo-1",
+      question: "推荐一款手机",
+    });
+
+    expect(vectorSearchCalled).toBe(false);
+    expect(productLookupCalled).toBe(false);
+    expect(llmCalled).toBe(false);
+    expect(result).toMatchObject({
+      answer: "你更看重拍照、续航、预算还是性价比？告诉我一两个重点，我再帮你筛。",
+      recommendedProductIds: [],
+      productCards: [],
+      fallbackUsed: true,
+      fallbackReason: "NEEDS_CLARIFICATION",
+      clarification: {
+        missingSlots: ["budget", "priority"],
+      },
+      retrieval: {
+        candidateCount: 0,
+        returnedProductIds: [],
+      },
+      contextMemory: {
+        conversationId: "clarify-demo-1",
+        lastIntent: "推荐一款手机",
+        pendingClarification: {
+          originalQuestion: "推荐一款手机",
+          missingSlots: ["budget", "priority"],
+        },
+      },
+    });
+  });
+
+  it("uses the original intent after the user answers a clarification question", async () => {
+    const vectorCalls: Array<Parameters<RagVectorSearchClient["search"]>[0]> = [];
+    const contextMemoryService = new ChatContextMemoryService({
+      store: new ChatContextMemoryStore(),
+    });
+    const service = new RagChatService({
+      vectorSearch: {
+        search: async (input) => {
+          vectorCalls.push(input);
+          return [createHit("product_001")];
+        },
+      },
+      productReader: createProductReader(),
+      contextMemoryService,
+      llmClient: new MockLlmClient({
+        response: createLlmResponse(
+          JSON.stringify({
+            answer: "Use product 1.",
+            recommended_product_ids: ["product_001"],
+          }),
+        ),
+      }),
+    });
+
+    await service.answer({
+      conversationId: "clarify-demo-1",
+      question: "推荐一款手机",
+    });
+    const result = await service.answer({
+      conversationId: "clarify-demo-1",
+      question: "预算 3000 左右，拍照好一点",
+    });
+
+    expect(vectorCalls).toHaveLength(1);
+    expect(vectorCalls[0]).toMatchObject({
+      query: expect.stringContaining("推荐一款手机") as unknown as string,
+      filters: {
+        category: "数码电子",
+        subCategory: "智能手机",
+        maxPriceCents: 330000,
+      },
+    });
+    expect(vectorCalls[0]?.query).toContain("拍照");
+    expect(result.fallbackUsed).toBe(false);
+    expect(result.contextMemory?.pendingClarification).toBeUndefined();
+  });
+
   it("skips stale vector hits missing from active PostgreSQL products", async () => {
     let llmCalled = false;
     const service = new RagChatService({
@@ -261,7 +368,7 @@ describe("RagChatService", () => {
 
     await service.answer({
       conversationId: "local-chat-session-1",
-      question: "帮我推荐跑鞋",
+      question: "帮我推荐日常跑步用的跑鞋",
     });
     const result = await service.answer({
       conversationId: "local-chat-session-1",
@@ -269,7 +376,7 @@ describe("RagChatService", () => {
     });
 
     expect(vectorCalls[1]).toMatchObject({
-      query: expect.stringContaining("帮我推荐跑鞋") as unknown as string,
+      query: expect.stringContaining("帮我推荐日常跑步用的跑鞋") as unknown as string,
       filters: {
         category: "服饰运动",
         subCategory: "跑步鞋",
@@ -281,7 +388,7 @@ describe("RagChatService", () => {
       .toContain("当前会话记忆");
     expect(result.contextMemory).toMatchObject({
       conversationId: "local-chat-session-1",
-      lastIntent: "帮我推荐跑鞋",
+      lastIntent: "帮我推荐日常跑步用的跑鞋",
       constraints: {
         category: "服饰运动",
         subCategory: "跑步鞋",

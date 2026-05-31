@@ -71,6 +71,88 @@ describe("ChatContextMemoryService", () => {
     });
   });
 
+  it("treats approximate budget wording as a soft ceiling", () => {
+    const service = createService();
+
+    const resolution = service.resolve({
+      conversationId: "phone-session",
+      question: "预算 3000 左右，拍照好一点",
+    });
+
+    expect(resolution.filters).toMatchObject({
+      maxPriceCents: 330000,
+    });
+  });
+
+  it("parses colloquial Chinese budget shorthand", () => {
+    const service = createService();
+
+    const shorthand = service.resolve({
+      conversationId: "phone-session",
+      question: "预算三千五左右，拍照好一点",
+    });
+    const exactWithZero = service.resolve({
+      conversationId: "phone-session-2",
+      question: "预算三千零五左右，拍照好一点",
+    });
+    const wanShorthand = service.resolve({
+      conversationId: "phone-session-3",
+      question: "预算一万二左右，拍照好一点",
+    });
+
+    expect(shorthand.filters).toMatchObject({
+      maxPriceCents: 385000,
+    });
+    expect(exactWithZero.filters).toMatchObject({
+      maxPriceCents: 330550,
+    });
+    expect(wanShorthand.filters).toMatchObject({
+      maxPriceCents: 1320000,
+    });
+  });
+
+  it("keeps strict budget wording as a hard ceiling", () => {
+    const service = createService();
+
+    const resolution = service.resolve({
+      conversationId: "phone-session",
+      question: "预算 3000 以内，拍照好一点",
+    });
+
+    expect(resolution.filters).toMatchObject({
+      maxPriceCents: 300000,
+    });
+  });
+
+  it("stores pending clarification metadata and clears it on the next normal commit", () => {
+    const service = createService();
+    const broadRequest = service.resolve({
+      conversationId: "session-1",
+      question: "推荐一款手机",
+    });
+    const clarificationSummary = service.commit(broadRequest, [], {
+      pendingClarification: {
+        originalQuestion: "推荐一款手机",
+        missingSlots: ["budget", "priority"],
+      },
+    });
+
+    expect(clarificationSummary?.pendingClarification).toEqual({
+      originalQuestion: "推荐一款手机",
+      missingSlots: ["budget", "priority"],
+    });
+
+    const answeredRequest = service.resolve({
+      conversationId: "session-1",
+      question: "预算 3000，拍照好一点",
+    });
+    const answeredSummary = service.commit(answeredRequest, ["phone_001"]);
+
+    expect(answeredSummary?.pendingClarification).toBeUndefined();
+    expect(answeredSummary?.lastIntent).toBe("推荐一款手机");
+    expect(answeredSummary?.lastRecommendedProductIds).toEqual(["phone_001"]);
+  });
+
   it("maps conversational product words to canonical catalog categories", () => {
     const service = createService();
 

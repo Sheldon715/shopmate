@@ -19,6 +19,11 @@ import type {
   RetrievedProductContext,
 } from "./chat.types";
 import { ChatContextMemoryService } from "./chat-context-memory.service";
+import { ClarificationService } from "./clarification.service";
+import type {
+  ClarificationDecision,
+  PendingClarification,
+} from "./clarification.types";
 import { buildRagPrompt, normalizeChatHistory } from "./prompt.builder";
 import {
   RagLlmOutputParseError,
@@ -44,6 +49,7 @@ export interface RagChatServiceOptions {
   llmClient?: LlmClient;
   now?: () => Date;
   contextMemoryService?: ChatContextMemoryService;
+  clarificationService?: ClarificationService;
   maxSnippetsPerProduct?: number;
   defaultMaxRecommendedProducts?: number;
   publicImageBaseUrl?: string;
@@ -76,6 +82,7 @@ export class RagChatService {
   private readonly llmClient: LlmClient;
   private readonly now: () => Date;
   private readonly contextMemoryService: ChatContextMemoryService;
+  private readonly clarificationService: ClarificationService;
   private readonly maxSnippetsPerProduct: number;
   private readonly defaultMaxRecommendedProducts: number;
   private readonly publicImageBaseUrl?: string;
@@ -88,6 +95,8 @@ export class RagChatService {
     this.contextMemoryService =
       options.contextMemoryService
       ?? new ChatContextMemoryService({ now: this.now });
+    this.clarificationService =
+      options.clarificationService ?? new ClarificationService();
     this.maxSnippetsPerProduct =
       options.maxSnippetsPerProduct ?? DEFAULT_MAX_SNIPPETS_PER_PRODUCT;
     this.defaultMaxRecommendedProducts =
@@ -112,6 +121,25 @@ export class RagChatService {
       question,
       filters: input.filters,
     });
+    const clarificationDecision = this.clarificationService.decide({
+      question,
+      contextMemory: memoryResolution.contextMemory,
+      filters: memoryResolution.filters,
+    });
+
+    if (clarificationDecision.needsClarification) {
+      return this.withContextMemory(
+        memoryResolution,
+        createClarificationResult(clarificationDecision),
+        {
+          pendingClarification: {
+            originalQuestion: question,
+            missingSlots: clarificationDecision.missingSlots,
+          },
+        },
+      );
+    }
+
     const hits = await this.vectorSearch.search({
       query: memoryResolution.retrievalQuery,
       filters: memoryResolution.filters,
@@ -200,16 +228,37 @@ export class RagChatService {
   private withContextMemory(
     memoryResolution: ReturnType<ChatContextMemoryService["resolve"]>,
     result: RagChatResult,
+    options: { pendingClarification?: PendingClarification } = {},
   ): RagChatResult {
     const contextMemory = this.contextMemoryService.commit(
       memoryResolution,
       result.recommendedProductIds,
+      options,
     );
 
     return contextMemory
       ? { ...result, contextMemory }
       : result;
   }
+}
+
+function createClarificationResult(
+  decision: ClarificationDecision,
+): RagChatResult {
+  return {
+    answer: decision.question ?? "你能补充一下预算、使用场景或偏好吗？我再帮你筛。",
+    recommendedProductIds: [],
+    productCards: [],
+    fallbackUsed: true,
+    fallbackReason: "NEEDS_CLARIFICATION",
+    clarification: {
+      missingSlots: decision.missingSlots,
+    },
+    retrieval: {
+      candidateCount: 0,
+      returnedProductIds: [],
+    },
+  };
 }
 
 function createDefaultProductReader(): RagProductReader {

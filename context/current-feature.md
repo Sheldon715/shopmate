@@ -1,4 +1,4 @@
-# 当前功能：代码扫描后续修复
+# 当前功能：Active Clarification
 
 ## 状态
 
@@ -6,27 +6,38 @@
 
 ## 目标
 
-- 修复 code-scanner 报告中指定的后端可靠性、SSE 资源管理和 RAG 评估性能问题。
-- 同步项目工作流文档与当前真实工具状态，避免后续 agent 或队友被过期说明误导。
-- 更新 `ui-reviewer` agent 语境，使它贴合当前 Android Compose / Figma 审查场景。
+- 在 RAG 检索前识别信息不足的宽泛推荐问题，并主动返回 1 句澄清追问。
+- 对需要澄清的问题返回 `NEEDS_CLARIFICATION`，不调用 vector search / LLM，不返回商品卡片。
+- 在 `done` 中支持可选 `clarification` 元数据，记录缺失槽位供测试和后续 UI 使用。
+- 复用既有 `ChatContextMemory`，避免已有预算、用途、偏好或用户补充回答后重复追问。
+- Android 将 `NEEDS_CLARIFICATION` 视为正常助手回复，不显示“商品库暂时没有匹配”的错误，并保持输入可继续。
 
 ## 待办事项
 
-- [x] [quickwin] 为 Express 增加统一 API 404 和 JSON parse error middleware，确保 malformed JSON 与未知 `/api/*` 路径返回统一 `ApiResponse` 错误格式。（来源：Warning 3，`server/src/app.ts`）
-- [x] [medium] 将 SSE 断连 `AbortSignal` 继续传递到 embedding 与 Qdrant 检索层，避免客户端断开后外部调用继续消耗资源。（来源：Warning 4，`server/src/modules/chat/chat.controller.ts`、`server/src/modules/vector/vector-search.service.ts`、`server/src/modules/vector/embedding.types.ts`）
-- [x] [medium] 修复 SSE writer 忽略 `response.write()` backpressure 的问题，在返回 `false` 时等待 `drain` 或连接关闭。（来源：Warning 5，`server/src/modules/chat/sse-writer.ts`）
-- [x] [quickwin] 更新 `AGENTS.md` 中后端测试说明，把 `npm.cmd test` 从 placeholder 改为当前已配置的 Vitest 测试命令。（来源：Suggestion 1，`AGENTS.md`、`server/package.json`）
-- [x] [quickwin] 同步 `context/spec-implementation-order.md` 里的工具说明，让 `list-components`、`auth-auditor` 等描述匹配当前 ShopMate / Express 语境。（来源：Suggestion 2，`context/spec-implementation-order.md`）
-- [x] [medium] 优化 RAG evaluation 商品回查，避免逐个 `findProductById` 造成 N+1 查询，改用批量查询和同次 evaluation 缓存。（来源：Suggestion 3，`server/src/scripts/evaluate-rag.ts`）
-- [x] [quickwin] 更新 `.codex/agents/ui-reviewer.toml`，从 Web / marketing 审查语境改为 Android Compose / Figma / 模拟器截图语境，或明确标注仅用于未来 Web 页面。（来源：Suggestion 4，`.codex/agents/ui-reviewer.toml`）
+- [x] 新增后端 clarification 类型、规则服务和单元测试。
+- [x] 在 `RagChatService.answer` 的 memory 合并后、向量检索前接入澄清判断。
+- [x] 扩展聊天 done payload / fallback reason / contract fixture 与相关测试。
+- [x] 确认澄清分支不调用 vector search / LLM，且 `productCards` 与推荐商品 id 为空。
+- [x] 让澄清后的下一轮用户回答复用同一个 `conversationId` 和短期会话记忆进入正常推荐。
+- [x] 更新 Android chat stream contract / parser / ViewModel 对 `NEEDS_CLARIFICATION` 的处理与测试。
+- [x] 如当前 `docs/chat-stream-contract.md` 仍是真源，补充 clarification contract 文档。
+- [x] 运行后端 `npm.cmd test` 与 `npm.cmd run build`。
+- [x] 运行 Android `.\gradlew.bat --no-daemon testDebugUnitTest` 与 `.\gradlew.bat --no-daemon build`。
+- [x] 记录本功能的验证结果、失败原因或未执行原因。
 
 ## 备注
 
-- 本次只纳入用户指定的 code-scanner 结果：Warnings 3、4、5，以及 Suggestions 1、2、3、4。
-- 暂不纳入 Warning 1、2、6；后续如需处理 feature scope、`.env.example` 或 Android 导航问题，应另行扩展 tracker 或拆分 feature。
-- 验证记录：`cd server && npm.cmd test` 通过，17 个测试文件 / 92 个测试通过。
-- 验证记录：`cd server && npm.cmd run build` 通过。
-- 验证记录：`.codex/agents/ui-reviewer.toml` 已做基础 TOML 结构检查，确认 triple-quote 和关键字段存在。
+- 来源 spec：`context/feature/active-clarification-spec.md`。
+- 前置依赖：`chat-context-memory-spec.md` 已完成，当前应已有 `conversationId`、后端短期 `ChatContextMemory`，以及 Android 发送历史和会话 id 的能力。
+- 第一版使用规则判断，不新增 LLM function calling / tool calling，不做大型 slot filling 框架。
+- 需要澄清的典型输入包括“推荐一款手机”“推荐电脑”“推荐护肤品”“有什么跑鞋”等只有宽泛品类、缺少预算 / 用途 / 偏好 / 关键约束的问题。
+- 已有预算、用途、明确人群 / 场景，或用户明确说“随便推荐一个”“先给我几个看看”时，不触发澄清。
+- 澄清问题文案要求：1 句话、不超过 70 个中文字符、不编造商品名、不输出商品卡片。
+- 缺失槽位第一版限定为 `budget`、`use_case`、`priority`、`audience`。
+- 澄清分支不是错误状态：`fallbackUsed=true`、`fallbackReason="NEEDS_CLARIFICATION"`、`retrieval.candidateCount=0`，Android 不应触发 retry UI。
+- 验证结果：已通过后端聚焦测试、Android 聚焦测试、`cd server && npm.cmd test`、`cd server && npm.cmd run build`、`cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest`、`cd client/android && .\gradlew.bat --no-daemon build`。
+- 本地 Chat SSE smoke：启动后端到 `127.0.0.1:3100` 后，`推荐一款手机` 返回 `NEEDS_CLARIFICATION`、空商品卡和 `clarification.missingSlots=["budget","priority"]`；同一 `conversationId` 下补充 `预算 3000 左右，拍照好一点` 不再重复追问，并按“左右”软预算放宽到 3300 元，进入正常 RAG，返回 3299 元 OPPO 智能手机商品卡且 `fallbackUsed=false`；`预算 9000 左右，拍照好一点` 也可正常返回 3 张智能手机商品卡。
+- Review 修复：修正中文口语预算解析，`三千五左右` 现在按约 3500 元处理并软放宽到 3850 元，`三千零五左右` 仍按精确 3005 元处理，`一万二左右` 按约 12000 元处理；已通过后端聚焦测试、`cd server && npm.cmd run build` 和直接解析 smoke。
 
 ## 历史记录
 - 初始化前后端技术栈骨架：完成 Android Kotlin + Jetpack Compose 与 Node.js + TypeScript + Express 最小工程初始化，补充 README 与 Git 忽略配置，并通过后端构建与 Android `assembleDebug` 验证。
@@ -61,3 +72,15 @@
 - Chat Contract Fixtures：新增后端聊天 SSE contract fixture、稳定 payload 类型和 fixture 对齐测试，固定 success、fallback、error 与 no product stream 场景；通过 `cd server && npm.cmd test` 与 `cd server && npm.cmd run build` 验证。
 - RAG Evaluation Cases：新增第一轮 Chat SSE 黑盒测试 case 集，覆盖 8 个问题、P0 / P1 风险、短历史追问、filter / no result / grounding / comparison 观察点，并通过 Node 脚本验证 JSON 结构、唯一 caseId、合法 filter 字段和期望商品 ID。
 - Chat SSE 与 RAG LLM 调用修复：修复 `request.close` 误触发 SSE abort、移除当前 Ark 模型不支持的 JSON response_format，并提高 RAG completion token 上限；通过 `cd server && npm.cmd test` 与 `cd server && npm.cmd run build` 验证。
+- 代码扫描后续修复：补齐 Express 统一 API 404 / JSON parse error 返回，修复 SSE backpressure 和 abortSignal 向 embedding / Qdrant 透传，优化 RAG evaluation 批量商品回查与缓存，并同步 Vitest、工具说明和 Android UI reviewer prompt；通过 `cd server && npm.cmd test` 与 `cd server && npm.cmd run build` 验证。
+- Refactor Scanner 高优先级重构：抽取 RAG 脚本 CLI 与 JSON / JSONL 文件工具、Android Figma frame 缩放 helper 和 SSE 测试解析 helper，保留原有行为边界；通过后端 test / build、RAG dry-run smoke 和 Android build 验证。
+- Android Network Client：新增 Android 网络层基础，接入 OkHttp SSE、kotlinx.serialization、可配置 base URL、ChatStreamClient 和本地单元测试；通过 `cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest` 与 `cd client/android && .\gradlew.bat --no-daemon build` 验证。
+- Android 聊天 API 集成：将聊天推荐页接入真实 `POST /api/chat/stream`，新增 Repository / ViewModel / UI state、商品卡片 mapper、错误重试和加载状态，并通过 Android 单测 / build 与后端 test / build 验证。
+- Android 商品详情 API 集成：新增 Product API client、DTO、repository、mapper、ProductDetailViewModel 和 state-driven 详情页，推荐卡片使用真实 productId 请求 `/api/products/:id`，支持 loading / 404 / 网络失败 / 解析失败状态，并将详情页顶部收口为仅左上角返回按钮；通过 `cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest` 与 `cd client/android && .\gradlew.bat --no-daemon build` 验证。
+- Android Main Chat App Flow：将主聊天入口 composer 接入共享 `ChatViewModel`，发送后直接进入真实聊天结果视图，支持商品卡片跳转真实详情、新聊天清空会话、本地内存历史记录与恢复、侧边栏历史全量滚动展示；通过 `cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest` 与 `cd client/android && .\gradlew.bat --no-daemon build` 验证。
+- Android 商品详情内容文案打磨：优化真实商品详情字段到推荐理由、亮点、规格和选择建议的映射，过滤 seed / demo 模板话术和注意事项误入亮点的问题，调整详情页推荐理由卡片与规格卡片的稳定显示，并补充 mapper 单元测试；通过 `cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.data.products.ProductDetailMapperTest"` 与 `cd client/android && .\gradlew.bat --no-daemon build` 验证。
+- Android Cart API Foundation：新增后端 `cart_items` migration 和购物车 API，Android 接入真实 CartApiClient / Repository / ViewModel / CartScreen 状态，推荐与详情页加购改为真实请求并按结果提示成功或失败，同时补充侧边栏历史重命名 / 删除交互；通过 `cd server && npm.cmd test`、`cd server && npm.cmd run build`、`cd client/android && .\gradlew.bat --no-daemon build` 验证。
+- 代码扫描 Quick Wins（二）：拆分 Android JSON API / SSE 网络 client 超时配置，修复购物车仓库取消处理，补齐 CartApiClient 关键端点和错误响应测试，并为聊天 RAG filter 增加数组数量、单项长度、trim / dedupe 校验；通过 `cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest`、`cd client/android && .\gradlew.bat --no-daemon build`、`cd server && npm.cmd test`、`cd server && npm.cmd run build` 验证。
+- Android Runtime Config：拆分 debug / demo / release API Base URL 配置，支持 debug Gradle property 覆盖真机同 Wi-Fi 地址，将 cleartext HTTP 限定到 debug manifest overlay，并补充 URL 配置单元测试；通过 Android runtime config 单测、`build`、`assembleDebug assembleDemo` 和 merged manifest / BuildConfig 检查验证。
+- Backend Deployment Readiness：新增后端健康检查、HOST / PORT 启动配置、可选 CORS allowlist、商品图片公开访问路径和部署 readiness runbook，统一 Product API / Chat 商品卡片图片路径映射；通过 `cd server && npm.cmd test` 与 `cd server && npm.cmd run build` 验证。
+- Chat Context Memory：新增 Android 稳定 `conversationId` 与后端短期会话记忆，合并最近意图、预算 / 类目 / 偏好等约束用于 RAG 检索和 prompt，并通过后端 test / build、Android testDebugUnitTest / build、RAG search 与本地 chat stream smoke 验证。

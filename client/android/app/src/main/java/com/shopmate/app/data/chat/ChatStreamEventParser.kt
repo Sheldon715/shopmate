@@ -33,6 +33,7 @@ fun parseChatStreamEvent(
                     recommendedProductIds = payload.recommendedProductIds,
                     fallbackUsed = payload.fallbackUsed,
                     fallbackReason = payload.fallbackReason,
+                    clarification = payload.clarification,
                     retrieval = payload.retrieval,
                 )
             }
@@ -80,6 +81,7 @@ private data class DonePayloadDto(
     val recommendedProductIds: List<String> = emptyList(),
     val fallbackUsed: Boolean,
     val fallbackReason: String? = null,
+    val clarification: ChatClarificationDto? = null,
     val retrieval: ChatRetrievalDto,
 )
 

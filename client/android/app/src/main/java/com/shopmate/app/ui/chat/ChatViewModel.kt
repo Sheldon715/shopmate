@@ -309,7 +309,7 @@ class ChatViewModel(
                     state.copy(
                         messages = state.messages.markAssistantDone(),
                         isSending = false,
-                        errorMessage = if (state.productCards.isEmpty() && event.fallbackUsed) {
+                        errorMessage = if (event.shouldShowNoMatchError(state.productCards)) {
                             "当前商品库暂时没有完全匹配的商品，可以调整需求再试试。"
                         } else {
                             null
@@ -408,3 +408,12 @@ private fun ChatStreamEvent.Error.toDisplayMessage(): String =
 
 private fun Throwable.toDisplayMessage(): String =
     "无法连接导购服务，请确认后端正在运行。"
+
+private fun ChatStreamEvent.Done.shouldShowNoMatchError(
+    productCards: List<ProductCardUi>,
+): Boolean =
+    productCards.isEmpty() &&
+        fallbackUsed &&
+        fallbackReason != NEEDS_CLARIFICATION_REASON
+
+private const val NEEDS_CLARIFICATION_REASON = "NEEDS_CLARIFICATION"

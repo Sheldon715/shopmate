@@ -30,6 +30,11 @@ data class ChatRetrievalDto(
     val returnedProductIds: List<String> = emptyList(),
 )
 
+@Serializable
+data class ChatClarificationDto(
+    val missingSlots: List<String> = emptyList(),
+)
+
 sealed interface ChatStreamEvent {
     data class MessageDelta(val text: String, val index: Int) : ChatStreamEvent
 
@@ -39,6 +44,7 @@ sealed interface ChatStreamEvent {
         val recommendedProductIds: List<String>,
         val fallbackUsed: Boolean,
         val fallbackReason: String?,
+        val clarification: ChatClarificationDto? = null,
         val retrieval: ChatRetrievalDto,
     ) : ChatStreamEvent
 

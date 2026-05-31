@@ -148,6 +148,7 @@ async function writeChatResult(
     recommendedProductIds: result.recommendedProductIds,
     fallbackUsed: result.fallbackUsed,
     fallbackReason: result.fallbackReason,
+    clarification: result.clarification,
     retrieval: result.retrieval,
     contextMemory: result.contextMemory,
   };

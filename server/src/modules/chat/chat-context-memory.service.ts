@@ -5,6 +5,7 @@ import type {
   ChatContextMemory,
   ChatContextMemorySummary,
 } from "./chat-context-memory.types";
+import type { PendingClarification } from "./clarification.types";
 
 export interface ChatContextMemoryResolution {
   conversationId?: string;
@@ -21,6 +22,7 @@ export interface ChatContextMemoryServiceOptions {
 
 const MAX_CONTEXT_TERMS = 12;
 const MAX_TERM_LENGTH = 80;
+const APPROXIMATE_BUDGET_TOLERANCE_PERCENT = 110;
 const DEFAULT_STORE = new ChatContextMemoryStore();
 
 const PREFERENCE_TERMS = [
@@ -105,6 +107,7 @@ export class ChatContextMemoryService {
   commit(
     resolution: ChatContextMemoryResolution,
     recommendedProductIds: string[],
+    options: { pendingClarification?: PendingClarification } = {},
   ): ChatContextMemorySummary | undefined {
     if (!resolution.conversationId || !resolution.memory) {
       return undefined;
@@ -113,6 +116,7 @@ export class ChatContextMemoryService {
     const memory = {
       ...resolution.memory,
       lastRecommendedProductIds: normalizeTerms(recommendedProductIds),
+      pendingClarification: options.pendingClarification,
       updatedAt: this.now().toISOString(),
     };
 
@@ -243,18 +247,37 @@ function findCategoryHint(question: string):
 }
 
 function extractMaxPriceCents(question: string): number | undefined {
-  const patterns = [
-    /预算\s*(\d{1,6})\s*(?:元)?/u,
-    /(?:不超过|低于|小于|少于)\s*(\d{1,6})\s*(?:元)?/u,
-    /(\d{1,6})\s*(?:元)?\s*以内/u,
+  const strictPatterns = [
+    pricePattern(String.raw`(?:不超过|不高于|低于|小于|少于|最多|上限)\s*`, String.raw`\s*(?:元|块)?`),
+    pricePattern("", String.raw`\s*(?:元|块)?\s*(?:以内|以下)`),
   ];
+  const strictMaxPriceCents = extractPriceCents(question, strictPatterns);
 
-  return extractPriceCents(question, patterns);
+  if (strictMaxPriceCents !== undefined) {
+    return strictMaxPriceCents;
+  }
+
+  const approximatePatterns = [
+    pricePattern(String.raw`预算\s*(?:大概|大约|约|差不多)?\s*`, String.raw`\s*(?:元|块)?\s*(?:左右|上下|附近)?`),
+    pricePattern(String.raw`(?:大概|大约|约|差不多)\s*`, String.raw`\s*(?:元|块)?\s*(?:左右|上下|附近)?`),
+    pricePattern("", String.raw`\s*(?:元|块)?\s*(?:左右|上下|附近)`),
+  ];
+  const approximateMaxPriceCents = extractPriceCents(
+    question,
+    approximatePatterns,
+  );
+
+  return approximateMaxPriceCents === undefined
+    ? undefined
+    : Math.ceil(
+        (approximateMaxPriceCents * APPROXIMATE_BUDGET_TOLERANCE_PERCENT)
+          / 100,
+      );
 }
 
 function extractMinPriceCents(question: string): number | undefined {
   const patterns = [
-    /(?:至少|不低于|高于|大于)\s*(\d{1,6})\s*(?:元)?/u,
+    pricePattern(String.raw`(?:至少|不低于|高于|大于)\s*`, String.raw`\s*(?:元|块)?`),
   ];
 
   return extractPriceCents(question, patterns);
@@ -263,13 +286,132 @@ function extractMinPriceCents(question: string): number | undefined {
 function extractPriceCents(question: string, patterns: RegExp[]): number | undefined {
   for (const pattern of patterns) {
     const value = pattern.exec(question)?.[1];
+    const yuan = value ? parsePriceYuan(value) : undefined;
 
-    if (value) {
-      return Number.parseInt(value, 10) * 100;
+    if (yuan !== undefined) {
+      return yuan * 100;
     }
   }
 
   return undefined;
+}
+
+function pricePattern(prefix: string, suffix: string): RegExp {
+  return new RegExp(
+    `${prefix}(\\d{1,6}|[一二三四五六七八九十百千万两〇零]{1,12})${suffix}`,
+    "u",
+  );
+}
+
+function parsePriceYuan(value: string): number | undefined {
+  if (/^\d{1,6}$/u.test(value)) {
+    return Number.parseInt(value, 10);
+  }
+
+  return parseChineseInteger(value);
+}
+
+function parseChineseInteger(value: string): number | undefined {
+  const normalized = value.replace(/两/gu, "二").replace(/〇/gu, "零");
+
+  if (!/^[一二三四五六七八九十百千万零]+$/u.test(normalized)) {
+    return undefined;
+  }
+
+  const [wanPart, restPart] = normalized.split("万");
+  if (restPart !== undefined) {
+    const wanValue = parseChineseSection(wanPart);
+    const restValue = parseChineseWanRemainder(restPart);
+
+    return wanValue === undefined || restValue === undefined
+      ? undefined
+      : wanValue * 10000 + restValue;
+  }
+
+  return parseChineseSection(normalized);
+}
+
+function parseChineseWanRemainder(value: string): number | undefined {
+  if (value.length === 0) {
+    return 0;
+  }
+
+  if (/^[一二三四五六七八九]$/u.test(value)) {
+    const digit = parseChineseDigit(value);
+    return digit === undefined ? undefined : digit * 1000;
+  }
+
+  return parseChineseSection(value);
+}
+
+function parseChineseSection(value: string): number | undefined {
+  if (value.length === 0 || value === "零") {
+    return 0;
+  }
+
+  const unitValues: Record<string, number> = {
+    千: 1000,
+    百: 100,
+    十: 10,
+  };
+  let pendingDigit: number | undefined;
+  let lastUnit = 1;
+  let hasZeroAfterLastUnit = false;
+  let total = 0;
+
+  for (const char of Array.from(value)) {
+    if (char === "零") {
+      hasZeroAfterLastUnit = true;
+      pendingDigit = undefined;
+      continue;
+    }
+
+    const unitValue = unitValues[char];
+    if (unitValue !== undefined) {
+      const digit = pendingDigit ?? 1;
+      total += digit * unitValue;
+      pendingDigit = undefined;
+      lastUnit = unitValue;
+      hasZeroAfterLastUnit = false;
+      continue;
+    }
+
+    const digit = parseChineseDigit(char);
+
+    if (digit === undefined) {
+      return undefined;
+    }
+
+    pendingDigit = digit;
+  }
+
+  if (pendingDigit === undefined) {
+    return total;
+  }
+
+  const inferredUnit =
+    total > 0 && lastUnit > 10 && !hasZeroAfterLastUnit
+      ? lastUnit / 10
+      : 1;
+
+  return total + pendingDigit * inferredUnit;
+}
+
+function parseChineseDigit(value: string): number | undefined {
+  const digits: Record<string, number> = {
+    零: 0,
+    一: 1,
+    二: 2,
+    三: 3,
+    四: 4,
+    五: 5,
+    六: 6,
+    七: 7,
+    八: 8,
+    九: 9,
+  };
+
+  return value.length === 1 ? digits[value] : undefined;
 }
 
 function extractAvoidTerms(question: string): string[] {
@@ -372,5 +514,6 @@ function toSummary(memory: ChatContextMemory): ChatContextMemorySummary {
     lastIntent: memory.lastIntent,
     constraints: memory.constraints,
     lastRecommendedProductIds: memory.lastRecommendedProductIds,
+    pendingClarification: memory.pendingClarification,
   };
 }

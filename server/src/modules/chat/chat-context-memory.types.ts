@@ -1,8 +1,11 @@
+import type { PendingClarification } from "./clarification.types";
+
 export interface ChatContextMemory {
   conversationId: string;
   lastIntent?: string;
   constraints: ChatContextConstraints;
   lastRecommendedProductIds: string[];
+  pendingClarification?: PendingClarification;
   updatedAt: string;
   turnCount: number;
 }
@@ -22,4 +25,5 @@ export interface ChatContextMemorySummary {
   lastIntent?: string;
   constraints: ChatContextConstraints;
   lastRecommendedProductIds: string[];
+  pendingClarification?: PendingClarification;
 }

@@ -102,6 +102,31 @@ class ChatStreamEventParserTest {
     }
 
     @Test
+    fun parsesClarificationDone() {
+        val event = parseChatStreamEvent(
+            "done",
+            """
+                {
+                  "recommendedProductIds": [],
+                  "fallbackUsed": true,
+                  "fallbackReason": "NEEDS_CLARIFICATION",
+                  "clarification": {
+                    "missingSlots": ["budget", "priority"]
+                  },
+                  "retrieval": {
+                    "candidateCount": 0,
+                    "returnedProductIds": []
+                  }
+                }
+            """.trimIndent(),
+        )
+
+        val done = assertIs<ChatStreamEvent.Done>(event)
+        assertEquals("NEEDS_CLARIFICATION", done.fallbackReason)
+        assertEquals(listOf("budget", "priority"), done.clarification?.missingSlots)
+    }
+
+    @Test
     fun parsesError() {
         val event = parseChatStreamEvent(
             "error",

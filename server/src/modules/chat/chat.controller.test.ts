@@ -131,6 +131,24 @@ describe("createChatStreamController", () => {
     expect(response.ended).toBe(true);
   });
 
+  it("streams clarification results as successful done events", async () => {
+    const service = createService(async () =>
+      createResultFromFixture(chatContractFixtures.clarificationStream.events)
+    );
+    const request = createRequest({ message: "推荐一款手机" });
+    const response = new FakeResponse();
+
+    await createChatStreamController(service)(
+      request.asRequest(),
+      response.asResponse(),
+    );
+
+    expect(response.streamEvents()).toEqual(
+      chatContractFixtures.clarificationStream.events,
+    );
+    expect(response.ended).toBe(true);
+  });
+
   it("does not treat request body close as a client disconnect", async () => {
     let capturedSignal: AbortSignal | undefined;
     let resolveAnswer: ((result: RagChatResult) => void) | undefined;
@@ -332,6 +350,7 @@ function createResultFromFixture(
     productCards: productCardsPayload.items,
     fallbackUsed: donePayload.fallbackUsed,
     fallbackReason: donePayload.fallbackReason ?? undefined,
+    clarification: donePayload.clarification,
     retrieval: donePayload.retrieval,
     contextMemory: donePayload.contextMemory,
   });
