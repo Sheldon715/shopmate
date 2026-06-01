@@ -78,7 +78,7 @@ fun ChatRecommendationScreen(
 
         val headerTop = 36f.s()
         val contentTop = 80f.s()
-        val composerHeight = 52f.s()
+        val composerHeight = 44f.s()
         val composerBottom = 18f.s()
         val composerTop = maxHeight - composerHeight - composerBottom
         val topScrimHeight = 84f.s()
@@ -170,7 +170,6 @@ fun ChatRecommendationScreen(
             onValueChange = onComposerTextChange,
             onSend = onSend,
             onVoiceClick = {},
-            onImageClick = {},
             shadowElevation = 0.dp,
             sendEnabled = state.composerText.isNotBlank() && !state.isSending,
             modifier = Modifier

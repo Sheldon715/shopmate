@@ -93,7 +93,7 @@ fun ProductComparisonScreen(
 
         val headerTop = 36f.s()
         val contentTop = 80f.s()
-        val composerHeight = 52f.s()
+        val composerHeight = 44f.s()
         val composerBottom = 18f.s()
         val composerTop = maxHeight - composerHeight - composerBottom
         val scrollContentHeight =
@@ -160,7 +160,6 @@ fun ProductComparisonScreen(
             onValueChange = { composerText = it },
             onSend = {},
             onVoiceClick = {},
-            onImageClick = {},
             shadowElevation = 0.dp,
             modifier = Modifier
                 .offset(x = 18f.s(), y = composerTop)

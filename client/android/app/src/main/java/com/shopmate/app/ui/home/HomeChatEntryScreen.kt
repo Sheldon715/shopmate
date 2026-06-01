@@ -79,7 +79,7 @@ fun HomeChatEntryScreen(
 
         fun Float.s(): Dp = scaledDp(scale)
 
-        val composerHeight = 52f.s()
+        val composerHeight = 44f.s()
         val composerBottom = 18f.s()
         val composerTop = maxHeight - composerHeight - composerBottom
         val promptPanelHeight = 327f.s()
@@ -129,7 +129,6 @@ fun HomeChatEntryScreen(
             onValueChange = onComposerTextChange,
             onSend = onSend,
             onVoiceClick = {},
-            onImageClick = {},
             sendEnabled = composerText.isNotBlank() && !isSending,
             modifier = Modifier
                 .offset(x = 18f.s(), y = composerTop)
