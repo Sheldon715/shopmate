@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { isProductAvailable } from "../products/product-availability";
 import type { Product } from "../products/product.types";
 import type {
   JsonRecord,
@@ -175,12 +176,6 @@ function formatList(label: string, values: string[]): string | undefined {
   return values.length > 0 ? `${label}: ${values.join("、")}` : undefined;
 }
 
-function getAvailability(product: Product): boolean {
-  return product.skus.length === 0
-    ? product.status === "active"
-    : product.skus.some((sku) => sku.available);
-}
-
 function buildSharedContext(product: Product): string[] {
   return [
     `商品名: ${product.name}`,
@@ -188,7 +183,7 @@ function buildSharedContext(product: Product): string[] {
     `类目: ${product.category}${product.subCategory ? ` / ${product.subCategory}` : ""}`,
     `价格参考: ${formatPriceRange(product)}`,
     `状态: ${product.status}`,
-    `是否可售: ${getAvailability(product) ? "是" : "否"}`,
+    `是否可售: ${isProductAvailable(product) ? "是" : "否"}`,
     formatList("适合", product.recommendWhen),
     formatList("不适合", product.avoidWhen),
     formatList("优势", product.pros),
@@ -223,7 +218,7 @@ function createBaseMetadata(
     category: product.category,
     subCategory: product.subCategory,
     status: product.status,
-    available: getAvailability(product),
+    available: isProductAvailable(product),
     priceMinCents: product.priceMinCents,
     priceMaxCents: product.priceMaxCents,
     currency: product.currency,

@@ -1,9 +1,9 @@
 package com.shopmate.app.data.chat
 
-import com.shopmate.app.R
 import com.shopmate.app.data.network.ShopMateImageUrlResolver
+import com.shopmate.app.data.products.formatProductPriceRangeText
+import com.shopmate.app.data.products.resolveProductPlaceholder
 import com.shopmate.app.ui.model.ProductCardUi
-import java.util.Locale
 
 private const val MAX_PRODUCT_TAGS = 3
 
@@ -26,21 +26,12 @@ fun List<ChatProductCardDto>.toProductCardUiList(
     map { product -> product.toProductCardUi(imageUrlResolver) }
 
 private fun ChatProductCardDto.formatProductPrice(): String {
-    val minPrice = priceRangeCents.min
-    val maxPrice = priceRangeCents.max
-    return when {
-        currency.equals("CNY", ignoreCase = true) && minPrice > 0 && maxPrice > 0 && minPrice != maxPrice ->
-            "¥${minPrice.formatCnyCents()}-${maxPrice.formatCnyCents()}"
-
-        currency.equals("CNY", ignoreCase = true) ->
-            "¥${priceCents.formatCnyCents()}"
-
-        minPrice > 0 && maxPrice > 0 && minPrice != maxPrice ->
-            "${currency.uppercase(Locale.US)} ${minPrice.formatDecimalCents()}-${maxPrice.formatDecimalCents()}"
-
-        else ->
-            "${currency.uppercase(Locale.US)} ${priceCents.formatDecimalCents()}"
-    }
+    return formatProductPriceRangeText(
+        priceCents = priceCents,
+        minPriceCents = priceRangeCents.min,
+        maxPriceCents = priceRangeCents.max,
+        currency = currency,
+    )
 }
 
 private fun ChatProductCardDto.buildRecommendationReason(): String {
@@ -53,33 +44,7 @@ private fun ChatProductCardDto.buildRecommendationReason(): String {
 }
 
 private fun ChatProductCardDto.resolveProductImageRes(): Int {
-    val searchableText = listOf(id, name, brand, category, subCategory, imagePath)
-        .joinToString(" ")
-        .lowercase(Locale.US)
-
-    return when {
-        "airpods" in searchableText || "apple" in searchableText ->
-            R.drawable.product_redmi_buds_4
-
-        "qcy" in searchableText ->
-            R.drawable.product_qcy_t13_x
-
-        "earbud" in searchableText ||
-            "freebuds" in searchableText ||
-            "耳机" in searchableText ||
-            "digital/images" in searchableText ->
-            R.drawable.product_zero_air
-
-        else -> R.drawable.mascot_assistant
-    }
+    return resolveProductPlaceholder(
+        listOf(id, name, brand, category, subCategory, imagePath),
+    )
 }
-
-private fun Int.formatCnyCents(): String =
-    if (this % 100 == 0) {
-        (this / 100).toString()
-    } else {
-        formatDecimalCents()
-    }
-
-private fun Int.formatDecimalCents(): String =
-    String.format(Locale.US, "%.2f", this / 100.0)

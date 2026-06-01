@@ -1,7 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
+import {
+  readJsonlFile,
+  writeJsonFile as writeSharedJsonFile,
+  writeJsonlFile,
+} from "../../utils/json-files";
 import type {
   CatalogManifest,
   DuplicateEntry,
@@ -478,27 +483,20 @@ export async function writeNormalizedProducts(
   filePath: string,
   products: NormalizedProduct[],
 ): Promise<void> {
-  const lines = products.map((product) => JSON.stringify(product));
-  await writeFile(filePath, `${lines.join("\n")}\n`, "utf8");
+  await writeJsonlFile(filePath, products);
 }
 
 export async function writeJsonFile(
   filePath: string,
   value: unknown,
 ): Promise<void> {
-  await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+  await writeSharedJsonFile(filePath, value);
 }
 
 export async function readNormalizedProducts(
   filePath: string,
 ): Promise<NormalizedProduct[]> {
-  const raw = await readFile(filePath, "utf8");
-  const lines = raw
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-
-  return lines.map((line) => JSON.parse(line) as NormalizedProduct);
+  return readJsonlFile<NormalizedProduct>(filePath);
 }
 
 function addIssue(issues: ValidationIssue[], issue: ValidationIssue): void {

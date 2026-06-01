@@ -1,3 +1,8 @@
+import {
+  parseJsonObject as parseLlmJsonObject,
+  stripCodeFence,
+} from "./llm-output-utils";
+
 export interface ParsedRagLlmOutput {
   answer: string;
   recommendedProductIds: string[];
@@ -56,27 +61,18 @@ export function parseRagLlmOutput(
   };
 }
 
-function stripCodeFence(rawText: string): string {
-  const trimmed = rawText.trim();
-  const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(trimmed);
-
-  return fenced ? fenced[1].trim() : trimmed;
-}
-
 function parseJsonObject(text: string): Record<string, unknown> {
   try {
-    const parsed = JSON.parse(text);
-
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      throw new RagLlmOutputParseError("LLM output must be a JSON object.");
-    }
-
-    return parsed as Record<string, unknown>;
+    return parseLlmJsonObject(text);
   } catch (error) {
     if (error instanceof RagLlmOutputParseError) {
       throw error;
     }
 
-    throw new RagLlmOutputParseError("LLM output must be valid JSON.");
+    throw new RagLlmOutputParseError(
+      error instanceof SyntaxError
+        ? "LLM output must be valid JSON."
+        : "LLM output must be a JSON object.",
+    );
   }
 }

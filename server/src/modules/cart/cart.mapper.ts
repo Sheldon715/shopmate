@@ -1,6 +1,9 @@
 import { resolvePublicProductImagePath } from "../images/image.service";
+import { isProductAvailable } from "../products/product-availability";
 import type { Product } from "../products/product.types";
 import type { CartDto, CartItemDto, CartItemRecord, CartItemRow } from "./cart.types";
+
+export { isProductAvailable } from "../products/product-availability";
 
 export interface CartMapperOptions {
   publicImageBaseUrl?: string;
@@ -69,14 +72,6 @@ export function mapCartToDto(
       currency: "CNY",
     },
   };
-}
-
-export function isProductAvailable(product: Product): boolean {
-  if (product.status !== "active") {
-    return false;
-  }
-
-  return product.skus.length === 0 || product.skus.some((sku) => sku.available);
 }
 
 function formatPriceText(priceCents: number, currency: string): string {

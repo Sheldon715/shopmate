@@ -1,6 +1,5 @@
 package com.shopmate.app.data.products
 
-import com.shopmate.app.R
 import com.shopmate.app.data.network.ShopMateImageUrlResolver
 import com.shopmate.app.ui.model.ProductDetailSpecUi
 import com.shopmate.app.ui.model.ProductDetailUi
@@ -81,23 +80,13 @@ fun ProductDetailDto.toProductDetailUi(
     )
 
 private fun ProductDetailDto.formatProductPrice(): String {
-    val minPrice = priceRangeCents?.min ?: 0
-    val maxPrice = priceRangeCents?.max ?: 0
-    return when {
-        currency.equals("CNY", ignoreCase = true) && minPrice > 0 && maxPrice > 0 && minPrice != maxPrice ->
-            "¥${minPrice.formatCnyCents()}-${maxPrice.formatCnyCents()}"
-
-        currency.equals("CNY", ignoreCase = true) && priceCents > 0 ->
-            "¥${priceCents.formatCnyCents()}"
-
-        minPrice > 0 && maxPrice > 0 && minPrice != maxPrice ->
-            "${currency.uppercase(Locale.US)} ${minPrice.formatDecimalCents()}-${maxPrice.formatDecimalCents()}"
-
-        priceCents > 0 ->
-            "${currency.uppercase(Locale.US)} ${priceCents.formatDecimalCents()}"
-
-        else -> "价格待确认"
-    }
+    return formatProductPriceRangeText(
+        priceCents = priceCents,
+        minPriceCents = priceRangeCents?.min,
+        maxPriceCents = priceRangeCents?.max,
+        currency = currency,
+        unavailableText = "价格待确认",
+    )
 }
 
 private fun ProductDetailDto.buildRecommendationReason(): String {
@@ -287,36 +276,10 @@ private fun ProductSkuDto.toSpecSummaryOrNull(): String? {
 }
 
 private fun ProductDetailDto.resolveProductImageRes(): Int {
-    val searchableText = listOf(id, name, brand, category, subCategory, imagePath)
-        .joinToString(" ")
-        .lowercase(Locale.US)
-
-    return when {
-        "airpods" in searchableText || "apple" in searchableText ->
-            R.drawable.product_redmi_buds_4
-
-        "qcy" in searchableText ->
-            R.drawable.product_qcy_t13_x
-
-        "earbud" in searchableText ||
-            "freebuds" in searchableText ||
-            "耳机" in searchableText ||
-            "digital/images" in searchableText ->
-            R.drawable.product_zero_air
-
-        else -> R.drawable.mascot_assistant
-    }
+    return resolveProductPlaceholder(
+        listOf(id, name, brand, category, subCategory, imagePath),
+    )
 }
-
-private fun Int.formatCnyCents(): String =
-    if (this % 100 == 0) {
-        (this / 100).toString()
-    } else {
-        formatDecimalCents()
-    }
-
-private fun Int.formatDecimalCents(): String =
-    String.format(Locale.US, "%.2f", this / 100.0)
 
 private fun Iterable<String>.toPositiveValues(): List<String> =
     map { value -> value.toCleanDisplayCopy() }

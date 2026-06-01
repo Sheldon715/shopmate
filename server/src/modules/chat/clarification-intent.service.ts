@@ -6,6 +6,11 @@ import type {
   ClarificationSlot,
 } from "./clarification.types";
 import type { ClarificationServiceInput } from "./clarification.service";
+import {
+  normalizeLlmText,
+  parseJsonObject,
+  stripCodeFence,
+} from "./llm-output-utils";
 
 export interface ClarificationIntentDetectInput
   extends ClarificationServiceInput {
@@ -181,17 +186,10 @@ function normalizeMissingSlots(
 }
 
 function normalizeQuestion(value: string | undefined): string | undefined {
-  const normalized = value?.replace(/\s+/gu, " ").trim();
-
-  if (!normalized) {
-    return undefined;
-  }
-
-  const chars = Array.from(normalized);
-
-  return chars.length <= 70
-    ? normalized
-    : `${chars.slice(0, 70).join("").trimEnd()}？`;
+  return normalizeLlmText(value, {
+    maxChars: 70,
+    truncateSuffix: "？",
+  });
 }
 
 function isClarificationSlot(value: unknown): value is ClarificationSlot {
@@ -203,21 +201,4 @@ function isClarificationSlot(value: unknown): value is ClarificationSlot {
 
 function unique<T>(items: T[]): T[] {
   return [...new Set(items)];
-}
-
-function stripCodeFence(rawText: string): string {
-  const trimmed = rawText.trim();
-  const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(trimmed);
-
-  return fenced ? fenced[1].trim() : trimmed;
-}
-
-function parseJsonObject(text: string): Record<string, unknown> {
-  const parsed = JSON.parse(text) as unknown;
-
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("clarification intent output must be a JSON object.");
-  }
-
-  return parsed as Record<string, unknown>;
 }

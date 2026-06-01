@@ -3,6 +3,11 @@ import type { LlmClient, LlmGenerateRequest } from "../llm/llm.types";
 import type { VectorSearchFilters } from "../vector/vector-search.types";
 import type { ChatContextMemorySummary } from "./chat-context-memory.types";
 import type { RagChatFallbackReason } from "./chat.types";
+import {
+  normalizeLlmText,
+  stripCodeFence,
+  tryParseJsonObject,
+} from "./llm-output-utils";
 
 export interface RagResponseGenerationServiceOptions {
   llmClient: LlmClient;
@@ -141,38 +146,7 @@ function parsePlainTextAnswer(rawText: string): string | undefined {
 }
 
 function normalizeAnswer(value: string | undefined): string | undefined {
-  const normalized = value?.replace(/\s+/gu, " ").trim();
-
-  if (!normalized) {
-    return undefined;
-  }
-
-  const chars = Array.from(normalized);
-
-  return chars.length <= MAX_RAG_FALLBACK_ANSWER_CHARS
-    ? normalized
-    : chars.slice(0, MAX_RAG_FALLBACK_ANSWER_CHARS).join("").trimEnd();
-}
-
-function stripCodeFence(rawText: string): string {
-  const trimmed = rawText.trim();
-  const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(trimmed);
-
-  return fenced ? fenced[1].trim() : trimmed;
-}
-
-function tryParseJsonObject(text: string): Record<string, unknown> | undefined {
-  let parsed: unknown;
-
-  try {
-    parsed = JSON.parse(text) as unknown;
-  } catch {
-    return undefined;
-  }
-
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return undefined;
-  }
-
-  return parsed as Record<string, unknown>;
+  return normalizeLlmText(value, {
+    maxChars: MAX_RAG_FALLBACK_ANSWER_CHARS,
+  });
 }

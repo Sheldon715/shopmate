@@ -7,6 +7,7 @@ import type {
   CartCommandDetection,
   CartCommandTargetInput,
 } from "./cart-command.types";
+import { parseJsonObject, stripCodeFence } from "./llm-output-utils";
 
 export interface CartCommandIntentDetectInput extends CartCommandDetectInput {
   abortSignal?: AbortSignal;
@@ -155,21 +156,4 @@ function parseTarget(value: unknown): CartCommandTargetInput | undefined {
   }
 
   return undefined;
-}
-
-function stripCodeFence(rawText: string): string {
-  const trimmed = rawText.trim();
-  const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(trimmed);
-
-  return fenced ? fenced[1].trim() : trimmed;
-}
-
-function parseJsonObject(text: string): Record<string, unknown> {
-  const parsed = JSON.parse(text) as unknown;
-
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("cart intent output must be a JSON object.");
-  }
-
-  return parsed as Record<string, unknown>;
 }

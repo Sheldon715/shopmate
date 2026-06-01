@@ -1,5 +1,5 @@
 import type { LlmMessage } from "../llm/llm.types";
-import type { Product } from "../products/product.types";
+import { isProductAvailable } from "../products/product-availability";
 import type { ChatContextMemorySummary } from "./chat-context-memory.types";
 import type {
   ChatHistoryMessage,
@@ -172,12 +172,6 @@ function formatList(values: string[]): string {
 
 function formatCny(priceCents: number): string {
   return `${Math.round(priceCents / 100)} 元`;
-}
-
-function isProductAvailable(product: Product): boolean {
-  return product.skus.length === 0
-    ? product.status === "active"
-    : product.skus.some((sku) => sku.available);
 }
 
 function truncateText(value: string, maxLength: number): string {

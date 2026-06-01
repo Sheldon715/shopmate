@@ -1,7 +1,7 @@
 # Review Action
 
-1. Read current-feature.md to understand the goals
-2. Review all code changes made for this feature
+1. Read `context/current-feature.md` with UTF-8 to understand the goals and checklist.
+2. Review the focused diff for this feature, not unrelated dirty worktree files.
 3. Check for:
    - ✅ Goals met
    - ❌ Goals missing or incomplete

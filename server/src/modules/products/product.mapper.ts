@@ -3,6 +3,7 @@ import type {
   NormalizedSku,
 } from "../../lib/catalog/types";
 import { resolvePublicProductImagePath } from "../images/image.service";
+import { isProductAvailable } from "./product-availability";
 import type {
   JsonValue,
   Product,
@@ -266,9 +267,7 @@ export function mapProductToCardDto(
     ),
     ratingAvg: product.ratingAvg,
     tags: product.visualTags,
-    available: product.skus.length === 0
-      ? product.status === "active"
-      : product.skus.some((sku) => sku.available),
+    available: isProductAvailable(product),
   };
 }
 

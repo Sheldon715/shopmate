@@ -1,5 +1,4 @@
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
 import type { PoolClient } from "pg";
 import {
   createDatabasePool,
@@ -20,11 +19,7 @@ import {
   upsertProductsWithSkus,
   type ProductImportSummary,
 } from "../modules/products/product.repository";
-
-async function readJsonFile<T>(filePath: string): Promise<T> {
-  const raw = await readFile(filePath, "utf8");
-  return JSON.parse(raw) as T;
-}
+import { readJsonFile } from "../utils/json-files";
 
 async function readOptionalValidationReport(
   filePath: string,

@@ -5,6 +5,11 @@ import type {
   CartActionResult,
   CartCommandFallbackReason,
 } from "./cart-command.types";
+import {
+  normalizeLlmText,
+  parseJsonObject,
+  stripCodeFence,
+} from "./llm-output-utils";
 
 export interface CartActionResponseServiceOptions {
   llmClient: LlmClient;
@@ -47,7 +52,6 @@ export class CartActionResponseService {
     }
   }
 }
-
 function buildCartActionResponsePrompt(
   input: CartActionResponseInput,
 ): LlmGenerateRequest["messages"] {
@@ -104,17 +108,9 @@ function parseCartActionResponseOutput(rawText: string): string | undefined {
 }
 
 function normalizeAnswer(value: string | undefined): string | undefined {
-  const normalized = value?.replace(/\s+/gu, " ").trim();
-
-  if (!normalized) {
-    return undefined;
-  }
-
-  const chars = Array.from(normalized);
-
-  return chars.length <= MAX_CART_ACTION_ANSWER_CHARS
-    ? normalized
-    : chars.slice(0, MAX_CART_ACTION_ANSWER_CHARS).join("").trimEnd();
+  return normalizeLlmText(value, {
+    maxChars: MAX_CART_ACTION_ANSWER_CHARS,
+  });
 }
 
 function createMinimalCartActionAnswer(cartAction: CartActionResult): string {
@@ -130,21 +126,4 @@ function createMinimalCartActionAnswer(cartAction: CartActionResult): string {
     case "failed":
       return "加购未完成。";
   }
-}
-
-function stripCodeFence(rawText: string): string {
-  const trimmed = rawText.trim();
-  const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(trimmed);
-
-  return fenced ? fenced[1].trim() : trimmed;
-}
-
-function parseJsonObject(text: string): Record<string, unknown> {
-  const parsed = JSON.parse(text) as unknown;
-
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("cart action response output must be a JSON object.");
-  }
-
-  return parsed as Record<string, unknown>;
 }
