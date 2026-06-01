@@ -79,10 +79,12 @@ class MainActivity : ComponentActivity() {
                         listener = object : AndroidSpeechVoiceInputController.Listener {
                             override fun onListening() {
                                 chatViewModel.onVoiceListening()
+                                currentScreen = ShopMateScreen.ChatRecommendation
                             }
 
                             override fun onTranscribing() {
                                 chatViewModel.onVoiceTranscribing()
+                                currentScreen = ShopMateScreen.ChatRecommendation
                             }
 
                             override fun onTranscriptReady(transcript: String) {

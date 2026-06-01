@@ -6,7 +6,8 @@ import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
-import java.util.Locale
+
+internal const val SHOPMATE_VOICE_LANGUAGE_TAG = "zh-CN"
 
 interface VoiceInputController {
     fun startListening()
@@ -79,7 +80,7 @@ class AndroidSpeechVoiceInputController(
                 RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
             )
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toLanguageTag())
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, SHOPMATE_VOICE_LANGUAGE_TAG)
             putExtra(RecognizerIntent.EXTRA_PROMPT, "说出你的购物需求")
         }
 

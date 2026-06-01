@@ -69,13 +69,7 @@ class ChatViewModel(
         }
 
         voicePendingMessageId = null
-        _uiState.update { state ->
-            state.copy(
-                voiceInput = VoiceInputUiState.Listening,
-                errorMessage = null,
-                canRetry = false,
-            )
-        }
+        showVoicePendingMessage(nextVoiceState = VoiceInputUiState.Listening)
     }
 
     fun onVoiceListening() {
@@ -83,13 +77,7 @@ class ChatViewModel(
             return
         }
 
-        _uiState.update { state ->
-            state.copy(
-                voiceInput = VoiceInputUiState.Listening,
-                errorMessage = null,
-                canRetry = false,
-            )
-        }
+        showVoicePendingMessage(nextVoiceState = VoiceInputUiState.Listening)
     }
 
     fun onVoiceTranscribing() {
@@ -97,6 +85,10 @@ class ChatViewModel(
             return
         }
 
+        showVoicePendingMessage(nextVoiceState = VoiceInputUiState.Transcribing)
+    }
+
+    private fun showVoicePendingMessage(nextVoiceState: VoiceInputUiState) {
         _uiState.update { state ->
             val pendingId = voicePendingMessageId ?: nextMessageId(USER_MESSAGE_PREFIX).also { id ->
                 voicePendingMessageId = id
@@ -111,7 +103,7 @@ class ChatViewModel(
 
             state.copy(
                 messages = messages,
-                voiceInput = VoiceInputUiState.Transcribing,
+                voiceInput = nextVoiceState,
                 errorMessage = null,
                 canRetry = false,
             )

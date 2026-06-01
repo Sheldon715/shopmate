@@ -774,6 +774,21 @@ class ChatViewModelTest {
     }
 
     @Test
+    fun voiceStartShowsPendingUserBubble() = runTest {
+        val viewModel = ChatViewModel(FakeChatRepository())
+
+        viewModel.onVoiceStartRequested()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertIs<VoiceInputUiState.Listening>(state.voiceInput)
+        assertEquals(1, state.messages.size)
+        assertEquals("正在识别...", state.messages.single().text)
+        assertTrue(state.messages.single().fromUser)
+        assertTrue(state.messages.single().isVoiceTranscribing)
+    }
+
+    @Test
     fun voiceTranscribingShowsPendingUserBubble() = runTest {
         val viewModel = ChatViewModel(FakeChatRepository())
 
