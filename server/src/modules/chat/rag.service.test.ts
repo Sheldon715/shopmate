@@ -8,6 +8,13 @@ import type { Product } from "../products/product.types";
 import type { VectorSearchHit } from "../vector/vector-search.types";
 import { ChatContextMemoryStore } from "./chat-context-memory.store";
 import { ChatContextMemoryService } from "./chat-context-memory.service";
+import {
+  PopularQueryCacheService,
+  type PopularQueryCache,
+  type PopularQueryCacheHit,
+  type PopularQueryCacheReadInput,
+  type PopularQueryCacheWriteInput,
+} from "./popular-query-cache.service";
 import type {
   RagCartWriter,
   RagChatServiceOptions,
@@ -177,9 +184,22 @@ describe("RagChatService", () => {
   });
 
   it("uses a minimal no-candidates answer when response generation fails", async () => {
+    let cacheWriteCalled = false;
     const service = new RagChatService(withNoCartIntent({
       vectorSearch: createVectorSearch([]),
       productReader: createProductReader(),
+      clarificationIntentService: {
+        decide: async () => ({
+          needsClarification: false,
+          missingSlots: [],
+        }),
+      },
+      popularQueryCacheVersionReader: createCacheVersionReader(),
+      popularQueryCache: createFakeCache({
+        onSet: () => {
+          cacheWriteCalled = true;
+        },
+      }),
       llmClient: new MockLlmClient({
         error: new LlmError("provider down", {
           code: "LLM_REQUEST_FAILED",
@@ -196,6 +216,7 @@ describe("RagChatService", () => {
       fallbackUsed: true,
       fallbackReason: "NO_CANDIDATES",
     });
+    expect(cacheWriteCalled).toBe(false);
   });
 
   it("returns clarification for a broad product request after LLM intent before vector search", async () => {
@@ -495,6 +516,253 @@ describe("RagChatService", () => {
     ]);
     expect(llmRequest?.requestId).toBe("request_123");
     expect(llmRequest?.abortSignal).toBe(abortController.signal);
+  });
+
+  it("uses popular query cache after cart and clarification intent checks", async () => {
+    let vectorSearchCalled = false;
+    let ragLlmCalled = false;
+    const productReaderCalls: string[][] = [];
+    const store = new ChatContextMemoryStore();
+    const service = new RagChatService(withNoCartIntent({
+      vectorSearch: {
+        search: async () => {
+          vectorSearchCalled = true;
+          return [createHit("product_001")];
+        },
+      },
+      productReader: {
+        findActiveByIds: async (productIds) => {
+          productReaderCalls.push(productIds);
+          return [createProduct({ id: "product_001", name: "Cached Product" })];
+        },
+      },
+      contextMemoryService: new ChatContextMemoryService({ store }),
+      clarificationIntentService: {
+        decide: async () => ({
+          needsClarification: false,
+          missingSlots: [],
+        }),
+      },
+      popularQueryCacheVersionReader: createCacheVersionReader(),
+      popularQueryCache: createFakeCache({
+        hit: {
+          key: "popular-query:test",
+          answer: "Cached LLM answer.",
+          recommendedProductIds: ["product_001"],
+          fallbackUsed: false,
+          retrieval: {
+            candidateCount: 2,
+            returnedProductIds: ["product_001"],
+          },
+          createdAt: "2026-06-01T00:00:00.000Z",
+          expiresAt: "2026-06-01T00:20:00.000Z",
+          hitCount: 1,
+          modelVersion: "mock-llm",
+          promptVersion: "rag-chat-v1",
+          dataVersion: "catalog-v1",
+        },
+      }),
+      llmClient: new MockLlmClient({
+        handler: (request) => {
+          ragLlmCalled = request.messages
+            .map((message) => message.content)
+            .join("\n")
+            .includes("只输出 JSON object");
+          return createLlmResponse(
+            JSON.stringify({
+              answer: "Fresh answer.",
+              recommended_product_ids: ["product_001"],
+            }),
+          );
+        },
+      }),
+    }));
+
+    const result = await service.answer({
+      conversationId: "cache-demo-1",
+      question: "推荐一款适合通勤的防晒",
+    });
+
+    expect(vectorSearchCalled).toBe(false);
+    expect(ragLlmCalled).toBe(false);
+    expect(productReaderCalls).toEqual([["product_001"]]);
+    expect(result).toMatchObject({
+      answer: "Cached LLM answer.",
+      recommendedProductIds: ["product_001"],
+      fallbackUsed: false,
+      retrieval: {
+        candidateCount: 2,
+        returnedProductIds: ["product_001"],
+      },
+      contextMemory: {
+        conversationId: "cache-demo-1",
+        lastRecommendedProductIds: ["product_001"],
+      },
+    });
+    expect(result.productCards[0]).toMatchObject({
+      id: "product_001",
+      name: "Cached Product",
+    });
+  });
+
+  it("treats cache hits with missing active products as miss and deletes the entry", async () => {
+    let vectorSearchCalled = false;
+    let cacheDeleted = false;
+    const productReaderCalls: string[][] = [];
+    const service = new RagChatService(withNoCartIntent({
+      vectorSearch: {
+        search: async () => {
+          vectorSearchCalled = true;
+          return [createHit("product_001")];
+        },
+      },
+      productReader: {
+        findActiveByIds: async (productIds) => {
+          productReaderCalls.push(productIds);
+
+          return productReaderCalls.length === 1
+            ? []
+            : [createProduct({ id: "product_001" })];
+        },
+      },
+      clarificationIntentService: {
+        decide: async () => ({
+          needsClarification: false,
+          missingSlots: [],
+        }),
+      },
+      popularQueryCacheVersionReader: createCacheVersionReader(),
+      popularQueryCache: createFakeCache({
+        hit: {
+          key: "popular-query:test",
+          answer: "Cached LLM answer.",
+          recommendedProductIds: ["product_001"],
+          fallbackUsed: false,
+          retrieval: {
+            candidateCount: 2,
+            returnedProductIds: ["product_001"],
+          },
+          createdAt: "2026-06-01T00:00:00.000Z",
+          expiresAt: "2026-06-01T00:20:00.000Z",
+          hitCount: 1,
+          modelVersion: "mock-llm",
+          promptVersion: "rag-chat-v1",
+          dataVersion: "catalog-v1",
+        },
+        onDelete: () => {
+          cacheDeleted = true;
+        },
+      }),
+      llmClient: new MockLlmClient({
+        response: createLlmResponse(
+          JSON.stringify({
+            answer: "Fresh answer.",
+            recommended_product_ids: ["product_001"],
+          }),
+        ),
+      }),
+    }));
+
+    const result = await service.answer({ question: "推荐一款防晒" });
+
+    expect(cacheDeleted).toBe(true);
+    expect(vectorSearchCalled).toBe(true);
+    expect(productReaderCalls).toEqual([["product_001"], ["product_001"]]);
+    expect(result.answer).toBe("Fresh answer.");
+    expect(result.recommendedProductIds).toEqual(["product_001"]);
+  });
+
+  it("writes safe RAG results to popular query cache", async () => {
+    let cachedResult: unknown;
+    const service = new RagChatService(withNoCartIntent({
+      vectorSearch: createVectorSearch([createHit("product_001")]),
+      productReader: createProductReader(),
+      clarificationIntentService: {
+        decide: async () => ({
+          needsClarification: false,
+          missingSlots: [],
+        }),
+      },
+      popularQueryCacheVersionReader: createCacheVersionReader(),
+      popularQueryCache: createFakeCache({
+        onSet: (input) => {
+          cachedResult = input.result;
+        },
+      }),
+      llmClient: new MockLlmClient({
+        response: createLlmResponse(
+          JSON.stringify({
+            answer: "Use product 1.",
+            recommended_product_ids: ["product_001"],
+          }),
+        ),
+      }),
+    }));
+
+    await service.answer({ question: "推荐一款防晒" });
+
+    expect(cachedResult).toMatchObject({
+      answer: "Use product 1.",
+      recommendedProductIds: ["product_001"],
+      fallbackUsed: false,
+    });
+  });
+
+  it("reuses first-turn conversation cache entries and keeps follow-up turns uncached", async () => {
+    let vectorSearchCallCount = 0;
+    let ragLlmCallCount = 0;
+    const cache = new PopularQueryCacheService();
+    const store = new ChatContextMemoryStore();
+    const createService = () => new RagChatService(withNoCartIntent({
+      vectorSearch: {
+        search: async () => {
+          vectorSearchCallCount += 1;
+          return [createHit("product_001")];
+        },
+      },
+      productReader: createProductReader(),
+      contextMemoryService: new ChatContextMemoryService({ store }),
+      clarificationIntentService: {
+        decide: async () => ({
+          needsClarification: false,
+          missingSlots: [],
+        }),
+      },
+      popularQueryCacheVersionReader: createCacheVersionReader(),
+      popularQueryCache: cache,
+      llmClient: new MockLlmClient({
+        handler: () => {
+          ragLlmCallCount += 1;
+          return createLlmResponse(
+            JSON.stringify({
+              answer: "Use product 1.",
+              recommended_product_ids: ["product_001"],
+            }),
+          );
+        },
+      }),
+    }));
+
+    await createService().answer({
+      conversationId: "cache-session-1",
+      question: "推荐一款防晒",
+    });
+    const firstTurnCachedResult = await createService().answer({
+      conversationId: "cache-session-2",
+      question: "推荐一款防晒",
+    });
+    await createService().answer({
+      conversationId: "cache-session-2",
+      question: "要轻薄一点的",
+    });
+
+    expect(vectorSearchCallCount).toBe(2);
+    expect(ragLlmCallCount).toBe(2);
+    expect(firstTurnCachedResult.answer).toBe("Use product 1.");
+    expect(firstTurnCachedResult.contextMemory).toMatchObject({
+      conversationId: "cache-session-2",
+      lastRecommendedProductIds: ["product_001"],
+    });
   });
 
   it("uses conversation memory for follow-up retrieval, prompt context, and done summary", async () => {
@@ -1097,6 +1365,36 @@ function createCartDto(): CartDto {
 function createVectorSearch(hits: VectorSearchHit[]): RagVectorSearchClient {
   return {
     search: async () => hits,
+  };
+}
+
+function createCacheVersionReader() {
+  return {
+    read: async () => ({
+      modelVersion: "mock-llm",
+      promptVersion: "rag-chat-v1",
+      dataVersion: "catalog-v1",
+      visibleBoundary: "locale=zh-CN|currency=CNY|imageBase=relative",
+    }),
+  };
+}
+
+function createFakeCache(input: {
+  hit?: PopularQueryCacheHit | null;
+  onSet?: (cacheInput: PopularQueryCacheWriteInput) => void;
+  onDelete?: () => void;
+}): PopularQueryCache {
+  return {
+    get: async () => input.hit ?? null,
+    set: async (cacheInput) => {
+      input.onSet?.(cacheInput);
+    },
+    delete: async () => {
+      input.onDelete?.();
+    },
+    isEligibleForRead: () => true,
+    isEligibleForWrite: () => true,
+    buildKey: (_cacheInput: PopularQueryCacheReadInput) => "popular-query:test",
   };
 }
 

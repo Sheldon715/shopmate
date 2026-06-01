@@ -47,6 +47,20 @@ import {
   RagResponseGenerationService,
   createMinimalRagFallbackAnswer,
 } from "./rag-response-generation.service";
+import {
+  PopularQueryCacheService,
+  createCacheHitResult,
+} from "./popular-query-cache.service";
+import type {
+  PopularQueryCache,
+  PopularQueryCacheReadInput,
+} from "./popular-query-cache.service";
+import {
+  PopularQueryCacheVersionService,
+} from "./popular-query-cache-version.service";
+import type {
+  PopularQueryCacheVersionReader,
+} from "./popular-query-cache-version.service";
 
 export interface RagVectorSearchClient {
   search(input: {
@@ -79,7 +93,7 @@ export type RagClarificationIntentDetector = Pick<
 >;
 export type RagResponseGenerator = Pick<
   RagResponseGenerationService,
-  "generateNoCandidatesAnswer"
+  "generateNoCandidatesResponse"
 >;
 
 export interface RagChatServiceOptions {
@@ -95,6 +109,8 @@ export interface RagChatServiceOptions {
   cartCommandIntentService?: RagCartCommandIntentDetector;
   cartActionResponseService?: RagCartActionResponder;
   ragResponseGenerationService?: RagResponseGenerator;
+  popularQueryCache?: PopularQueryCache;
+  popularQueryCacheVersionReader?: PopularQueryCacheVersionReader;
   maxSnippetsPerProduct?: number;
   defaultMaxRecommendedProducts?: number;
   publicImageBaseUrl?: string;
@@ -134,6 +150,8 @@ export class RagChatService {
   private readonly cartCommandIntentService: RagCartCommandIntentDetector;
   private readonly cartActionResponseService: RagCartActionResponder;
   private readonly ragResponseGenerationService: RagResponseGenerator;
+  private readonly popularQueryCache: PopularQueryCache;
+  private readonly popularQueryCacheVersionReader: PopularQueryCacheVersionReader;
   private readonly maxSnippetsPerProduct: number;
   private readonly defaultMaxRecommendedProducts: number;
   private readonly publicImageBaseUrl?: string;
@@ -169,6 +187,11 @@ export class RagChatService {
     this.ragResponseGenerationService =
       options.ragResponseGenerationService
       ?? new RagResponseGenerationService({ llmClient: this.llmClient });
+    this.popularQueryCache =
+      options.popularQueryCache ?? new PopularQueryCacheService();
+    this.popularQueryCacheVersionReader =
+      options.popularQueryCacheVersionReader
+      ?? new PopularQueryCacheVersionService();
     this.maxSnippetsPerProduct =
       options.maxSnippetsPerProduct ?? DEFAULT_MAX_SNIPPETS_PER_PRODUCT;
     this.defaultMaxRecommendedProducts =
@@ -239,6 +262,38 @@ export class RagChatService {
       );
     }
 
+    const cacheInput = await this.createPopularQueryCacheInput({
+      question,
+      input,
+      memoryResolution,
+      maxRecommendedProducts,
+    });
+    const cacheHit = await this.readPopularQueryCache(cacheInput);
+
+    if (cacheHit) {
+      const cacheHitProducts = orderProductsByIds(
+        await this.productReader.findActiveByIds(cacheHit.recommendedProductIds),
+        cacheHit.recommendedProductIds,
+      );
+
+      if (cacheHitProducts.length === cacheHit.recommendedProductIds.length) {
+        return this.withContextMemory(
+          memoryResolution,
+          createCacheHitResult(
+            cacheHit,
+            cacheHitProducts,
+            cacheHitProducts.map((product) =>
+              mapProductToCardDto(product, {
+                publicImageBaseUrl: this.publicImageBaseUrl,
+              })
+            ),
+          ),
+        );
+      }
+
+      await this.deletePopularQueryCache(cacheInput);
+    }
+
     const hits = await this.vectorSearch.search({
       query: memoryResolution.retrievalQuery,
       filters: memoryResolution.filters,
@@ -248,18 +303,12 @@ export class RagChatService {
     const candidates = dedupeVectorHits(hits, this.maxSnippetsPerProduct);
 
     if (candidates.length === 0) {
-      return this.withContextMemory(
+      return this.answerNoCandidates({
+        cacheInput,
         memoryResolution,
-        createNoCandidatesResult(
-          await this.ragResponseGenerationService.generateNoCandidatesAnswer({
-            question,
-            filters: memoryResolution.filters,
-            contextMemory: memoryResolution.contextMemory,
-            requestId: input.requestId,
-            abortSignal: input.abortSignal,
-          }),
-        ),
-      );
+        question,
+        request: input,
+      });
     }
 
     const products = await this.productReader.findActiveByIds(
@@ -268,18 +317,12 @@ export class RagChatService {
     const contexts = createRetrievedContexts(candidates, products);
 
     if (contexts.length === 0) {
-      return this.withContextMemory(
+      return this.answerNoCandidates({
+        cacheInput,
         memoryResolution,
-        createNoCandidatesResult(
-          await this.ragResponseGenerationService.generateNoCandidatesAnswer({
-            question,
-            filters: memoryResolution.filters,
-            contextMemory: memoryResolution.contextMemory,
-            requestId: input.requestId,
-            abortSignal: input.abortSignal,
-          }),
-        ),
-      );
+        question,
+        request: input,
+      });
     }
 
     try {
@@ -305,39 +348,129 @@ export class RagChatService {
       );
 
       if (recommendedProductIds.length === 0) {
-        return this.withContextMemory(
-          memoryResolution,
-          createRetrievedFallbackResult(
-            contexts,
-            maxRecommendedProducts,
-            "NO_VALID_PRODUCT_IDS",
-            this.publicImageBaseUrl,
+        return this.withCacheWrite(
+          cacheInput,
+          this.withContextMemory(
+            memoryResolution,
+            createRetrievedFallbackResult(
+              contexts,
+              maxRecommendedProducts,
+              "NO_VALID_PRODUCT_IDS",
+              this.publicImageBaseUrl,
+            ),
           ),
         );
       }
 
-      return this.withContextMemory(
-        memoryResolution,
-        createSuccessResult(
-          compactAnswer(parsed.answer),
-          recommendedProductIds,
-          contexts,
-          this.publicImageBaseUrl,
+      return this.withCacheWrite(
+        cacheInput,
+        this.withContextMemory(
+          memoryResolution,
+          createSuccessResult(
+            compactAnswer(parsed.answer),
+            recommendedProductIds,
+            contexts,
+            this.publicImageBaseUrl,
+          ),
         ),
       );
     } catch (error) {
-      return this.withContextMemory(
-        memoryResolution,
-        createRetrievedFallbackResult(
-          contexts,
-          maxRecommendedProducts,
-          error instanceof RagLlmOutputParseError
-            ? "LLM_INVALID_OUTPUT"
-            : "LLM_ERROR",
-          this.publicImageBaseUrl,
+      return this.withCacheWrite(
+        cacheInput,
+        this.withContextMemory(
+          memoryResolution,
+          createRetrievedFallbackResult(
+            contexts,
+            maxRecommendedProducts,
+            error instanceof RagLlmOutputParseError
+              ? "LLM_INVALID_OUTPUT"
+              : "LLM_ERROR",
+            this.publicImageBaseUrl,
+          ),
         ),
       );
     }
+  }
+
+  private async answerNoCandidates(input: {
+    cacheInput: PopularQueryCacheReadInput;
+    memoryResolution: ReturnType<ChatContextMemoryService["resolve"]>;
+    question: string;
+    request: Pick<RagChatRequest, "requestId" | "abortSignal">;
+  }): Promise<RagChatResult> {
+    const noCandidatesResponse =
+      await this.ragResponseGenerationService.generateNoCandidatesResponse({
+        question: input.question,
+        filters: input.memoryResolution.filters,
+        contextMemory: input.memoryResolution.contextMemory,
+        requestId: input.request.requestId,
+        abortSignal: input.request.abortSignal,
+      });
+    const result = this.withContextMemory(
+      input.memoryResolution,
+      createNoCandidatesResult(noCandidatesResponse.answer),
+    );
+
+    return noCandidatesResponse.generatedByLlm
+      ? this.withCacheWrite(input.cacheInput, result)
+      : result;
+  }
+
+  private async createPopularQueryCacheInput(input: {
+    question: string;
+    input: RagChatRequest;
+    memoryResolution: ReturnType<ChatContextMemoryService["resolve"]>;
+    maxRecommendedProducts: number;
+  }): Promise<PopularQueryCacheReadInput> {
+    return {
+      ...(await this.popularQueryCacheVersionReader.read()),
+      question: input.question,
+      filters: input.memoryResolution.filters,
+      topK: input.input.topK,
+      maxRecommendedProducts: input.maxRecommendedProducts,
+      shortHistory: input.input.shortHistory,
+      contextMemory:
+        input.memoryResolution.memory
+          && input.memoryResolution.memory.turnCount > 1
+          ? input.memoryResolution.contextMemory
+          : undefined,
+    };
+  }
+
+  private async readPopularQueryCache(
+    cacheInput: PopularQueryCacheReadInput,
+  ) {
+    try {
+      return await this.popularQueryCache.get(cacheInput);
+    } catch {
+      return null;
+    }
+  }
+
+  private async deletePopularQueryCache(
+    cacheInput: PopularQueryCacheReadInput,
+  ): Promise<void> {
+    try {
+      await this.popularQueryCache.delete(cacheInput);
+    } catch {
+      // Cache invalidation failures should not block the normal RAG path.
+    }
+  }
+
+  private async withCacheWrite(
+    cacheInput: PopularQueryCacheReadInput,
+    result: RagChatResult,
+  ): Promise<RagChatResult> {
+    try {
+      await this.popularQueryCache.set({
+        ...cacheInput,
+        result,
+      });
+    } catch {
+      return result;
+    }
+
+    return result;
   }
 
   private withContextMemory(

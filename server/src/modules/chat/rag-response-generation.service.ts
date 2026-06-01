@@ -15,6 +15,11 @@ export interface NoCandidatesResponseInput {
   abortSignal?: AbortSignal;
 }
 
+export interface GeneratedNoCandidatesResponse {
+  answer: string;
+  generatedByLlm: boolean;
+}
+
 const RAG_RESPONSE_MAX_COMPLETION_TOKENS = 160;
 const MAX_RAG_FALLBACK_ANSWER_CHARS = 90;
 
@@ -28,6 +33,12 @@ export class RagResponseGenerationService {
   async generateNoCandidatesAnswer(
     input: NoCandidatesResponseInput,
   ): Promise<string> {
+    return (await this.generateNoCandidatesResponse(input)).answer;
+  }
+
+  async generateNoCandidatesResponse(
+    input: NoCandidatesResponseInput,
+  ): Promise<GeneratedNoCandidatesResponse> {
     try {
       const response = await this.llmClient.generate({
         messages: buildNoCandidatesPrompt(input),
@@ -39,9 +50,17 @@ export class RagResponseGenerationService {
       const answer = normalizeAnswer(parseAnswerOutput(response.text)
         ?? parsePlainTextAnswer(response.text));
 
-      return answer ?? createMinimalRagFallbackAnswer("NO_CANDIDATES");
+      return answer
+        ? { answer, generatedByLlm: true }
+        : {
+            answer: createMinimalRagFallbackAnswer("NO_CANDIDATES"),
+            generatedByLlm: false,
+          };
     } catch {
-      return createMinimalRagFallbackAnswer("NO_CANDIDATES");
+      return {
+        answer: createMinimalRagFallbackAnswer("NO_CANDIDATES"),
+        generatedByLlm: false,
+      };
     }
   }
 }
