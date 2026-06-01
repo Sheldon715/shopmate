@@ -9,6 +9,7 @@ data class ChatMessageUi(
     val text: String,
     val fromUser: Boolean,
     val isStreaming: Boolean = false,
+    val isVoiceTranscribing: Boolean = false,
 )
 
 data class ChatUiState(
@@ -20,10 +21,24 @@ data class ChatUiState(
     val isSending: Boolean = false,
     val errorMessage: String? = null,
     val canRetry: Boolean = false,
+    val voiceInput: VoiceInputUiState = VoiceInputUiState.Idle,
 )
 
 sealed interface ChatSideEffect {
     data class RefreshCart(val message: String? = null) : ChatSideEffect
+}
+
+sealed interface VoiceInputUiState {
+    object Idle : VoiceInputUiState
+    object Listening : VoiceInputUiState
+    object Transcribing : VoiceInputUiState
+    data class TranscriptReady(val transcript: String) : VoiceInputUiState
+    data class PermissionDenied(
+        val message: String = "需要开启麦克风权限才能语音输入。",
+    ) : VoiceInputUiState
+    data class Error(
+        val message: String,
+    ) : VoiceInputUiState
 }
 
 internal val ChatPreviewUiState = ChatUiState(

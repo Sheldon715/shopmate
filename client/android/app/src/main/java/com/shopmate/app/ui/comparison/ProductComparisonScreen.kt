@@ -159,7 +159,8 @@ fun ProductComparisonScreen(
             value = composerText,
             onValueChange = { composerText = it },
             onSend = {},
-            onVoiceClick = {},
+            onVoicePressStart = {},
+            onVoicePressEnd = {},
             shadowElevation = 0.dp,
             modifier = Modifier
                 .offset(x = 18f.s(), y = composerTop)

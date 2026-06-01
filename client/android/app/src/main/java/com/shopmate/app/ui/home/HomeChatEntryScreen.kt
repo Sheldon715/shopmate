@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.shopmate.app.R
 import com.shopmate.app.data.mock.MockShopMateData
+import com.shopmate.app.ui.chat.VoiceInputUiState
 import com.shopmate.app.ui.components.ChatComposer
 import com.shopmate.app.ui.components.ShopMateFigmaFrameWidth
 import com.shopmate.app.ui.components.ShopMateCircleIconButton
@@ -57,8 +58,12 @@ fun HomeChatEntryScreen(
     composerText: String = "",
     isSending: Boolean = false,
     historyConversations: List<HistoryConversationUi> = MockShopMateData.historyConversations,
+    voiceInputState: VoiceInputUiState = VoiceInputUiState.Idle,
     onComposerTextChange: (String) -> Unit = {},
     onSend: () -> Unit = {},
+    onVoicePressStart: () -> Unit = {},
+    onVoicePressEnd: () -> Unit = {},
+    onVoiceCancel: () -> Unit = {},
     onMenuClick: () -> Unit = {},
     onCartClick: () -> Unit = {},
     onNewChatClick: () -> Unit = {},
@@ -128,7 +133,11 @@ fun HomeChatEntryScreen(
             value = composerText,
             onValueChange = onComposerTextChange,
             onSend = onSend,
-            onVoiceClick = {},
+            onVoicePressStart = onVoicePressStart,
+            onVoicePressEnd = onVoicePressEnd,
+            onVoiceCancel = onVoiceCancel,
+            voiceInputState = voiceInputState,
+            voiceEnabled = !isSending,
             sendEnabled = composerText.isNotBlank() && !isSending,
             modifier = Modifier
                 .offset(x = 18f.s(), y = composerTop)

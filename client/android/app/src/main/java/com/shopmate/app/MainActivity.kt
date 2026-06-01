@@ -1,17 +1,23 @@
 package com.shopmate.app
 
+import android.Manifest
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import android.content.pm.PackageManager
 import android.view.View
 import android.view.WindowInsets
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -22,6 +28,7 @@ import com.shopmate.app.ui.cart.CartViewModel
 import com.shopmate.app.ui.chat.ChatRecommendationScreen
 import com.shopmate.app.ui.chat.ChatSideEffect
 import com.shopmate.app.ui.chat.ChatViewModel
+import com.shopmate.app.ui.chat.VoiceInputUiState
 import com.shopmate.app.ui.comparison.ProductComparisonScreen
 import com.shopmate.app.ui.home.HomeChatEntryScreen
 import com.shopmate.app.ui.model.HistoryConversationUi
@@ -29,6 +36,7 @@ import com.shopmate.app.ui.onboarding.OnboardingScreen
 import com.shopmate.app.ui.product.ProductDetailScreen
 import com.shopmate.app.ui.product.ProductDetailViewModel
 import com.shopmate.app.ui.theme.ShopMateTheme
+import com.shopmate.app.ui.voice.AndroidSpeechVoiceInputController
 
 class MainActivity : ComponentActivity() {
     private val appContainer by lazy { ShopMateAppContainer() }
@@ -65,6 +73,73 @@ class MainActivity : ComponentActivity() {
                     factory = appContainer.cartViewModelFactory()
                 )
                 val cartUiState by cartViewModel.uiState.collectAsState()
+                val voiceController = remember(chatViewModel) {
+                    AndroidSpeechVoiceInputController(
+                        context = this@MainActivity,
+                        listener = object : AndroidSpeechVoiceInputController.Listener {
+                            override fun onListening() {
+                                chatViewModel.onVoiceListening()
+                            }
+
+                            override fun onTranscribing() {
+                                chatViewModel.onVoiceTranscribing()
+                            }
+
+                            override fun onTranscriptReady(transcript: String) {
+                                chatViewModel.onVoiceTranscriptReady(transcript)
+                                currentScreen = ShopMateScreen.ChatRecommendation
+                            }
+
+                            override fun onError(message: String) {
+                                chatViewModel.onVoiceInputError(message)
+                            }
+                        },
+                    )
+                }
+                DisposableEffect(voiceController) {
+                    onDispose {
+                        voiceController.destroy()
+                    }
+                }
+                fun beginVoiceRecognition() {
+                    chatViewModel.onVoiceStartRequested()
+                    voiceController.startListening()
+                }
+                val voicePermissionLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.RequestPermission(),
+                ) { granted ->
+                    if (granted) {
+                        chatViewModel.cancelVoiceInput()
+                    } else {
+                        chatViewModel.onVoicePermissionDenied()
+                    }
+                }
+                val startVoiceInput: () -> Unit = {
+                    val state = chatViewModel.uiState.value
+                    val canStartVoice = !state.isSending &&
+                        state.voiceInput !is VoiceInputUiState.Listening &&
+                        state.voiceInput !is VoiceInputUiState.Transcribing
+
+                    if (canStartVoice &&
+                        checkSelfPermission(Manifest.permission.RECORD_AUDIO) ==
+                        PackageManager.PERMISSION_GRANTED
+                    ) {
+                        beginVoiceRecognition()
+                    } else if (canStartVoice) {
+                        voicePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                    }
+                }
+                val finishVoiceInput: () -> Unit = {
+                    when (chatViewModel.uiState.value.voiceInput) {
+                        VoiceInputUiState.Listening -> voiceController.stopListening()
+                        VoiceInputUiState.Transcribing -> Unit
+                        else -> Unit
+                    }
+                }
+                val cancelVoiceInput: () -> Unit = {
+                    voiceController.cancel()
+                    chatViewModel.cancelVoiceInput()
+                }
                 LaunchedEffect(chatViewModel) {
                     chatViewModel.sideEffects.collect { effect ->
                         when (effect) {
@@ -89,6 +164,7 @@ class MainActivity : ComponentActivity() {
                     chatViewModel.renameHistoryConversation(conversationId, title)
                 }
                 val deleteHistory: (String) -> Unit = { conversationId ->
+                    cancelVoiceInput()
                     chatViewModel.deleteHistoryConversation(conversationId)
                     if (!chatViewModel.hasActiveConversation() &&
                         currentScreen == ShopMateScreen.ChatRecommendation
@@ -97,6 +173,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 val startNewChat: () -> Unit = {
+                    cancelVoiceInput()
                     chatViewModel.startNewChat()
                     currentScreen = ShopMateScreen.HomeChatEntry
                 }
@@ -121,6 +198,7 @@ class MainActivity : ComponentActivity() {
                     ).show()
                 }
                 val openHistoryConversation: (HistoryConversationUi) -> Unit = { conversation ->
+                    cancelVoiceInput()
                     if (chatViewModel.openHistoryConversation(conversation.id)) {
                         currentScreen = ShopMateScreen.ChatRecommendation
                     } else {
@@ -143,8 +221,12 @@ class MainActivity : ComponentActivity() {
                         composerText = chatUiState.composerText,
                         isSending = chatUiState.isSending,
                         historyConversations = historyConversations,
+                        voiceInputState = chatUiState.voiceInput,
                         onComposerTextChange = chatViewModel::onComposerTextChange,
                         onSend = sendHomeChatMessage,
+                        onVoicePressStart = startVoiceInput,
+                        onVoicePressEnd = finishVoiceInput,
+                        onVoiceCancel = cancelVoiceInput,
                         onCartClick = openCart,
                         onNewChatClick = startNewChat,
                         onHistoryClick = openHistoryConversation,
@@ -157,6 +239,9 @@ class MainActivity : ComponentActivity() {
                         state = chatUiState,
                         onComposerTextChange = chatViewModel::onComposerTextChange,
                         onSend = chatViewModel::sendMessage,
+                        onVoicePressStart = startVoiceInput,
+                        onVoicePressEnd = finishVoiceInput,
+                        onVoiceCancel = cancelVoiceInput,
                         onRetry = chatViewModel::retryLastMessage,
                         onNewChatClick = startNewChat,
                         onCartClick = openCart,

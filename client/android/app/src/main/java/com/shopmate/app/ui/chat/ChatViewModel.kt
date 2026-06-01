@@ -36,6 +36,7 @@ class ChatViewModel(
     private var sessionSequence = 0
     private var currentSessionId: String? = null
     private var preservingProductCardsForCurrentStream = false
+    private var voicePendingMessageId: String? = null
     private val sessionSnapshots = mutableMapOf<String, ChatSessionSnapshot>()
 
     fun onComposerTextChange(text: String) {
@@ -60,6 +61,107 @@ class ChatViewModel(
             history = state.messages,
             clearComposer = true,
         )
+    }
+
+    fun onVoiceStartRequested() {
+        if (_uiState.value.isSending) {
+            return
+        }
+
+        voicePendingMessageId = null
+        _uiState.update { state ->
+            state.copy(
+                voiceInput = VoiceInputUiState.Listening,
+                errorMessage = null,
+                canRetry = false,
+            )
+        }
+    }
+
+    fun onVoiceListening() {
+        if (_uiState.value.isSending) {
+            return
+        }
+
+        _uiState.update { state ->
+            state.copy(
+                voiceInput = VoiceInputUiState.Listening,
+                errorMessage = null,
+                canRetry = false,
+            )
+        }
+    }
+
+    fun onVoiceTranscribing() {
+        if (_uiState.value.isSending) {
+            return
+        }
+
+        _uiState.update { state ->
+            val pendingId = voicePendingMessageId ?: nextMessageId(USER_MESSAGE_PREFIX).also { id ->
+                voicePendingMessageId = id
+            }
+            val messages = state.messages.removeVoicePendingMessage(pendingId) +
+                ChatMessageUi(
+                    id = pendingId,
+                    text = VOICE_TRANSCRIBING_TEXT,
+                    fromUser = true,
+                    isVoiceTranscribing = true,
+                )
+
+            state.copy(
+                messages = messages,
+                voiceInput = VoiceInputUiState.Transcribing,
+                errorMessage = null,
+                canRetry = false,
+            )
+        }
+    }
+
+    fun onVoiceTranscriptReady(transcript: String) {
+        val normalizedTranscript = transcript.trim()
+        if (normalizedTranscript.isBlank()) {
+            onVoiceInputError("没有识别到语音，请再试一次。")
+            return
+        }
+
+        val state = _uiState.value
+        if (state.isSending) {
+            return
+        }
+
+        val pendingId = voicePendingMessageId
+        val history = state.messages.removeVoicePendingMessage(pendingId)
+        _uiState.update { currentState ->
+            currentState.copy(
+                voiceInput = VoiceInputUiState.TranscriptReady(normalizedTranscript),
+            )
+        }
+
+        startStream(
+            message = normalizedTranscript,
+            history = history,
+            clearComposer = false,
+            userMessageId = pendingId,
+        )
+    }
+
+    fun onVoicePartialResult(@Suppress("UNUSED_PARAMETER") text: String) = Unit
+
+    fun onVoicePermissionDenied() {
+        removePendingVoiceMessage(
+            nextVoiceState = VoiceInputUiState.PermissionDenied(),
+        )
+    }
+
+    fun onVoiceInputError(@Suppress("UNUSED_PARAMETER") message: String) {
+        removePendingVoiceMessage(
+            nextVoiceState = VoiceInputUiState.Idle,
+        )
+    }
+
+    fun cancelVoiceInput() {
+        removePendingVoiceMessage(nextVoiceState = VoiceInputUiState.Idle)
     }
 
     fun retryLastMessage() {
@@ -95,6 +197,7 @@ class ChatViewModel(
         streamJob?.cancel()
         streamJob = null
         preservingProductCardsForCurrentStream = false
+        voicePendingMessageId = null
         lastSentMessage = null
         currentSessionId = null
         _uiState.value = ChatUiState(historyConversations = historyConversations)
@@ -122,6 +225,7 @@ class ChatViewModel(
                 isSending = false,
                 errorMessage = null,
                 canRetry = false,
+                voiceInput = VoiceInputUiState.Idle,
             )
         }
         return true
@@ -158,6 +262,7 @@ class ChatViewModel(
             streamJob?.cancel()
             streamJob = null
             preservingProductCardsForCurrentStream = false
+            voicePendingMessageId = null
             currentSessionId = null
             lastSentMessage = null
         }
@@ -178,7 +283,7 @@ class ChatViewModel(
     fun editableHistoryConversationIds(): Set<String> = sessionSnapshots.keys.toSet()
 
     private fun ChatUiState.hasActiveConversation(): Boolean =
-        messages.isNotEmpty() || productCards.isNotEmpty() || isSending
+        messages.any { message -> !message.isVoiceTranscribing } || productCards.isNotEmpty() || isSending
 
     private fun saveCurrentSession(state: ChatUiState): List<HistoryConversationUi> {
         if (!state.hasActiveConversation()) {
@@ -186,8 +291,11 @@ class ChatViewModel(
         }
 
         val sessionId = currentSessionId ?: nextSessionId()
+        val snapshotMessages = state.messages
+            .filterNot { message -> message.isVoiceTranscribing }
+            .map { message -> message.copy(isStreaming = false, isVoiceTranscribing = false) }
         val snapshot = ChatSessionSnapshot(
-            messages = state.messages.map { message -> message.copy(isStreaming = false) },
+            messages = snapshotMessages,
             productCards = state.productCards,
             productCardsAnchorMessageId = state.productCardsAnchorMessageId,
         )
@@ -249,16 +357,18 @@ class ChatViewModel(
         message: String,
         history: List<ChatMessageUi>,
         clearComposer: Boolean,
+        userMessageId: String? = null,
     ) {
         streamJob?.cancel()
         lastSentMessage = message
         preservingProductCardsForCurrentStream = false
+        voicePendingMessageId = null
         val conversationId = currentSessionId ?: nextSessionId().also { id ->
             currentSessionId = id
         }
 
         val userMessage = ChatMessageUi(
-            id = nextMessageId(USER_MESSAGE_PREFIX),
+            id = userMessageId ?: nextMessageId(USER_MESSAGE_PREFIX),
             text = message,
             fromUser = true,
         )
@@ -293,6 +403,7 @@ class ChatViewModel(
                 isSending = true,
                 errorMessage = null,
                 canRetry = false,
+                voiceInput = VoiceInputUiState.Idle,
             )
         }
 
@@ -424,12 +535,31 @@ class ChatViewModel(
         return "$prefix-$messageSequence"
     }
 
+    private fun removePendingVoiceMessage(nextVoiceState: VoiceInputUiState) {
+        val pendingId = voicePendingMessageId
+        voicePendingMessageId = null
+        _uiState.update { state ->
+            state.copy(
+                messages = state.messages.removeVoicePendingMessage(pendingId),
+                voiceInput = nextVoiceState,
+            )
+        }
+    }
+
     companion object {
         private const val USER_MESSAGE_PREFIX = "user"
         private const val ASSISTANT_MESSAGE_PREFIX = "assistant"
         private const val MAX_HISTORY_TITLE_LENGTH = 24
+        private const val VOICE_TRANSCRIBING_TEXT = "正在识别..."
     }
 }
+
+private fun List<ChatMessageUi>.removeVoicePendingMessage(
+    pendingId: String?,
+): List<ChatMessageUi> =
+    filterNot { message ->
+        message.isVoiceTranscribing && (pendingId == null || message.id == pendingId)
+    }
 
 private fun List<ChatMessageUi>.replaceLastAssistant(
     transform: (ChatMessageUi) -> ChatMessageUi,

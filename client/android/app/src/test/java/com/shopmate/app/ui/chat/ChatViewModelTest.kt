@@ -759,6 +759,142 @@ class ChatViewModelTest {
         assertFalse(state.isSending)
     }
 
+    @Test
+    fun voicePermissionDeniedDoesNotSendMessage() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onVoicePermissionDenied()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(0, repository.streamCalls)
+        assertEquals(emptyList(), state.messages)
+        assertIs<VoiceInputUiState.PermissionDenied>(state.voiceInput)
+    }
+
+    @Test
+    fun voiceTranscribingShowsPendingUserBubble() = runTest {
+        val viewModel = ChatViewModel(FakeChatRepository())
+
+        viewModel.onVoiceListening()
+        viewModel.onVoiceTranscribing()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertIs<VoiceInputUiState.Transcribing>(state.voiceInput)
+        assertEquals(1, state.messages.size)
+        assertEquals("正在识别...", state.messages.single().text)
+        assertTrue(state.messages.single().fromUser)
+        assertTrue(state.messages.single().isVoiceTranscribing)
+    }
+
+    @Test
+    fun cancelVoiceInputClearsPendingBubbleAndReturnsIdle() = runTest {
+        val viewModel = ChatViewModel(FakeChatRepository())
+
+        viewModel.onVoiceTranscribing()
+        viewModel.cancelVoiceInput()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(VoiceInputUiState.Idle, state.voiceInput)
+        assertEquals(emptyList(), state.messages)
+    }
+
+    @Test
+    fun voiceTranscriptReadyReplacesPendingBubbleAndStartsStream() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onVoiceTranscribing()
+        val pendingId = viewModel.uiState.value.messages.single().id
+        viewModel.onVoiceTranscriptReady("推荐一款适合通勤的蓝牙耳机")
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(1, repository.streamCalls)
+        assertEquals("推荐一款适合通勤的蓝牙耳机", state.messages[0].text)
+        assertEquals(pendingId, state.messages[0].id)
+        assertFalse(state.messages[0].isVoiceTranscribing)
+        assertTrue(state.messages[0].fromUser)
+        assertTrue(state.messages[1].isStreaming)
+        assertEquals(VoiceInputUiState.Idle, state.voiceInput)
+    }
+
+    @Test
+    fun voiceTranscriptUsesCurrentConversationAndHistory() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("推荐耳机")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+        repository.events.emit(
+            ChatStreamEvent.Done(
+                recommendedProductIds = emptyList(),
+                fallbackUsed = false,
+                fallbackReason = null,
+                retrieval = ChatRetrievalDto(candidateCount = 0),
+            ),
+        )
+        advanceUntilIdle()
+        val originalConversationId = repository.conversationIds.single()
+
+        viewModel.onVoiceTranscribing()
+        viewModel.onVoiceTranscriptReady("要更便宜一点")
+        advanceUntilIdle()
+
+        assertEquals(listOf(originalConversationId, originalConversationId), repository.conversationIds)
+        assertEquals(2, repository.histories.last().size)
+        assertEquals("要更便宜一点", viewModel.uiState.value.messages.dropLast(1).last().text)
+    }
+
+    @Test
+    fun voiceFailureDoesNotClearComposerOrRequestChatStream() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("原来手打的内容")
+        viewModel.onVoiceTranscribing()
+        viewModel.onVoiceInputError("没有识别到语音，请再试一次。")
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals("原来手打的内容", state.composerText)
+        assertEquals(0, repository.streamCalls)
+        assertEquals(emptyList(), state.messages)
+        assertEquals(VoiceInputUiState.Idle, state.voiceInput)
+    }
+
+    @Test
+    fun voicePartialResultDoesNotRequestChatStream() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onVoiceTranscribing()
+        viewModel.onVoicePartialResult("推荐耳机")
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(0, repository.streamCalls)
+        assertEquals(1, state.messages.size)
+        assertTrue(state.messages.single().isVoiceTranscribing)
+    }
+
+    @Test
+    fun startNewChatClearsVoiceInputState() = runTest {
+        val viewModel = ChatViewModel(FakeChatRepository())
+
+        viewModel.onVoiceTranscribing()
+        viewModel.startNewChat()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(VoiceInputUiState.Idle, state.voiceInput)
+        assertEquals(emptyList(), state.messages)
+    }
+
     private class FakeChatRepository : ChatRepository {
         val events = MutableSharedFlow<ChatStreamEvent>()
         var streamCalls = 0

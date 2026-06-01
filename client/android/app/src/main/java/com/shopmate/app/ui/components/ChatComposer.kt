@@ -1,10 +1,10 @@
 package com.shopmate.app.ui.components
 
+import android.view.MotionEvent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -20,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -28,7 +29,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
@@ -37,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import com.shopmate.app.R
+import com.shopmate.app.ui.chat.VoiceInputUiState
 import com.shopmate.app.ui.theme.ShopMateGreen
 import com.shopmate.app.ui.theme.ShopMateLightGreen
 import com.shopmate.app.ui.theme.ShopMatePillShape
@@ -47,31 +49,30 @@ fun ChatComposer(
     value: String,
     onValueChange: (String) -> Unit,
     onSend: () -> Unit,
-    onVoiceClick: () -> Unit,
+    onVoicePressStart: () -> Unit,
+    onVoicePressEnd: () -> Unit,
     modifier: Modifier = Modifier,
     shadowElevation: Dp = 10.dp,
-    sendEnabled: Boolean = value.isNotBlank()
+    sendEnabled: Boolean = value.isNotBlank(),
+    voiceInputState: VoiceInputUiState = VoiceInputUiState.Idle,
+    voiceEnabled: Boolean = true,
+    onVoiceCancel: () -> Unit = {},
 ) {
     var inputMode by rememberSaveable { mutableStateOf(ComposerInputMode.Text) }
-    var isVoicePressed by rememberSaveable { mutableStateOf(false) }
 
     ChatComposerContent(
         value = value,
         onValueChange = onValueChange,
         onSend = onSend,
-        onVoiceClick = onVoiceClick,
+        onVoicePressStart = onVoicePressStart,
+        onVoicePressEnd = onVoicePressEnd,
         inputMode = inputMode,
-        isVoicePressed = isVoicePressed,
+        voiceInputState = voiceInputState,
+        voiceEnabled = voiceEnabled,
         onInputModeChange = { mode ->
             inputMode = mode
-            isVoicePressed = false
-            if (mode == ComposerInputMode.Voice) {
-                onVoiceClick()
-            }
         },
-        onVoicePressedChange = { pressed ->
-            isVoicePressed = pressed
-        },
+        onVoiceCancel = onVoiceCancel,
         modifier = modifier,
         shadowElevation = shadowElevation,
         sendEnabled = sendEnabled
@@ -83,15 +84,22 @@ private fun ChatComposerContent(
     value: String,
     onValueChange: (String) -> Unit,
     onSend: () -> Unit,
-    onVoiceClick: () -> Unit,
+    onVoicePressStart: () -> Unit,
+    onVoicePressEnd: () -> Unit,
     inputMode: ComposerInputMode,
-    isVoicePressed: Boolean,
+    voiceInputState: VoiceInputUiState,
+    voiceEnabled: Boolean,
     onInputModeChange: (ComposerInputMode) -> Unit,
-    onVoicePressedChange: (Boolean) -> Unit,
+    onVoiceCancel: () -> Unit,
     modifier: Modifier = Modifier,
     shadowElevation: Dp = 10.dp,
     sendEnabled: Boolean = value.isNotBlank()
 ) {
+    val effectiveInputMode = when (voiceInputState) {
+        VoiceInputUiState.Idle -> inputMode
+        else -> ComposerInputMode.Voice
+    }
+
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -99,22 +107,21 @@ private fun ChatComposerContent(
         verticalAlignment = Alignment.CenterVertically
     ) {
         InputModeToggleButton(
-            inputMode = inputMode,
+            inputMode = effectiveInputMode,
             shadowElevation = shadowElevation,
             onClick = {
-                onInputModeChange(
-                    if (inputMode == ComposerInputMode.Text) {
-                        ComposerInputMode.Voice
-                    } else {
-                        ComposerInputMode.Text
-                    }
-                )
+                if (effectiveInputMode == ComposerInputMode.Text) {
+                    onInputModeChange(ComposerInputMode.Voice)
+                } else {
+                    onVoiceCancel()
+                    onInputModeChange(ComposerInputMode.Text)
+                }
             }
         )
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        when (inputMode) {
+        when (effectiveInputMode) {
             ComposerInputMode.Text -> {
                 TextInputSurface(
                     value = value,
@@ -135,9 +142,11 @@ private fun ChatComposerContent(
             }
 
             ComposerInputMode.Voice -> VoiceInputSurface(
-                isPressed = isVoicePressed,
-                onPressedChange = onVoicePressedChange,
-                enabled = true,
+                voiceInputState = voiceInputState,
+                enabled = voiceEnabled,
+                onPressStart = onVoicePressStart,
+                onPressEnd = onVoicePressEnd,
+                onPressCancel = onVoiceCancel,
                 shadowElevation = shadowElevation,
                 modifier = Modifier
                     .weight(1f)
@@ -241,30 +250,39 @@ private fun TextInputSurface(
 
 @Composable
 private fun VoiceInputSurface(
-    isPressed: Boolean,
-    onPressedChange: (Boolean) -> Unit,
+    voiceInputState: VoiceInputUiState,
     enabled: Boolean,
+    onPressStart: () -> Unit,
+    onPressEnd: () -> Unit,
+    onPressCancel: () -> Unit,
     shadowElevation: Dp,
     modifier: Modifier = Modifier
 ) {
+    val isListening = voiceInputState is VoiceInputUiState.Listening
+    val isTranscribing = voiceInputState is VoiceInputUiState.Transcribing
+    val label = when (voiceInputState) {
+        VoiceInputUiState.Idle -> "按住说话"
+        VoiceInputUiState.Listening -> "聆听中"
+        VoiceInputUiState.Transcribing -> "识别中"
+        is VoiceInputUiState.TranscriptReady -> "发送中"
+        is VoiceInputUiState.PermissionDenied -> "需要麦克风权限"
+        is VoiceInputUiState.Error -> "按住说话"
+    }
+    val backgroundColor = when {
+        voiceInputState is VoiceInputUiState.PermissionDenied -> Color(0xFFFFF5F3)
+        else -> Color.White
+    }
+    val borderColor = when {
+        isListening -> Color(0xFF8FEFA4)
+        voiceInputState is VoiceInputUiState.PermissionDenied -> Color(0xFFFFD5CC)
+        else -> Color(0xFFEDF2F1)
+    }
+    var pressStarted by remember { mutableStateOf(false) }
+
     Box(
         modifier = modifier,
         contentAlignment = Alignment.Center
     ) {
-        if (isPressed) {
-            Text(
-                text = "松手发送  上划取消",
-                color = Color(0xFF767F8A),
-                fontSize = 15.sp,
-                lineHeight = 20.sp,
-                letterSpacing = 0.sp,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .height(20.dp)
-                    .offset(y = (-36).dp)
-            )
-        }
-
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -272,38 +290,65 @@ private fun VoiceInputSurface(
                 .then(pillShadowModifier(shadowElevation))
                 .clip(ShopMatePillShape)
                 .background(
-                    color = if (isPressed) Color(0xFF93F5A7) else Color.White,
+                    color = backgroundColor,
                     shape = ShopMatePillShape
                 )
                 .border(
                     width = 1.dp,
-                    color = if (isPressed) Color(0xFF8FEFA4) else Color(0xFFEDF2F1),
+                    color = borderColor,
                     shape = ShopMatePillShape
                 )
-                .pointerInput(enabled) {
-                    if (enabled) {
-                        detectTapGestures(
-                            onPress = {
-                                onPressedChange(true)
-                                try {
-                                    awaitRelease()
-                                } finally {
-                                    onPressedChange(false)
-                                }
+                .pointerInteropFilter { event ->
+                    if (!enabled) {
+                        if (pressStarted) {
+                            pressStarted = false
+                            onPressCancel()
+                        }
+                        return@pointerInteropFilter false
+                    }
+                    if (isTranscribing) {
+                        pressStarted = false
+                        return@pointerInteropFilter false
+                    }
+
+                    when (event.actionMasked) {
+                        MotionEvent.ACTION_DOWN -> {
+                            pressStarted = true
+                            onPressStart()
+                            true
+                        }
+
+                        MotionEvent.ACTION_UP -> {
+                            if (pressStarted) {
+                                pressStarted = false
+                                onPressEnd()
+                                true
+                            } else {
+                                false
                             }
-                        )
+                        }
+
+                        MotionEvent.ACTION_CANCEL -> {
+                            if (pressStarted) {
+                                pressStarted = false
+                                onPressCancel()
+                            }
+                            true
+                        }
+
+                        else -> true
                     }
                 },
             contentAlignment = Alignment.Center
         ) {
-            if (isPressed) {
-                VoiceWaveform()
+            if (isListening) {
+                VoiceWaveform(color = ShopMateGreen)
             } else {
                 Text(
-                    text = "按住说话",
-                    color = Color(0xFF172331),
-                    fontSize = 18.sp,
-                    lineHeight = 22.sp,
+                    text = label,
+                    color = if (enabled) Color(0xFF172331) else Color(0xFF9AA2AD),
+                    fontSize = 15.sp,
+                    lineHeight = 20.sp,
                     letterSpacing = 0.sp
                 )
             }
@@ -312,7 +357,7 @@ private fun VoiceInputSurface(
 }
 
 @Composable
-private fun VoiceWaveform() {
+private fun VoiceWaveform(color: Color) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -322,7 +367,7 @@ private fun VoiceWaveform() {
                 modifier = Modifier
                     .size(width = 5.dp, height = height.dp)
                     .clip(ShopMatePillShape)
-                    .background(Color.Black)
+                    .background(color)
             )
         }
     }
@@ -403,7 +448,9 @@ private fun ChatComposerDisabledSendPreview() {
         value = "",
         onValueChange = {},
         onSend = {},
-        onVoiceClick = {},
+        onVoicePressStart = {},
+        onVoicePressEnd = {},
+        voiceInputState = VoiceInputUiState.Idle,
         modifier = Modifier
             .padding(horizontal = 18.dp)
             .background(ShopMateSurfaceSoft)
@@ -422,7 +469,9 @@ private fun ChatComposerEmptyPreview() {
         value = "",
         onValueChange = {},
         onSend = {},
-        onVoiceClick = {},
+        onVoicePressStart = {},
+        onVoicePressEnd = {},
+        voiceInputState = VoiceInputUiState.Idle,
         modifier = Modifier
             .padding(horizontal = 18.dp)
             .background(ShopMateSurfaceSoft)
@@ -441,7 +490,9 @@ private fun ChatComposerTypedPreview() {
         value = "推荐适合通勤的蓝牙耳机",
         onValueChange = {},
         onSend = {},
-        onVoiceClick = {},
+        onVoicePressStart = {},
+        onVoicePressEnd = {},
+        voiceInputState = VoiceInputUiState.Idle,
         modifier = Modifier
             .padding(horizontal = 18.dp)
             .background(ShopMateSurfaceSoft)
@@ -460,11 +511,13 @@ private fun ChatComposerVoiceIdlePreview() {
         value = "",
         onValueChange = {},
         onSend = {},
-        onVoiceClick = {},
+        onVoicePressStart = {},
+        onVoicePressEnd = {},
         inputMode = ComposerInputMode.Voice,
-        isVoicePressed = false,
+        voiceInputState = VoiceInputUiState.Idle,
+        voiceEnabled = true,
         onInputModeChange = {},
-        onVoicePressedChange = {},
+        onVoiceCancel = {},
         modifier = Modifier
             .padding(horizontal = 18.dp)
             .background(ShopMateSurfaceSoft)
@@ -483,11 +536,13 @@ private fun ChatComposerVoicePressedPreview() {
         value = "",
         onValueChange = {},
         onSend = {},
-        onVoiceClick = {},
+        onVoicePressStart = {},
+        onVoicePressEnd = {},
         inputMode = ComposerInputMode.Voice,
-        isVoicePressed = true,
+        voiceInputState = VoiceInputUiState.Listening,
+        voiceEnabled = true,
         onInputModeChange = {},
-        onVoicePressedChange = {},
+        onVoiceCancel = {},
         modifier = Modifier
             .padding(start = 18.dp, top = 44.dp, end = 18.dp)
             .background(ShopMateSurfaceSoft)
