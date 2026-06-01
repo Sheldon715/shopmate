@@ -59,6 +59,25 @@ export function buildQdrantFilter(
     mustNot.push(matchAny("avoid_when", avoidTerms));
   }
 
+  const excludeBrands = nonEmptyStrings(filters.excludeBrands);
+
+  if (excludeBrands.length > 0) {
+    mustNot.push(matchAny("brand", excludeBrands));
+  }
+
+  const excludeProductIds = nonEmptyStrings(filters.excludeProductIds);
+
+  if (excludeProductIds.length > 0) {
+    mustNot.push(matchAny("product_id", excludeProductIds));
+  }
+
+  const excludeCategories = nonEmptyStrings(filters.excludeCategories);
+
+  if (excludeCategories.length > 0) {
+    mustNot.push(matchAny("category", excludeCategories));
+    mustNot.push(matchAny("sub_category", excludeCategories));
+  }
+
   return mustNot.length > 0 ? { must, must_not: mustNot } : { must };
 }
 

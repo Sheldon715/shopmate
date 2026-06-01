@@ -39,6 +39,12 @@ import type {
   ClarificationDecision,
   PendingClarification,
 } from "./clarification.types";
+import { filterContextsByNegativeConstraints } from "./negative-constraint-filter";
+import { NegativeConstraintIntentService } from "./negative-constraint-intent.service";
+import type {
+  NegativeConstraint,
+  NegativeConstraintIntentResult,
+} from "./negative-constraint.types";
 import { buildRagPrompt, normalizeChatHistory } from "./prompt.builder";
 import {
   RagLlmOutputParseError,
@@ -87,6 +93,10 @@ export type RagClarificationIntentDetector = Pick<
   ClarificationIntentService,
   "decide"
 >;
+export type RagNegativeConstraintIntentDetector = Pick<
+  NegativeConstraintIntentService,
+  "detect"
+>;
 export type RagResponseGenerator = Pick<
   RagResponseGenerationService,
   "generateNoCandidatesResponse"
@@ -101,6 +111,7 @@ export interface RagChatServiceOptions {
   contextMemoryService?: ChatContextMemoryService;
   clarificationService?: ClarificationService;
   clarificationIntentService?: RagClarificationIntentDetector;
+  negativeConstraintIntentService?: RagNegativeConstraintIntentDetector;
   cartCommandService?: CartCommandService;
   cartCommandIntentService?: RagCartCommandIntentDetector;
   cartActionResponseService?: RagCartActionResponder;
@@ -122,6 +133,7 @@ interface RetrievedProductCandidate {
 
 const DEFAULT_MAX_RECOMMENDED_PRODUCTS = 3;
 const DEFAULT_MAX_SNIPPETS_PER_PRODUCT = 3;
+const DEFAULT_NEGATIVE_CONSTRAINT_TOP_K = 20;
 const RAG_LLM_MAX_COMPLETION_TOKENS = 2000;
 const MAX_CHAT_ANSWER_CHARS = 72;
 
@@ -143,6 +155,7 @@ export class RagChatService {
   private readonly contextMemoryService: ChatContextMemoryService;
   private readonly clarificationService: ClarificationService;
   private readonly clarificationIntentService: RagClarificationIntentDetector;
+  private readonly negativeConstraintIntentService: RagNegativeConstraintIntentDetector;
   private readonly cartCommandService: CartCommandService;
   private readonly cartCommandIntentService: RagCartCommandIntentDetector;
   private readonly cartActionResponseService: RagCartActionResponder;
@@ -168,6 +181,11 @@ export class RagChatService {
       ?? new ClarificationIntentService({
         llmClient: this.llmClient,
         clarificationService: this.clarificationService,
+      });
+    this.negativeConstraintIntentService =
+      options.negativeConstraintIntentService
+      ?? new NegativeConstraintIntentService({
+        llmClient: this.llmClient,
       });
     this.cartCommandService =
       options.cartCommandService ?? new CartCommandService();
@@ -208,7 +226,7 @@ export class RagChatService {
       input.maxRecommendedProducts,
       this.defaultMaxRecommendedProducts,
     );
-    const memoryResolution = this.contextMemoryService.resolve({
+    let memoryResolution = this.contextMemoryService.resolve({
       conversationId: input.conversationId,
       question,
       filters: input.filters,
@@ -233,6 +251,41 @@ export class RagChatService {
             abortSignal: input.abortSignal,
           },
         ),
+      );
+    }
+
+    const negativeConstraintIntent =
+      await this.negativeConstraintIntentService.detect({
+        question,
+        shortHistory: input.shortHistory,
+        contextMemory: memoryResolution.contextMemory,
+        filters: memoryResolution.filters,
+        requestId: input.requestId,
+        abortSignal: input.abortSignal,
+      });
+    throwIfAborted(input.abortSignal);
+    memoryResolution = this.applyNegativeConstraintIntent(
+      memoryResolution,
+      negativeConstraintIntent,
+    );
+
+    if (
+      negativeConstraintIntent.needsClarification
+      && negativeConstraintIntent.clarificationQuestion?.trim()
+    ) {
+      return this.withContextMemory(
+        memoryResolution,
+        createClarificationResult({
+          needsClarification: true,
+          question: negativeConstraintIntent.clarificationQuestion,
+          missingSlots: [],
+        }),
+        {
+          pendingClarification: {
+            originalQuestion: question,
+            missingSlots: [],
+          },
+        },
       );
     }
 
@@ -261,6 +314,7 @@ export class RagChatService {
       );
     }
 
+    const negativeConstraints = memoryResolution.negativeConstraints ?? [];
     const cacheInput = await this.popularQueryCacheCoordinator.createInput({
       question,
       request: input,
@@ -297,7 +351,7 @@ export class RagChatService {
     const hits = await this.vectorSearch.search({
       query: memoryResolution.retrievalQuery,
       filters: memoryResolution.filters,
-      topK: input.topK,
+      topK: resolveVectorSearchTopK(input.topK, negativeConstraints),
       abortSignal: input.abortSignal,
     });
     throwIfAborted(input.abortSignal);
@@ -315,7 +369,10 @@ export class RagChatService {
     const products = await this.productReader.findActiveByIds(
       candidates.map((candidate) => candidate.productId),
     );
-    const contexts = createRetrievedContexts(candidates, products);
+    const contexts = filterContextsByNegativeConstraints(
+      createRetrievedContexts(candidates, products),
+      negativeConstraints,
+    );
 
     if (contexts.length === 0) {
       return this.answerNoCandidates({
@@ -332,6 +389,7 @@ export class RagChatService {
           question,
           shortHistory: normalizeChatHistory(input.shortHistory ?? []),
           contextMemory: memoryResolution.contextMemory,
+          negativeConstraints,
           candidates: contexts,
           generatedAt: this.now(),
         }),
@@ -418,6 +476,20 @@ export class RagChatService {
     return noCandidatesResponse.generatedByLlm
       ? this.popularQueryCacheCoordinator.write(input.cacheInput, result)
       : result;
+  }
+
+  private applyNegativeConstraintIntent(
+    memoryResolution: ReturnType<ChatContextMemoryService["resolve"]>,
+    intent: NegativeConstraintIntentResult,
+  ): ReturnType<ChatContextMemoryService["resolve"]> {
+    if (!intent.hasNegativeConstraints) {
+      return memoryResolution;
+    }
+
+    return this.contextMemoryService.applyNegativeConstraints(
+      memoryResolution,
+      intent.constraints,
+    );
   }
 
   private withContextMemory(
@@ -860,4 +932,18 @@ function normalizeMaxRecommendedProducts(
   }
 
   return value;
+}
+
+function resolveVectorSearchTopK(
+  requestedTopK: number | undefined,
+  negativeConstraints: readonly NegativeConstraint[],
+): number | undefined {
+  if (negativeConstraints.length === 0) {
+    return requestedTopK;
+  }
+
+  return Math.max(
+    requestedTopK ?? 0,
+    DEFAULT_NEGATIVE_CONSTRAINT_TOP_K,
+  );
 }

@@ -16,7 +16,7 @@ describe("ChatContextMemoryService", () => {
     expect(service.commit(resolution, ["product_001"])).toBeUndefined();
   });
 
-  it("stores intent, budget, preferences, avoid terms, and product ids", () => {
+  it("stores intent, budget, preferences, and product ids without regex avoid terms", () => {
     const service = createService();
 
     const resolution = service.resolve({
@@ -31,8 +31,8 @@ describe("ChatContextMemoryService", () => {
       category: "服饰运动",
       subCategory: "跑步鞋",
       maxPriceCents: 50000,
-      avoidTerms: ["酒精"],
     });
+    expect(resolution.filters?.avoidTerms).toBeUndefined();
     expect(summary).toMatchObject({
       conversationId: "local-chat-session-1",
       lastIntent: "帮我推荐跑鞋，要轻量的，预算 500 以内，不要酒精",
@@ -41,7 +41,7 @@ describe("ChatContextMemoryService", () => {
         subCategory: "跑步鞋",
         maxPriceCents: 50000,
         preferenceTerms: ["轻量"],
-        avoidTerms: ["酒精"],
+        avoidTerms: [],
       },
       lastRecommendedProductIds: ["product_001"],
     });
@@ -281,10 +281,13 @@ describe("ChatContextMemoryService", () => {
     const service = createService();
 
     service.commit(
-      service.resolve({
-        conversationId: "sunscreen-session",
-        question: "推荐防晒霜，不要酒精",
-      }),
+      service.applyNegativeConstraints(
+        service.resolve({
+          conversationId: "sunscreen-session",
+          question: "推荐防晒霜，不要酒精",
+        }),
+        [createNegativeConstraint("酒精")],
+      ),
       ["sunscreen_001"],
     );
     const followUp = service.resolve({
@@ -298,6 +301,45 @@ describe("ChatContextMemoryService", () => {
       avoidTerms: ["酒精"],
     });
   });
+
+  it("applies LLM-confirmed negative constraints to memory and filters", () => {
+    const service = createService();
+    const resolution = service.applyNegativeConstraints(
+      service.resolve({
+        conversationId: "negative-session",
+        question: "推荐防晒霜，但不要含酒精的",
+      }),
+      [createNegativeConstraint("酒精")],
+    );
+    const summary = service.commit(resolution, ["sunscreen_001"]);
+
+    expect(resolution.filters).toMatchObject({
+      category: "美妆护肤",
+      subCategory: "防晒",
+      avoidTerms: ["酒精"],
+    });
+    expect(resolution.negativeConstraints).toHaveLength(1);
+    expect(summary?.constraints.avoidTerms).toEqual(["酒精"]);
+  });
+
+  it("preserves explicit avoid terms when applying LLM-confirmed constraints", () => {
+    const service = createService();
+    const resolution = service.applyNegativeConstraints(
+      service.resolve({
+        conversationId: "explicit-negative-session",
+        question: "推荐防晒霜，但不要含酒精的",
+        filters: {
+          avoidTerms: ["香精"],
+        },
+      }),
+      [createNegativeConstraint("酒精")],
+    );
+
+    expect(resolution.filters?.avoidTerms).toEqual(
+      expect.arrayContaining(["香精", "酒精"]),
+    );
+    expect(resolution.filters?.avoidTerms).toHaveLength(2);
+  });
 });
 
 function createService(): ChatContextMemoryService {
@@ -307,4 +349,14 @@ function createService(): ChatContextMemoryService {
     store: new ChatContextMemoryStore({ now }),
     now,
   });
+}
+
+function createNegativeConstraint(term: string) {
+  return {
+    rawText: `不要含${term}`,
+    term,
+    kind: "ingredient" as const,
+    scope: "product" as const,
+    matchPolicy: "exclude_if_product_facts_conflict" as const,
+  };
 }

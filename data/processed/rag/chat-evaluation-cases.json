@@ -53,6 +53,74 @@
     "priority": "p1"
   },
   {
+    "caseId": "except-anessa-sunscreen-chat",
+    "query": "除了安热沙还有什么防晒",
+    "history": [],
+    "filters": {
+      "category": "美妆护肤",
+      "subCategory": "防晒",
+      "availableOnly": true
+    },
+    "topK": 8,
+    "maxRecommendedProducts": 3,
+    "expectedBehavior": "应把“除了安热沙”理解为品牌排除，推荐同类库内防晒替代；productCards 不应包含安热沙品牌商品，assistant 文案不能来自固定模板。",
+    "expectedProductIdsAny": ["p_beauty_006", "p_beauty_023"],
+    "expectedNoResult": false,
+    "riskFocus": ["negative_constraint", "filter", "llm_grounding"],
+    "priority": "p1"
+  },
+  {
+    "caseId": "exclude-apple-camera-phone-chat",
+    "query": "不要苹果，推荐拍照好的手机",
+    "history": [],
+    "filters": {
+      "category": "数码电子",
+      "subCategory": "智能手机",
+      "availableOnly": true
+    },
+    "topK": 8,
+    "maxRecommendedProducts": 3,
+    "expectedBehavior": "应把“不要苹果”理解为品牌或商品排除，再推荐拍照表现好的库内手机；productCards 不应包含苹果 / Apple 商品。",
+    "expectedProductIdsAny": [],
+    "expectedNoResult": false,
+    "riskFocus": ["negative_constraint", "filter", "llm_grounding"],
+    "priority": "p1"
+  },
+  {
+    "caseId": "exclude-in-ear-headphones-chat",
+    "query": "耳机不要入耳式",
+    "history": [],
+    "filters": {
+      "category": "数码电子",
+      "subCategory": "真无线耳机",
+      "availableOnly": true
+    },
+    "topK": 8,
+    "maxRecommendedProducts": 3,
+    "expectedBehavior": "应把“不要入耳式”理解为佩戴形态排除；如果库内没有足够明确的非入耳式候选，应返回可继续筛选的说明，而不是把入耳式耳机包装成符合条件。",
+    "expectedProductIdsAny": [],
+    "expectedNoResult": false,
+    "riskFocus": ["negative_constraint", "filter", "no_result", "llm_grounding"],
+    "priority": "p1"
+  },
+  {
+    "caseId": "exclude-greasy-sunscreen-chat",
+    "query": "防晒别太油",
+    "history": [],
+    "filters": {
+      "category": "美妆护肤",
+      "subCategory": "防晒",
+      "availableOnly": true
+    },
+    "topK": 8,
+    "maxRecommendedProducts": 3,
+    "expectedBehavior": "应把“别太油”理解为肤感排除或偏好约束，优先保留清爽 / 轻薄候选；不得推荐明确油腻或与控油诉求冲突的防晒商品。",
+    "expectedProductIdsAny": ["p_beauty_006", "p_beauty_023"],
+    "expectedNoResult": false,
+    "riskFocus": ["negative_constraint", "filter", "llm_grounding"],
+    "priority": "p1"
+  },
+  {
     "caseId": "compare-two-sunscreens-chat",
     "query": "帮我对比两款防晒霜",
     "history": [],

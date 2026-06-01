@@ -83,6 +83,25 @@ describe("buildQdrantFilter", () => {
       ],
     });
   });
+
+  it("maps explicit negative exclusions to must_not filters", () => {
+    expect(buildQdrantFilter({
+      excludeBrands: ["安热沙"],
+      excludeProductIds: ["p_beauty_010"],
+      excludeCategories: ["防晒"],
+    })).toEqual({
+      must: [
+        { key: "status", match: { value: "active" } },
+        { key: "available", match: { value: true } },
+      ],
+      must_not: [
+        { key: "brand", match: { any: ["安热沙"] } },
+        { key: "product_id", match: { any: ["p_beauty_010"] } },
+        { key: "category", match: { any: ["防晒"] } },
+        { key: "sub_category", match: { any: ["防晒"] } },
+      ],
+    });
+  });
 });
 
 describe("mapQdrantScoredPointToVectorSearchHit", () => {

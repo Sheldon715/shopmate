@@ -15,6 +15,7 @@ import {
   type PopularQueryCacheReadInput,
   type PopularQueryCacheWriteInput,
 } from "./popular-query-cache.service";
+import { NO_NEGATIVE_CONSTRAINTS } from "./negative-constraint.types";
 import type {
   RagCartWriter,
   RagChatServiceOptions,
@@ -463,6 +464,14 @@ describe("RagChatService", () => {
           missingSlots: [],
         }),
       },
+      negativeConstraintIntentService: {
+        detect: async () => ({
+          hasNegativeConstraints: true,
+          confidence: "high",
+          constraints: [createNegativeConstraint("酒精")],
+          needsClarification: false,
+        }),
+      },
       contextMemoryService: new ChatContextMemoryService({
         store: new ChatContextMemoryStore(),
       }),
@@ -484,6 +493,143 @@ describe("RagChatService", () => {
       category: "美妆护肤",
       subCategory: "防晒",
       avoidTerms: ["酒精"],
+    });
+  });
+
+  it("does not derive current-turn negative filters from regex when LLM finds no constraint", async () => {
+    const vectorCalls: Array<Parameters<RagVectorSearchClient["search"]>[0]> = [];
+    const service = new RagChatService(withNoCartIntent({
+      vectorSearch: {
+        search: async (input) => {
+          vectorCalls.push(input);
+          return [createHit("product_001")];
+        },
+      },
+      productReader: createProductReader(),
+      negativeConstraintIntentService: {
+        detect: async () => NO_NEGATIVE_CONSTRAINTS,
+      },
+      llmClient: new MockLlmClient({
+        response: createLlmResponse(JSON.stringify({
+          answer: "Use product 1.",
+          recommended_product_ids: ["product_001"],
+        })),
+      }),
+    }));
+
+    await service.answer({
+      conversationId: "negative-regex-demo",
+      question: "推荐防晒霜，不要酒精",
+    });
+
+    expect(vectorCalls[0]?.filters).toMatchObject({
+      category: "美妆护肤",
+      subCategory: "防晒",
+    });
+    expect(vectorCalls[0]?.filters?.avoidTerms).toBeUndefined();
+  });
+
+  it("filters conflicting products and drops excluded LLM ids from final cards", async () => {
+    let llmRequest: LlmGenerateRequest | undefined;
+    const service = new RagChatService(withNoCartIntent({
+      vectorSearch: createVectorSearch([
+        createHit("product_001"),
+        createHit("product_002"),
+      ]),
+      productReader: {
+        findActiveByIds: async () => [
+          createProduct({
+            id: "product_001",
+            name: "Alcohol Risk Sunscreen",
+            avoidWhen: ["酒精敏感人群"],
+            marketingDescription: "部分敏感肌可能对酒精敏感。",
+          }),
+          createProduct({
+            id: "product_002",
+            name: "Alcohol Free Sunscreen",
+            marketingDescription: "这款隔离露不含酒精，适合日常通勤。",
+          }),
+        ],
+      },
+      negativeConstraintIntentService: {
+        detect: async () => ({
+          hasNegativeConstraints: true,
+          confidence: "high",
+          constraints: [createNegativeConstraint("酒精")],
+          needsClarification: false,
+        }),
+      },
+      llmClient: new MockLlmClient({
+        handler: (request) => {
+          llmRequest = request;
+
+          return createLlmResponse(JSON.stringify({
+            answer: "Use alcohol-free product 2.",
+            recommended_product_ids: ["product_001", "product_002"],
+          }));
+        },
+      }),
+    }));
+
+    const result = await service.answer({
+      conversationId: "negative-filter-demo",
+      question: "推荐防晒霜，但不要含酒精的",
+    });
+
+    expect(llmRequest?.messages.map((message) => message.content).join("\n"))
+      .toContain("当前排除约束");
+    expect(result.fallbackUsed).toBe(false);
+    expect(result.recommendedProductIds).toEqual(["product_002"]);
+    expect(result.productCards.map((card) => card.id)).toEqual(["product_002"]);
+  });
+
+  it("returns LLM-generated negative clarification before vector search", async () => {
+    let vectorSearchCalled = false;
+    const service = new RagChatService(withNoCartIntent({
+      vectorSearch: {
+        search: async () => {
+          vectorSearchCalled = true;
+          return [createHit("product_001")];
+        },
+      },
+      productReader: createProductReader(),
+      negativeConstraintIntentService: {
+        detect: async () => ({
+          hasNegativeConstraints: true,
+          confidence: "high",
+          constraints: [
+            {
+              rawText: "不要那个",
+              term: "那个",
+              kind: "unknown",
+              scope: "unknown",
+              matchPolicy: "needs_clarification",
+            },
+          ],
+          needsClarification: true,
+          clarificationQuestion: "你想排除哪个品牌或哪类商品？",
+        }),
+      },
+      llmClient: new MockLlmClient({
+        response: createLlmResponse(JSON.stringify({
+          answer: "Use product 1.",
+          recommended_product_ids: ["product_001"],
+        })),
+      }),
+    }));
+
+    const result = await service.answer({
+      conversationId: "negative-clarification-demo",
+      question: "推荐防晒霜，不要那个",
+    });
+
+    expect(vectorSearchCalled).toBe(false);
+    expect(result).toMatchObject({
+      answer: "你想排除哪个品牌或哪类商品？",
+      recommendedProductIds: [],
+      productCards: [],
+      fallbackUsed: true,
+      fallbackReason: "NEEDS_CLARIFICATION",
     });
   });
 
@@ -931,6 +1077,9 @@ describe("RagChatService", () => {
         },
       },
       contextMemoryService: new ChatContextMemoryService({ store }),
+      negativeConstraintIntentService: {
+        detect: async () => NO_NEGATIVE_CONSTRAINTS,
+      },
       llmClient: new MockLlmClient({
         handler: (request) => {
           llmRequests.push(request);
@@ -987,6 +1136,9 @@ describe("RagChatService", () => {
         addItem: async () => createCartDto(),
       },
       contextMemoryService: new ChatContextMemoryService({ store }),
+      negativeConstraintIntentService: {
+        detect: async () => NO_NEGATIVE_CONSTRAINTS,
+      },
       llmClient: new MockLlmClient({
         handler: () => {
           llmCallCount += 1;
@@ -1309,6 +1461,9 @@ describe("RagChatService", () => {
         },
       },
       contextMemoryService: new ChatContextMemoryService({ store }),
+      negativeConstraintIntentService: {
+        detect: async () => NO_NEGATIVE_CONSTRAINTS,
+      },
       llmClient: new MockLlmClient({
         handler: (request) => {
           llmRequests.push(request);
@@ -1381,6 +1536,11 @@ function withNoCartIntent(
     cartCommandIntentService: {
       detect: async () => ({ isCartCommand: false }),
     },
+    negativeConstraintIntentService:
+      options.negativeConstraintIntentService
+      ?? {
+        detect: async () => NO_NEGATIVE_CONSTRAINTS,
+      },
   };
 }
 
@@ -1521,6 +1681,16 @@ function createClarificationIntentResponse(input: {
       missing_slots: input.missingSlots,
     }),
   );
+}
+
+function createNegativeConstraint(term: string) {
+  return {
+    rawText: `不要含${term}`,
+    term,
+    kind: "ingredient" as const,
+    scope: "product" as const,
+    matchPolicy: "exclude_if_product_facts_conflict" as const,
+  };
 }
 
 function createLlmResponse(text: string): LlmGenerateResponse {

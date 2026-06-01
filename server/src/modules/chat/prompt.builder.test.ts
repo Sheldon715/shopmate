@@ -22,6 +22,15 @@ describe("buildRagPrompt", () => {
         },
         lastRecommendedProductIds: ["product_001"],
       },
+      negativeConstraints: [
+        {
+          rawText: "不要含酒精",
+          term: "酒精",
+          kind: "ingredient",
+          scope: "product",
+          matchPolicy: "exclude_if_product_facts_conflict",
+        },
+      ],
       shortHistory: [
         { role: "user", content: "oldest message should be dropped" },
         { role: "assistant", content: "first kept answer" },
@@ -42,6 +51,8 @@ describe("buildRagPrompt", () => {
     expect(text).toContain("推荐防晒霜");
     expect(text).toContain("预算上限：500 元");
     expect(text).toContain("会话记忆只能辅助理解当前用户问题");
+    expect(text).toContain("当前排除约束");
+    expect(text).toContain("exclude_if_product_facts_conflict");
     expect(text).not.toContain("conversationId");
     expect(text).not.toContain("local-chat-session-1");
     expect(text).toContain("first kept answer");

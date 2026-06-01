@@ -7,6 +7,9 @@ export interface VectorSearchFilters {
   availableOnly?: boolean;
   tagsAny?: string[];
   avoidTerms?: string[];
+  excludeBrands?: string[];
+  excludeProductIds?: string[];
+  excludeCategories?: string[];
 }
 
 export interface VectorSearchHitMetadata {

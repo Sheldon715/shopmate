@@ -6,11 +6,13 @@ import type {
   ChatContextMemorySummary,
 } from "./chat-context-memory.types";
 import type { PendingClarification } from "./clarification.types";
+import type { NegativeConstraint } from "./negative-constraint.types";
 
 export interface ChatContextMemoryResolution {
   conversationId?: string;
   memory?: ChatContextMemory;
   contextMemory?: ChatContextMemorySummary;
+  negativeConstraints?: NegativeConstraint[];
   retrievalQuery: string;
   filters?: VectorSearchFilters;
 }
@@ -103,8 +105,72 @@ export class ChatContextMemoryService {
       conversationId: input.conversationId,
       memory,
       contextMemory: toSummary(memory),
+      negativeConstraints: memory.negativeConstraints,
       retrievalQuery: buildRetrievalQuery(input.question, memory),
       filters: mergeFilters(input.filters, memory.constraints),
+    };
+  }
+
+  applyNegativeConstraints(
+    resolution: ChatContextMemoryResolution,
+    constraints: NegativeConstraint[],
+  ): ChatContextMemoryResolution {
+    const mergedNegativeConstraints = mergeNegativeConstraints(
+      resolution.negativeConstraints ?? resolution.memory?.negativeConstraints ?? [],
+      constraints,
+    );
+    const avoidTerms = negativeConstraintsToAvoidTerms(mergedNegativeConstraints);
+    const excludeBrands = negativeConstraintsToExcludeBrands(
+      mergedNegativeConstraints,
+    );
+    const excludeProductIds = negativeConstraintsToExcludeProductIds(
+      mergedNegativeConstraints,
+    );
+    const excludeCategories = negativeConstraintsToExcludeCategories(
+      mergedNegativeConstraints,
+    );
+
+    if (!resolution.memory) {
+      return {
+        ...resolution,
+        negativeConstraints: mergedNegativeConstraints,
+        filters: mergeVectorFilters(resolution.filters, {
+          avoidTerms,
+          excludeBrands,
+          excludeProductIds,
+          excludeCategories,
+        }),
+      };
+    }
+
+    const memory: ChatContextMemory = {
+      ...resolution.memory,
+      constraints: pruneConstraints({
+        ...resolution.memory.constraints,
+        avoidTerms: mergeTerms(
+          resolution.memory.constraints.avoidTerms,
+          avoidTerms,
+        ),
+      }),
+      negativeConstraints: mergedNegativeConstraints,
+    };
+    const memoryFilters = mergeFilters(undefined, memory.constraints);
+    const baseFilters = mergeVectorFilters(
+      memoryFilters,
+      resolution.filters ?? {},
+    );
+
+    return {
+      ...resolution,
+      memory,
+      contextMemory: toSummary(memory),
+      negativeConstraints: mergedNegativeConstraints,
+      filters: mergeVectorFilters(baseFilters, {
+        avoidTerms,
+        excludeBrands,
+        excludeProductIds,
+        excludeCategories,
+      }),
     };
   }
 
@@ -141,6 +207,9 @@ function mergeMemory(input: {
   const categoryChanged =
     extracted.category !== undefined
     && extracted.category !== previousConstraints.category;
+  const previousNegativeConstraints = categoryChanged
+    ? []
+    : input.previousMemory?.negativeConstraints ?? [];
   const constraints = pruneConstraints({
     category: extracted.category ?? previousConstraints.category,
     subCategory: extracted.subCategory
@@ -152,7 +221,10 @@ function mergeMemory(input: {
       previousConstraints.preferenceTerms,
       extracted.preferenceTerms,
     ),
-    avoidTerms: mergeTerms(previousConstraints.avoidTerms, extracted.avoidTerms),
+    avoidTerms: mergeTerms(
+      categoryChanged ? [] : previousConstraints.avoidTerms,
+      extracted.avoidTerms,
+    ),
   });
 
   return {
@@ -160,6 +232,7 @@ function mergeMemory(input: {
     lastIntent: extractIntent(input.question, extracted)
       ?? input.previousMemory?.lastIntent,
     constraints,
+    negativeConstraints: previousNegativeConstraints,
     lastRecommendedProductIds:
       input.previousMemory?.lastRecommendedProductIds ?? [],
     updatedAt: input.now.toISOString(),
@@ -220,7 +293,7 @@ function extractConstraints(question: string): ChatContextConstraints {
     minPriceCents: extractMinPriceCents(question),
     maxPriceCents: extractMaxPriceCents(question),
     preferenceTerms: PREFERENCE_TERMS.filter((term) => question.includes(term)),
-    avoidTerms: extractAvoidTerms(question),
+    avoidTerms: [],
   });
 }
 
@@ -434,34 +507,6 @@ function parseChineseDigit(value: string): number | undefined {
   return value.length === 1 ? digits[value] : undefined;
 }
 
-function extractAvoidTerms(question: string): string[] {
-  const patterns = [
-    /不要\s*([\p{Script=Han}A-Za-z0-9_-]{1,40})/gu,
-    /不含\s*([\p{Script=Han}A-Za-z0-9_-]{1,40})/gu,
-    /除了\s*([\p{Script=Han}A-Za-z0-9_-]{1,40})/gu,
-  ];
-  const terms: string[] = [];
-
-  for (const pattern of patterns) {
-    for (const match of question.matchAll(pattern)) {
-      const term = cleanAvoidTerm(match[1] ?? "");
-
-      if (term) {
-        terms.push(term);
-      }
-    }
-  }
-
-  return normalizeTerms(terms);
-}
-
-function cleanAvoidTerm(term: string): string {
-  return term
-    .replace(/^含/u, "")
-    .replace(/[的了吧呀呢啊。！？!,，；;]+$/u, "")
-    .trim();
-}
-
 function createEmptyConstraints(): ChatContextConstraints {
   return {
     preferenceTerms: [],
@@ -487,6 +532,140 @@ function pruneConstraints(
 
 function mergeTerms(left: string[], right: string[]): string[] {
   return normalizeTerms([...left, ...right]);
+}
+
+function mergeNegativeConstraints(
+  left: readonly NegativeConstraint[],
+  right: readonly NegativeConstraint[],
+): NegativeConstraint[] {
+  const seen = new Set<string>();
+  const merged: NegativeConstraint[] = [];
+
+  for (const constraint of [...left, ...right]) {
+    const normalized = normalizeNegativeConstraint(constraint);
+
+    if (!normalized) {
+      continue;
+    }
+
+    const key = [
+      normalized.term,
+      normalized.kind,
+      normalized.scope,
+      normalized.matchPolicy,
+    ].join("|");
+
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    merged.push(normalized);
+
+    if (merged.length >= MAX_CONTEXT_TERMS) {
+      break;
+    }
+  }
+
+  return merged;
+}
+
+function normalizeNegativeConstraint(
+  constraint: NegativeConstraint,
+): NegativeConstraint | undefined {
+  const rawText = normalizeTerm(constraint.rawText);
+  const term = normalizeTerm(constraint.term);
+
+  return rawText && term
+    ? {
+        rawText,
+        term,
+        kind: constraint.kind,
+        scope: constraint.scope,
+        matchPolicy: constraint.matchPolicy,
+      }
+    : undefined;
+}
+
+function negativeConstraintsToAvoidTerms(
+  constraints: readonly NegativeConstraint[],
+): string[] {
+  return normalizeTerms(
+    constraints
+      .filter((constraint) =>
+        constraint.kind !== "price"
+        && constraint.matchPolicy !== "needs_clarification"
+      )
+      .map((constraint) => constraint.term),
+  );
+}
+
+function negativeConstraintsToExcludeBrands(
+  constraints: readonly NegativeConstraint[],
+): string[] {
+  return normalizeTerms(
+    constraints
+      .filter((constraint) => constraint.matchPolicy === "exclude_brand")
+      .map((constraint) => constraint.term),
+  );
+}
+
+function negativeConstraintsToExcludeProductIds(
+  constraints: readonly NegativeConstraint[],
+): string[] {
+  return normalizeTerms(
+    constraints
+      .filter((constraint) => constraint.matchPolicy === "exclude_product")
+      .map((constraint) => constraint.term),
+  );
+}
+
+function negativeConstraintsToExcludeCategories(
+  constraints: readonly NegativeConstraint[],
+): string[] {
+  return normalizeTerms(
+    constraints
+      .filter((constraint) => constraint.matchPolicy === "exclude_category")
+      .map((constraint) => constraint.term),
+  );
+}
+
+function mergeVectorFilters(
+  base: VectorSearchFilters | undefined,
+  next: VectorSearchFilters,
+): VectorSearchFilters | undefined {
+  const merged = pruneUndefined({
+    ...base,
+    ...next,
+    avoidTerms: mergeTerms(base?.avoidTerms ?? [], next.avoidTerms ?? []),
+    excludeBrands: mergeTerms(
+      base?.excludeBrands ?? [],
+      next.excludeBrands ?? [],
+    ),
+    excludeProductIds: mergeTerms(
+      base?.excludeProductIds ?? [],
+      next.excludeProductIds ?? [],
+    ),
+    excludeCategories: mergeTerms(
+      base?.excludeCategories ?? [],
+      next.excludeCategories ?? [],
+    ),
+  });
+
+  for (const key of [
+    "avoidTerms",
+    "excludeBrands",
+    "excludeProductIds",
+    "excludeCategories",
+  ] as const) {
+    if (Array.isArray(merged[key]) && merged[key].length === 0) {
+      delete merged[key];
+    }
+  }
+
+  return Object.keys(merged).length > 0
+    ? merged as VectorSearchFilters
+    : undefined;
 }
 
 function normalizeTerms(values: Array<string | undefined>): string[] {

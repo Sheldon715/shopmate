@@ -5,6 +5,7 @@ import type {
   ChatHistoryMessage,
   RetrievedProductContext,
 } from "./chat.types";
+import type { NegativeConstraint } from "./negative-constraint.types";
 
 export const MAX_SHORT_HISTORY_MESSAGES = 4;
 export const MAX_HISTORY_CONTENT_CHARS = 500;
@@ -16,6 +17,7 @@ export interface BuildRagPromptInput {
   question: string;
   shortHistory?: ChatHistoryMessage[];
   contextMemory?: ChatContextMemorySummary;
+  negativeConstraints?: NegativeConstraint[];
   candidates: RetrievedProductContext[];
   generatedAt?: Date;
 }
@@ -35,6 +37,7 @@ export function buildRagPrompt(input: BuildRagPromptInput): LlmMessage[] {
         "不要编造价格、库存、优惠、折扣、功效、认证或物流时效。",
         "PostgreSQL 商品字段是事实来源；vector snippets 只用于解释上下文，不能覆盖商品字段。",
         "会话记忆只能辅助理解当前用户问题，不能覆盖用户最新表达，也不能当作商品事实来源。",
+        "如果用户有排除约束，候选商品已经过过滤；不要推荐仍然违反排除约束的商品。",
         "如果没有合适商品，可以说明暂时没有合适推荐，不要硬推荐。",
         "answer 要适合移动端聊天列表展示：最多 70 个中文字符，用 1 句话概括推荐方向，不要逐条复述商品名、价格或详细参数。",
         "商品优势、限制、参数和长解释交给 product_cards 或商品详情页承载，answer 只做简短导购引导。",
@@ -48,10 +51,30 @@ export function buildRagPrompt(input: BuildRagPromptInput): LlmMessage[] {
         `用户问题：${truncateText(input.question.trim(), 1000)}`,
         formatHistory(history),
         formatContextMemory(input.contextMemory),
+        formatNegativeConstraints(input.negativeConstraints ?? []),
         formatCandidates(input.candidates),
       ].filter((section) => section.length > 0).join("\n\n"),
     },
   ];
+}
+
+function formatNegativeConstraints(
+  constraints: readonly NegativeConstraint[],
+): string {
+  const activeConstraints = constraints.filter((constraint) =>
+    constraint.matchPolicy !== "needs_clarification"
+  );
+
+  if (activeConstraints.length === 0) {
+    return "";
+  }
+
+  return [
+    "当前排除约束：",
+    ...activeConstraints.map((constraint, index) =>
+      `${index + 1}. term: ${constraint.term}; kind: ${constraint.kind}; match_policy: ${constraint.matchPolicy}; raw_text: ${constraint.rawText}`
+    ),
+  ].join("\n");
 }
 
 function formatContextMemory(
