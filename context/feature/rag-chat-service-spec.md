@@ -13,7 +13,7 @@
 本 spec 负责：
 
 - 新增 `server/src/modules/chat/`。
-- 实现 `RagChatService`，串联 vector search、PostgreSQL 商品回查、prompt builder、LLM client 和 fallback。
+- 实现 `RagChatService`，串联 vector search、PostgreSQL 商品回查、prompt builder、LLM client 和异常 / 无候选返回。
 - 实现 `prompt.builder.ts`，统一管理 RAG prompt。
 - 实现 LLM JSON 输出 parser 和 product id allowlist 校验。
 - 确保商品卡片永远从 PostgreSQL DTO 生成，不信任 LLM 返回的价格、库存、图片或商品字段。
@@ -68,12 +68,12 @@
 4. 用 PostgreSQL 按 product ids 批量回查 active products。
 5. 丢弃 PostgreSQL 中不存在或非 active 的 stale vector hit。
 6. 保持检索顺序构造 `RetrievedProductContext[]`。
-7. 如果无候选商品，返回无结果 fallback，不调用 LLM。
+7. 如果无候选商品，返回明确的无结果状态，不调用 LLM。
 8. 调用 `buildRagPrompt()` 生成 `LlmMessage[]`。
 9. 用 `LlmClient.generate()` 请求 JSON 输出。
 10. 解析 `{ answer, recommended_product_ids }`。
 11. 只保留候选商品 allowlist 内的 product ids，并去重。
-12. 如果模型输出不可用，回退到检索前 N 个商品。
+12. 如果模型输出不可用，只保留通过库内校验的候选商品，不拼装导购式推荐理由。
 13. 商品卡片用 `mapProductToCardDto(product)` 生成。
 14. 返回 `answer`、`recommendedProductIds`、`productCards` 和轻量 metadata，供后续 SSE route 包装。
 
@@ -165,16 +165,16 @@ Parser 规则：
 - 如果 JSON 外面包了少量 markdown code fence，可以做保守清理；不要写复杂自然语言解析器。
 - parser 不读取商品价格、库存、图片或卡片字段。
 
-## Fallback
+## 异常与无候选返回
 
-必须有稳定 fallback：
+必须有稳定异常路径：
 
-- 无候选商品：返回“暂时没有找到匹配商品”的中文回答，`productCards=[]`。
-- LLM config missing、LLM error、timeout、invalid JSON：返回基于检索结果的模板回答。
-- 模型返回的 product ids 全部不合法：使用检索顺序前 `maxRecommendedProducts` 个候选商品。
-- fallback answer 只能描述“根据当前商品数据，先给你这些候选”，不要编造具体理由。
+- 无候选商品：返回明确无结果状态，`productCards=[]`。
+- LLM config missing、LLM error、timeout、invalid JSON：不拼装导购式推荐理由；只返回结构化状态和通过库内校验的候选商品卡片。
+- 模型返回的 product ids 全部不合法：不信任模型 ids，只能使用候选 allowlist 和 PostgreSQL 回查后的商品。
+- `answer` 不能用代码模板生成推荐解释；如果模型不可用，只能给出简短状态说明，不编造具体理由。
 
-Fallback 也必须返回 `fallbackUsed=true` 和明确 `fallbackReason`。
+这些路径仍必须返回现有协议字段 `fallbackUsed=true` 和明确 `fallbackReason`，方便 SSE / Android / evaluation 识别状态。
 
 ## 商品回查
 
@@ -206,7 +206,7 @@ Vitest 覆盖：
 - `rag.service.test.ts`
   - happy path：vector hit -> PostgreSQL 回查 -> LLM JSON -> product cards。
   - LLM 返回候选外 id 时被丢弃。
-  - LLM 失败时 fallback 到检索前 N 个商品。
+  - LLM 失败时不生成导购式推荐理由，只返回安全状态和库内候选商品。
   - 无 vector candidates 时不调用 LLM。
   - vector hit 指向 stale product id 时被跳过。
   - `filters`、`topK`、`abortSignal` 会传给下游依赖。
@@ -219,7 +219,7 @@ Vitest 覆盖：
 - RAG service 不依赖 Express request / response，后续 SSE route 可以直接调用。
 - LLM 输出只用于 `answer` 和候选 id 选择；商品卡片字段全部来自 PostgreSQL。
 - 缺少真实 API key 时不影响 mock tests 和 build。
-- 无候选、LLM 失败、模型乱返回 id 都有稳定 fallback。
+- 无候选、LLM 失败、模型乱返回 id 都有稳定状态返回。
 - 第一版没有 query expansion / reranking / tool calling，但 service 边界允许后续插入这些步骤。
 - `cd server && npm.cmd test` 通过。
 - `cd server && npm.cmd run build` 通过。

@@ -60,7 +60,7 @@
 - “最近一次推荐商品”已经保存在后端 context memory。
 - 后端能保证 product id 来自库内商品，并复用购物车校验。
 - Android 不需要把自然语言解析规则散落在 UI 层。
-- 关键词 / 正则只能作为 LLM 确认后的结构化字段兜底，不能单独触发加购。
+- 关键词 / 正则只能用于 LLM 确认后的字段规范化、数量限制和最近推荐商品定位辅助，不能单独触发加购。
 
 边界：
 
@@ -128,7 +128,7 @@ cartAction?: {
 
 `ChatDonePayload` 同步增加可选 `cartAction`。
 
-新增 fallback reason：
+`done.fallbackReason` 沿用现有协议字段，新增取值：
 
 ```ts
 "CART_TARGET_MISSING" | "CART_TARGET_AMBIGUOUS" | "CART_ADD_FAILED"
@@ -143,35 +143,23 @@ cartAction?: {
 3. 如果 LLM 否定、输出无效或请求失败，继续正常 RAG，不执行加购。
 4. 如果是 cart command：
    - 读取 memory.lastRecommendedProductIds。
-   - `CartCommandService` 只在 LLM 确认后做目标 / 数量兜底和最近推荐商品定位。
-   - 无目标 / 多目标时返回澄清文本，不调用 cart。
+   - `CartCommandService` 只在 LLM 确认后做目标 / 数量规范化和最近推荐商品定位。
+   - 无目标 / 多目标时返回需要确认目标的 assistant 回复，不调用 cart。
    - 成功定位后调用 `CartService.addItem({ productId, quantity })`。
-   - 返回聊天文本和 `cartAction`。
+   - 返回 assistant 回复和 `cartAction`。
 
-成功文案示例：
+回复文案要求：
 
-```text
-已把这款商品加入购物车，你可以点右上角购物车查看。
-```
-
-澄清文案示例：
-
-```text
-你想加哪一款？可以说“加第二个”，或直接点商品卡片加购。
-```
-
-没有上下文示例：
-
-```text
-我还没有可加购的推荐商品。你可以先让我推荐几款，再说加第几个。
-```
+- 用户可见 assistant 回复由 LLM / chat orchestration prompt 根据 `cartAction` 状态、库内商品上下文和会话记忆生成。
+- 后端代码只返回结构化状态、商品 id、商品名、数量和校验结果。
+- 不在 service 里继续增加固定导购话术。
 
 要求：
 
 - 加购命令不调用 vector search。
 - 加购执行前必须调用 LLM 判断 AI 操作意图；确认是加购后不再调用 RAG 生成 LLM。
 - 不信任用户提供的商品名作为事实；必须映射到最近推荐的库内 product id。
-- 商品不可用或不存在时返回友好消息，不假装成功。
+- 商品不可用或不存在时返回普通 assistant 回复，不假装成功。
 
 ### Product Cards
 

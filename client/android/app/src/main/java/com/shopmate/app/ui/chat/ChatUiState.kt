@@ -49,7 +49,10 @@ internal val ChatEmptyPreviewUiState = ChatUiState(
             text = "帮我找一款 50 元以内的主动降噪耳机",
             fromUser = true,
         ),
+        ChatMessageUi(
+            id = "preview-empty-assistant",
+            text = "这个条件下我在库里还没找到合适商品。你可以放宽预算、补充用途或偏好，我再继续帮你筛。",
+            fromUser = false,
+        ),
     ),
-    errorMessage = "当前商品库里没有同时满足预算和降噪的耳机，可以放宽价格再试试。",
-    canRetry = true,
 )

@@ -2,25 +2,25 @@
 
 ## 概述
 
-让 ShopMate 在用户信息不足时主动反问，而不是直接给泛泛推荐。
+让 ShopMate 在用户信息不足时主动反问，而不是直接给泛泛推荐。是否反问和用户可见问题由 LLM clarification intent 决定；规则只负责发现候选宽泛品类和候选缺失槽位。
 
 示例：
 
 ```text
 用户：推荐一款手机
-AI：你更看重拍照、续航、预算还是性价比？告诉我一两个重点，我再帮你筛。
+AI：<LLM 生成的澄清问题>
 用户：预算 3000 左右，拍照好一点
-AI：好的，在 3000 左右和拍照优先的条件下推荐...
+AI：<基于补充条件的 RAG 推荐回答>
 ```
 
-本 spec 建立最小澄清机制：识别过宽的问题、生成 1 句追问、记录缺失槽位，并让用户下一轮回答能接回原始意图。
+本 spec 建立最小澄清机制：识别过宽问题的候选、交给 LLM 判断是否需要追问、记录缺失槽位，并让用户下一轮回答能接回原始意图。
 
 ## 范围
 
 本 spec 负责：
 
-- 后端在 RAG 检索前判断是否需要主动反问。
-- 对宽泛品类问题返回澄清问题，而不是直接推荐商品。
+- 后端在 RAG 检索前通过 LLM clarification intent 判断是否需要主动反问。
+- 对 LLM 确认需要澄清的宽泛品类问题返回模型生成的澄清问题，而不是直接推荐商品。
 - `done.fallbackReason` 新增 `NEEDS_CLARIFICATION`。
 - `done` 可选返回 `clarification` 元数据，供测试和后续 UI 使用。
 - Android 对 `NEEDS_CLARIFICATION` 不显示“商品库暂时没有匹配”的错误。
@@ -49,29 +49,18 @@ AI：好的，在 3000 左右和拍照优先的条件下推荐...
 
 ## 判定策略
 
-第一版使用规则判断，避免额外 LLM 调用。
+采用“候选预筛 + LLM intent”的两段式策略：
 
-需要澄清的典型情况：
+- `ClarificationService` 只判断当前问题是否可能是宽泛品类请求，并给出候选 `missingSlots`。
+- `ClarificationIntentService` 调用 LLM，输出 `needs_clarification`、`clarification_question` 和 `missing_slots`。
+- 只有 LLM 确认需要澄清且给出有效 `clarification_question` 时，才返回 `NEEDS_CLARIFICATION`。
+- 如果没有候选、LLM 否定、输出无效、没有生成问题或模型不可用，继续原 RAG 流程，不拦截用户请求。
 
-- 用户只说宽泛品类：
-  - `推荐一款手机`
-  - `推荐电脑`
-  - `推荐护肤品`
-  - `有什么跑鞋`
-- 没有预算、用途、偏好或关键约束。
-- 当前会话 memory 里也没有可用约束。
+规则 / 正则不能：
 
-不需要澄清的情况：
-
-- 已有预算：
-  - `推荐 3000 元以内的手机`
-- 已有用途：
-  - `推荐适合拍照的手机`
-  - `推荐通勤用耳机`
-- 已有明确人群/场景：
-  - `适合油皮的洗面奶`
-  - `学生党用的跑鞋`
-- 用户明确要求“随便推荐一个”或“先给我几个看看”。
+- 单独决定 `NEEDS_CLARIFICATION`。
+- 生成用户可见反问文案。
+- 为某个品类写死追问维度。
 
 ## 后端实现
 
@@ -80,6 +69,8 @@ AI：好的，在 3000 左右和拍照优先的条件下推荐...
 - `server/src/modules/chat/clarification.types.ts`
 - `server/src/modules/chat/clarification.service.ts`
 - `server/src/modules/chat/clarification.service.test.ts`
+- `server/src/modules/chat/clarification-intent.service.ts`
+- `server/src/modules/chat/clarification-intent.service.test.ts`
 
 修改：
 
@@ -133,42 +124,43 @@ clarification?: {
 
 输出：
 
-- 是否需要澄清
-- 一句移动端友好的追问
-- 缺失槽位
+- 是否存在宽泛澄清候选
+- 候选缺失槽位
 
-生成规则：
+`ClarificationIntentService` 输入：
 
-- 手机：优先问拍照、续航、预算、性价比。
-- 电脑 / 数码：优先问预算、用途、性能/轻薄。
-- 护肤 / 美妆：优先问肤质、预算、功效。
-- 运动鞋 / 跑鞋：优先问使用场景、缓震/轻量、预算。
-- 食品 / 生活：优先问口味、预算、使用场景。
-- 默认：问预算、使用场景和偏好。
+- 当前问题
+- `ClarificationService` 产出的候选缺失槽位
+- 已合并的 `ChatContextMemory`
+- 当前 filters
 
-回答文案要求：
+LLM 输出 schema：
+
+```json
+{
+  "needs_clarification": true,
+  "clarification_question": "...",
+  "missing_slots": ["budget", "priority"]
+}
+```
+
+`clarification_question` 要求：
 
 - 1 句话。
 - 不超过 70 个中文字符。
 - 不编造商品名。
 - 不输出商品卡片。
 
-示例：
-
-```text
-你更看重拍照、续航、预算还是性价比？告诉我一两个重点，我再帮你筛。
-```
-
 ### RAG 接入
 
 `RagChatService.answer` 流程调整：
 
 1. 合并 context memory。
-2. 调用 `ClarificationService`.
+2. 调用 `ClarificationIntentService`。
 3. 如果需要澄清：
    - 不调用 vector search。
-   - 不调用 LLM。
-   - 返回 `answer = clarification.question`。
+   - 不调用 RAG 生成 LLM。
+   - 返回 `answer = LLM 生成的 clarification.question`。
    - `productCards = []`。
    - `recommendedProductIds = []`。
    - `fallbackUsed = true`。
@@ -254,8 +246,8 @@ curl.exe -N -H "Content-Type: application/json" -d "{\"conversationId\":\"clarif
 ## 完成标准
 
 - 信息不足时能主动反问。
-- 澄清请求不调用 vector search / LLM。
+- 澄清请求不调用 vector search / RAG 生成 LLM。
 - 用户补充信息后能继续正常 RAG 推荐。
 - Android 不把澄清当成错误。
-- 现有 no-candidates fallback 行为不破坏。
+- 现有无候选商品返回行为不破坏。
 - 后端 test / build 与 Android unit test / build 通过，或记录真实失败原因。

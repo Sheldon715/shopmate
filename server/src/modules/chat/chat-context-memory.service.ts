@@ -40,6 +40,10 @@ const CATEGORY_HINTS = [
     subCategory: "跑步鞋",
   },
   {
+    terms: ["鞋", "鞋子"],
+    category: "服饰运动",
+  },
+  {
     terms: ["手机"],
     category: "数码电子",
     subCategory: "智能手机",
@@ -235,7 +239,7 @@ function findCategoryHint(question: string):
   | { category: string; subCategory?: string }
   | undefined {
   const hint = CATEGORY_HINTS.find((candidate) =>
-    candidate.terms.some((term) => question.includes(term))
+    candidate.terms.some((term) => categoryTermMatches(question, term))
   );
 
   return hint
@@ -244,6 +248,18 @@ function findCategoryHint(question: string):
         subCategory: "subCategory" in hint ? hint.subCategory : undefined,
       }
     : undefined;
+}
+
+function categoryTermMatches(question: string, term: string): boolean {
+  if (term.length === 1) {
+    return normalizeTerseQuery(question) === term;
+  }
+
+  return question.includes(term);
+}
+
+function normalizeTerseQuery(question: string): string {
+  return question.replace(/[\s，。！？!?、,.]/gu, "");
 }
 
 function extractMaxPriceCents(question: string): number | undefined {

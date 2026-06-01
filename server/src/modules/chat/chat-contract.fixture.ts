@@ -106,7 +106,7 @@ const errorPayload: ChatErrorPayload = {
 };
 
 const noProductMessageDelta: ChatMessageDeltaPayload = {
-  text: "暂时没有找到匹配商品。你可以换一个更具体的需求，比如品类、预算或使用场景。",
+  text: "这个条件下我在库里还没找到合适商品。你可以放宽预算、补充用途或偏好，我再继续帮你筛。",
   index: 0,
 };
 
@@ -147,7 +147,7 @@ const clarificationDone: ChatDonePayload = {
 };
 
 const cartAddMessageDelta: ChatMessageDeltaPayload = {
-  text: "已把这款商品加入购物车，你可以点右上角购物车查看。",
+  text: "加购已完成。",
   index: 0,
 };
 

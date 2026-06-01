@@ -224,6 +224,53 @@ class ChatViewModelTest {
     }
 
     @Test
+    fun noCandidatesDoneKeepsAssistantTextEditableComposerAndNoRetry() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("200 元以内的蓝牙耳机")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        repository.events.emit(
+            ChatStreamEvent.MessageDelta(
+                text = "这个预算下我在库里还没找到合适的蓝牙耳机。你可以放宽预算，或告诉我更看重续航、降噪还是轻便，我再继续筛。",
+                index = 0,
+            ),
+        )
+        repository.events.emit(ChatStreamEvent.ProductCards(emptyList()))
+        repository.events.emit(
+            ChatStreamEvent.Done(
+                recommendedProductIds = emptyList(),
+                fallbackUsed = true,
+                fallbackReason = "NO_CANDIDATES",
+                retrieval = ChatRetrievalDto(candidateCount = 0),
+            ),
+        )
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isSending)
+        assertEquals(
+            "这个预算下我在库里还没找到合适的蓝牙耳机。你可以放宽预算，或告诉我更看重续航、降噪还是轻便，我再继续筛。",
+            state.messages.last().text,
+        )
+        assertFalse(state.messages.last().isStreaming)
+        assertEquals(emptyList(), state.productCards)
+        assertEquals(null, state.errorMessage)
+        assertFalse(state.canRetry)
+
+        viewModel.onComposerTextChange("那 500 以内呢")
+        assertEquals("那 500 以内呢", viewModel.uiState.value.composerText)
+
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        assertEquals(2, repository.conversationIds.size)
+        assertEquals(repository.conversationIds.first(), repository.conversationIds.last())
+    }
+
+    @Test
     fun successfulCartActionEmitsRefreshCartSideEffectWithoutChatError() = runTest {
         val repository = FakeChatRepository()
         val viewModel = ChatViewModel(repository)

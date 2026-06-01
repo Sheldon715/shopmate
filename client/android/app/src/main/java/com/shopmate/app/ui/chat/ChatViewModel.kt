@@ -338,7 +338,11 @@ class ChatViewModel(
                     state.copy(
                         messages = state.messages.markAssistantDone(),
                         isSending = false,
-                        errorMessage = if (event.shouldShowNoMatchError(state.productCards)) {
+                        errorMessage = if (event.shouldShowNoMatchError(
+                                productCards = state.productCards,
+                                messages = state.messages,
+                            )
+                        ) {
                             "当前商品库暂时没有完全匹配的商品，可以调整需求再试试。"
                         } else {
                             null
@@ -456,10 +460,12 @@ private fun Throwable.toDisplayMessage(): String =
 
 private fun ChatStreamEvent.Done.shouldShowNoMatchError(
     productCards: List<ProductCardUi>,
+    messages: List<ChatMessageUi>,
 ): Boolean =
     productCards.isEmpty() &&
         fallbackUsed &&
-        fallbackReason != NEEDS_CLARIFICATION_REASON
+        fallbackReason != NEEDS_CLARIFICATION_REASON &&
+        messages.lastOrNull { message -> !message.fromUser }?.text.isNullOrBlank()
 
 private fun shouldKeepProductCardsForMessage(message: String): Boolean {
     val normalized = message.replace(Regex("\\s+"), "")

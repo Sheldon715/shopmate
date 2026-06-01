@@ -24,6 +24,7 @@ import type {
   RagChatResult,
   RetrievedProductContext,
 } from "./chat.types";
+import { CartActionResponseService } from "./cart-action-response.service";
 import { CartCommandService } from "./cart-command.service";
 import { CartCommandIntentService } from "./cart-command-intent.service";
 import type {
@@ -31,6 +32,7 @@ import type {
   CartCommandDetection,
 } from "./cart-command.types";
 import { ChatContextMemoryService } from "./chat-context-memory.service";
+import { ClarificationIntentService } from "./clarification-intent.service";
 import { ClarificationService } from "./clarification.service";
 import type {
   ClarificationDecision,
@@ -41,6 +43,10 @@ import {
   RagLlmOutputParseError,
   parseRagLlmOutput,
 } from "./rag-llm-output.parser";
+import {
+  RagResponseGenerationService,
+  createMinimalRagFallbackAnswer,
+} from "./rag-response-generation.service";
 
 export interface RagVectorSearchClient {
   search(input: {
@@ -63,6 +69,18 @@ export type RagCartCommandIntentDetector = Pick<
   CartCommandIntentService,
   "detect"
 >;
+export type RagCartActionResponder = Pick<
+  CartActionResponseService,
+  "generate"
+>;
+export type RagClarificationIntentDetector = Pick<
+  ClarificationIntentService,
+  "decide"
+>;
+export type RagResponseGenerator = Pick<
+  RagResponseGenerationService,
+  "generateNoCandidatesAnswer"
+>;
 
 export interface RagChatServiceOptions {
   vectorSearch?: RagVectorSearchClient;
@@ -72,8 +90,11 @@ export interface RagChatServiceOptions {
   now?: () => Date;
   contextMemoryService?: ChatContextMemoryService;
   clarificationService?: ClarificationService;
+  clarificationIntentService?: RagClarificationIntentDetector;
   cartCommandService?: CartCommandService;
   cartCommandIntentService?: RagCartCommandIntentDetector;
+  cartActionResponseService?: RagCartActionResponder;
+  ragResponseGenerationService?: RagResponseGenerator;
   maxSnippetsPerProduct?: number;
   defaultMaxRecommendedProducts?: number;
   publicImageBaseUrl?: string;
@@ -108,8 +129,11 @@ export class RagChatService {
   private readonly now: () => Date;
   private readonly contextMemoryService: ChatContextMemoryService;
   private readonly clarificationService: ClarificationService;
+  private readonly clarificationIntentService: RagClarificationIntentDetector;
   private readonly cartCommandService: CartCommandService;
   private readonly cartCommandIntentService: RagCartCommandIntentDetector;
+  private readonly cartActionResponseService: RagCartActionResponder;
+  private readonly ragResponseGenerationService: RagResponseGenerator;
   private readonly maxSnippetsPerProduct: number;
   private readonly defaultMaxRecommendedProducts: number;
   private readonly publicImageBaseUrl?: string;
@@ -125,6 +149,12 @@ export class RagChatService {
       ?? new ChatContextMemoryService({ now: this.now });
     this.clarificationService =
       options.clarificationService ?? new ClarificationService();
+    this.clarificationIntentService =
+      options.clarificationIntentService
+      ?? new ClarificationIntentService({
+        llmClient: this.llmClient,
+        clarificationService: this.clarificationService,
+      });
     this.cartCommandService =
       options.cartCommandService ?? new CartCommandService();
     this.cartCommandIntentService =
@@ -133,6 +163,12 @@ export class RagChatService {
         llmClient: this.llmClient,
         cartCommandService: this.cartCommandService,
       });
+    this.cartActionResponseService =
+      options.cartActionResponseService
+      ?? new CartActionResponseService({ llmClient: this.llmClient });
+    this.ragResponseGenerationService =
+      options.ragResponseGenerationService
+      ?? new RagResponseGenerationService({ llmClient: this.llmClient });
     this.maxSnippetsPerProduct =
       options.maxSnippetsPerProduct ?? DEFAULT_MAX_SNIPPETS_PER_PRODUCT;
     this.defaultMaxRecommendedProducts =
@@ -170,17 +206,27 @@ export class RagChatService {
         await this.answerCartCommand(
           cartCommandDetection,
           memoryResolution.contextMemory?.lastRecommendedProductIds ?? [],
+          {
+            question,
+            requestId: input.requestId,
+            abortSignal: input.abortSignal,
+          },
         ),
       );
     }
 
-    const clarificationDecision = this.clarificationService.decide({
+    const clarificationDecision = await this.clarificationIntentService.decide({
       question,
       contextMemory: memoryResolution.contextMemory,
       filters: memoryResolution.filters,
+      requestId: input.requestId,
+      abortSignal: input.abortSignal,
     });
 
-    if (clarificationDecision.needsClarification) {
+    if (
+      clarificationDecision.needsClarification
+      && clarificationDecision.question?.trim()
+    ) {
       return this.withContextMemory(
         memoryResolution,
         createClarificationResult(clarificationDecision),
@@ -204,7 +250,15 @@ export class RagChatService {
     if (candidates.length === 0) {
       return this.withContextMemory(
         memoryResolution,
-        createNoCandidatesResult(),
+        createNoCandidatesResult(
+          await this.ragResponseGenerationService.generateNoCandidatesAnswer({
+            question,
+            filters: memoryResolution.filters,
+            contextMemory: memoryResolution.contextMemory,
+            requestId: input.requestId,
+            abortSignal: input.abortSignal,
+          }),
+        ),
       );
     }
 
@@ -216,7 +270,15 @@ export class RagChatService {
     if (contexts.length === 0) {
       return this.withContextMemory(
         memoryResolution,
-        createNoCandidatesResult(),
+        createNoCandidatesResult(
+          await this.ragResponseGenerationService.generateNoCandidatesAnswer({
+            question,
+            filters: memoryResolution.filters,
+            contextMemory: memoryResolution.contextMemory,
+            requestId: input.requestId,
+            abortSignal: input.abortSignal,
+          }),
+        ),
       );
     }
 
@@ -297,6 +359,7 @@ export class RagChatService {
   private async answerCartCommand(
     detection: Extract<CartCommandDetection, { isCartCommand: true }>,
     recentProductIds: string[],
+    request: Pick<RagChatRequest, "question" | "requestId" | "abortSignal">,
   ): Promise<RagChatResult> {
     const products = orderProductsByIds(
       await this.productReader.findActiveByIds(recentProductIds),
@@ -316,50 +379,77 @@ export class RagChatService {
     };
 
     if (resolvedTarget.status === "missing") {
+      const cartAction: CartActionResult = {
+        type: "add",
+        status: "needs_target",
+        quantity: detection.quantity,
+        message: "缺少可加购的推荐商品",
+      };
+
       return createCartCommandResult({
-        answer: "我还没有可加购的推荐商品。你可以先让我推荐几款，再说加第几个。",
+        answer: await this.cartActionResponseService.generate({
+          question: request.question,
+          cartAction,
+          fallbackReason: "CART_TARGET_MISSING",
+          recentProducts: products,
+          requestId: request.requestId,
+          abortSignal: request.abortSignal,
+        }),
         productCards,
         recommendedProductIds,
         fallbackReason: "CART_TARGET_MISSING",
         retrieval: baseRetrieval,
-        cartAction: {
-          type: "add",
-          status: "needs_target",
-          quantity: detection.quantity,
-          message: "缺少可加购的推荐商品",
-        },
+        cartAction,
       });
     }
 
     if (resolvedTarget.status === "ambiguous") {
+      const cartAction: CartActionResult = {
+        type: "add",
+        status: "needs_target",
+        quantity: detection.quantity,
+        message: "需要确认要加入购物车的商品",
+      };
+
       return createCartCommandResult({
-        answer: "你想加哪一款？可以说“加第二个”，或直接点商品卡片加购。",
+        answer: await this.cartActionResponseService.generate({
+          question: request.question,
+          cartAction,
+          fallbackReason: "CART_TARGET_AMBIGUOUS",
+          recentProducts: products,
+          requestId: request.requestId,
+          abortSignal: request.abortSignal,
+        }),
         productCards,
         recommendedProductIds,
         fallbackReason: "CART_TARGET_AMBIGUOUS",
         retrieval: baseRetrieval,
-        cartAction: {
-          type: "add",
-          status: "needs_target",
-          quantity: detection.quantity,
-          message: "需要确认要加入购物车的商品",
-        },
+        cartAction,
       });
     }
 
     if (resolvedTarget.status === "not_found" || !resolvedTarget.product) {
+      const cartAction: CartActionResult = {
+        type: "add",
+        status: "not_found",
+        quantity: detection.quantity,
+        message: "最近推荐里没有匹配商品",
+      };
+
       return createCartCommandResult({
-        answer: "我没能在最近推荐里找到你说的那款商品。你可以说“加第一个”或点商品卡片加购。",
+        answer: await this.cartActionResponseService.generate({
+          question: request.question,
+          cartAction,
+          fallbackReason: "CART_TARGET_MISSING",
+          recentProducts: products,
+          requestId: request.requestId,
+          abortSignal: request.abortSignal,
+        }),
         productCards,
         recommendedProductIds,
         fallbackReason: "CART_TARGET_MISSING",
         retrieval: baseRetrieval,
-        cartAction: {
-          type: "add",
-          status: "not_found",
-          quantity: detection.quantity,
-          message: "最近推荐里没有匹配商品",
-        },
+        cartAction,
       });
     }
 
@@ -368,21 +458,28 @@ export class RagChatService {
         productId: resolvedTarget.product.id,
         quantity: detection.quantity,
       });
+      const cartAction: CartActionResult = {
+        type: "add",
+        status: "success",
+        productId: resolvedTarget.product.id,
+        productName: resolvedTarget.product.name,
+        quantity: detection.quantity,
+        message: "已加入购物车",
+      };
 
       return createCartCommandResult({
-        answer: "已把这款商品加入购物车，你可以点右上角购物车查看。",
+        answer: await this.cartActionResponseService.generate({
+          question: request.question,
+          cartAction,
+          recentProducts: products,
+          requestId: request.requestId,
+          abortSignal: request.abortSignal,
+        }),
         productCards,
         recommendedProductIds,
         fallbackUsed: false,
         retrieval: baseRetrieval,
-        cartAction: {
-          type: "add",
-          status: "success",
-          productId: resolvedTarget.product.id,
-          productName: resolvedTarget.product.name,
-          quantity: detection.quantity,
-          message: "已加入购物车",
-        },
+        cartAction,
       });
     } catch (error) {
       const cartAction = mapCartAddErrorToAction(
@@ -392,7 +489,14 @@ export class RagChatService {
       );
 
       return createCartCommandResult({
-        answer: cartAction.message,
+        answer: await this.cartActionResponseService.generate({
+          question: request.question,
+          cartAction,
+          fallbackReason: "CART_ADD_FAILED",
+          recentProducts: products,
+          requestId: request.requestId,
+          abortSignal: request.abortSignal,
+        }),
         productCards,
         recommendedProductIds,
         fallbackReason: "CART_ADD_FAILED",
@@ -407,7 +511,7 @@ function createClarificationResult(
   decision: ClarificationDecision,
 ): RagChatResult {
   return {
-    answer: decision.question ?? "你能补充一下预算、使用场景或偏好吗？我再帮你筛。",
+    answer: decision.question ?? "",
     recommendedProductIds: [],
     productCards: [],
     fallbackUsed: true,
@@ -514,9 +618,9 @@ function createRetrievedContexts(
   });
 }
 
-function createNoCandidatesResult(): RagChatResult {
+function createNoCandidatesResult(answer: string): RagChatResult {
   return {
-    answer: "暂时没有找到匹配商品。你可以换一个更具体的需求，比如品类、预算或使用场景。",
+    answer,
     recommendedProductIds: [],
     productCards: [],
     fallbackUsed: true,
@@ -543,7 +647,7 @@ function createRetrievedFallbackResult(
   const recommendedProductIds = products.map((product) => product.id);
 
   return {
-    answer: "先给你几款候选商品，更多优势和参数可以点进商品详情慢慢看。",
+    answer: createMinimalRagFallbackAnswer(fallbackReason),
     recommendedProductIds,
     productCards,
     fallbackUsed: true,

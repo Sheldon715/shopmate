@@ -71,6 +71,34 @@ describe("ChatContextMemoryService", () => {
     });
   });
 
+  it("stores terse broad category words as intent for clarification follow-ups", () => {
+    const service = createService();
+
+    const resolution = service.resolve({
+      conversationId: "shoe-session",
+      question: "鞋",
+    });
+    const summary = service.commit(resolution, [], {
+      pendingClarification: {
+        originalQuestion: "鞋",
+        missingSlots: ["use_case", "priority", "budget"],
+      },
+    });
+
+    expect(summary).toMatchObject({
+      lastIntent: "鞋",
+      constraints: {
+        category: "服饰运动",
+        preferenceTerms: [],
+        avoidTerms: [],
+      },
+      pendingClarification: {
+        originalQuestion: "鞋",
+      },
+    });
+    expect(summary?.constraints.subCategory).toBeUndefined();
+  });
+
   it("treats approximate budget wording as a soft ceiling", () => {
     const service = createService();
 

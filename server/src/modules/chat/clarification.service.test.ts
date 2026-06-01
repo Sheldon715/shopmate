@@ -11,8 +11,18 @@ describe("ClarificationService", () => {
 
     expect(decision).toEqual({
       needsClarification: true,
-      question: "你更看重拍照、续航、预算还是性价比？告诉我一两个重点，我再帮你筛。",
       missingSlots: ["budget", "priority"],
+    });
+  });
+
+  it("creates a clarification candidate for a terse broad category", () => {
+    const decision = service.decide({
+      question: "鞋",
+    });
+
+    expect(decision).toEqual({
+      needsClarification: true,
+      missingSlots: ["use_case", "priority", "budget"],
     });
   });
 

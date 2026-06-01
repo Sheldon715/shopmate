@@ -13,7 +13,6 @@ export interface ClarificationServiceInput {
 
 interface BroadCategoryRule {
   terms: readonly string[];
-  question: string;
   missingSlots: readonly ClarificationSlot[];
 }
 
@@ -25,32 +24,26 @@ const NO_CLARIFICATION: ClarificationDecision = {
 const BROAD_CATEGORY_RULES = [
   {
     terms: ["手机", "智能手机"],
-    question: "你更看重拍照、续航、预算还是性价比？告诉我一两个重点，我再帮你筛。",
     missingSlots: ["budget", "priority"],
   },
   {
     terms: ["电脑", "笔记本", "平板"],
-    question: "你主要用于学习办公、游戏设计还是轻薄便携？预算大概多少？",
     missingSlots: ["budget", "use_case", "priority"],
   },
   {
     terms: ["耳机", "蓝牙耳机", "降噪耳机"],
-    question: "你更看重降噪、续航、佩戴舒适还是预算？告诉我一两个重点，我再帮你筛。",
     missingSlots: ["budget", "priority", "use_case"],
   },
   {
     terms: ["护肤品", "护肤", "美妆", "洗面奶", "洁面", "防晒", "防晒霜", "面霜", "精华", "水乳"],
-    question: "你的肤质、预算和想改善的功效是什么？告诉我一两个重点，我再帮你筛。",
     missingSlots: ["audience", "budget", "priority"],
   },
   {
-    terms: ["跑鞋", "运动鞋", "鞋子"],
-    question: "你主要跑步、通勤还是健身？更看重缓震、轻量还是预算？",
+    terms: ["鞋", "跑鞋", "运动鞋", "鞋子"],
     missingSlots: ["use_case", "priority", "budget"],
   },
   {
     terms: ["食品", "零食", "饮料", "生活用品", "家居"],
-    question: "你偏好什么口味、预算和使用场景？告诉我一两个重点，我再帮你筛。",
     missingSlots: ["priority", "budget", "use_case"],
   },
 ] as const satisfies readonly BroadCategoryRule[];
@@ -73,7 +66,7 @@ export class ClarificationService {
     const question = input.question.trim();
     const rule = findBroadCategoryRule(question);
 
-    if (!rule || !hasRecommendationIntent(question)) {
+    if (!rule || !hasRecommendationIntent(question, rule)) {
       return NO_CLARIFICATION;
     }
 
@@ -90,7 +83,6 @@ export class ClarificationService {
 
     return {
       needsClarification: true,
-      question: rule.question,
       missingSlots: [...rule.missingSlots],
     };
   }
@@ -98,12 +90,30 @@ export class ClarificationService {
 
 function findBroadCategoryRule(question: string): BroadCategoryRule | undefined {
   return BROAD_CATEGORY_RULES.find((rule) =>
-    rule.terms.some((term) => question.includes(term))
+    rule.terms.some((term) => termMatchesQuestion(question, term))
   );
 }
 
-function hasRecommendationIntent(question: string): boolean {
-  return RECOMMENDATION_INTENT_PATTERN.test(question);
+function termMatchesQuestion(question: string, term: string): boolean {
+  if (term.length === 1) {
+    return normalizeTerseQuery(question) === term;
+  }
+
+  return question.includes(term);
+}
+
+function hasRecommendationIntent(
+  question: string,
+  rule: BroadCategoryRule,
+): boolean {
+  return (
+    RECOMMENDATION_INTENT_PATTERN.test(question)
+    || rule.terms.some((term) => normalizeTerseQuery(question) === term)
+  );
+}
+
+function normalizeTerseQuery(question: string): string {
+  return question.replace(/[\s，。！？!?、,.]/gu, "");
 }
 
 function acceptsBroadRecommendation(question: string): boolean {

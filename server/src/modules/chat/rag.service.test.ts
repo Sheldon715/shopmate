@@ -112,6 +112,7 @@ describe("RagChatService", () => {
 
     expect(result.fallbackUsed).toBe(true);
     expect(result.fallbackReason).toBe("NO_VALID_PRODUCT_IDS");
+    expect(result.answer).toBe("这次没有生成可靠的商品选择。");
     expect(result.recommendedProductIds).toEqual([
       "product_001",
       "product_002",
@@ -134,13 +135,14 @@ describe("RagChatService", () => {
 
     expect(result.fallbackUsed).toBe(true);
     expect(result.fallbackReason).toBe("LLM_ERROR");
+    expect(result.answer).toBe("这次没有生成可靠推荐说明。");
     expect(result.recommendedProductIds).toEqual(["product_001"]);
     expect(result.productCards).toHaveLength(1);
   });
 
-  it("does not call product lookup or LLM when vector search has no candidates", async () => {
+  it("uses no-candidates response generation when vector search has no candidates", async () => {
     let productLookupCalled = false;
-    let llmCalled = false;
+    const llmRequests: LlmGenerateRequest[] = [];
     const service = new RagChatService(withNoCartIntent({
       vectorSearch: createVectorSearch([]),
       productReader: {
@@ -150,9 +152,11 @@ describe("RagChatService", () => {
         },
       },
       llmClient: new MockLlmClient({
-        handler: () => {
-          llmCalled = true;
-          return createLlmResponse("{}");
+        handler: (request) => {
+          llmRequests.push(request);
+          return createLlmResponse(
+            "这个预算下我在库里还没找到合适的蓝牙耳机。你可以放宽预算，或告诉我更看重续航、降噪还是轻便，我再继续筛。",
+          );
         },
       }),
     }));
@@ -160,8 +164,11 @@ describe("RagChatService", () => {
     const result = await service.answer({ question: "unknown request" });
 
     expect(productLookupCalled).toBe(false);
-    expect(llmCalled).toBe(false);
+    expect(llmRequests).toHaveLength(1);
+    expect(llmRequests[0]?.messages.map((message) => message.content).join("\n"))
+      .toContain("无结果回复生成器");
     expect(result).toMatchObject({
+      answer: "这个预算下我在库里还没找到合适的蓝牙耳机。你可以放宽预算，或告诉我更看重续航、降噪还是轻便，我再继续筛。",
       recommendedProductIds: [],
       productCards: [],
       fallbackUsed: true,
@@ -169,10 +176,32 @@ describe("RagChatService", () => {
     });
   });
 
-  it("returns clarification for a broad product request before vector search or LLM", async () => {
+  it("uses a minimal no-candidates answer when response generation fails", async () => {
+    const service = new RagChatService(withNoCartIntent({
+      vectorSearch: createVectorSearch([]),
+      productReader: createProductReader(),
+      llmClient: new MockLlmClient({
+        error: new LlmError("provider down", {
+          code: "LLM_REQUEST_FAILED",
+        }),
+      }),
+    }));
+
+    const result = await service.answer({ question: "unknown request" });
+
+    expect(result).toMatchObject({
+      answer: "当前商品库没有找到匹配结果。",
+      recommendedProductIds: [],
+      productCards: [],
+      fallbackUsed: true,
+      fallbackReason: "NO_CANDIDATES",
+    });
+  });
+
+  it("returns clarification for a broad product request after LLM intent before vector search", async () => {
     let vectorSearchCalled = false;
     let productLookupCalled = false;
-    let llmCalled = false;
+    const llmRequests: LlmGenerateRequest[] = [];
     const service = new RagChatService(withNoCartIntent({
       vectorSearch: {
         search: async () => {
@@ -187,9 +216,13 @@ describe("RagChatService", () => {
         },
       },
       llmClient: new MockLlmClient({
-        handler: () => {
-          llmCalled = true;
-          return createLlmResponse("{}");
+        handler: (request) => {
+          llmRequests.push(request);
+          return createClarificationIntentResponse({
+            needsClarification: true,
+            question: "拍照、续航和预算里你最看重哪一项？",
+            missingSlots: ["budget", "priority"],
+          });
         },
       }),
       contextMemoryService: new ChatContextMemoryService({
@@ -204,9 +237,11 @@ describe("RagChatService", () => {
 
     expect(vectorSearchCalled).toBe(false);
     expect(productLookupCalled).toBe(false);
-    expect(llmCalled).toBe(false);
+    expect(llmRequests).toHaveLength(1);
+    expect(llmRequests[0]?.messages.map((message) => message.content).join("\n"))
+      .toContain("主动澄清意图判断器");
     expect(result).toMatchObject({
-      answer: "你更看重拍照、续航、预算还是性价比？告诉我一两个重点，我再帮你筛。",
+      answer: "拍照、续航和预算里你最看重哪一项？",
       recommendedProductIds: [],
       productCards: [],
       fallbackUsed: true,
@@ -229,8 +264,114 @@ describe("RagChatService", () => {
     });
   });
 
+  it("continues RAG when LLM rejects a broad clarification candidate", async () => {
+    let vectorSearchCalled = false;
+    const llmRequests: LlmGenerateRequest[] = [];
+    const service = new RagChatService(withNoCartIntent({
+      vectorSearch: {
+        search: async () => {
+          vectorSearchCalled = true;
+          return [createHit("product_001")];
+        },
+      },
+      productReader: createProductReader(),
+      llmClient: new MockLlmClient({
+        handler: (request) => {
+          llmRequests.push(request);
+          return llmRequests.length === 1
+            ? createClarificationIntentResponse({
+                needsClarification: false,
+                question: "",
+                missingSlots: [],
+              })
+            : createLlmResponse(
+                JSON.stringify({
+                  answer: "Use product 1.",
+                  recommended_product_ids: ["product_001"],
+                }),
+              );
+        },
+      }),
+    }));
+
+    const result = await service.answer({
+      conversationId: "clarify-demo-1",
+      question: "推荐一款手机",
+    });
+
+    expect(vectorSearchCalled).toBe(true);
+    expect(llmRequests).toHaveLength(2);
+    expect(llmRequests[0]?.messages.map((message) => message.content).join("\n"))
+      .toContain("主动澄清意图判断器");
+    expect(result).toMatchObject({
+      fallbackUsed: false,
+      recommendedProductIds: ["product_001"],
+    });
+    expect(result.fallbackReason).toBeUndefined();
+    expect(result.contextMemory?.pendingClarification).toBeUndefined();
+  });
+
+  it("returns clarification for terse broad category text after LLM intent", async () => {
+    let vectorSearchCalled = false;
+    const llmRequests: LlmGenerateRequest[] = [];
+    const service = new RagChatService(withNoCartIntent({
+      vectorSearch: {
+        search: async () => {
+          vectorSearchCalled = true;
+          return [createHit("product_001")];
+        },
+      },
+      productReader: createProductReader(),
+      llmClient: new MockLlmClient({
+        handler: (request) => {
+          llmRequests.push(request);
+          return createClarificationIntentResponse({
+            needsClarification: true,
+            question: "你要跑步、通勤还是日常穿？预算大概多少？",
+            missingSlots: ["use_case", "priority", "budget"],
+          });
+        },
+      }),
+      contextMemoryService: new ChatContextMemoryService({
+        store: new ChatContextMemoryStore(),
+      }),
+    }));
+
+    const result = await service.answer({
+      conversationId: "clarify-demo-2",
+      question: "鞋",
+    });
+
+    expect(vectorSearchCalled).toBe(false);
+    expect(llmRequests).toHaveLength(1);
+    expect(llmRequests[0]?.messages.map((message) => message.content).join("\n"))
+      .toContain('"message":"鞋"');
+    expect(result).toMatchObject({
+      answer: "你要跑步、通勤还是日常穿？预算大概多少？",
+      recommendedProductIds: [],
+      fallbackUsed: true,
+      fallbackReason: "NEEDS_CLARIFICATION",
+      clarification: {
+        missingSlots: ["use_case", "priority", "budget"],
+      },
+      retrieval: {
+        candidateCount: 0,
+        returnedProductIds: [],
+      },
+      contextMemory: {
+        conversationId: "clarify-demo-2",
+        lastIntent: "鞋",
+        pendingClarification: {
+          originalQuestion: "鞋",
+          missingSlots: ["use_case", "priority", "budget"],
+        },
+      },
+    });
+  });
+
   it("uses the original intent after the user answers a clarification question", async () => {
     const vectorCalls: Array<Parameters<RagVectorSearchClient["search"]>[0]> = [];
+    const llmRequests: LlmGenerateRequest[] = [];
     const contextMemoryService = new ChatContextMemoryService({
       store: new ChatContextMemoryStore(),
     });
@@ -244,12 +385,21 @@ describe("RagChatService", () => {
       productReader: createProductReader(),
       contextMemoryService,
       llmClient: new MockLlmClient({
-        response: createLlmResponse(
-          JSON.stringify({
-            answer: "Use product 1.",
-            recommended_product_ids: ["product_001"],
-          }),
-        ),
+        handler: (request) => {
+          llmRequests.push(request);
+          return llmRequests.length === 1
+            ? createClarificationIntentResponse({
+                needsClarification: true,
+                question: "拍照、续航和预算里你最看重哪一项？",
+                missingSlots: ["budget", "priority"],
+              })
+            : createLlmResponse(
+                JSON.stringify({
+                  answer: "Use product 1.",
+                  recommended_product_ids: ["product_001"],
+                }),
+              );
+        },
       }),
     }));
 
@@ -277,23 +427,27 @@ describe("RagChatService", () => {
   });
 
   it("skips stale vector hits missing from active PostgreSQL products", async () => {
-    let llmCalled = false;
+    const llmRequests: LlmGenerateRequest[] = [];
     const service = new RagChatService(withNoCartIntent({
       vectorSearch: createVectorSearch([createHit("stale_product")]),
       productReader: {
         findActiveByIds: async () => [],
       },
       llmClient: new MockLlmClient({
-        handler: () => {
-          llmCalled = true;
-          return createLlmResponse("{}");
+        handler: (request) => {
+          llmRequests.push(request);
+          return createLlmResponse(
+            "这个条件下我在库里还没找到合适商品。你可以放宽预算或补充用途，我再继续筛。",
+          );
         },
       }),
     }));
 
     const result = await service.answer({ question: "recommend one" });
 
-    expect(llmCalled).toBe(false);
+    expect(llmRequests).toHaveLength(1);
+    expect(llmRequests[0]?.messages.map((message) => message.content).join("\n"))
+      .toContain("无结果回复生成器");
     expect(result.fallbackReason).toBe("NO_CANDIDATES");
     expect(result.retrieval.candidateCount).toBe(0);
   });
@@ -406,7 +560,7 @@ describe("RagChatService", () => {
     });
   });
 
-  it("adds the second recent recommendation to cart after LLM intent without vector search or RAG generation", async () => {
+  it("adds the second recent recommendation to cart after LLM intent and response generation without vector search or RAG generation", async () => {
     const store = createStoreWithRecentRecommendations([
       "product_001",
       "product_002",
@@ -432,9 +586,17 @@ describe("RagChatService", () => {
       llmClient: new MockLlmClient({
         handler: (request) => {
           llmRequests.push(request);
-          return createCartIntentResponse({
-            target: { kind: "ordinal", index: 2 },
-          });
+          const promptText = request.messages
+            .map((message) => message.content)
+            .join("\n");
+
+          return promptText.includes("购物车操作回复生成器")
+            ? createLlmResponse(JSON.stringify({
+                answer: "已经帮你把 Product 2 加进购物车。",
+              }))
+            : createCartIntentResponse({
+                target: { kind: "ordinal", index: 2 },
+              });
         },
       }),
     });
@@ -445,12 +607,16 @@ describe("RagChatService", () => {
     });
 
     expect(vectorSearchCalled).toBe(false);
-    expect(llmRequests).toHaveLength(1);
+    expect(llmRequests).toHaveLength(2);
     expect(llmRequests[0]?.messages.map((message) => message.content).join("\n"))
       .toContain("购物车操作意图分类器");
+    expect(llmRequests[1]?.messages.map((message) => message.content).join("\n"))
+      .toContain("购物车操作回复生成器");
+    expect(llmRequests[1]?.messages.map((message) => message.content).join("\n"))
+      .toContain("product_002");
     expect(cartAdds).toEqual([{ productId: "product_002", quantity: 1 }]);
     expect(result).toMatchObject({
-      answer: "已把这款商品加入购物车，你可以点右上角购物车查看。",
+      answer: "已经帮你把 Product 2 加进购物车。",
       recommendedProductIds: ["product_001", "product_002"],
       fallbackUsed: false,
       cartAction: {
@@ -459,6 +625,47 @@ describe("RagChatService", () => {
         productId: "product_002",
         productName: "Product 2",
         quantity: 1,
+      },
+    });
+  });
+
+  it("uses a minimal status answer when cart action response generation fails", async () => {
+    const store = createStoreWithRecentRecommendations(["product_001"]);
+    let llmCallCount = 0;
+    const service = new RagChatService({
+      vectorSearch: createVectorSearch([]),
+      productReader: createProductReader(),
+      cartWriter: {
+        addItem: async () => createCartDto(),
+      },
+      contextMemoryService: new ChatContextMemoryService({ store }),
+      llmClient: new MockLlmClient({
+        handler: () => {
+          llmCallCount += 1;
+
+          if (llmCallCount === 1) {
+            return createCartIntentResponse({ target: { kind: "deictic" } });
+          }
+
+          throw new LlmError("response generation failed", {
+            code: "LLM_REQUEST_FAILED",
+          });
+        },
+      }),
+    });
+
+    const result = await service.answer({
+      conversationId: "cart-demo-1",
+      question: "把这个加到购物车",
+    });
+
+    expect(llmCallCount).toBe(2);
+    expect(result).toMatchObject({
+      answer: "加购已完成。",
+      fallbackUsed: false,
+      cartAction: {
+        status: "success",
+        productId: "product_001",
       },
     });
   });
@@ -545,9 +752,15 @@ describe("RagChatService", () => {
       llmClient: new MockLlmClient({
         handler: (request) => {
           llmRequests.push(request);
-          return createCartIntentResponse({
-            target: { kind: "ordinal", index: 1 },
-          });
+          const promptText = request.messages
+            .map((message) => message.content)
+            .join("\n");
+
+          return promptText.includes("购物车操作回复生成器")
+            ? createLlmResponse(JSON.stringify({ answer: "第一款已加购。" }))
+            : createCartIntentResponse({
+                target: { kind: "ordinal", index: 1 },
+              });
         },
       }),
     });
@@ -558,8 +771,9 @@ describe("RagChatService", () => {
     });
 
     expect(vectorSearchCalled).toBe(false);
-    expect(llmRequests).toHaveLength(1);
+    expect(llmRequests).toHaveLength(2);
     expect(cartAdds).toEqual([{ productId: "product_001", quantity: 1 }]);
+    expect(result.answer).toBe("第一款已加购。");
     expect(result.cartAction).toMatchObject({
       type: "add",
       status: "success",
@@ -781,6 +995,7 @@ describe("RagChatService", () => {
 
     expect(result.fallbackUsed).toBe(true);
     expect(result.fallbackReason).toBe("LLM_INVALID_OUTPUT");
+    expect(result.answer).toBe("这次没有生成可靠推荐说明。");
     expect(result.recommendedProductIds).toEqual([
       "product_001",
       "product_002",
@@ -912,6 +1127,20 @@ function createCartIntentResponse(input: {
       is_cart_add: input.isCartAdd ?? true,
       target: input.target ?? { kind: "unknown" },
       quantity: input.quantity ?? 1,
+    }),
+  );
+}
+
+function createClarificationIntentResponse(input: {
+  needsClarification: boolean;
+  question: string;
+  missingSlots: string[];
+}): LlmGenerateResponse {
+  return createLlmResponse(
+    JSON.stringify({
+      needs_clarification: input.needsClarification,
+      clarification_question: input.question,
+      missing_slots: input.missingSlots,
     }),
   );
 }
