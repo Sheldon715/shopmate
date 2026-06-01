@@ -1,3 +1,4 @@
+import { rethrowIfAborted } from "../../lib/abort";
 import { MAX_CART_QUANTITY, MIN_CART_QUANTITY } from "../cart/cart.service";
 import type { LlmClient, LlmGenerateRequest } from "../llm/llm.types";
 import { CartCommandService } from "./cart-command.service";
@@ -64,7 +65,8 @@ export class CartCommandIntentService {
       });
 
       return parseCartIntentOutput(response.text);
-    } catch {
+    } catch (error) {
+      rethrowIfAborted(input.abortSignal, error);
       return { isCartAdd: false };
     }
   }

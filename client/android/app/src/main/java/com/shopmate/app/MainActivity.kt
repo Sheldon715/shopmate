@@ -109,7 +109,7 @@ class MainActivity : ComponentActivity() {
                     contract = ActivityResultContracts.RequestPermission(),
                 ) { granted ->
                     if (granted) {
-                        chatViewModel.cancelVoiceInput()
+                        beginVoiceRecognition()
                     } else {
                         chatViewModel.onVoicePermissionDenied()
                     }

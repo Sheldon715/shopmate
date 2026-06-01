@@ -15,6 +15,25 @@ fun requireHttpsApiBaseUrl(buildType: String, url: String) {
     }
 }
 
+fun requireConcreteApiBaseUrl(buildType: String, propertyName: String, url: String) {
+    requireHttpsApiBaseUrl(buildType, url)
+    require(!url.contains(".example.invalid", ignoreCase = true)) {
+        "$buildType SHOPMATE_API_BASE_URL must be configured with $propertyName before building that variant."
+    }
+}
+
+fun requestedTaskContains(fragment: String): Boolean =
+    gradle.startParameter.taskNames.any { taskName ->
+        taskName.contains(fragment, ignoreCase = true)
+    }
+
+fun requestedLifecyclePackageTask(): Boolean =
+    gradle.startParameter.taskNames.any { taskName ->
+        val normalizedTask = taskName.substringAfterLast(":")
+        normalizedTask.equals("build", ignoreCase = true) ||
+            normalizedTask.equals("assemble", ignoreCase = true)
+    }
+
 val defaultDebugApiBaseUrl = "http://10.0.2.2:3000/"
 val defaultDemoApiBaseUrl = "https://shopmate-api.example.invalid/"
 val debugApiBaseUrl = gradlePropertyOrDefault("SHOPMATE_DEBUG_API_BASE_URL", defaultDebugApiBaseUrl)
@@ -23,6 +42,14 @@ val releaseApiBaseUrl = gradlePropertyOrDefault("SHOPMATE_RELEASE_API_BASE_URL",
 
 requireHttpsApiBaseUrl("demo", demoApiBaseUrl)
 requireHttpsApiBaseUrl("release", releaseApiBaseUrl)
+
+if (requestedTaskContains("demo") || requestedLifecyclePackageTask()) {
+    requireConcreteApiBaseUrl("demo", "SHOPMATE_DEMO_API_BASE_URL", demoApiBaseUrl)
+}
+
+if (requestedTaskContains("release") || requestedLifecyclePackageTask()) {
+    requireConcreteApiBaseUrl("release", "SHOPMATE_RELEASE_API_BASE_URL", releaseApiBaseUrl)
+}
 
 android {
     namespace = "com.shopmate.app"

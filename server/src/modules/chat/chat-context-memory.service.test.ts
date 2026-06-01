@@ -31,6 +31,7 @@ describe("ChatContextMemoryService", () => {
       category: "服饰运动",
       subCategory: "跑步鞋",
       maxPriceCents: 50000,
+      avoidTerms: ["酒精"],
     });
     expect(summary).toMatchObject({
       conversationId: "local-chat-session-1",
@@ -274,6 +275,28 @@ describe("ChatContextMemoryService", () => {
       maxPriceCents: 30000,
     });
     expect(followUp.filters?.subCategory).toBeUndefined();
+  });
+
+  it("uses remembered avoid terms as vector filters on follow-up turns", () => {
+    const service = createService();
+
+    service.commit(
+      service.resolve({
+        conversationId: "sunscreen-session",
+        question: "推荐防晒霜，不要酒精",
+      }),
+      ["sunscreen_001"],
+    );
+    const followUp = service.resolve({
+      conversationId: "sunscreen-session",
+      question: "再给我几个看看",
+    });
+
+    expect(followUp.filters).toMatchObject({
+      category: "美妆护肤",
+      subCategory: "防晒",
+      avoidTerms: ["酒精"],
+    });
   });
 });
 

@@ -447,6 +447,86 @@ describe("RagChatService", () => {
     expect(result.contextMemory?.pendingClarification).toBeUndefined();
   });
 
+  it("passes remembered negative constraints into vector filters", async () => {
+    const vectorCalls: Array<Parameters<RagVectorSearchClient["search"]>[0]> = [];
+    const service = new RagChatService(withNoCartIntent({
+      vectorSearch: {
+        search: async (input) => {
+          vectorCalls.push(input);
+          return [createHit("product_001")];
+        },
+      },
+      productReader: createProductReader(),
+      clarificationIntentService: {
+        decide: async () => ({
+          needsClarification: false,
+          missingSlots: [],
+        }),
+      },
+      contextMemoryService: new ChatContextMemoryService({
+        store: new ChatContextMemoryStore(),
+      }),
+      llmClient: new MockLlmClient({
+        response: createLlmResponse(JSON.stringify({
+          answer: "Use product 1.",
+          recommended_product_ids: ["product_001"],
+        })),
+      }),
+    }));
+
+    await service.answer({
+      conversationId: "negative-constraint-demo",
+      question: "推荐防晒霜，不要酒精",
+    });
+
+    expect(vectorCalls).toHaveLength(1);
+    expect(vectorCalls[0]?.filters).toMatchObject({
+      category: "美妆护肤",
+      subCategory: "防晒",
+      avoidTerms: ["酒精"],
+    });
+  });
+
+  it("rethrows aborted no-candidates generation without writing cache or memory", async () => {
+    const abortController = new AbortController();
+    const store = new ChatContextMemoryStore();
+    let cacheWriteCalled = false;
+    const service = new RagChatService(withNoCartIntent({
+      vectorSearch: createVectorSearch([]),
+      productReader: createProductReader(),
+      clarificationIntentService: {
+        decide: async () => ({
+          needsClarification: false,
+          missingSlots: [],
+        }),
+      },
+      contextMemoryService: new ChatContextMemoryService({ store }),
+      popularQueryCacheVersionReader: createCacheVersionReader(),
+      popularQueryCache: createFakeCache({
+        onSet: () => {
+          cacheWriteCalled = true;
+        },
+      }),
+      llmClient: new MockLlmClient({
+        handler: () => {
+          abortController.abort();
+          throw new LlmError("request aborted", {
+            code: "LLM_TIMEOUT",
+          });
+        },
+      }),
+    }));
+
+    await expect(service.answer({
+      conversationId: "abort-demo-1",
+      question: "很冷门的需求",
+      abortSignal: abortController.signal,
+    })).rejects.toThrow("request aborted");
+
+    expect(cacheWriteCalled).toBe(false);
+    expect(store.get("abort-demo-1")).toBeUndefined();
+  });
+
   it("skips stale vector hits missing from active PostgreSQL products", async () => {
     const llmRequests: LlmGenerateRequest[] = [];
     const service = new RagChatService(withNoCartIntent({

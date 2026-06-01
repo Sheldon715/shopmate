@@ -32,9 +32,12 @@ ShopMate 采用前后端分离架构：
 
 ```text
 shopmate/
-  client/android/
-  server/
-  context/
+  client/android/       Android Kotlin + Jetpack Compose 客户端
+  server/               Node.js + TypeScript + Express 后端
+  data/raw/             原始脱敏商品数据与本地图片素材
+  data/processed/       结构化 catalog 与 RAG / vector 生成工件
+  context/              当前 active specs、工作流与项目上下文
+  docs/                 部署、APK 演示与运行手册
 ```
 
 ## 运行方式
@@ -49,19 +52,41 @@ client/android
 
 选择 `app` 模块，在模拟器或 Android 真机上运行。
 
-### 后端服务
+也可以在 Windows PowerShell 中执行：
 
-进入 `server/` 目录后执行：
-
-```bash
-npm install
-npm run dev
+```powershell
+cd client/android
+.\gradlew.bat testDebugUnitTest
+.\gradlew.bat assembleDebug
 ```
 
-构建命令：
+真机同 Wi-Fi 调试时可通过 Gradle property 覆盖 debug API 地址：
 
-```bash
-npm run build
+```powershell
+.\gradlew.bat assembleDebug -PSHOPMATE_DEBUG_API_BASE_URL=http://<电脑局域网IP>:3000/
+```
+
+打包 demo / release 变体时必须显式提供公网 HTTPS API 地址，避免生成不可联网的 APK：
+
+```powershell
+.\gradlew.bat build -PSHOPMATE_DEMO_API_BASE_URL=https://<云端API域名>/ -PSHOPMATE_RELEASE_API_BASE_URL=https://<云端API域名>/
+```
+
+### 后端服务
+
+在仓库根目录执行：
+
+```powershell
+cd server
+npm.cmd install
+npm.cmd run dev
+```
+
+常用检查命令：
+
+```powershell
+npm.cmd test
+npm.cmd run build
 ```
 
 后端默认使用 `3000` 端口。

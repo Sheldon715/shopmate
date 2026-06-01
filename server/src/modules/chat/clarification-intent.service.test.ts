@@ -149,6 +149,25 @@ describe("ClarificationIntentService", () => {
       missingSlots: [],
     });
   });
+
+  it("rethrows aborted LLM clarification requests", async () => {
+    const abortController = new AbortController();
+    const service = new ClarificationIntentService({
+      llmClient: new MockLlmClient({
+        handler: () => {
+          abortController.abort();
+          throw new LlmError("clarification aborted", {
+            code: "LLM_TIMEOUT",
+          });
+        },
+      }),
+    });
+
+    await expect(service.decide({
+      question: "推荐一款手机",
+      abortSignal: abortController.signal,
+    })).rejects.toThrow("clarification aborted");
+  });
 });
 
 function createLlmResponse(text: string): LlmGenerateResponse {

@@ -189,6 +189,10 @@ function mergeFilters(
   const explicitCategoryDiffers =
     explicitFilters?.category !== undefined
     && explicitFilters.category !== constraints.category;
+  const avoidTerms = mergeTerms(
+    [],
+    explicitFilters?.avoidTerms ?? constraints.avoidTerms,
+  );
   const merged = {
     category: explicitFilters?.category ?? constraints.category,
     subCategory: explicitFilters?.subCategory
@@ -198,7 +202,7 @@ function mergeFilters(
     maxPriceCents: explicitFilters?.maxPriceCents ?? constraints.maxPriceCents,
     availableOnly: explicitFilters?.availableOnly,
     tagsAny: explicitFilters?.tagsAny,
-    avoidTerms: explicitFilters?.avoidTerms,
+    avoidTerms: avoidTerms.length > 0 ? avoidTerms : undefined,
   };
 
   return Object.keys(pruneUndefined(merged)).length > 0

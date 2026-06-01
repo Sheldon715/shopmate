@@ -11,8 +11,10 @@ dist/
 client/android/.gradle/
 client/android/.kotlin/
 client/android/build/
+client/android/app/.gradle/
 client/android/app/build/
 client/android/local.properties
+client/android/app/local.properties
 client/android/gradle/gradle-daemon-jvm.properties
 
 # Local planning tracker

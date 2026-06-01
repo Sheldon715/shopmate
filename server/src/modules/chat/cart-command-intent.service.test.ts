@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { LlmError } from "../llm/llm.error";
 import { MockLlmClient } from "../llm/mock-llm.client";
 import type { LlmGenerateRequest, LlmGenerateResponse } from "../llm/llm.types";
 import { CartCommandIntentService } from "./cart-command-intent.service";
@@ -74,6 +75,25 @@ describe("CartCommandIntentService", () => {
     await expect(service.detect({
       question: "把第二个加进去",
     })).resolves.toEqual({ isCartCommand: false });
+  });
+
+  it("rethrows aborted LLM intent requests", async () => {
+    const abortController = new AbortController();
+    const service = new CartCommandIntentService({
+      llmClient: new MockLlmClient({
+        handler: () => {
+          abortController.abort();
+          throw new LlmError("cart intent aborted", {
+            code: "LLM_TIMEOUT",
+          });
+        },
+      }),
+    });
+
+    await expect(service.detect({
+      question: "把第二个加进去",
+      abortSignal: abortController.signal,
+    })).rejects.toThrow("cart intent aborted");
   });
 });
 

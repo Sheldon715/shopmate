@@ -1,3 +1,4 @@
+import { rethrowIfAborted } from "../../lib/abort";
 import type { LlmClient, LlmGenerateRequest } from "../llm/llm.types";
 import type { VectorSearchFilters } from "../vector/vector-search.types";
 import type { ChatContextMemorySummary } from "./chat-context-memory.types";
@@ -56,7 +57,8 @@ export class RagResponseGenerationService {
             answer: createMinimalRagFallbackAnswer("NO_CANDIDATES"),
             generatedByLlm: false,
           };
-    } catch {
+    } catch (error) {
+      rethrowIfAborted(input.abortSignal, error);
       return {
         answer: createMinimalRagFallbackAnswer("NO_CANDIDATES"),
         generatedByLlm: false,

@@ -1,3 +1,4 @@
+import { throwIfAborted, rethrowIfAborted } from "../../lib/abort";
 import { getDatabasePool } from "../../lib/db/pool";
 import { getEnv } from "../../lib/env";
 import {
@@ -48,16 +49,11 @@ import {
   createMinimalRagFallbackAnswer,
 } from "./rag-response-generation.service";
 import {
-  PopularQueryCacheService,
   createCacheHitResult,
+  type PopularQueryCacheReadInput,
 } from "./popular-query-cache.service";
-import type {
-  PopularQueryCache,
-  PopularQueryCacheReadInput,
-} from "./popular-query-cache.service";
-import {
-  PopularQueryCacheVersionService,
-} from "./popular-query-cache-version.service";
+import { PopularQueryCacheCoordinator } from "./popular-query-cache.coordinator";
+import type { PopularQueryCache } from "./popular-query-cache.service";
 import type {
   PopularQueryCacheVersionReader,
 } from "./popular-query-cache-version.service";
@@ -109,6 +105,7 @@ export interface RagChatServiceOptions {
   cartCommandIntentService?: RagCartCommandIntentDetector;
   cartActionResponseService?: RagCartActionResponder;
   ragResponseGenerationService?: RagResponseGenerator;
+  popularQueryCacheCoordinator?: PopularQueryCacheCoordinator;
   popularQueryCache?: PopularQueryCache;
   popularQueryCacheVersionReader?: PopularQueryCacheVersionReader;
   maxSnippetsPerProduct?: number;
@@ -150,8 +147,7 @@ export class RagChatService {
   private readonly cartCommandIntentService: RagCartCommandIntentDetector;
   private readonly cartActionResponseService: RagCartActionResponder;
   private readonly ragResponseGenerationService: RagResponseGenerator;
-  private readonly popularQueryCache: PopularQueryCache;
-  private readonly popularQueryCacheVersionReader: PopularQueryCacheVersionReader;
+  private readonly popularQueryCacheCoordinator: PopularQueryCacheCoordinator;
   private readonly maxSnippetsPerProduct: number;
   private readonly defaultMaxRecommendedProducts: number;
   private readonly publicImageBaseUrl?: string;
@@ -187,11 +183,12 @@ export class RagChatService {
     this.ragResponseGenerationService =
       options.ragResponseGenerationService
       ?? new RagResponseGenerationService({ llmClient: this.llmClient });
-    this.popularQueryCache =
-      options.popularQueryCache ?? new PopularQueryCacheService();
-    this.popularQueryCacheVersionReader =
-      options.popularQueryCacheVersionReader
-      ?? new PopularQueryCacheVersionService();
+    this.popularQueryCacheCoordinator =
+      options.popularQueryCacheCoordinator
+      ?? new PopularQueryCacheCoordinator({
+        popularQueryCache: options.popularQueryCache,
+        popularQueryCacheVersionReader: options.popularQueryCacheVersionReader,
+      });
     this.maxSnippetsPerProduct =
       options.maxSnippetsPerProduct ?? DEFAULT_MAX_SNIPPETS_PER_PRODUCT;
     this.defaultMaxRecommendedProducts =
@@ -222,6 +219,7 @@ export class RagChatService {
       requestId: input.requestId,
       abortSignal: input.abortSignal,
     });
+    throwIfAborted(input.abortSignal);
 
     if (cartCommandDetection.isCartCommand) {
       return this.withContextMemory(
@@ -245,6 +243,7 @@ export class RagChatService {
       requestId: input.requestId,
       abortSignal: input.abortSignal,
     });
+    throwIfAborted(input.abortSignal);
 
     if (
       clarificationDecision.needsClarification
@@ -262,13 +261,14 @@ export class RagChatService {
       );
     }
 
-    const cacheInput = await this.createPopularQueryCacheInput({
+    const cacheInput = await this.popularQueryCacheCoordinator.createInput({
       question,
-      input,
+      request: input,
       memoryResolution,
       maxRecommendedProducts,
     });
-    const cacheHit = await this.readPopularQueryCache(cacheInput);
+    const cacheHit = await this.popularQueryCacheCoordinator.read(cacheInput);
+    throwIfAborted(input.abortSignal);
 
     if (cacheHit) {
       const cacheHitProducts = orderProductsByIds(
@@ -291,7 +291,7 @@ export class RagChatService {
         );
       }
 
-      await this.deletePopularQueryCache(cacheInput);
+      await this.popularQueryCacheCoordinator.delete(cacheInput);
     }
 
     const hits = await this.vectorSearch.search({
@@ -300,6 +300,7 @@ export class RagChatService {
       topK: input.topK,
       abortSignal: input.abortSignal,
     });
+    throwIfAborted(input.abortSignal);
     const candidates = dedupeVectorHits(hits, this.maxSnippetsPerProduct);
 
     if (candidates.length === 0) {
@@ -342,13 +343,14 @@ export class RagChatService {
         response.text,
         contexts.map((context) => context.product.id),
       );
+      throwIfAborted(input.abortSignal);
       const recommendedProductIds = parsed.recommendedProductIds.slice(
         0,
         maxRecommendedProducts,
       );
 
       if (recommendedProductIds.length === 0) {
-        return this.withCacheWrite(
+        return this.popularQueryCacheCoordinator.write(
           cacheInput,
           this.withContextMemory(
             memoryResolution,
@@ -362,7 +364,7 @@ export class RagChatService {
         );
       }
 
-      return this.withCacheWrite(
+      return this.popularQueryCacheCoordinator.write(
         cacheInput,
         this.withContextMemory(
           memoryResolution,
@@ -375,7 +377,8 @@ export class RagChatService {
         ),
       );
     } catch (error) {
-      return this.withCacheWrite(
+      rethrowIfAborted(input.abortSignal, error);
+      return this.popularQueryCacheCoordinator.write(
         cacheInput,
         this.withContextMemory(
           memoryResolution,
@@ -406,71 +409,15 @@ export class RagChatService {
         requestId: input.request.requestId,
         abortSignal: input.request.abortSignal,
       });
+    throwIfAborted(input.request.abortSignal);
     const result = this.withContextMemory(
       input.memoryResolution,
       createNoCandidatesResult(noCandidatesResponse.answer),
     );
 
     return noCandidatesResponse.generatedByLlm
-      ? this.withCacheWrite(input.cacheInput, result)
+      ? this.popularQueryCacheCoordinator.write(input.cacheInput, result)
       : result;
-  }
-
-  private async createPopularQueryCacheInput(input: {
-    question: string;
-    input: RagChatRequest;
-    memoryResolution: ReturnType<ChatContextMemoryService["resolve"]>;
-    maxRecommendedProducts: number;
-  }): Promise<PopularQueryCacheReadInput> {
-    return {
-      ...(await this.popularQueryCacheVersionReader.read()),
-      question: input.question,
-      filters: input.memoryResolution.filters,
-      topK: input.input.topK,
-      maxRecommendedProducts: input.maxRecommendedProducts,
-      shortHistory: input.input.shortHistory,
-      contextMemory:
-        input.memoryResolution.memory
-          && input.memoryResolution.memory.turnCount > 1
-          ? input.memoryResolution.contextMemory
-          : undefined,
-    };
-  }
-
-  private async readPopularQueryCache(
-    cacheInput: PopularQueryCacheReadInput,
-  ) {
-    try {
-      return await this.popularQueryCache.get(cacheInput);
-    } catch {
-      return null;
-    }
-  }
-
-  private async deletePopularQueryCache(
-    cacheInput: PopularQueryCacheReadInput,
-  ): Promise<void> {
-    try {
-      await this.popularQueryCache.delete(cacheInput);
-    } catch {
-      // Cache invalidation failures should not block the normal RAG path.
-    }
-  }
-
-  private async withCacheWrite(
-    cacheInput: PopularQueryCacheReadInput,
-    result: RagChatResult,
-  ): Promise<RagChatResult> {
-    try {
-      await this.popularQueryCache.set({
-        ...cacheInput,
-        result,
-      });
-    } catch {
-      return result;
-    }
-
-    return result;
   }
 
   private withContextMemory(
@@ -498,6 +445,7 @@ export class RagChatService {
       await this.productReader.findActiveByIds(recentProductIds),
       recentProductIds,
     );
+    throwIfAborted(request.abortSignal);
     const productCards = products.map((product) =>
       mapProductToCardDto(product, { publicImageBaseUrl: this.publicImageBaseUrl })
     );
@@ -587,10 +535,12 @@ export class RagChatService {
     }
 
     try {
+      throwIfAborted(request.abortSignal);
       await this.cartWriter.addItem({
         productId: resolvedTarget.product.id,
         quantity: detection.quantity,
       });
+      throwIfAborted(request.abortSignal);
       const cartAction: CartActionResult = {
         type: "add",
         status: "success",
@@ -615,6 +565,7 @@ export class RagChatService {
         cartAction,
       });
     } catch (error) {
+      rethrowIfAborted(request.abortSignal, error);
       const cartAction = mapCartAddErrorToAction(
         error,
         resolvedTarget.product,

@@ -1,3 +1,4 @@
+import { rethrowIfAborted } from "../../lib/abort";
 import type { LlmClient, LlmGenerateRequest } from "../llm/llm.types";
 import { ClarificationService } from "./clarification.service";
 import type {
@@ -82,7 +83,8 @@ export class ClarificationIntentService {
           candidate.missingSlots,
         ),
       };
-    } catch {
+    } catch (error) {
+      rethrowIfAborted(input.abortSignal, error);
       return NO_CLARIFICATION;
     }
   }

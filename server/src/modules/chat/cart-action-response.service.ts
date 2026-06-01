@@ -1,3 +1,4 @@
+import { rethrowIfAborted } from "../../lib/abort";
 import type { LlmClient, LlmGenerateRequest } from "../llm/llm.types";
 import type { Product } from "../products/product.types";
 import type {
@@ -40,7 +41,8 @@ export class CartActionResponseService {
       const answer = normalizeAnswer(parseCartActionResponseOutput(response.text));
 
       return answer ?? createMinimalCartActionAnswer(input.cartAction);
-    } catch {
+    } catch (error) {
+      rethrowIfAborted(input.abortSignal, error);
       return createMinimalCartActionAnswer(input.cartAction);
     }
   }
