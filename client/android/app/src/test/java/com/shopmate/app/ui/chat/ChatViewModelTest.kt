@@ -356,6 +356,81 @@ class ChatViewModelTest {
     }
 
     @Test
+    fun successfulCartManagementMutationEmitsRefreshCartSideEffect() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("删除第二个商品")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        val sideEffect = backgroundScope.async {
+            viewModel.sideEffects.first()
+        }
+        repository.events.emit(
+            ChatStreamEvent.MessageDelta(
+                text = "已经删除第二个商品。",
+                index = 0,
+            ),
+        )
+        repository.events.emit(ChatStreamEvent.ProductCards(emptyList()))
+        repository.events.emit(
+            ChatStreamEvent.Done(
+                recommendedProductIds = emptyList(),
+                fallbackUsed = false,
+                fallbackReason = null,
+                retrieval = ChatRetrievalDto(candidateCount = 2),
+                cartAction = ChatCartActionDto(
+                    type = "remove",
+                    status = "success",
+                    itemId = "item_002",
+                    productId = "product_002",
+                    productName = "通勤蓝牙耳机",
+                ),
+            ),
+        )
+        advanceUntilIdle()
+
+        assertIs<ChatSideEffect.RefreshCart>(sideEffect.await())
+        assertEquals(null, viewModel.uiState.value.errorMessage)
+    }
+
+    @Test
+    fun inspectCartActionDoesNotEmitRefreshCartSideEffect() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("购物车里有什么")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        repository.events.emit(
+            ChatStreamEvent.MessageDelta(
+                text = "你购物车里有 2 件商品。",
+                index = 0,
+            ),
+        )
+        repository.events.emit(ChatStreamEvent.ProductCards(emptyList()))
+        repository.events.emit(
+            ChatStreamEvent.Done(
+                recommendedProductIds = emptyList(),
+                fallbackUsed = false,
+                fallbackReason = null,
+                retrieval = ChatRetrievalDto(candidateCount = 2),
+                cartAction = ChatCartActionDto(
+                    type = "inspect",
+                    status = "success",
+                    message = null,
+                ),
+            ),
+        )
+        advanceUntilIdle()
+
+        assertEquals(null, viewModel.uiState.value.errorMessage)
+        assertEquals(0, viewModel.sideEffects.replayCache.size)
+    }
+
+    @Test
     fun unknownEmptyFallbackReasonStillShowsNoMatchMessage() = runTest {
         val repository = FakeChatRepository()
         val viewModel = ChatViewModel(repository)

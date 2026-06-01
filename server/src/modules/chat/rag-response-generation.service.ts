@@ -87,7 +87,11 @@ export function createMinimalRagFallbackAnswer(
       return "需要补充更多信息。";
     case "CART_TARGET_MISSING":
     case "CART_TARGET_AMBIGUOUS":
+    case "CART_CONFIRMATION_REQUIRED":
+    case "CART_INTENT_UNCLEAR":
+    case "CART_SNAPSHOT_UNAVAILABLE":
     case "CART_ADD_FAILED":
+    case "CART_ACTION_FAILED":
       return "购物车操作未完成。";
   }
 }

@@ -12,9 +12,14 @@ describe("CartCommandIntentService", () => {
         handler: (request) => {
           llmRequest = request;
           return createLlmResponse(JSON.stringify({
-            is_cart_add: true,
-            target: { kind: "ordinal", index: 2 },
+            is_cart_management: true,
+            action: "add",
+            target: { kind: "recent_recommendation_ordinal", index: 2 },
             quantity: 1,
+            selected: null,
+            needs_confirmation: false,
+            confidence: "high",
+            clarification_question: null,
           }));
         },
       }),
@@ -34,10 +39,48 @@ describe("CartCommandIntentService", () => {
 
     expect(llmRequest?.messages.map((message) => message.content).join("\n"))
       .toContain("推荐加湿器");
+    expect(llmRequest?.messages.map((message) => message.content).join("\n"))
+      .toContain("把数量改成 2");
     expect(result).toMatchObject({
       isCartCommand: true,
+      action: "add",
       quantity: 1,
-      target: { kind: "ordinal", index: 2 },
+      target: { kind: "recent_recommendation_ordinal", index: 2 },
+    });
+  });
+
+  it("uses LLM intent to extract cart management actions", async () => {
+    const service = new CartCommandIntentService({
+      llmClient: new MockLlmClient({
+        response: createLlmResponse(JSON.stringify({
+          is_cart_management: true,
+          action: "update_quantity",
+          target: { kind: "cart_ordinal", index: 2 },
+          quantity: 2,
+          selected: null,
+          needs_confirmation: false,
+          confidence: "high",
+          clarification_question: null,
+        })),
+      }),
+    });
+
+    await expect(service.detect({
+      question: "把第二个数量改成 2",
+      cartSnapshot: {
+        items: [],
+        summary: {
+          totalCount: 0,
+          selectedCount: 0,
+          selectedTotalCents: 0,
+          currency: "CNY",
+        },
+      },
+    })).resolves.toMatchObject({
+      isCartCommand: true,
+      action: "update_quantity",
+      quantity: 2,
+      target: { kind: "cart_ordinal", index: 2 },
     });
   });
 
@@ -63,6 +106,33 @@ describe("CartCommandIntentService", () => {
         lastRecommendedProductIds: ["product_001"],
       },
     })).resolves.toEqual({ isCartCommand: false });
+  });
+
+  it("requires confirmation for clear cart intent", async () => {
+    const service = new CartCommandIntentService({
+      llmClient: new MockLlmClient({
+        response: createLlmResponse(JSON.stringify({
+          is_cart_management: true,
+          action: "clear",
+          target: { kind: "all" },
+          quantity: null,
+          selected: null,
+          needs_confirmation: true,
+          confidence: "high",
+          clarification_question: "确认要清空购物车吗？",
+        })),
+      }),
+    });
+
+    await expect(service.detect({
+      question: "清空购物车",
+    })).resolves.toMatchObject({
+      isCartCommand: true,
+      action: "clear",
+      target: { kind: "all" },
+      needsConfirmation: true,
+      clarificationQuestion: "确认要清空购物车吗？",
+    });
   });
 
   it("does not execute cart command when LLM intent output is invalid", async () => {

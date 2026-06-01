@@ -133,6 +133,43 @@ class ChatStreamEventParserTest {
     }
 
     @Test
+    fun parsesDoneCartManagementActionWithoutMessage() {
+        val event = parseChatStreamEvent(
+            "done",
+            """
+                {
+                  "recommendedProductIds": [],
+                  "fallbackUsed": false,
+                  "retrieval": {
+                    "candidateCount": 2,
+                    "returnedProductIds": ["product_001", "product_002"]
+                  },
+                  "cartAction": {
+                    "type": "remove",
+                    "status": "success",
+                    "itemId": "item_002",
+                    "productId": "product_002",
+                    "productName": "通勤蓝牙耳机 B",
+                    "cartSummary": {
+                      "totalCount": 1,
+                      "selectedCount": 1,
+                      "selectedTotalCents": 19900,
+                      "currency": "CNY"
+                    }
+                  }
+                }
+            """.trimIndent(),
+        )
+
+        val done = assertIs<ChatStreamEvent.Done>(event)
+        assertEquals("remove", done.cartAction?.type)
+        assertEquals("success", done.cartAction?.status)
+        assertEquals("item_002", done.cartAction?.itemId)
+        assertEquals(null, done.cartAction?.message)
+        assertEquals(19900, done.cartAction?.cartSummary?.selectedTotalCents)
+    }
+
+    @Test
     fun parsesClarificationDone() {
         val event = parseChatStreamEvent(
             "done",

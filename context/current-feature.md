@@ -1,4 +1,4 @@
-# Current Feature: Refactor Scanner High Priority Refactors
+# Current Feature: Cart Natural Language Management
 
 ## 状态
 
@@ -6,37 +6,46 @@ Complete
 
 ## 目标
 
-- 完成 Refactor Scanner 高等级发现的行为保持重构，不改变现有 Android / 后端 contract 和用户可见流程。
-- 统一 Android 商品展示格式化与 fallback placeholder 规则，让聊天卡、详情页和购物车的价格 / 图片显示来源一致。
-- 收口 Chat 模块 LLM 输出边界工具，复用 JSON / code fence 解析、短文本清洗与截断逻辑，同时保留各业务自己的 schema 校验。
-- 修正 repo-local feature workflow 文档漂移，让 feature skill、tracker heading、spec 路径、narrow staging 和提交确认规则与当前项目约定一致。
-- 视实现风险补入中等级重构候选；低等级项只记录为观察项，不强行扩大本轮范围。
+- 支持聊天中用自然语言查看、删除、改数量和勾选 / 取消勾选购物车 item，并保留现有自然语言加购能力。
+- 扩展购物车 LLM intent，覆盖 `inspect`、`add`、`remove`、`update_quantity`、`update_selected`，所有业务 mutation 执行前都必须通过模型意图和后端事实校验。
+- 后端基于当前购物车快照、最近推荐商品 allowlist 和 PostgreSQL active 商品解析目标，不信任 LLM 直接给出的 itemId / productId。
+- 成功购物车 mutation 后通过 SSE `done.cartAction` 通知 Android 刷新购物车；`inspect`、失败、需确认或目标不明时不误触发刷新。
+- 用户可见购物车操作说明由 LLM 基于结构化 `cartAction` 和当前事实生成，不新增固定导购话术模板。
 
 ## 待办清单
 
-- [x] Android 商品展示 helper：抽出价格区间、CNY cents、商品 placeholder 解析 helper，并迁移 `ChatProductMapper`、`ProductDetailMapper`、`CartMapper`。
-- [x] Chat LLM 输出工具：抽出 `stripCodeFence` / JSON object parse / 文本 normalize-truncate 之类通用逻辑，并迁移 cart intent、cart action response、clarification intent、RAG parser / response generation。
-- [x] Feature workflow 文档对齐：更新 `.agents/skills/feature` 相关说明，改为中文 tracker heading、`context/feature/` 路径、窄 staging 和用户确认后提交。
-- [x] 中等级候选评估：优先判断 Android API envelope executor、后端 request primitive readers、data JSON / JSONL helper、商品 available helper 是否能在本轮低风险完成；不合适则保留为后续 feature。
-- [x] 补充或调整覆盖：至少跑受影响的 Android mapper 单测、后端 chat / RAG / cart 相关 Vitest，以及必要的 Android / 后端 build。
+- [x] 梳理现有 conversational cart add、cart API、chat context memory、SSE `cartAction` 和 Android parser / side effect 代码路径。
+- [x] 设计并实现后端 cart management intent schema / prompt，支持 inspect / add / remove / update_quantity / update_selected / clear confirmation。
+- [x] 实现 `CartManagementCommandService` 或等价编排层，按当前 cart snapshot、最近推荐商品和 active product 解析目标，并处理 ordinal / name / deictic / ambiguous / missing。
+- [x] 将 cart management 接入 `RagChatService.answer()`：intent 失败、低置信、目标不明、需确认、provider error 时不执行 mutation。
+- [x] 扩展 `CartActionResult` / SSE `done.cartAction` contract，保留 add 行为并支持 remove / update_quantity / update_selected / inspect。
+- [x] 扩展或新增 `CartActionResponseService`，让成功、失败、澄清和确认回复都由 LLM 生成，禁止代码拼固定操作文案。
+- [x] 更新 Android `ChatCartActionDto`、SSE parser 和 `ChatViewModel.emitCartActionSideEffect()`，让成功 mutation 触发 `RefreshCart`，`inspect` / 非 success 不刷新。
+- [x] 补后端单元测试：intent schema、target resolution、RagChatService mutation / no-mutation、SSE contract 和缓存绕过边界。
+- [x] 补 Android 单元测试：新 `cartAction.type` 解析、成功 remove / update_quantity 刷新、非 success / inspect 不刷新。
+- [x] 运行后端 `npm.cmd test`、`npm.cmd run build`；如修改 Android contract，运行 `.\gradlew.bat --no-daemon testDebugUnitTest` 和 `.\gradlew.bat --no-daemon build`。
+- [x] 记录 smoke test 结果：至少覆盖“删除第二个商品”和“把数量改成 2”的成功 / 澄清路径。
 
 ## 备注
 
-- 规格来源：2026-06-01 `refactor-scanner` 只读扫描结果。
-- 高等级发现必须进入本轮 tracker：Android 商品展示 formatter / placeholder helper、Chat LLM JSON / code fence 解析工具、repo-local feature workflow 文档冲突。
-- 中等级可选项：Android JSON API envelope + OkHttp JSON executor、后端 request primitive readers、Data tooling JSON / JSONL helper、商品 available 判定 helper。仅在不会拉大范围或改变 contract 时加入实现。
-- 中等级处理决定：本轮纳入 Data tooling JSON / JSONL helper 收口和商品 available 判定 helper；Android API envelope executor 与后端 request primitive readers 范围较大，留给后续独立 refactor。
-- 当前分支：`feature/refactor-scanner-high-priority-refactors`。
-- 低等级观察项：Compose chat-like screen shell、后端 Product / ProductCard 测试 fixtures、feature spec 模板轻量化。本轮默认只记录，不主动实现。
-- 行为边界：重构必须保持现有 API / SSE / Android UI 行为；LLM 输出工具不能吞掉业务 schema 校验；workflow 文档修正不能顺手提交或 stage 无关脏文件。
-- 验证计划：Android 侧优先 `cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest` 与 `build`；后端侧优先 `cd server && npm.cmd test` 与 `npm.cmd run build`，必要时补目标测试命令。
+- 规格来源：`context/feature/cart-natural-language-management-spec.md`。
+- 开发顺序：这是 `context/spec-implementation-order.md` 中进阶加分阶段第 27 项，建立在 conversational cart add、cart add response generation、chat context memory、真实 cart API 和 negative constraint RAG 已完成的基础上。
+- 范围边界：第一版不做真实登录 / 多用户隔离、不做结算 / 下单 / 支付、不让 Android 解析自然语言或直接调用购物车 CRUD、不直接执行“清空购物车”。
+- 安全边界：LLM intent 无效、模型不可用、低置信、目标不唯一、目标不存在、权限 / allowlist 校验失败或 schema 不合法时，不执行购物车 mutation。
+- 目标解析边界：删除、改数量、勾选必须基于当前购物车 item；加购才允许使用最近推荐商品 allowlist 或明确库内 active 商品；数量继续由 `CartService` 校验到 `1..99`。
+- 用户可见回复边界：`cartAction.message` 只能表达结构化状态，不能承载硬编码导购话术；response LLM 失败时可以只返回结构化状态，不能补固定模板。
+- 验证计划：后端先跑目标测试，再跑 `cd server && npm.cmd test`、`cd server && npm.cmd run build`；Android contract 变更后跑 `cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest`、`cd client/android && .\gradlew.bat --no-daemon build`。
 - 验证记录：
-  - `cd server && npm.cmd test` 通过，31 个 test files / 197 个 tests。
+  - `cd server && npm.cmd test -- cart-command.service.test.ts cart-command-intent.service.test.ts rag.service.test.ts` 通过，3 个 test files / 51 个 tests。
   - `cd server && npm.cmd run build` 通过。
+  - `cd server && npm.cmd test` 通过，33 个 test files / 220 个 tests。
+  - `cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.data.chat.ChatStreamEventParserTest" --tests "com.shopmate.app.ui.chat.ChatViewModelTest"` 通过。
   - `cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest` 通过。
-  - `cd client/android && .\gradlew.bat --no-daemon build` 未配置 demo URL 时按预期 fail-fast。
   - `cd client/android && .\gradlew.bat --no-daemon -PSHOPMATE_DEMO_API_BASE_URL=https://api.example.test/ build` 通过。
-  - `git diff --check` 通过；仅输出 Windows CRLF 工作区提示。
+  - Review 修复后补齐明确库内 active 商品名称加购路径；`cd server && npm.cmd test -- cart-command.service.test.ts cart-command-intent.service.test.ts rag.service.test.ts` 通过，3 个 test files / 52 个 tests；`cd server && npm.cmd run build` 通过。
+  - Smoke 前发现真实 LLM 对简短“删除第二个商品”“把数量改成 2”识别不稳定，已补 cart intent prompt 正向示例；`cd server && npm.cmd test -- cart-command.service.test.ts cart-command-intent.service.test.ts rag.service.test.ts` 通过，3 个 test files / 52 个 tests。
+  - Smoke 修复后 `cd server && npm.cmd run build` 通过；`cd server && npm.cmd test` 通过，33 个 test files / 221 个 tests。
+- Smoke test 记录：启动本地后端 `cd server && npm.cmd run dev`，通过 Cart API 清空并加入 2 个 demo 商品；`POST /api/chat/stream` 发送“删除第二个商品”返回 `cartAction.type=remove,status=success`，购物车从 2 项变 1 项；再发送“把数量改成 2”返回 `cartAction.type=update_quantity,status=success`，剩余 item 数量从 1 变 2。
 
 ## 历史记录
 - 初始化前后端技术栈骨架：完成 Android Kotlin + Jetpack Compose 与 Node.js + TypeScript + Express 最小工程初始化，补充 README 与 Git 忽略配置，并通过后端构建与 Android `assembleDebug` 验证。
@@ -92,3 +101,6 @@ Complete
 - Android Voice Input：接入 Android `SpeechRecognizer` 语音输入、运行时录音权限、按住说话胶囊、识别中 pending 用户气泡和语音 transcript 直发聊天链路；修复权限后自动录音、首次按住卡波形、新聊天页提前跳转等真机反馈问题，并通过 `cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest` 与 `cd client/android && .\gradlew.bat --no-daemon build` 验证。
 - Popular Query Cache：新增后端进程内 TTL / LRU 热门查询缓存，普通 RAG 请求在 cart intent 与 clarification intent 之后查缓存，命中后仍回查 active 商品并重建商品卡片；缓存 key 纳入 query / filters / topK / 模型 / prompt / RAG 数据版本 / 可见边界，且只缓存安全 success 与 LLM 生成的 no-candidates 回复。通过后端 test / build 验证。
 - 代码扫描后续修复（三）：修复 RAG 否定约束进入 vector filter、SSE abort 被 LLM wrapper 吞掉后继续写状态、Android 首次录音授权不自动开始、demo / release 默认无效 API 地址、Android app-local 忽略规则和 README 启动说明，并先抽出 `PopularQueryCacheCoordinator` 降低 `RagChatService` 职责；通过后端目标测试 / 全量 test / build、Android `testDebugUnitTest`、默认 `assembleDemo` fail-fast 和带显式 HTTPS URL 的 Android build 验证。
+- Refactor Scanner 高优先级重构：抽取 Android 商品展示格式化 / placeholder helper、后端 Chat LLM 输出解析工具和商品可售判定 helper，收口 catalog JSON / JSONL helper，并修正 repo-local feature workflow 文档；通过后端 test / build、Android testDebugUnitTest、带 demo URL 的 Android build 和 diff check 验证。
+- Android 语音输入回归修复：修复主聊天入口页语音按住后看不到识别中气泡的问题，语音监听 / 识别时进入聊天流，并固定 SpeechRecognizer 使用 `zh-CN` 识别中文；通过 Android 目标单测、完整 `testDebugUnitTest` 与 `assembleDebug` 验证。
+- Negative Constraint RAG：新增 LLM negative constraint intent、会话记忆负向约束、向量 must_not、检索后商品事实过滤和 RAG prompt 排除约束展示；自然语言否定约束不再由正则作为权威判断，最终 `productCards` 只来自过滤后的候选。通过后端目标测试、全量 test、build、JSON 校验和本地 Chat SSE smoke 验证。

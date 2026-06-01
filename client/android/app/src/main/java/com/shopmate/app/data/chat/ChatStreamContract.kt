@@ -39,10 +39,21 @@ data class ChatClarificationDto(
 data class ChatCartActionDto(
     val type: String,
     val status: String,
+    val itemId: String? = null,
     val productId: String? = null,
     val productName: String? = null,
     val quantity: Int? = null,
-    val message: String,
+    val selected: Boolean? = null,
+    val cartSummary: ChatCartSummaryDto? = null,
+    val message: String? = null,
+)
+
+@Serializable
+data class ChatCartSummaryDto(
+    val totalCount: Int = 0,
+    val selectedCount: Int = 0,
+    val selectedTotalCents: Int = 0,
+    val currency: String = "CNY",
 )
 
 sealed interface ChatStreamEvent {

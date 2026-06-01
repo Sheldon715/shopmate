@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { CartDto, CartItemDto } from "../cart/cart.types";
 import type { Product } from "../products/product.types";
 import { CartCommandService } from "./cart-command.service";
 
@@ -12,14 +13,16 @@ describe("CartCommandService", () => {
       target: { kind: "ordinal", index: 2 },
     })).toMatchObject({
       isCartCommand: true,
+      action: "add",
       quantity: 2,
-      target: { kind: "ordinal", index: 2 },
+      target: { kind: "recent_recommendation_ordinal", index: 2 },
     });
     expect(service.createDetection({
       question: "把这个加到购物车",
       target: { kind: "deictic" },
     })).toMatchObject({
       isCartCommand: true,
+      action: "add",
       quantity: 1,
       target: { kind: "deictic" },
     });
@@ -28,6 +31,7 @@ describe("CartCommandService", () => {
       target: { kind: "name", text: "小米那款" },
     })).toMatchObject({
       isCartCommand: true,
+      action: "add",
       target: { kind: "name", text: "小米那款" },
     });
   });
@@ -41,7 +45,7 @@ describe("CartCommandService", () => {
     })).toMatchObject({
       isCartCommand: true,
       quantity: 1,
-      target: { kind: "ordinal", index: 1 },
+      target: { kind: "recent_recommendation_ordinal", index: 1 },
     });
     expect(service.createDetection({
       question: "第二个加 2 件",
@@ -49,7 +53,7 @@ describe("CartCommandService", () => {
     })).toMatchObject({
       isCartCommand: true,
       quantity: 2,
-      target: { kind: "ordinal", index: 2 },
+      target: { kind: "recent_recommendation_ordinal", index: 2 },
     });
     expect(service.createDetection({
       question: "把第2个加进去",
@@ -57,7 +61,7 @@ describe("CartCommandService", () => {
     })).toMatchObject({
       isCartCommand: true,
       quantity: 1,
-      target: { kind: "ordinal", index: 2 },
+      target: { kind: "recent_recommendation_ordinal", index: 2 },
     });
     expect(service.createDetection({
       question: "加入购物车",
@@ -86,7 +90,7 @@ describe("CartCommandService", () => {
       target: { kind: "ordinal", index: 1 },
     })).toMatchObject({
       quantity: 99,
-      target: { kind: "ordinal", index: 1 },
+      target: { kind: "recent_recommendation_ordinal", index: 1 },
     });
     expect(service.createDetection({
       question: "把第一个加进去",
@@ -94,7 +98,41 @@ describe("CartCommandService", () => {
       target: { kind: "ordinal", index: 1 },
     })).toMatchObject({
       quantity: 1,
-      target: { kind: "ordinal", index: 1 },
+      target: { kind: "recent_recommendation_ordinal", index: 1 },
+    });
+  });
+
+  it("creates remove and update detections against cart targets", () => {
+    const service = new CartCommandService();
+
+    expect(service.createDetection({
+      question: "删除第二个商品",
+      action: "remove",
+      target: { kind: "cart_ordinal", index: 2 },
+    })).toMatchObject({
+      action: "remove",
+      target: { kind: "cart_ordinal", index: 2 },
+      quantity: undefined,
+    });
+    expect(service.createDetection({
+      question: "把数量改成 2",
+      action: "update_quantity",
+      quantity: 2,
+      target: { kind: "unknown" },
+    })).toMatchObject({
+      action: "update_quantity",
+      quantity: 2,
+      target: { kind: "unknown" },
+    });
+    expect(service.createDetection({
+      question: "取消勾选第一个",
+      action: "update_selected",
+      selected: false,
+      target: { kind: "cart_ordinal", index: 1 },
+    })).toMatchObject({
+      action: "update_selected",
+      selected: false,
+      target: { kind: "cart_ordinal", index: 1 },
     });
   });
 
@@ -137,6 +175,62 @@ describe("CartCommandService", () => {
     })).toMatchObject({
       status: "found",
       product: { id: "product_002" },
+    });
+  });
+
+  it("resolves cart item ordinal, name, deictic, and all targets against cart snapshot", () => {
+    const service = new CartCommandService();
+    const cart = createCartDto([
+      createCartItem({ id: "item_001", productId: "product_001", name: "索尼降噪耳机" }),
+      createCartItem({ id: "item_002", productId: "product_002", name: "小米通勤耳机", brand: "小米" }),
+    ]);
+
+    expect(service.resolveCartTarget({
+      detection: service.createDetection({
+        question: "删除第二个商品",
+        action: "remove",
+        target: { kind: "cart_ordinal", index: 2 },
+      }),
+      cart,
+    })).toMatchObject({
+      status: "found",
+      item: { id: "item_002" },
+    });
+    expect(service.resolveCartTarget({
+      detection: service.createDetection({
+        question: "把小米改成 2 件",
+        action: "update_quantity",
+        quantity: 2,
+        target: { kind: "name", text: "小米" },
+      }),
+      cart,
+    })).toMatchObject({
+      status: "found",
+      item: { id: "item_002" },
+    });
+    expect(service.resolveCartTarget({
+      detection: service.createDetection({
+        question: "取消勾选全部",
+        action: "update_selected",
+        selected: false,
+        target: { kind: "all" },
+      }),
+      cart,
+    })).toMatchObject({
+      status: "all",
+      items: [{ id: "item_001" }, { id: "item_002" }],
+    });
+    expect(service.resolveCartTarget({
+      detection: service.createDetection({
+        question: "把数量改成 2",
+        action: "update_quantity",
+        quantity: 2,
+        target: { kind: "unknown" },
+      }),
+      cart: createCartDto([createCartItem({ id: "item_003" })]),
+    })).toMatchObject({
+      status: "found",
+      item: { id: "item_003" },
     });
   });
 
@@ -233,6 +327,41 @@ function createProduct(overrides: Partial<Product> = {}): Product {
         sortOrder: 0,
       },
     ],
+    ...overrides,
+  };
+}
+
+function createCartDto(items: CartItemDto[]): CartDto {
+  return {
+    items,
+    summary: {
+      totalCount: items.reduce((sum, item) => sum + item.quantity, 0),
+      selectedCount: items
+        .filter((item) => item.selected)
+        .reduce((sum, item) => sum + item.quantity, 0),
+      selectedTotalCents: items
+        .filter((item) => item.selected)
+        .reduce((sum, item) => sum + item.subtotalCents, 0),
+      currency: "CNY",
+    },
+  };
+}
+
+function createCartItem(overrides: Partial<CartItemDto> = {}): CartItemDto {
+  return {
+    id: "item_001",
+    productId: "product_001",
+    name: "Demo Product",
+    brand: "Demo Brand",
+    category: "数码电子",
+    priceCents: 19900,
+    priceText: "¥199",
+    quantity: 1,
+    selected: true,
+    subtotalCents: 19900,
+    available: true,
+    tags: ["通勤", "蓝牙"],
+    imagePath: "/images/product_001.png",
     ...overrides,
   };
 }

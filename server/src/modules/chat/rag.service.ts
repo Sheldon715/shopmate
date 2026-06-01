@@ -2,15 +2,21 @@ import { throwIfAborted, rethrowIfAborted } from "../../lib/abort";
 import { getDatabasePool } from "../../lib/db/pool";
 import { getEnv } from "../../lib/env";
 import {
+  CartItemNotFoundError,
   CartProductNotFoundError,
   CartProductUnavailableError,
+  CartRequestError,
   CartService,
+  MIN_CART_QUANTITY,
 } from "../cart/cart.service";
-import type { CartDto } from "../cart/cart.types";
+import type { CartDto, CartItemDto } from "../cart/cart.types";
 import type { LlmClient } from "../llm/llm.types";
 import { createLlmClient } from "../llm/openai-compatible-chat.client";
 import { mapProductToCardDto } from "../products/product.mapper";
-import { findActiveProductsByIds } from "../products/product.repository";
+import {
+  findActiveProductsByIds,
+  findProducts,
+} from "../products/product.repository";
 import type { Product } from "../products/product.types";
 import { VectorSearchService } from "../vector/vector-search.service";
 import type {
@@ -75,10 +81,18 @@ export interface RagVectorSearchClient {
 
 export interface RagProductReader {
   findActiveByIds(productIds: string[]): Promise<Product[]>;
+  findActiveByText?(text: string, limit: number): Promise<Product[]>;
 }
 
 export interface RagCartWriter {
+  getCart?(): Promise<CartDto>;
   addItem(input: { productId: string; quantity: number }): Promise<CartDto>;
+  updateItem?(
+    itemId: string,
+    input: { quantity?: number; selected?: boolean },
+  ): Promise<CartDto>;
+  deleteItem?(itemId: string): Promise<CartDto>;
+  selectAll?(selected: boolean): Promise<CartDto>;
 }
 
 export type RagCartCommandIntentDetector = Pick<
@@ -136,6 +150,7 @@ const DEFAULT_MAX_SNIPPETS_PER_PRODUCT = 3;
 const DEFAULT_NEGATIVE_CONSTRAINT_TOP_K = 20;
 const RAG_LLM_MAX_COMPLETION_TOKENS = 2000;
 const MAX_CHAT_ANSWER_CHARS = 72;
+const CART_ACTIVE_PRODUCT_LOOKUP_LIMIT = 8;
 
 export class RagChatError extends Error {
   readonly code = "INVALID_RAG_CHAT_REQUEST";
@@ -231,9 +246,11 @@ export class RagChatService {
       question,
       filters: input.filters,
     });
+    const cartSnapshot = await this.readCartSnapshot(input.abortSignal);
     const cartCommandDetection = await this.cartCommandIntentService.detect({
       question,
       contextMemory: memoryResolution.contextMemory,
+      cartSnapshot,
       requestId: input.requestId,
       abortSignal: input.abortSignal,
     });
@@ -245,6 +262,7 @@ export class RagChatService {
         await this.answerCartCommand(
           cartCommandDetection,
           memoryResolution.contextMemory?.lastRecommendedProductIds ?? [],
+          cartSnapshot,
           {
             question,
             requestId: input.requestId,
@@ -478,6 +496,24 @@ export class RagChatService {
       : result;
   }
 
+  private async readCartSnapshot(
+    abortSignal?: AbortSignal,
+  ): Promise<CartDto | undefined> {
+    if (!this.cartWriter.getCart) {
+      return undefined;
+    }
+
+    try {
+      throwIfAborted(abortSignal);
+      const cart = await this.cartWriter.getCart();
+      throwIfAborted(abortSignal);
+      return cart;
+    } catch (error) {
+      rethrowIfAborted(abortSignal, error);
+      return undefined;
+    }
+  }
+
   private applyNegativeConstraintIntent(
     memoryResolution: ReturnType<ChatContextMemoryService["resolve"]>,
     intent: NegativeConstraintIntentResult,
@@ -511,48 +547,142 @@ export class RagChatService {
   private async answerCartCommand(
     detection: Extract<CartCommandDetection, { isCartCommand: true }>,
     recentProductIds: string[],
+    cartSnapshot: CartDto | undefined,
     request: Pick<RagChatRequest, "question" | "requestId" | "abortSignal">,
   ): Promise<RagChatResult> {
-    const products = orderProductsByIds(
-      await this.productReader.findActiveByIds(recentProductIds),
+    let products = await this.readRecentProductsForCartAction(
+      detection.action,
       recentProductIds,
+      request.abortSignal,
     );
     throwIfAborted(request.abortSignal);
-    const productCards = products.map((product) =>
-      mapProductToCardDto(product, { publicImageBaseUrl: this.publicImageBaseUrl })
-    );
-    const recommendedProductIds = productCards.map((card) => card.id);
-    const resolvedTarget = this.cartCommandService.resolveTarget({
+    let productCards = this.mapProductsToCards(products);
+    let recommendedProductIds = productCards.map((card) => card.id);
+    const createResult = async (input: {
+      cartAction: CartActionResult;
+      fallbackReason?: RagChatFallbackReason;
+      fallbackUsed?: boolean;
+      retrieval: RagChatResult["retrieval"];
+      productCards?: ReturnType<typeof mapProductToCardDto>[];
+      recommendedProductIds?: string[];
+    }) => createCartCommandResult({
+      answer: await this.cartActionResponseService.generate({
+        question: request.question,
+        intent: detection,
+        cartAction: input.cartAction,
+        fallbackReason: input.fallbackReason as
+          | Parameters<RagCartActionResponder["generate"]>[0]["fallbackReason"]
+          | undefined,
+        recentProducts: products,
+        cartSnapshot,
+        requestId: request.requestId,
+        abortSignal: request.abortSignal,
+      }),
+      productCards: input.productCards ?? [],
+      recommendedProductIds: input.recommendedProductIds ?? recommendedProductIds,
+      fallbackUsed: input.fallbackUsed,
+      fallbackReason: input.fallbackReason,
+      retrieval: input.retrieval,
+      cartAction: input.cartAction,
+    });
+
+    if (detection.confidence === "low") {
+      return createResult({
+        cartAction: {
+          type: detection.action,
+          status: "needs_target",
+          quantity: detection.quantity,
+          selected: detection.selected,
+          message: detection.clarificationQuestion ?? "intent_unclear",
+        },
+        fallbackReason: "CART_INTENT_UNCLEAR",
+        retrieval: createCartRetrieval(cartSnapshot),
+      });
+    }
+
+    if (detection.needsConfirmation || detection.action === "clear") {
+      return createResult({
+        cartAction: {
+          type: detection.action,
+          status: "needs_confirmation",
+          quantity: detection.quantity,
+          selected: detection.selected,
+          cartSummary: cartSnapshot?.summary,
+          message: detection.clarificationQuestion ?? "confirmation_required",
+        },
+        fallbackReason: "CART_CONFIRMATION_REQUIRED",
+        retrieval: createCartRetrieval(cartSnapshot),
+      });
+    }
+
+    let resolvedTarget = this.cartCommandService.resolveTarget({
       detection,
       products,
     });
+
+    if (shouldLookupActiveProductForCartAdd(detection, resolvedTarget.status)) {
+      const activeProducts = await this.readActiveProductsForCartAdd(
+        detection.target.text,
+        request.abortSignal,
+      );
+
+      if (activeProducts.length > 0) {
+        products = activeProducts;
+        productCards = this.mapProductsToCards(products);
+        recommendedProductIds = productCards.map((card) => card.id);
+        resolvedTarget = this.cartCommandService.resolveTarget({
+          detection,
+          products,
+        });
+      }
+    }
+
     const baseRetrieval = {
       candidateCount: products.length,
       returnedProductIds: recommendedProductIds,
     };
 
+    if (detection.action !== "add") {
+      return this.answerCartManagementCommand({
+        detection,
+        recentProducts: products,
+        recentProductIds: recommendedProductIds,
+        cartSnapshot,
+        request,
+      });
+    }
+
     if (resolvedTarget.status === "missing") {
+      const quantity = detection.quantity ?? MIN_CART_QUANTITY;
       const cartAction: CartActionResult = {
         type: "add",
         status: "needs_target",
-        quantity: detection.quantity,
+        quantity,
         message: "缺少可加购的推荐商品",
       };
 
-      return createCartCommandResult({
-        answer: await this.cartActionResponseService.generate({
-          question: request.question,
-          cartAction,
-          fallbackReason: "CART_TARGET_MISSING",
-          recentProducts: products,
-          requestId: request.requestId,
-          abortSignal: request.abortSignal,
-        }),
+      return createResult({
+        cartAction,
         productCards,
         recommendedProductIds,
         fallbackReason: "CART_TARGET_MISSING",
         retrieval: baseRetrieval,
+      });
+    }
+
+    if (detection.quantity === undefined) {
+      const cartAction: CartActionResult = {
+        type: "add",
+        status: "needs_target",
+        message: "quantity_missing",
+      };
+
+      return createResult({
         cartAction,
+        productCards,
+        recommendedProductIds,
+        fallbackReason: "CART_TARGET_MISSING",
+        retrieval: baseRetrieval,
       });
     }
 
@@ -564,20 +694,12 @@ export class RagChatService {
         message: "需要确认要加入购物车的商品",
       };
 
-      return createCartCommandResult({
-        answer: await this.cartActionResponseService.generate({
-          question: request.question,
-          cartAction,
-          fallbackReason: "CART_TARGET_AMBIGUOUS",
-          recentProducts: products,
-          requestId: request.requestId,
-          abortSignal: request.abortSignal,
-        }),
+      return createResult({
+        cartAction,
         productCards,
         recommendedProductIds,
         fallbackReason: "CART_TARGET_AMBIGUOUS",
         retrieval: baseRetrieval,
-        cartAction,
       });
     }
 
@@ -589,20 +711,12 @@ export class RagChatService {
         message: "最近推荐里没有匹配商品",
       };
 
-      return createCartCommandResult({
-        answer: await this.cartActionResponseService.generate({
-          question: request.question,
-          cartAction,
-          fallbackReason: "CART_TARGET_MISSING",
-          recentProducts: products,
-          requestId: request.requestId,
-          abortSignal: request.abortSignal,
-        }),
+      return createResult({
+        cartAction,
         productCards,
         recommendedProductIds,
         fallbackReason: "CART_TARGET_MISSING",
         retrieval: baseRetrieval,
-        cartAction,
       });
     }
 
@@ -622,19 +736,12 @@ export class RagChatService {
         message: "已加入购物车",
       };
 
-      return createCartCommandResult({
-        answer: await this.cartActionResponseService.generate({
-          question: request.question,
-          cartAction,
-          recentProducts: products,
-          requestId: request.requestId,
-          abortSignal: request.abortSignal,
-        }),
+      return createResult({
+        cartAction,
         productCards,
         recommendedProductIds,
         fallbackUsed: false,
         retrieval: baseRetrieval,
-        cartAction,
       });
     } catch (error) {
       rethrowIfAborted(request.abortSignal, error);
@@ -644,22 +751,364 @@ export class RagChatService {
         detection.quantity,
       );
 
-      return createCartCommandResult({
-        answer: await this.cartActionResponseService.generate({
-          question: request.question,
-          cartAction,
-          fallbackReason: "CART_ADD_FAILED",
-          recentProducts: products,
-          requestId: request.requestId,
-          abortSignal: request.abortSignal,
-        }),
+      return createResult({
+        cartAction,
         productCards,
         recommendedProductIds,
         fallbackReason: "CART_ADD_FAILED",
         retrieval: baseRetrieval,
-        cartAction,
       });
     }
+  }
+
+  private async readRecentProductsForCartAction(
+    action: Extract<CartCommandDetection, { isCartCommand: true }>["action"],
+    recentProductIds: string[],
+    abortSignal?: AbortSignal,
+  ): Promise<Product[]> {
+    if (recentProductIds.length === 0) {
+      return [];
+    }
+
+    try {
+      return orderProductsByIds(
+        await this.productReader.findActiveByIds(recentProductIds),
+        recentProductIds,
+      );
+    } catch (error) {
+      rethrowIfAborted(abortSignal, error);
+
+      if (action === "add") {
+        throw error;
+      }
+
+      return [];
+    }
+  }
+
+  private async readActiveProductsForCartAdd(
+    targetText: string,
+    abortSignal?: AbortSignal,
+  ): Promise<Product[]> {
+    if (!this.productReader.findActiveByText) {
+      return [];
+    }
+
+    try {
+      throwIfAborted(abortSignal);
+      const products = await this.productReader.findActiveByText(
+        targetText,
+        CART_ACTIVE_PRODUCT_LOOKUP_LIMIT,
+      );
+      throwIfAborted(abortSignal);
+      return products;
+    } catch (error) {
+      rethrowIfAborted(abortSignal, error);
+      return [];
+    }
+  }
+
+  private mapProductsToCards(
+    products: Product[],
+  ): ReturnType<typeof mapProductToCardDto>[] {
+    return products.map((product) =>
+      mapProductToCardDto(product, { publicImageBaseUrl: this.publicImageBaseUrl })
+    );
+  }
+
+  private async answerCartManagementCommand(input: {
+    detection: Extract<CartCommandDetection, { isCartCommand: true }>;
+    recentProducts: Product[];
+    recentProductIds: string[];
+    cartSnapshot: CartDto | undefined;
+    request: Pick<RagChatRequest, "question" | "requestId" | "abortSignal">;
+  }): Promise<RagChatResult> {
+    const createResult = async (resultInput: {
+      cartAction: CartActionResult;
+      fallbackReason?: RagChatFallbackReason;
+      fallbackUsed?: boolean;
+      retrieval?: RagChatResult["retrieval"];
+    }) => createCartCommandResult({
+      answer: await this.cartActionResponseService.generate({
+        question: input.request.question,
+        intent: input.detection,
+        cartAction: resultInput.cartAction,
+        fallbackReason: resultInput.fallbackReason as
+          | Parameters<RagCartActionResponder["generate"]>[0]["fallbackReason"]
+          | undefined,
+        recentProducts: input.recentProducts,
+        cartSnapshot: input.cartSnapshot,
+        requestId: input.request.requestId,
+        abortSignal: input.request.abortSignal,
+      }),
+      productCards: [],
+      recommendedProductIds: input.recentProductIds,
+      fallbackUsed: resultInput.fallbackUsed,
+      fallbackReason: resultInput.fallbackReason,
+      retrieval: resultInput.retrieval ?? createCartRetrieval(input.cartSnapshot),
+      cartAction: resultInput.cartAction,
+    });
+
+    const cartSnapshot = input.cartSnapshot;
+
+    if (!cartSnapshot) {
+      return createResult({
+        cartAction: {
+          type: input.detection.action,
+          status: "failed",
+          quantity: input.detection.quantity,
+          selected: input.detection.selected,
+          message: "cart_snapshot_unavailable",
+        },
+        fallbackReason: "CART_SNAPSHOT_UNAVAILABLE",
+      });
+    }
+
+    if (input.detection.action === "inspect") {
+      return createResult({
+        cartAction: {
+          type: "inspect",
+          status: "success",
+          cartSummary: cartSnapshot.summary,
+          message: "cart_snapshot_ready",
+        },
+        fallbackUsed: false,
+      });
+    }
+
+    if (
+      input.detection.action === "update_quantity"
+      && input.detection.quantity === undefined
+    ) {
+      return createResult({
+        cartAction: {
+          type: "update_quantity",
+          status: "needs_target",
+          message: "quantity_missing_or_invalid",
+        },
+        fallbackReason: "CART_TARGET_MISSING",
+      });
+    }
+
+    if (
+      input.detection.action === "update_selected"
+      && input.detection.selected === undefined
+    ) {
+      return createResult({
+        cartAction: {
+          type: "update_selected",
+          status: "needs_target",
+          message: "selected_missing",
+        },
+        fallbackReason: "CART_TARGET_MISSING",
+      });
+    }
+
+    const resolvedTarget = this.cartCommandService.resolveCartTarget({
+      detection: input.detection,
+      cart: cartSnapshot,
+    });
+
+    if (resolvedTarget.status === "missing") {
+      return createResult({
+        cartAction: {
+          type: input.detection.action,
+          status: "needs_target",
+          quantity: input.detection.quantity,
+          selected: input.detection.selected,
+          cartSummary: cartSnapshot.summary,
+          message: "cart_empty",
+        },
+        fallbackReason: "CART_TARGET_MISSING",
+      });
+    }
+
+    if (resolvedTarget.status === "ambiguous") {
+      return createResult({
+        cartAction: {
+          type: input.detection.action,
+          status: "needs_target",
+          quantity: input.detection.quantity,
+          selected: input.detection.selected,
+          cartSummary: cartSnapshot.summary,
+          message: "target_ambiguous",
+        },
+        fallbackReason: "CART_TARGET_AMBIGUOUS",
+      });
+    }
+
+    if (resolvedTarget.status === "not_found") {
+      return createResult({
+        cartAction: {
+          type: input.detection.action,
+          status: "not_found",
+          quantity: input.detection.quantity,
+          selected: input.detection.selected,
+          cartSummary: cartSnapshot.summary,
+          message: "target_not_found",
+        },
+        fallbackReason: "CART_TARGET_MISSING",
+      });
+    }
+
+    if (resolvedTarget.status === "all") {
+      return this.applyAllCartTarget({ ...input, cartSnapshot }, createResult);
+    }
+
+    if (!resolvedTarget.item) {
+      return createResult({
+        cartAction: {
+          type: input.detection.action,
+          status: "not_found",
+          quantity: input.detection.quantity,
+          selected: input.detection.selected,
+          cartSummary: cartSnapshot.summary,
+          message: "target_not_found",
+        },
+        fallbackReason: "CART_TARGET_MISSING",
+      });
+    }
+
+    try {
+      throwIfAborted(input.request.abortSignal);
+      const cart = await this.applyCartItemMutation(
+        input.detection,
+        resolvedTarget.item.id,
+      );
+      throwIfAborted(input.request.abortSignal);
+
+      return createResult({
+        cartAction: createSuccessCartItemAction(
+          input.detection,
+          resolvedTarget.item,
+          cart.summary,
+        ),
+        fallbackUsed: false,
+        retrieval: createCartRetrieval(cart),
+      });
+    } catch (error) {
+      rethrowIfAborted(input.request.abortSignal, error);
+      return createResult({
+        cartAction: mapCartMutationErrorToAction(
+          error,
+          input.detection,
+          resolvedTarget.item,
+          cartSnapshot.summary,
+        ),
+        fallbackReason: "CART_ACTION_FAILED",
+      });
+    }
+  }
+
+  private async applyAllCartTarget(
+    input: {
+      detection: Extract<CartCommandDetection, { isCartCommand: true }>;
+      cartSnapshot: CartDto;
+      request: Pick<RagChatRequest, "abortSignal">;
+    },
+    createResult: (resultInput: {
+      cartAction: CartActionResult;
+      fallbackReason?: RagChatFallbackReason;
+      fallbackUsed?: boolean;
+      retrieval?: RagChatResult["retrieval"];
+    }) => Promise<RagChatResult>,
+  ): Promise<RagChatResult> {
+    if (input.detection.action !== "update_selected") {
+      return createResult({
+        cartAction: {
+          type: input.detection.action,
+          status: "needs_confirmation",
+          cartSummary: input.cartSnapshot.summary,
+          message: "all_target_requires_confirmation",
+        },
+        fallbackReason: "CART_CONFIRMATION_REQUIRED",
+      });
+    }
+
+    if (input.detection.selected === undefined) {
+      return createResult({
+        cartAction: {
+          type: "update_selected",
+          status: "needs_target",
+          cartSummary: input.cartSnapshot.summary,
+          message: "selected_missing",
+        },
+        fallbackReason: "CART_TARGET_MISSING",
+      });
+    }
+
+    if (!this.cartWriter.selectAll) {
+      return createResult({
+        cartAction: {
+          type: "update_selected",
+          status: "failed",
+          selected: input.detection.selected,
+          cartSummary: input.cartSnapshot.summary,
+          message: "cart_select_all_unavailable",
+        },
+        fallbackReason: "CART_ACTION_FAILED",
+      });
+    }
+
+    try {
+      throwIfAborted(input.request.abortSignal);
+      const cart = await this.cartWriter.selectAll(input.detection.selected);
+      throwIfAborted(input.request.abortSignal);
+      return createResult({
+        cartAction: {
+          type: "update_selected",
+          status: "success",
+          selected: input.detection.selected,
+          cartSummary: cart.summary,
+          message: "selection_updated",
+        },
+        fallbackUsed: false,
+        retrieval: createCartRetrieval(cart),
+      });
+    } catch (error) {
+      rethrowIfAborted(input.request.abortSignal, error);
+      return createResult({
+        cartAction: {
+          type: "update_selected",
+          status: "failed",
+          selected: input.detection.selected,
+          cartSummary: input.cartSnapshot.summary,
+          message: "cart_action_failed",
+        },
+        fallbackReason: "CART_ACTION_FAILED",
+      });
+    }
+  }
+
+  private async applyCartItemMutation(
+    detection: Extract<CartCommandDetection, { isCartCommand: true }>,
+    itemId: string,
+  ): Promise<CartDto> {
+    if (detection.action === "remove") {
+      if (!this.cartWriter.deleteItem) {
+        throw new CartRequestError("deleteItem is not available");
+      }
+
+      return this.cartWriter.deleteItem(itemId);
+    }
+
+    if (detection.action === "update_quantity") {
+      if (!this.cartWriter.updateItem || detection.quantity === undefined) {
+        throw new CartRequestError("updateItem quantity is not available");
+      }
+
+      return this.cartWriter.updateItem(itemId, { quantity: detection.quantity });
+    }
+
+    if (detection.action === "update_selected") {
+      if (!this.cartWriter.updateItem || detection.selected === undefined) {
+        throw new CartRequestError("updateItem selected is not available");
+      }
+
+      return this.cartWriter.updateItem(itemId, { selected: detection.selected });
+    }
+
+    throw new CartRequestError(`Unsupported cart action: ${detection.action}`);
   }
 }
 
@@ -686,7 +1135,24 @@ function createDefaultProductReader(): RagProductReader {
   return {
     findActiveByIds: (productIds) =>
       findActiveProductsByIds(getDatabasePool(), productIds),
+    findActiveByText: (text, limit) =>
+      findProducts(getDatabasePool(), {
+        q: text,
+        limit,
+        offset: 0,
+      }),
   };
+}
+
+function shouldLookupActiveProductForCartAdd(
+  detection: Extract<CartCommandDetection, { isCartCommand: true }>,
+  resolvedStatus: "found" | "missing" | "ambiguous" | "not_found",
+): detection is Extract<CartCommandDetection, { isCartCommand: true }> & {
+  target: { kind: "name"; text: string };
+} {
+  return detection.action === "add"
+    && detection.target.kind === "name"
+    && (resolvedStatus === "missing" || resolvedStatus === "not_found");
 }
 
 function orderProductsByIds(
@@ -863,6 +1329,68 @@ function createCartCommandResult(input: {
     fallbackReason: input.fallbackReason,
     retrieval: input.retrieval,
     cartAction: input.cartAction,
+  };
+}
+
+function createCartRetrieval(cart: CartDto | undefined): RagChatResult["retrieval"] {
+  return {
+    candidateCount: cart?.items.length ?? 0,
+    returnedProductIds: cart?.items.map((item) => item.productId) ?? [],
+  };
+}
+
+function createSuccessCartItemAction(
+  detection: Extract<CartCommandDetection, { isCartCommand: true }>,
+  item: CartItemDto,
+  cartSummary: CartDto["summary"],
+): CartActionResult {
+  return {
+    type: detection.action,
+    status: "success",
+    itemId: item.id,
+    productId: item.productId,
+    productName: item.name,
+    quantity: detection.action === "update_quantity"
+      ? detection.quantity
+      : item.quantity,
+    selected: detection.action === "update_selected"
+      ? detection.selected
+      : item.selected,
+    cartSummary,
+    message: "cart_action_success",
+  };
+}
+
+function mapCartMutationErrorToAction(
+  error: unknown,
+  detection: Extract<CartCommandDetection, { isCartCommand: true }>,
+  item: CartItemDto,
+  cartSummary: CartDto["summary"],
+): CartActionResult {
+  if (error instanceof CartItemNotFoundError) {
+    return {
+      type: detection.action,
+      status: "not_found",
+      itemId: item.id,
+      productId: item.productId,
+      productName: item.name,
+      quantity: detection.quantity,
+      selected: detection.selected,
+      cartSummary,
+      message: "cart_item_not_found",
+    };
+  }
+
+  return {
+    type: detection.action,
+    status: "failed",
+    itemId: item.id,
+    productId: item.productId,
+    productName: item.name,
+    quantity: detection.quantity,
+    selected: detection.selected,
+    cartSummary,
+    message: "cart_action_failed",
   };
 }
 

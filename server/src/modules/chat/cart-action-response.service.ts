@@ -1,8 +1,10 @@
 import { rethrowIfAborted } from "../../lib/abort";
+import type { CartDto } from "../cart/cart.types";
 import type { LlmClient, LlmGenerateRequest } from "../llm/llm.types";
 import type { Product } from "../products/product.types";
 import type {
   CartActionResult,
+  CartCommandDetection,
   CartCommandFallbackReason,
 } from "./cart-command.types";
 import {
@@ -18,13 +20,15 @@ export interface CartActionResponseServiceOptions {
 export interface CartActionResponseInput {
   question: string;
   cartAction: CartActionResult;
+  intent?: Extract<CartCommandDetection, { isCartCommand: true }>;
   fallbackReason?: CartCommandFallbackReason;
   recentProducts: Product[];
+  cartSnapshot?: CartDto;
   requestId?: string;
   abortSignal?: AbortSignal;
 }
 
-const CART_ACTION_RESPONSE_MAX_COMPLETION_TOKENS = 160;
+const CART_ACTION_RESPONSE_MAX_COMPLETION_TOKENS = 180;
 const MAX_CART_ACTION_ANSWER_CHARS = 90;
 
 export class CartActionResponseService {
@@ -43,15 +47,15 @@ export class CartActionResponseService {
         requestId: input.requestId,
         abortSignal: input.abortSignal,
       });
-      const answer = normalizeAnswer(parseCartActionResponseOutput(response.text));
 
-      return answer ?? createMinimalCartActionAnswer(input.cartAction);
+      return normalizeAnswer(parseCartActionResponseOutput(response.text)) ?? "";
     } catch (error) {
       rethrowIfAborted(input.abortSignal, error);
-      return createMinimalCartActionAnswer(input.cartAction);
+      return "";
     }
   }
 }
+
 function buildCartActionResponsePrompt(
   input: CartActionResponseInput,
 ): LlmGenerateRequest["messages"] {
@@ -60,20 +64,30 @@ function buildCartActionResponsePrompt(
       role: "system",
       content: [
         "你是 ShopMate 的购物车操作回复生成器。",
-        "根据结构化 cartAction 生成用户可见的中文 assistant 回复。",
-        "cartAction.status 是事实来源：只有 success 才能说已加入购物车。",
-        "needs_target 要请用户确认商品；not_found 只能说明最近推荐中没有匹配商品。",
-        "unavailable 只能说明该商品当前不可加购；failed 只能说明本次加购未完成。",
-        "不能编造商品、价格、库存、优惠、物流、结算或订单结果。",
-        "不要输出商品卡片，不要输出 markdown，不要输出多余解释。",
-        "answer 必须是一到两句话，不超过 90 个中文字符。",
-        '只输出 JSON object，例如 {"answer":"已经把这款商品加入购物车。"}。',
+        "Generate the user-visible Chinese assistant reply from facts only.",
+        "cartAction.status is authoritative: only success may say the operation is complete.",
+        "needs_target or needs_confirmation must ask the user to clarify or confirm.",
+        "not_found may only say the current cart or recent recommendations do not contain a matching item.",
+        "failed must not pretend success.",
+        "Do not invent discounts, inventory, orders, payment, shipping, or checkout results.",
+        "Do not output product cards, markdown, or extra explanation.",
+        "Return one JSON object only: {\"answer\":\"...\"}. The answer must be 1-2 short sentences and at most 90 Chinese characters.",
       ].join("\n"),
     },
     {
       role: "user",
       content: JSON.stringify({
         message: input.question,
+        intent: input.intent
+          ? {
+              action: input.intent.action,
+              target: input.intent.target,
+              quantity: input.intent.quantity,
+              selected: input.intent.selected,
+              needsConfirmation: input.intent.needsConfirmation,
+              clarificationQuestion: input.intent.clarificationQuestion,
+            }
+          : undefined,
         cartAction: summarizeCartAction(input.cartAction),
         fallbackReason: input.fallbackReason,
         recentProducts: input.recentProducts.map((product, index) => ({
@@ -83,6 +97,17 @@ function buildCartActionResponsePrompt(
           brand: product.brand,
           category: product.category,
         })),
+        cartItems: input.cartSnapshot?.items.map((item, index) => ({
+          ordinal: index + 1,
+          itemId: item.id,
+          productId: item.productId,
+          name: item.name,
+          brand: item.brand,
+          category: item.category,
+          quantity: item.quantity,
+          selected: item.selected,
+          available: item.available,
+        })) ?? [],
       }),
     },
   ];
@@ -94,9 +119,12 @@ function summarizeCartAction(
   return {
     type: cartAction.type,
     status: cartAction.status,
+    itemId: cartAction.itemId,
     productId: cartAction.productId,
     productName: cartAction.productName,
     quantity: cartAction.quantity,
+    selected: cartAction.selected,
+    cartSummary: cartAction.cartSummary,
   };
 }
 
@@ -111,19 +139,4 @@ function normalizeAnswer(value: string | undefined): string | undefined {
   return normalizeLlmText(value, {
     maxChars: MAX_CART_ACTION_ANSWER_CHARS,
   });
-}
-
-function createMinimalCartActionAnswer(cartAction: CartActionResult): string {
-  switch (cartAction.status) {
-    case "success":
-      return "加购已完成。";
-    case "needs_target":
-      return "需要先确认要加入购物车的商品。";
-    case "not_found":
-      return "最近推荐中没有找到匹配商品。";
-    case "unavailable":
-      return "该商品当前不可加购。";
-    case "failed":
-      return "加购未完成。";
-  }
 }

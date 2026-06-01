@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CartProductUnavailableError } from "../cart/cart.service";
-import type { CartDto } from "../cart/cart.types";
+import type { CartDto, CartItemDto } from "../cart/cart.types";
 import { LlmError } from "../llm/llm.error";
 import { MockLlmClient } from "../llm/mock-llm.client";
 import type { LlmGenerateRequest, LlmGenerateResponse } from "../llm/llm.types";
@@ -1161,7 +1161,7 @@ describe("RagChatService", () => {
 
     expect(llmCallCount).toBe(2);
     expect(result).toMatchObject({
-      answer: "加购已完成。",
+      answer: "",
       fallbackUsed: false,
       cartAction: {
         status: "success",
@@ -1387,6 +1387,54 @@ describe("RagChatService", () => {
     });
   });
 
+  it("adds an explicit active product by name without recent recommendations", async () => {
+    const store = createStoreWithRecentRecommendations([]);
+    const textLookups: Array<{ text: string; limit: number }> = [];
+    const cartAdds: Array<{ productId: string; quantity: number }> = [];
+    const service = createCartCommandService({
+      store,
+      intentTarget: { kind: "name", text: "小米通勤耳机" },
+      productReader: {
+        findActiveByIds: async () => [],
+        findActiveByText: async (text, limit) => {
+          textLookups.push({ text, limit });
+          return [
+            createProduct({
+              id: "product_xiaomi_001",
+              name: "小米通勤耳机",
+              brand: "小米",
+            }),
+          ];
+        },
+      },
+      cartWriter: {
+        addItem: async (input) => {
+          cartAdds.push(input);
+          return createCartDto();
+        },
+      },
+    });
+
+    const result = await service.answer({
+      conversationId: "cart-demo-1",
+      question: "把小米通勤耳机加到购物车",
+    });
+
+    expect(textLookups).toEqual([{ text: "小米通勤耳机", limit: 8 }]);
+    expect(cartAdds).toEqual([{ productId: "product_xiaomi_001", quantity: 1 }]);
+    expect(result).toMatchObject({
+      fallbackUsed: false,
+      recommendedProductIds: ["product_xiaomi_001"],
+      productCards: [{ id: "product_xiaomi_001", name: "小米通勤耳机" }],
+      cartAction: {
+        type: "add",
+        status: "success",
+        productId: "product_xiaomi_001",
+        productName: "小米通勤耳机",
+      },
+    });
+  });
+
   it("does not call cart when ordinal target is outside recent recommendation range", async () => {
     const store = createStoreWithRecentRecommendations(["product_001"]);
     let cartCalled = false;
@@ -1438,6 +1486,153 @@ describe("RagChatService", () => {
         status: "unavailable",
         productId: "product_001",
       },
+    });
+  });
+
+  it("removes a cart item resolved by current cart ordinal", async () => {
+    const store = createStoreWithRecentRecommendations(["product_001"]);
+    const cart = createCartDtoWithItems([
+      createCartItem({ id: "item_001", productId: "product_001", name: "Product 1" }),
+      createCartItem({ id: "item_002", productId: "product_002", name: "Product 2" }),
+    ]);
+    const deletedItemIds: string[] = [];
+    const service = createCartCommandService({
+      store,
+      action: "remove",
+      intentTarget: { kind: "cart_ordinal", index: 2 },
+      cartWriter: {
+        getCart: async () => cart,
+        addItem: async () => createCartDto(),
+        deleteItem: async (itemId) => {
+          deletedItemIds.push(itemId);
+          return createCartDtoWithItems([cart.items[0] as CartItemDto]);
+        },
+      },
+    });
+
+    const result = await service.answer({
+      conversationId: "cart-demo-1",
+      question: "删除第二个商品",
+    });
+
+    expect(deletedItemIds).toEqual(["item_002"]);
+    expect(result).toMatchObject({
+      fallbackUsed: false,
+      cartAction: {
+        type: "remove",
+        status: "success",
+        itemId: "item_002",
+        productId: "product_002",
+      },
+    });
+  });
+
+  it("updates quantity only when the cart item target resolves", async () => {
+    const store = createStoreWithRecentRecommendations(["product_001"]);
+    const cart = createCartDtoWithItems([
+      createCartItem({ id: "item_001", productId: "product_001", name: "Product 1" }),
+    ]);
+    const updates: Array<{ itemId: string; quantity?: number }> = [];
+    const service = createCartCommandService({
+      store,
+      action: "update_quantity",
+      quantity: 2,
+      intentTarget: { kind: "unknown" },
+      cartWriter: {
+        getCart: async () => cart,
+        addItem: async () => createCartDto(),
+        updateItem: async (itemId, input) => {
+          updates.push({ itemId, quantity: input.quantity });
+          return createCartDtoWithItems([
+            createCartItem({
+              id: itemId,
+              quantity: input.quantity ?? 1,
+              subtotalCents: (input.quantity ?? 1) * 19900,
+            }),
+          ]);
+        },
+      },
+    });
+
+    const result = await service.answer({
+      conversationId: "cart-demo-1",
+      question: "把数量改成 2",
+    });
+
+    expect(updates).toEqual([{ itemId: "item_001", quantity: 2 }]);
+    expect(result.cartAction).toMatchObject({
+      type: "update_quantity",
+      status: "success",
+      itemId: "item_001",
+      quantity: 2,
+    });
+  });
+
+  it("does not mutate when cart management target is ambiguous", async () => {
+    const store = createStoreWithRecentRecommendations(["product_001"]);
+    const cart = createCartDtoWithItems([
+      createCartItem({ id: "item_001", productId: "product_001", name: "Product 1" }),
+      createCartItem({ id: "item_002", productId: "product_002", name: "Product 2" }),
+    ]);
+    let updateCalled = false;
+    const service = createCartCommandService({
+      store,
+      action: "update_quantity",
+      quantity: 2,
+      intentTarget: { kind: "unknown" },
+      cartWriter: {
+        getCart: async () => cart,
+        addItem: async () => createCartDto(),
+        updateItem: async () => {
+          updateCalled = true;
+          return createCartDto();
+        },
+      },
+    });
+
+    const result = await service.answer({
+      conversationId: "cart-demo-1",
+      question: "把数量改成 2",
+    });
+
+    expect(updateCalled).toBe(false);
+    expect(result).toMatchObject({
+      fallbackUsed: true,
+      fallbackReason: "CART_TARGET_AMBIGUOUS",
+      cartAction: {
+        type: "update_quantity",
+        status: "needs_target",
+      },
+    });
+  });
+
+  it("does not mutate when clear cart intent needs confirmation", async () => {
+    const store = createStoreWithRecentRecommendations(["product_001"]);
+    const cart = createCartDtoWithItems([createCartItem()]);
+    let deleteCalled = false;
+    const service = createCartCommandService({
+      store,
+      action: "clear",
+      intentTarget: { kind: "all" },
+      cartWriter: {
+        getCart: async () => cart,
+        addItem: async () => createCartDto(),
+        deleteItem: async () => {
+          deleteCalled = true;
+          return createCartDto();
+        },
+      },
+    });
+
+    const result = await service.answer({
+      conversationId: "cart-demo-1",
+      question: "清空购物车",
+    });
+
+    expect(deleteCalled).toBe(false);
+    expect(result.cartAction).toMatchObject({
+      type: "clear",
+      status: "needs_confirmation",
     });
   });
 
@@ -1548,10 +1743,16 @@ function createCartCommandService(input: {
   store: ChatContextMemoryStore;
   cartWriter: RagCartWriter;
   productReader?: RagProductReader;
+  action?: string;
+  quantity?: number;
+  selected?: boolean | null;
   intentTarget?:
     | { kind: "ordinal"; index: number }
+    | { kind: "cart_ordinal"; index: number }
+    | { kind: "recent_recommendation_ordinal"; index: number }
     | { kind: "deictic" }
     | { kind: "name"; text: string }
+    | { kind: "all" }
     | { kind: "unknown" };
 }): RagChatService {
   return new RagChatService({
@@ -1561,7 +1762,10 @@ function createCartCommandService(input: {
     contextMemoryService: new ChatContextMemoryService({ store: input.store }),
     llmClient: new MockLlmClient({
       response: createCartIntentResponse({
+        action: input.action,
         target: input.intentTarget ?? { kind: "unknown" },
+        quantity: input.quantity,
+        selected: input.selected,
       }),
     }),
   });
@@ -1591,14 +1795,41 @@ function createStoreWithRecentRecommendations(
 }
 
 function createCartDto(): CartDto {
+  return createCartDtoWithItems([]);
+}
+
+function createCartDtoWithItems(items: CartItemDto[]): CartDto {
   return {
-    items: [],
+    items,
     summary: {
-      totalCount: 0,
-      selectedCount: 0,
-      selectedTotalCents: 0,
+      totalCount: items.reduce((sum, item) => sum + item.quantity, 0),
+      selectedCount: items
+        .filter((item) => item.selected)
+        .reduce((sum, item) => sum + item.quantity, 0),
+      selectedTotalCents: items
+        .filter((item) => item.selected)
+        .reduce((sum, item) => sum + item.subtotalCents, 0),
       currency: "CNY",
     },
+  };
+}
+
+function createCartItem(overrides: Partial<CartItemDto> = {}): CartItemDto {
+  return {
+    id: "item_001",
+    productId: "product_001",
+    name: "Product 1",
+    brand: "Demo Brand",
+    category: "数码电子",
+    priceCents: 19900,
+    priceText: "¥199",
+    quantity: 1,
+    selected: true,
+    subtotalCents: 19900,
+    available: true,
+    tags: ["通勤"],
+    imagePath: "/images/product_001.png",
+    ...overrides,
   };
 }
 
@@ -1657,14 +1888,23 @@ function createProductReader(): RagProductReader {
 
 function createCartIntentResponse(input: {
   isCartAdd?: boolean;
+  action?: string;
   target?: Record<string, unknown>;
   quantity?: number;
+  selected?: boolean | null;
+  needsConfirmation?: boolean;
+  confidence?: string;
 } = {}): LlmGenerateResponse {
   return createLlmResponse(
     JSON.stringify({
-      is_cart_add: input.isCartAdd ?? true,
+      is_cart_management: input.isCartAdd ?? true,
+      action: input.action ?? "add",
       target: input.target ?? { kind: "unknown" },
-      quantity: input.quantity ?? 1,
+      quantity: input.quantity ?? (input.action === "update_quantity" ? 2 : 1),
+      selected: input.selected ?? null,
+      needs_confirmation: input.needsConfirmation ?? false,
+      confidence: input.confidence ?? "high",
+      clarification_question: null,
     }),
   );
 }

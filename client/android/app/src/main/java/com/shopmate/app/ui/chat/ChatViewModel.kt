@@ -483,9 +483,11 @@ class ChatViewModel(
     }
 
     private fun emitCartActionSideEffect(cartAction: ChatCartActionDto?) {
-        if (cartAction?.type != CART_ACTION_ADD_TYPE ||
-            cartAction.status != CART_ACTION_SUCCESS_STATUS
-        ) {
+        if (cartAction == null || cartAction.status != CART_ACTION_SUCCESS_STATUS) {
+            return
+        }
+
+        if (cartAction.type !in CART_REFRESH_ACTION_TYPES) {
             return
         }
 
@@ -600,5 +602,10 @@ private fun shouldKeepProductCardsForMessage(message: String): Boolean {
 }
 
 private const val NEEDS_CLARIFICATION_REASON = "NEEDS_CLARIFICATION"
-private const val CART_ACTION_ADD_TYPE = "add"
 private const val CART_ACTION_SUCCESS_STATUS = "success"
+private val CART_REFRESH_ACTION_TYPES = setOf(
+    "add",
+    "remove",
+    "update_quantity",
+    "update_selected",
+)
