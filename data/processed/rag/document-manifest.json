@@ -1,9 +1,9 @@
 {
   "source": "postgres",
-  "ingest_batch_id": "catalog_20260529_135129348_6e99a055",
+  "ingest_batch_id": "catalog_20260602_080954145_ed526ff8",
   "product_count": 175,
   "document_count": 2064,
-  "generated_at": "2026-05-29T13:53:03.031Z",
+  "generated_at": "2026-06-02T08:10:30.914Z",
   "output_path": "rag/product-documents.jsonl",
   "document_types": [
     "content_block",

@@ -176,6 +176,17 @@ function formatList(label: string, values: string[]): string | undefined {
   return values.length > 0 ? `${label}: ${values.join("、")}` : undefined;
 }
 
+function formatAttributes(
+  label: string,
+  attributes: Record<string, string[]>,
+): string | undefined {
+  const entries = Object.entries(attributes)
+    .filter(([, values]) => values.length > 0)
+    .map(([key, values]) => `${key}:${values.join("、")}`);
+
+  return entries.length > 0 ? `${label}: ${entries.join("；")}` : undefined;
+}
+
 function buildSharedContext(product: Product): string[] {
   return [
     `商品名: ${product.name}`,
@@ -184,6 +195,7 @@ function buildSharedContext(product: Product): string[] {
     `价格参考: ${formatPriceRange(product)}`,
     `状态: ${product.status}`,
     `是否可售: ${isProductAvailable(product) ? "是" : "否"}`,
+    formatAttributes("属性", product.attributes),
     formatList("适合", product.recommendWhen),
     formatList("不适合", product.avoidWhen),
     formatList("优势", product.pros),

@@ -108,6 +108,7 @@ describe("buildProductRagDocuments", () => {
       expect(document.text).toContain("品牌: 示例品牌");
       expect(document.text).toContain("类目: 美妆护肤 / 洁面");
       expect(document.text).toContain("价格参考: 199.99-219.50 CNY");
+      expect(document.text).toContain("属性: skin_type:油皮、混油；texture:乳状");
       expect(document.text).toContain("适合: 油皮日常洁面");
       expect(document.text).toContain("不适合: 极干皮");
       expect(document.text).toContain("synthetic/desensitized");

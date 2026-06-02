@@ -87,6 +87,10 @@ export class ComparisonIntentService {
   ): Promise<ComparisonIntentResult> {
     const explicitRecentOrdinalIntent =
       createExplicitRecentOrdinalComparisonIntent(input);
+    const explicitRecentDemonstrativeIntent =
+      createExplicitRecentDemonstrativeComparisonIntent(input);
+    const explicitRecentComparisonIntent =
+      explicitRecentOrdinalIntent ?? explicitRecentDemonstrativeIntent;
 
     try {
       const response = await this.llmClient.generate({
@@ -97,9 +101,9 @@ export class ComparisonIntentService {
         abortSignal: input.abortSignal,
       });
       const parsed = parseComparisonIntentOutput(response.text);
-      const targetRepairedParsed = repairExplicitRecentOrdinalTarget(
+      const targetRepairedParsed = repairExplicitRecentComparisonTarget(
         parsed,
-        explicitRecentOrdinalIntent,
+        explicitRecentComparisonIntent,
       );
 
       if (
@@ -111,14 +115,14 @@ export class ComparisonIntentService {
           await this.detectRecentRecommendationComparison(input);
 
         if (focusedParsed?.isComparison && focusedParsed.confidence !== "low") {
-          return repairExplicitRecentOrdinalTarget(
+          return repairExplicitRecentComparisonTarget(
             focusedParsed,
-            explicitRecentOrdinalIntent,
+            explicitRecentComparisonIntent,
           );
         }
 
-        if (explicitRecentOrdinalIntent) {
-          return explicitRecentOrdinalIntent;
+        if (explicitRecentComparisonIntent) {
+          return explicitRecentComparisonIntent;
         }
       }
 
@@ -137,14 +141,14 @@ export class ComparisonIntentService {
         : undefined;
 
       if (focusedParsed?.isComparison && focusedParsed.confidence !== "low") {
-        return repairExplicitRecentOrdinalTarget(
+        return repairExplicitRecentComparisonTarget(
           focusedParsed,
-          explicitRecentOrdinalIntent,
+          explicitRecentComparisonIntent,
         );
       }
 
-      if (explicitRecentOrdinalIntent) {
-        return explicitRecentOrdinalIntent;
+      if (explicitRecentComparisonIntent) {
+        return explicitRecentComparisonIntent;
       }
 
       return NO_COMPARISON_INTENT;
@@ -389,11 +393,50 @@ function createExplicitRecentOrdinalComparisonIntent(
   };
 }
 
-function repairExplicitRecentOrdinalTarget(
+function createExplicitRecentDemonstrativeComparisonIntent(
+  input: ComparisonIntentDetectInput,
+): ComparisonIntentResult | undefined {
+  if ((input.recentProductIds?.length ?? 0) !== COMPARISON_PRODUCT_COUNT) {
+    return undefined;
+  }
+
+  const normalized = input.question.replace(/\s+/gu, "");
+  const hasComparisonCue = [
+    "对比",
+    "比较",
+    "哪个更",
+    "哪款更",
+    "怎么选",
+    "差异",
+    "区别",
+  ].some((term) => normalized.includes(term));
+  const hasTwoRecentProductsCue = [
+    "这两款",
+    "这两个",
+    "这俩",
+  ].some((term) => normalized.includes(term));
+
+  if (!hasComparisonCue || !hasTwoRecentProductsCue) {
+    return undefined;
+  }
+
+  return {
+    isComparison: true,
+    confidence: "medium",
+    target: {
+      kind: "recent_recommendations",
+      ordinals: [1, 2],
+      names: [],
+    },
+    needsClarification: false,
+  };
+}
+
+function repairExplicitRecentComparisonTarget(
   parsed: ComparisonIntentResult,
-  explicitRecentOrdinalIntent: ComparisonIntentResult | undefined,
+  explicitRecentComparisonIntent: ComparisonIntentResult | undefined,
 ): ComparisonIntentResult {
-  if (!explicitRecentOrdinalIntent || !parsed.isComparison) {
+  if (!explicitRecentComparisonIntent || !parsed.isComparison) {
     return parsed;
   }
 
@@ -408,9 +451,9 @@ function repairExplicitRecentOrdinalTarget(
   return {
     ...parsed,
     confidence: parsed.confidence === "low"
-      ? explicitRecentOrdinalIntent.confidence
+      ? explicitRecentComparisonIntent.confidence
       : parsed.confidence,
-    target: explicitRecentOrdinalIntent.target,
+    target: explicitRecentComparisonIntent.target,
     needsClarification: false,
     clarificationQuestion: undefined,
   };

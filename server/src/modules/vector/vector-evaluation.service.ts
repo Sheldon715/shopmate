@@ -1,3 +1,8 @@
+import {
+  evaluateNegativeConstraintEvidence,
+  type NegativeConstraintEvidenceResult,
+  type NegativeConstraintProductFacts,
+} from "../chat/negative-constraint-evidence";
 import type { VectorSearchFilters, VectorSearchHit } from "./vector-search.types";
 import type {
   VectorEvaluationCase,
@@ -193,6 +198,8 @@ function addHardFilterFailures(
   failureReasons: Set<VectorEvaluationFailureReason>,
   notes: string[],
 ): void {
+  const recordedAvoidTermConflicts = new Set<string>();
+
   for (const hit of hits) {
     const product = productsById?.get(hit.productId);
 
@@ -205,8 +212,22 @@ function addHardFilterFailures(
     const source = product ?? {
       productId: hit.productId,
       status: "active",
+      name: "",
+      brand: hit.metadata.brand,
       category: hit.metadata.category,
       subCategory: hit.metadata.subCategory,
+      tags: hit.metadata.tags,
+      recommendWhen: hit.metadata.recommendWhen,
+      avoidWhen: hit.metadata.avoidWhen,
+      pros: [],
+      cons: [],
+      attributes: {},
+      marketingDescription: "",
+      knowledgeText: "",
+      reviewSummary: {},
+      contentBlocks: [],
+      officialFaq: [],
+      userReviews: [],
       priceMinCents: hit.metadata.priceMinCents,
       priceMaxCents: hit.metadata.priceMaxCents,
       available: hit.metadata.available,
@@ -251,9 +272,22 @@ function addHardFilterFailures(
       notes.push(`Hit product_id ${hit.productId} violates availableOnly.`);
     }
 
-    if (containsAvoidTerm(hit, filters.avoidTerms)) {
+    for (const conflict of findAvoidTermConflicts(
+      hit,
+      filters.avoidTerms,
+      source,
+    )) {
+      const conflictKey = `${hit.productId}\u0000${conflict.term}`;
+
+      if (recordedAvoidTermConflicts.has(conflictKey)) {
+        continue;
+      }
+
+      recordedAvoidTermConflicts.add(conflictKey);
       failureReasons.add("unexpected_result");
-      notes.push(`Hit product_id ${hit.productId} contains an avoided term.`);
+      notes.push(
+        `Hit product_id ${hit.productId} violates avoidTerm "${conflict.term}" (${conflict.result.reason}): ${formatEvidence(conflict.result.evidence)}`,
+      );
     }
   }
 }
@@ -279,26 +313,30 @@ function matchesExpectedCategory(
   return true;
 }
 
-function containsAvoidTerm(
+function findAvoidTermConflicts(
   hit: VectorSearchHit,
   avoidTerms: string[] | undefined,
-): boolean {
+  product: VectorEvaluationProductSnapshot,
+): Array<{
+  term: string;
+  result: NegativeConstraintEvidenceResult;
+}> {
   const terms = normalizeTerms(avoidTerms);
 
   if (terms.length === 0) {
-    return false;
+    return [];
   }
 
-  const haystack = [
-    hit.metadata.brand,
-    hit.snippet,
-    ...hit.metadata.tags,
-    ...hit.metadata.avoidWhen,
-  ].map((value) => value.toLowerCase());
+  return terms.flatMap((term) => {
+    const result = evaluateNegativeConstraintEvidence({
+      term,
+      kind: "unknown",
+      matchPolicy: "exclude_if_product_facts_conflict",
+      productFacts: createProductFacts(hit, product),
+    });
 
-  return terms.some((term) =>
-    haystack.some((value) => value.includes(term)),
-  );
+    return result.conflicts ? [{ term, result }] : [];
+  });
 }
 
 function normalizeTerms(values: string[] | undefined): string[] {
@@ -307,6 +345,46 @@ function normalizeTerms(values: string[] | undefined): string[] {
         .map((value) => value.trim().toLowerCase())
         .filter((value) => value.length > 0)
     : [];
+}
+
+function createProductFacts(
+  hit: VectorSearchHit,
+  product: VectorEvaluationProductSnapshot,
+): NegativeConstraintProductFacts {
+  return {
+    id: product.productId,
+    name: product.name,
+    brand: product.brand,
+    category: product.category,
+    subCategory: product.subCategory,
+    tags: product.tags,
+    recommendWhen: product.recommendWhen,
+    avoidWhen: product.avoidWhen,
+    pros: product.pros,
+    cons: product.cons,
+    attributes: product.attributes,
+    marketingDescription: product.marketingDescription,
+    knowledgeText: product.knowledgeText,
+    snippets: [hit.snippet],
+    reviewSummary: product.reviewSummary,
+    contentBlocks: product.contentBlocks,
+    officialFaq: product.officialFaq,
+    userReviews: product.userReviews,
+  };
+}
+
+function formatEvidence(evidence: string[]): string {
+  return evidence.length > 0
+    ? evidence.map((item) => truncateText(item)).join(" | ")
+    : "no evidence";
+}
+
+function truncateText(value: string, maxLength = 220): string {
+  const normalized = value.replace(/\s+/gu, " ").trim();
+
+  return normalized.length <= maxLength
+    ? normalized
+    : `${normalized.slice(0, maxLength - 1)}…`;
 }
 
 function hasMeaningfulFilters(filters: VectorSearchFilters): boolean {

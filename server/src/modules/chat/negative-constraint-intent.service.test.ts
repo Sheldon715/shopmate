@@ -5,23 +5,28 @@ import { NegativeConstraintIntentService } from "./negative-constraint-intent.se
 
 describe("NegativeConstraintIntentService", () => {
   it("parses alcohol-free ingredient constraints", async () => {
+    let capturedMaxCompletionTokens: number | undefined;
     const service = new NegativeConstraintIntentService({
       llmClient: new MockLlmClient({
-        response: createLlmResponse({
-          has_negative_constraints: true,
-          confidence: "high",
-          constraints: [
-            {
-              raw_text: "不要含酒精",
-              term: "酒精",
-              kind: "ingredient",
-              scope: "product",
-              match_policy: "exclude_if_product_facts_conflict",
-            },
-          ],
-          needs_clarification: false,
-          clarification_question: null,
-        }),
+        handler: (request) => {
+          capturedMaxCompletionTokens = request.maxCompletionTokens;
+
+          return createLlmResponse({
+            has_negative_constraints: true,
+            confidence: "high",
+            constraints: [
+              {
+                raw_text: "不要含酒精",
+                term: "酒精",
+                kind: "ingredient",
+                scope: "product",
+                match_policy: "exclude_if_product_facts_conflict",
+              },
+            ],
+            needs_clarification: false,
+            clarification_question: null,
+          });
+        },
       }),
     });
 
@@ -43,6 +48,7 @@ describe("NegativeConstraintIntentService", () => {
         },
       ],
     });
+    expect(capturedMaxCompletionTokens).toBe(900);
   });
 
   it("parses except-brand constraints", async () => {
@@ -79,6 +85,47 @@ describe("NegativeConstraintIntentService", () => {
         matchPolicy: "exclude_brand",
       },
     ]);
+  });
+
+  it("accepts camelCase model fields", async () => {
+    const service = new NegativeConstraintIntentService({
+      llmClient: new MockLlmClient({
+        response: createLlmResponse({
+          hasNegativeConstraints: true,
+          confidence: "high",
+          constraints: [
+            {
+              rawText: "不要入耳式",
+              term: "入耳",
+              kind: "feature",
+              scope: "product",
+              matchPolicy: "exclude_if_product_facts_conflict",
+            },
+          ],
+          needsClarification: false,
+          clarificationQuestion: null,
+        }),
+      }),
+    });
+
+    const result = await service.detect({
+      question: "耳机不要入耳式",
+    });
+
+    expect(result).toMatchObject({
+      hasNegativeConstraints: true,
+      confidence: "high",
+      needsClarification: false,
+      constraints: [
+        {
+          rawText: "不要入耳式",
+          term: "入耳",
+          kind: "feature",
+          scope: "product",
+          matchPolicy: "exclude_if_product_facts_conflict",
+        },
+      ],
+    });
   });
 
   it("does not turn price wording into an avoid term", async () => {

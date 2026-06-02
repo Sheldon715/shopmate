@@ -132,6 +132,75 @@ describe("evaluateSingleCase", () => {
     expect(result.passed).toBe(false);
     expect(result.failureReasons).toContain("unexpected_result");
   });
+
+  it("does not fail avoidTerms when a hit only has explicit free-from evidence", () => {
+    const hit = createHit({
+      productId: "p_beauty_006",
+      subCategory: "防晒",
+      snippet: "这款隔离露不含酒精、香精和 parabens 防腐剂。",
+    });
+    const result = evaluateSingleCase({
+      evaluationCase: createCase({
+        filters: {
+          category: "美妆护肤",
+          subCategory: "防晒",
+          avoidTerms: ["酒精"],
+          availableOnly: true,
+        },
+        expectedSubCategory: "防晒",
+        expectedProductIdsAny: ["p_beauty_006"],
+      }),
+      hits: [hit],
+      productsById: new Map([[
+        hit.productId,
+        createProductSnapshot(hit, {
+          officialFaq: [
+            {
+              question: "有没有酒精成分？",
+              answer: "这款隔离露不含酒精，敏感肌建议先测试。",
+            },
+          ],
+        }),
+      ]]),
+      generatedAt: GENERATED_AT,
+    });
+
+    expect(result.passed).toBe(true);
+    expect(result.failureReasons).toEqual([]);
+  });
+
+  it("fails avoidTerms when product facts contain explicit risk evidence", () => {
+    const hit = createHit({
+      productId: "p_beauty_010",
+      subCategory: "防晒",
+      snippet: "敏感肌使用前建议先测试。",
+    });
+    const result = evaluateSingleCase({
+      evaluationCase: createCase({
+        filters: {
+          category: "美妆护肤",
+          subCategory: "防晒",
+          avoidTerms: ["酒精"],
+          availableOnly: true,
+        },
+        expectedSubCategory: "防晒",
+        expectedProductIdsAny: ["p_beauty_010"],
+      }),
+      hits: [hit],
+      productsById: new Map([[
+        hit.productId,
+        createProductSnapshot(hit, {
+          avoidWhen: ["酒精敏感人群慎用"],
+        }),
+      ]]),
+      generatedAt: GENERATED_AT,
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.failureReasons).toContain("unexpected_result");
+    expect(result.notes.join("\n")).toContain("avoidTerm \"酒精\" (strict_risk_fact)");
+    expect(result.notes.join("\n")).toContain("p_beauty_010");
+  });
 });
 
 describe("evaluateVectorSearchCases", () => {
@@ -207,6 +276,8 @@ function createCase(
 function createHit(
   overrides: Partial<{
     productId: string;
+    brand: string;
+    snippet: string;
     category: string;
     subCategory: string | null;
     priceMinCents: number;
@@ -222,12 +293,12 @@ function createHit(
     docId: `${productId}::description`,
     productId,
     score: 0.91,
-    snippet: "温和清洁洁面",
+    snippet: overrides.snippet ?? "温和清洁洁面",
     metadata: {
       docType: "description",
       category: overrides.category ?? "美妆护肤",
       subCategory: overrides.subCategory ?? "洁面",
-      brand: "珊珂",
+      brand: overrides.brand ?? "珊珂",
       tags: overrides.tags ?? ["美妆护肤", "洁面"],
       recommendWhen: ["日常护理"],
       avoidWhen: overrides.avoidWhen ?? [],
@@ -244,14 +315,30 @@ function createHit(
 
 function createProductSnapshot(
   hit: VectorSearchHit,
+  overrides: Partial<VectorEvaluationProductSnapshot> = {},
 ): VectorEvaluationProductSnapshot {
   return {
     productId: hit.productId,
     status: "active",
+    name: "Demo Product",
+    brand: hit.metadata.brand,
     category: hit.metadata.category,
     subCategory: hit.metadata.subCategory,
+    tags: hit.metadata.tags,
+    recommendWhen: hit.metadata.recommendWhen,
+    avoidWhen: hit.metadata.avoidWhen,
+    pros: [],
+    cons: [],
+    attributes: {},
+    marketingDescription: "",
+    knowledgeText: "",
+    reviewSummary: {},
+    contentBlocks: [],
+    officialFaq: [],
+    userReviews: [],
     priceMinCents: hit.metadata.priceMinCents,
     priceMaxCents: hit.metadata.priceMaxCents,
     available: hit.metadata.available,
+    ...overrides,
   };
 }

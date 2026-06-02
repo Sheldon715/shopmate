@@ -73,6 +73,33 @@ describe("filterContextsByNegativeConstraints", () => {
     ])).toEqual([]);
   });
 
+  it("keeps semi-in-ear products when the negative constraint only excludes in-ear", () => {
+    const contexts = [
+      createContext({
+        id: "semi_in_ear_product",
+        attributes: {
+          佩戴形态: ["半入耳式"],
+        },
+      }),
+      createContext({
+        id: "in_ear_product",
+        attributes: {
+          佩戴形态: ["入耳式"],
+        },
+      }),
+    ];
+
+    expect(filterContextsByNegativeConstraints(contexts, [
+      createConstraint({
+        term: "入耳",
+        kind: "feature",
+        matchPolicy: "exclude_if_product_facts_conflict",
+      }),
+    ]).map((context) => context.product.id)).toEqual([
+      "semi_in_ear_product",
+    ]);
+  });
+
   it("ignores clarification-only and price constraints", () => {
     const contexts = [createContext({ id: "product_001" })];
 

@@ -299,6 +299,77 @@ describe("ComparisonIntentService", () => {
     });
   });
 
+  it("keeps explicit two-recent-products comparison when both LLM checks miss", async () => {
+    let calls = 0;
+    const service = new ComparisonIntentService({
+      llmClient: new MockLlmClient({
+        handler: () => {
+          calls += 1;
+          return createLlmResponse({
+            is_comparison: false,
+            confidence: "high",
+            target: {
+              kind: "unknown",
+              ordinals: [],
+              names: [],
+            },
+            user_priority: null,
+            needs_clarification: false,
+            clarification_question: null,
+          });
+        },
+      }),
+    });
+
+    const result = await service.detect({
+      question: "帮我对比这两款",
+      recentProductIds: ["product_001", "product_002"],
+    });
+
+    expect(calls).toBe(2);
+    expect(result).toMatchObject({
+      isComparison: true,
+      confidence: "medium",
+      target: {
+        kind: "recent_recommendations",
+        ordinals: [1, 2],
+        names: [],
+      },
+      needsClarification: false,
+    });
+  });
+
+  it("does not guess demonstrative comparison targets when more than two products were recommended", async () => {
+    let calls = 0;
+    const service = new ComparisonIntentService({
+      llmClient: new MockLlmClient({
+        handler: () => {
+          calls += 1;
+          return createLlmResponse({
+            is_comparison: false,
+            confidence: "high",
+            target: {
+              kind: "unknown",
+              ordinals: [],
+              names: [],
+            },
+            user_priority: null,
+            needs_clarification: false,
+            clarification_question: null,
+          });
+        },
+      }),
+    });
+
+    const result = await service.detect({
+      question: "帮我对比这两款",
+      recentProductIds: ["product_001", "product_002", "product_003"],
+    });
+
+    expect(calls).toBe(2);
+    expect(result.isComparison).toBe(false);
+  });
+
   it("repairs explicit recent ordinals when LLM returns an unsupported target shape", async () => {
     const service = new ComparisonIntentService({
       llmClient: new MockLlmClient({

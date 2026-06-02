@@ -30,13 +30,16 @@ export interface ChatAnswerService {
 type SseWriteStatus = "ok" | "closed" | "serialization_error";
 
 export function createChatStreamController(
-  chatService: ChatAnswerService = new RagChatService(),
+  chatService?: ChatAnswerService,
 ) {
+  let defaultChatService: ChatAnswerService | undefined = chatService;
+
   return async function chatStreamController(
     request: Request,
     response: Response,
   ): Promise<void> {
-    await handleChatStream(request, response, chatService);
+    defaultChatService ??= new RagChatService();
+    await handleChatStream(request, response, defaultChatService);
   };
 }
 

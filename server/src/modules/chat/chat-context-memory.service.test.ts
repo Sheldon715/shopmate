@@ -277,7 +277,7 @@ describe("ChatContextMemoryService", () => {
     expect(followUp.filters?.subCategory).toBeUndefined();
   });
 
-  it("uses remembered avoid terms as vector filters on follow-up turns", () => {
+  it("uses remembered avoid terms as fact constraints on follow-up turns", () => {
     const service = createService();
 
     service.commit(
@@ -298,11 +298,13 @@ describe("ChatContextMemoryService", () => {
     expect(followUp.filters).toMatchObject({
       category: "美妆护肤",
       subCategory: "防晒",
-      avoidTerms: ["酒精"],
     });
+    expect(followUp.filters?.avoidTerms).toBeUndefined();
+    expect(followUp.negativeConstraints).toHaveLength(1);
+    expect(followUp.contextMemory?.constraints.avoidTerms).toEqual(["酒精"]);
   });
 
-  it("applies LLM-confirmed negative constraints to memory and filters", () => {
+  it("applies LLM-confirmed negative constraints to memory and fact filters", () => {
     const service = createService();
     const resolution = service.applyNegativeConstraints(
       service.resolve({
@@ -316,13 +318,13 @@ describe("ChatContextMemoryService", () => {
     expect(resolution.filters).toMatchObject({
       category: "美妆护肤",
       subCategory: "防晒",
-      avoidTerms: ["酒精"],
     });
+    expect(resolution.filters?.avoidTerms).toBeUndefined();
     expect(resolution.negativeConstraints).toHaveLength(1);
     expect(summary?.constraints.avoidTerms).toEqual(["酒精"]);
   });
 
-  it("preserves explicit avoid terms when applying LLM-confirmed constraints", () => {
+  it("preserves explicit avoid terms as fact constraints when applying LLM-confirmed constraints", () => {
     const service = createService();
     const resolution = service.applyNegativeConstraints(
       service.resolve({
@@ -335,10 +337,41 @@ describe("ChatContextMemoryService", () => {
       [createNegativeConstraint("酒精")],
     );
 
-    expect(resolution.filters?.avoidTerms).toEqual(
+    expect(resolution.filters?.avoidTerms).toBeUndefined();
+    expect(resolution.negativeConstraints?.map((constraint) => constraint.term))
+      .toEqual(
       expect.arrayContaining(["香精", "酒精"]),
     );
-    expect(resolution.filters?.avoidTerms).toHaveLength(2);
+    expect(resolution.negativeConstraints).toHaveLength(2);
+    expect(resolution.contextMemory?.constraints.avoidTerms).toEqual(
+      expect.arrayContaining(["香精", "酒精"]),
+    );
+  });
+
+  it("turns explicit no-memory avoid terms into fact constraints without vector avoidTerms", () => {
+    const service = createService();
+    const resolution = service.resolve({
+      question: "推荐防晒霜",
+      filters: {
+        category: "美妆护肤",
+        subCategory: "防晒",
+        avoidTerms: ["酒精"],
+      },
+    });
+
+    expect(resolution.filters).toEqual({
+      category: "美妆护肤",
+      subCategory: "防晒",
+    });
+    expect(resolution.negativeConstraints).toEqual([
+      {
+        rawText: "酒精",
+        term: "酒精",
+        kind: "unknown",
+        scope: "product",
+        matchPolicy: "exclude_if_product_facts_conflict",
+      },
+    ]);
   });
 });
 

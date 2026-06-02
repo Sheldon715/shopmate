@@ -449,7 +449,7 @@ describe("RagChatService", () => {
     expect(result.contextMemory?.pendingClarification).toBeUndefined();
   });
 
-  it("passes remembered negative constraints into vector filters", async () => {
+  it("keeps fact-based negative constraints out of vector avoidTerms", async () => {
     const vectorCalls: Array<Parameters<RagVectorSearchClient["search"]>[0]> = [];
     const service = new RagChatService(withNoCartIntent({
       vectorSearch: {
@@ -493,8 +493,8 @@ describe("RagChatService", () => {
     expect(vectorCalls[0]?.filters).toMatchObject({
       category: "美妆护肤",
       subCategory: "防晒",
-      avoidTerms: ["酒精"],
     });
+    expect(vectorCalls[0]?.filters?.avoidTerms).toBeUndefined();
   });
 
   it("does not derive current-turn negative filters from regex when LLM finds no constraint", async () => {
@@ -589,6 +589,64 @@ describe("RagChatService", () => {
     expect(result.fallbackUsed).toBe(false);
     expect(result.recommendedProductIds).toEqual(["product_002"]);
     expect(result.productCards.map((card) => card.id)).toEqual(["product_002"]);
+  });
+
+  it("uses explicit avoidTerms as fact constraints without vector avoidTerms", async () => {
+    const vectorCalls: Array<Parameters<RagVectorSearchClient["search"]>[0]> = [];
+    const service = new RagChatService(withNoCartIntent({
+      vectorSearch: {
+        search: async (input) => {
+          vectorCalls.push(input);
+          return [
+            createHit("product_001"),
+            createHit("product_002"),
+          ];
+        },
+      },
+      productReader: {
+        findActiveByIds: async () => [
+          createProduct({
+            id: "product_001",
+            name: "Alcohol Risk Sunscreen",
+            avoidWhen: ["酒精敏感人群"],
+            marketingDescription: "部分敏感肌可能对酒精敏感。",
+          }),
+          createProduct({
+            id: "product_002",
+            name: "Alcohol Free Sunscreen",
+            marketingDescription: "这款隔离露不含酒精，适合日常通勤。",
+          }),
+        ],
+      },
+      clarificationIntentService: {
+        decide: async () => ({
+          needsClarification: false,
+          missingSlots: [],
+        }),
+      },
+      llmClient: new MockLlmClient({
+        response: createLlmResponse(JSON.stringify({
+          answer: "Use alcohol-free product 2.",
+          recommended_product_ids: ["product_001", "product_002"],
+        })),
+      }),
+    }));
+
+    const result = await service.answer({
+      question: "推荐防晒霜",
+      filters: {
+        category: "美妆护肤",
+        subCategory: "防晒",
+        avoidTerms: ["酒精"],
+      },
+    });
+
+    expect(vectorCalls).toHaveLength(1);
+    expect(vectorCalls[0]?.filters).toEqual({
+      category: "美妆护肤",
+      subCategory: "防晒",
+    });
+    expect(result.recommendedProductIds).toEqual(["product_002"]);
   });
 
   it("returns LLM-generated negative clarification before vector search", async () => {
