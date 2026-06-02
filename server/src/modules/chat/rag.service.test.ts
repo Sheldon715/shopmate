@@ -8,6 +8,7 @@ import type { Product } from "../products/product.types";
 import type { VectorSearchHit } from "../vector/vector-search.types";
 import { ChatContextMemoryStore } from "./chat-context-memory.store";
 import { ChatContextMemoryService } from "./chat-context-memory.service";
+import { ComparisonGenerationOutputError } from "./comparison-generation.service";
 import {
   PopularQueryCacheService,
   type PopularQueryCache,
@@ -508,6 +509,13 @@ describe("RagChatService", () => {
       productReader: createProductReader(),
       negativeConstraintIntentService: {
         detect: async () => NO_NEGATIVE_CONSTRAINTS,
+      },
+      comparisonIntentService: createNoComparisonIntentService(),
+      clarificationIntentService: {
+        decide: async () => ({
+          needsClarification: false,
+          missingSlots: [],
+        }),
       },
       llmClient: new MockLlmClient({
         response: createLlmResponse(JSON.stringify({
@@ -1080,6 +1088,13 @@ describe("RagChatService", () => {
       negativeConstraintIntentService: {
         detect: async () => NO_NEGATIVE_CONSTRAINTS,
       },
+      comparisonIntentService: createNoComparisonIntentService(),
+      clarificationIntentService: {
+        decide: async () => ({
+          needsClarification: false,
+          missingSlots: [],
+        }),
+      },
       llmClient: new MockLlmClient({
         handler: (request) => {
           llmRequests.push(request);
@@ -1138,6 +1153,13 @@ describe("RagChatService", () => {
       contextMemoryService: new ChatContextMemoryService({ store }),
       negativeConstraintIntentService: {
         detect: async () => NO_NEGATIVE_CONSTRAINTS,
+      },
+      comparisonIntentService: createNoComparisonIntentService(),
+      clarificationIntentService: {
+        decide: async () => ({
+          needsClarification: false,
+          missingSlots: [],
+        }),
       },
       llmClient: new MockLlmClient({
         handler: () => {
@@ -1659,6 +1681,13 @@ describe("RagChatService", () => {
       negativeConstraintIntentService: {
         detect: async () => NO_NEGATIVE_CONSTRAINTS,
       },
+      comparisonIntentService: createNoComparisonIntentService(),
+      clarificationIntentService: {
+        decide: async () => ({
+          needsClarification: false,
+          missingSlots: [],
+        }),
+      },
       llmClient: new MockLlmClient({
         handler: (request) => {
           llmRequests.push(request);
@@ -1684,6 +1713,258 @@ describe("RagChatService", () => {
     expect(llmRequests).toHaveLength(2);
     expect(result.cartAction).toBeUndefined();
     expect(result.recommendedProductIds).toEqual(["product_002"]);
+  });
+
+  it("returns comparison result from recent recommendations before RAG and cache", async () => {
+    const store = createStoreWithRecentRecommendations([
+      "product_001",
+      "product_002",
+    ]);
+    let vectorSearchCalled = false;
+    let clarificationCalled = false;
+    let cacheGetCalled = false;
+    let cacheSetCalled = false;
+    const service = new RagChatService(withNoCartIntent({
+      vectorSearch: {
+        search: async () => {
+          vectorSearchCalled = true;
+          return [];
+        },
+      },
+      productReader: createProductReader(),
+      contextMemoryService: new ChatContextMemoryService({ store }),
+      comparisonIntentService: {
+        detect: async () => ({
+          isComparison: true,
+          confidence: "high",
+          target: {
+            kind: "recent_recommendations",
+            ordinals: [1, 2],
+            names: [],
+          },
+          userPriority: "通勤",
+          needsClarification: false,
+        }),
+      },
+      comparisonGenerationService: {
+        generate: async (input) => {
+          expect(input.products.map((context) => context.product.id)).toEqual([
+            "product_001",
+            "product_002",
+          ]);
+          return {
+            answer: "我按通勤佩戴、预算和续航做了对比。",
+            title: "通勤耳机对比",
+            products: [
+              { productId: "product_001", displayLabel: "Product 1" },
+              { productId: "product_002", displayLabel: "Product 2" },
+            ],
+            dimensions: [
+              {
+                id: "commute",
+                label: "通勤",
+                cells: [
+                  {
+                    productId: "product_001",
+                    value: "更轻便。",
+                    highlight: true,
+                  },
+                  {
+                    productId: "product_002",
+                    value: "续航更长。",
+                  },
+                ],
+              },
+            ],
+            recommendedProductId: "product_001",
+            conclusion: "日常通勤优先看 Product 1。",
+            highlights: [
+              {
+                productId: "product_001",
+                label: "通勤",
+                text: "更轻便。",
+              },
+            ],
+          };
+        },
+      },
+      clarificationIntentService: {
+        decide: async () => {
+          clarificationCalled = true;
+          return {
+            needsClarification: false,
+            missingSlots: [],
+          };
+        },
+      },
+      popularQueryCacheVersionReader: createCacheVersionReader(),
+      popularQueryCache: createFakeCache({
+        onGet: () => {
+          cacheGetCalled = true;
+        },
+        onSet: () => {
+          cacheSetCalled = true;
+        },
+      }),
+    }));
+
+    const result = await service.answer({
+      conversationId: "cart-demo-1",
+      question: "帮我对比这两款，哪个更适合通勤",
+    });
+
+    expect(vectorSearchCalled).toBe(false);
+    expect(clarificationCalled).toBe(false);
+    expect(cacheGetCalled).toBe(false);
+    expect(cacheSetCalled).toBe(false);
+    expect(result.fallbackUsed).toBe(false);
+    expect(result.recommendedProductIds).toEqual(["product_001", "product_002"]);
+    expect(result.comparisonResult).toMatchObject({
+      title: "通勤耳机对比",
+      query: "帮我对比这两款，哪个更适合通勤",
+      productIds: ["product_001", "product_002"],
+      recommendedProductId: "product_001",
+    });
+    expect(result.comparisonResult?.dimensions[0]?.cells).toHaveLength(2);
+  });
+
+  it("asks the user to choose two products when comparison targets exceed two", async () => {
+    const store = createStoreWithRecentRecommendations([
+      "product_001",
+      "product_002",
+      "product_003",
+    ]);
+    let vectorSearchCalled = false;
+    let generationCalled = false;
+    const service = new RagChatService(withNoCartIntent({
+      vectorSearch: {
+        search: async () => {
+          vectorSearchCalled = true;
+          return [];
+        },
+      },
+      productReader: createProductReader(),
+      contextMemoryService: new ChatContextMemoryService({ store }),
+      comparisonIntentService: {
+        detect: async () => ({
+          isComparison: true,
+          confidence: "high",
+          target: {
+            kind: "recent_recommendations",
+            ordinals: [1, 2, 3],
+            names: [],
+          },
+          userPriority: "油皮通勤",
+          needsClarification: true,
+          clarificationQuestion: "目前只支持两款商品对比，请从这三款里选两款。",
+        }),
+      },
+      comparisonGenerationService: {
+        generate: async () => {
+          generationCalled = true;
+          throw new Error("comparison generation should not run");
+        },
+      },
+      popularQueryCacheVersionReader: createCacheVersionReader(),
+    }));
+
+    const result = await service.answer({
+      conversationId: "comparison-demo-3",
+      question: "对比一下这三款，哪个更适合油皮通勤",
+    });
+
+    expect(vectorSearchCalled).toBe(false);
+    expect(generationCalled).toBe(false);
+    expect(result.answer).toBe("目前只支持两款商品对比，请从这三款里选两款。");
+    expect(result.fallbackReason).toBe("NEEDS_CLARIFICATION");
+    expect(result.productCards).toEqual([]);
+    expect(result.comparisonResult).toBeUndefined();
+  });
+
+  it("asks the user to choose two products when recent comparison has more than two candidates without ordinals", async () => {
+    const store = createStoreWithRecentRecommendations([
+      "product_001",
+      "product_002",
+      "product_003",
+    ]);
+    let generationCalled = false;
+    const service = new RagChatService(withNoCartIntent({
+      vectorSearch: createVectorSearch([]),
+      productReader: createProductReader(),
+      contextMemoryService: new ChatContextMemoryService({ store }),
+      comparisonIntentService: {
+        detect: async () => ({
+          isComparison: true,
+          confidence: "high",
+          target: {
+            kind: "recent_recommendations",
+            ordinals: [],
+            names: [],
+          },
+          userPriority: "油皮通勤",
+          needsClarification: false,
+        }),
+      },
+      comparisonGenerationService: {
+        generate: async () => {
+          generationCalled = true;
+          throw new Error("comparison generation should not run");
+        },
+      },
+      popularQueryCacheVersionReader: createCacheVersionReader(),
+    }));
+
+    const result = await service.answer({
+      conversationId: "cart-demo-1",
+      question: "对比一下这几款，哪个更适合油皮通勤",
+    });
+
+    expect(generationCalled).toBe(false);
+    expect(result.answer).toBe("目前只支持两款商品对比，请从这些商品里选两款。");
+    expect(result.fallbackReason).toBe("NEEDS_CLARIFICATION");
+    expect(result.comparisonResult).toBeUndefined();
+  });
+
+  it("does not send comparison result when comparison generation is invalid", async () => {
+    const store = createStoreWithRecentRecommendations([
+      "product_001",
+      "product_002",
+    ]);
+    const service = new RagChatService(withNoCartIntent({
+      vectorSearch: createVectorSearch([]),
+      productReader: createProductReader(),
+      contextMemoryService: new ChatContextMemoryService({ store }),
+      comparisonIntentService: {
+        detect: async () => ({
+          isComparison: true,
+          confidence: "high",
+          target: {
+            kind: "recent_recommendations",
+            ordinals: [1, 2],
+            names: [],
+          },
+          needsClarification: false,
+        }),
+      },
+      comparisonGenerationService: {
+        generate: async () => {
+          throw new ComparisonGenerationOutputError("invalid comparison");
+        },
+      },
+    }));
+
+    const result = await service.answer({
+      conversationId: "cart-demo-1",
+      question: "帮我对比这两款",
+    });
+
+    expect(result.fallbackUsed).toBe(true);
+    expect(result.fallbackReason).toBe("LLM_INVALID_OUTPUT");
+    expect(result.comparisonResult).toBeUndefined();
+    expect(result.productCards.map((card) => card.id)).toEqual([
+      "product_001",
+      "product_002",
+    ]);
   });
 
   it("uses invalid-output fallback for malformed LLM JSON", async () => {
@@ -1736,6 +2017,24 @@ function withNoCartIntent(
       ?? {
         detect: async () => NO_NEGATIVE_CONSTRAINTS,
       },
+    comparisonIntentService:
+      options.comparisonIntentService
+      ?? createNoComparisonIntentService(),
+  };
+}
+
+function createNoComparisonIntentService() {
+  return {
+    detect: async () => ({
+      isComparison: false,
+      confidence: "low" as const,
+      target: {
+        kind: "unknown" as const,
+        ordinals: [],
+        names: [],
+      },
+      needsClarification: false,
+    }),
   };
 }
 
@@ -1852,11 +2151,15 @@ function createCacheVersionReader() {
 
 function createFakeCache(input: {
   hit?: PopularQueryCacheHit | null;
+  onGet?: () => void;
   onSet?: (cacheInput: PopularQueryCacheWriteInput) => void;
   onDelete?: () => void;
 }): PopularQueryCache {
   return {
-    get: async () => input.hit ?? null,
+    get: async () => {
+      input.onGet?.();
+      return input.hit ?? null;
+    },
     set: async (cacheInput) => {
       input.onSet?.(cacheInput);
     },

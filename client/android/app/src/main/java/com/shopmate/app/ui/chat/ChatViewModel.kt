@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.shopmate.app.data.chat.ChatCartActionDto
 import com.shopmate.app.data.chat.ChatRepository
 import com.shopmate.app.data.chat.ChatStreamEvent
+import com.shopmate.app.data.chat.toComparisonUi
 import com.shopmate.app.data.chat.toProductCardUiList
 import com.shopmate.app.data.network.ShopMateImageUrlResolver
 import com.shopmate.app.ui.model.HistoryConversationUi
@@ -36,6 +37,9 @@ class ChatViewModel(
     private var sessionSequence = 0
     private var currentSessionId: String? = null
     private var preservingProductCardsForCurrentStream = false
+    private var preservingExistingProductCardsForCurrentStream = false
+    private var latestStreamProductCards: List<ProductCardUi> = emptyList()
+    private var preStreamProductCards: List<ProductCardUi> = emptyList()
     private var voicePendingMessageId: String? = null
     private val sessionSnapshots = mutableMapOf<String, ChatSessionSnapshot>()
 
@@ -189,6 +193,9 @@ class ChatViewModel(
         streamJob?.cancel()
         streamJob = null
         preservingProductCardsForCurrentStream = false
+        preservingExistingProductCardsForCurrentStream = false
+        latestStreamProductCards = emptyList()
+        preStreamProductCards = emptyList()
         voicePendingMessageId = null
         lastSentMessage = null
         currentSessionId = null
@@ -205,6 +212,10 @@ class ChatViewModel(
 
         streamJob?.cancel()
         streamJob = null
+        preservingProductCardsForCurrentStream = false
+        preservingExistingProductCardsForCurrentStream = false
+        latestStreamProductCards = emptyList()
+        preStreamProductCards = emptyList()
         currentSessionId = conversationId
         lastSentMessage = snapshot.messages.lastOrNull { message -> message.fromUser }?.text
 
@@ -213,6 +224,8 @@ class ChatViewModel(
                 messages = snapshot.messages,
                 productCards = snapshot.productCards,
                 productCardsAnchorMessageId = snapshot.productCardsAnchorMessageId,
+                comparisonResults = snapshot.comparisonResults,
+                comparisonActions = snapshot.comparisonActions,
                 composerText = "",
                 isSending = false,
                 errorMessage = null,
@@ -254,6 +267,9 @@ class ChatViewModel(
             streamJob?.cancel()
             streamJob = null
             preservingProductCardsForCurrentStream = false
+            preservingExistingProductCardsForCurrentStream = false
+            latestStreamProductCards = emptyList()
+            preStreamProductCards = emptyList()
             voicePendingMessageId = null
             currentSessionId = null
             lastSentMessage = null
@@ -274,8 +290,19 @@ class ChatViewModel(
 
     fun editableHistoryConversationIds(): Set<String> = sessionSnapshots.keys.toSet()
 
+    fun findComparison(comparisonId: String) =
+        _uiState.value.comparisonResults.firstOrNull { comparison ->
+            comparison.id == comparisonId
+        } ?: sessionSnapshots.values
+            .asSequence()
+            .flatMap { snapshot -> snapshot.comparisonResults.asSequence() }
+            .firstOrNull { comparison -> comparison.id == comparisonId }
+
     private fun ChatUiState.hasActiveConversation(): Boolean =
-        messages.any { message -> !message.isVoiceTranscribing } || productCards.isNotEmpty() || isSending
+        messages.any { message -> !message.isVoiceTranscribing } ||
+            productCards.isNotEmpty() ||
+            comparisonActions.isNotEmpty() ||
+            isSending
 
     private fun saveCurrentSession(state: ChatUiState): List<HistoryConversationUi> {
         if (!state.hasActiveConversation()) {
@@ -290,6 +317,8 @@ class ChatViewModel(
             messages = snapshotMessages,
             productCards = state.productCards,
             productCardsAnchorMessageId = state.productCardsAnchorMessageId,
+            comparisonResults = state.comparisonResults,
+            comparisonActions = state.comparisonActions,
         )
         sessionSnapshots[sessionId] = snapshot
 
@@ -343,6 +372,8 @@ class ChatViewModel(
         val messages: List<ChatMessageUi>,
         val productCards: List<ProductCardUi>,
         val productCardsAnchorMessageId: String?,
+        val comparisonResults: List<com.shopmate.app.ui.model.ComparisonUi>,
+        val comparisonActions: List<ChatComparisonActionUi>,
     )
 
     private fun startStream(
@@ -354,6 +385,9 @@ class ChatViewModel(
         streamJob?.cancel()
         lastSentMessage = message
         preservingProductCardsForCurrentStream = false
+        preservingExistingProductCardsForCurrentStream = false
+        latestStreamProductCards = emptyList()
+        preStreamProductCards = _uiState.value.productCards
         voicePendingMessageId = null
         val conversationId = currentSessionId ?: nextSessionId().also { id ->
             currentSessionId = id
@@ -372,6 +406,7 @@ class ChatViewModel(
         )
         val shouldKeepProductCards = shouldKeepProductCardsForMessage(message)
         preservingProductCardsForCurrentStream = shouldKeepProductCards
+        preservingExistingProductCardsForCurrentStream = isComparisonFollowUpMessage(message)
 
         _uiState.update { state ->
             val (sessionId, historyConversations) = ensureCurrentSessionHistory(
@@ -384,12 +419,16 @@ class ChatViewModel(
                 messages = history + userMessage + assistantMessage.copy(isStreaming = false),
                 productCards = nextProductCards,
                 productCardsAnchorMessageId = state.productCardsAnchorMessageId,
+                comparisonResults = state.comparisonResults,
+                comparisonActions = state.comparisonActions,
             )
 
             state.copy(
                 messages = history + userMessage + assistantMessage,
                 productCards = nextProductCards,
                 productCardsAnchorMessageId = state.productCardsAnchorMessageId,
+                comparisonResults = state.comparisonResults,
+                comparisonActions = state.comparisonActions,
                 historyConversations = historyConversations,
                 composerText = if (clearComposer) "" else state.composerText,
                 isSending = true,
@@ -419,12 +458,22 @@ class ChatViewModel(
         when (event) {
             is ChatStreamEvent.MessageDelta -> appendAssistantDelta(event.text)
             is ChatStreamEvent.ProductCards -> {
+                val incomingProductCards = event.items.toProductCardUiList(imageUrlResolver)
+                latestStreamProductCards = incomingProductCards
                 _uiState.update { state ->
                     val lastAssistantId = state.messages.lastOrNull { message ->
                         !message.fromUser
                     }?.id
+                    val nextProductCards =
+                        if (preservingExistingProductCardsForCurrentStream && state.productCards.isNotEmpty()) {
+                            state.productCards
+                        } else if (preservingProductCardsForCurrentStream && incomingProductCards.isEmpty()) {
+                            state.productCards
+                        } else {
+                            incomingProductCards
+                        }
                     state.copy(
-                        productCards = event.items.toProductCardUiList(imageUrlResolver),
+                        productCards = nextProductCards,
                         productCardsAnchorMessageId = if (preservingProductCardsForCurrentStream) {
                             state.productCardsAnchorMessageId
                         } else {
@@ -432,6 +481,29 @@ class ChatViewModel(
                         },
                     )
                         .also(::saveCurrentSession)
+                }
+            }
+
+            is ChatStreamEvent.ComparisonResult -> {
+                _uiState.update { state ->
+                    val assistantMessage = state.messages.lastOrNull { message ->
+                        !message.fromUser
+                    }
+                    val comparison = event.result.toComparisonUi(
+                        products = state.comparisonProductCandidates(),
+                        assistantText = assistantMessage?.text.orEmpty(),
+                    ) ?: return@update state
+                    val action = ChatComparisonActionUi(
+                        comparisonId = comparison.id,
+                        title = comparison.title,
+                        summaryText = comparison.summaryText,
+                        anchorMessageId = assistantMessage?.id.orEmpty(),
+                    )
+
+                    state.copy(
+                        comparisonResults = state.comparisonResults.upsertComparison(comparison),
+                        comparisonActions = state.comparisonActions.upsertComparisonAction(action),
+                    ).also(::saveCurrentSession)
                 }
             }
 
@@ -454,6 +526,9 @@ class ChatViewModel(
                     ).also(::saveCurrentSession)
                 }
                 preservingProductCardsForCurrentStream = false
+                preservingExistingProductCardsForCurrentStream = false
+                latestStreamProductCards = emptyList()
+                preStreamProductCards = emptyList()
             }
 
             is ChatStreamEvent.Error -> {
@@ -466,6 +541,9 @@ class ChatViewModel(
                     ).also(::saveCurrentSession)
                 }
                 preservingProductCardsForCurrentStream = false
+                preservingExistingProductCardsForCurrentStream = false
+                latestStreamProductCards = emptyList()
+                preStreamProductCards = emptyList()
             }
 
             is ChatStreamEvent.Unknown -> Unit
@@ -481,6 +559,11 @@ class ChatViewModel(
             ).also(::saveCurrentSession)
         }
     }
+
+    private fun ChatUiState.comparisonProductCandidates(): List<ProductCardUi> =
+        (latestStreamProductCards + productCards + preStreamProductCards + comparisonResults.flatMap { comparison ->
+            comparison.products
+        }).dedupeProductCardsById()
 
     private fun emitCartActionSideEffect(cartAction: ChatCartActionDto?) {
         if (cartAction == null || cartAction.status != CART_ACTION_SUCCESS_STATUS) {
@@ -506,6 +589,9 @@ class ChatViewModel(
             ).also(::saveCurrentSession)
         }
         preservingProductCardsForCurrentStream = false
+        preservingExistingProductCardsForCurrentStream = false
+        latestStreamProductCards = emptyList()
+        preStreamProductCards = emptyList()
     }
 
     private fun applyIncompleteStreamCompletion() {
@@ -522,6 +608,9 @@ class ChatViewModel(
             }
         }
         preservingProductCardsForCurrentStream = false
+        preservingExistingProductCardsForCurrentStream = false
+        latestStreamProductCards = emptyList()
+        preStreamProductCards = emptyList()
     }
 
     private fun nextMessageId(prefix: String): String {
@@ -570,6 +659,24 @@ private fun List<ChatMessageUi>.replaceLastAssistant(
 private fun List<ChatMessageUi>.markAssistantDone(): List<ChatMessageUi> =
     replaceLastAssistant { message -> message.copy(isStreaming = false) }
 
+private fun List<com.shopmate.app.ui.model.ComparisonUi>.upsertComparison(
+    comparison: com.shopmate.app.ui.model.ComparisonUi,
+): List<com.shopmate.app.ui.model.ComparisonUi> =
+    listOf(comparison) + filterNot { item -> item.id == comparison.id }
+
+private fun List<ChatComparisonActionUi>.upsertComparisonAction(
+    action: ChatComparisonActionUi,
+): List<ChatComparisonActionUi> =
+    listOf(action) + filterNot { item -> item.comparisonId == action.comparisonId }
+
+private fun List<ProductCardUi>.dedupeProductCardsById(): List<ProductCardUi> {
+    val seen = mutableSetOf<String>()
+
+    return filter { product ->
+        product.id.isNotBlank() && seen.add(product.id)
+    }
+}
+
 private fun ChatStreamEvent.Error.toDisplayMessage(): String =
     when (code) {
         "INVALID_CHAT_REQUEST" -> "消息格式不正确，请调整后再试。"
@@ -598,7 +705,36 @@ private fun shouldKeepProductCardsForMessage(message: String): Boolean {
     val hasTargetHint = Regex("第?\\d{1,2}|第?[一二两三四五六七八九十]|这个|这款|那款").containsMatchIn(normalized)
     val isAlsoOrdinalFollowUp = hasTargetHint && Regex("也|也是|一起|同样|也要").containsMatchIn(normalized)
 
-    return isAlsoOrdinalFollowUp || hasAddIntent && (hasCartContext || hasTargetHint)
+    return isComparisonFollowUpMessage(message) ||
+        isAlsoOrdinalFollowUp ||
+        hasAddIntent && (hasCartContext || hasTargetHint)
+}
+
+private fun isComparisonFollowUpMessage(message: String): Boolean {
+    val normalized = message.replace(Regex("\\s+"), "")
+    val ordinalPairPattern = Regex(
+        "第?[一二两三四五六七八九十0-9]{1,3}(个|款)?(和|跟|与|及|、|,|，|和第|跟第|与第|及第)" +
+            "第?[一二两三四五六七八九十0-9]{1,3}(个|款)?",
+    )
+    val hasComparisonCue = listOf("对比", "比较", "哪个更", "哪款更", "怎么选", "差异", "区别")
+        .any(normalized::contains)
+    val hasRecentComparisonTarget = listOf(
+        "这两款",
+        "这两个",
+        "这几款",
+        "第一款",
+        "第二款",
+        "第一个",
+        "第二个",
+        "第三款",
+        "第三个",
+        "1和2",
+        "2和3",
+        "一和二",
+        "二和三",
+    ).any(normalized::contains)
+
+    return hasComparisonCue && (hasRecentComparisonTarget || ordinalPairPattern.containsMatchIn(normalized))
 }
 
 private const val NEEDS_CLARIFICATION_REASON = "NEEDS_CLARIFICATION"

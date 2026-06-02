@@ -1,6 +1,7 @@
 package com.shopmate.app.ui.chat
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -15,7 +16,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -29,8 +32,10 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.shopmate.app.R
 import com.shopmate.app.data.mock.MockShopMateData
@@ -45,6 +50,7 @@ import com.shopmate.app.ui.components.scaledDp
 import com.shopmate.app.ui.model.HistoryConversationUi
 import com.shopmate.app.ui.model.ProductCardUi
 import com.shopmate.app.ui.sidebar.SidebarHistoryDrawer
+import com.shopmate.app.ui.theme.ShopMateGreen
 import com.shopmate.app.ui.theme.ShopMateTheme
 import com.shopmate.app.ui.theme.shopMateScreenBackground
 
@@ -61,6 +67,7 @@ fun ChatRecommendationScreen(
     onCartClick: () -> Unit,
     onProductClick: (String) -> Unit,
     onAddCartClick: (String) -> Unit,
+    onComparisonClick: (String) -> Unit,
     onHistoryClick: (HistoryConversationUi) -> Unit,
     historyConversations: List<HistoryConversationUi> = MockShopMateData.historyConversations,
     editableConversationIds: Set<String> = emptySet(),
@@ -94,6 +101,8 @@ fun ChatRecommendationScreen(
             state.messages.size,
             state.messages.lastOrNull()?.text,
             state.productCards.size,
+            state.comparisonActions.size,
+            state.comparisonResults.size,
             state.errorMessage,
         ) {
             withFrameNanos { }
@@ -116,6 +125,7 @@ fun ChatRecommendationScreen(
                 onCartClick = onCartClick,
                 onProductClick = onProductClick,
                 onAddCartClick = onAddCartClick,
+                onComparisonClick = onComparisonClick,
             )
         }
 
@@ -219,6 +229,7 @@ private fun ChatStreamColumnContent(
     onCartClick: () -> Unit,
     onProductClick: (String) -> Unit,
     onAddCartClick: (String) -> Unit,
+    onComparisonClick: (String) -> Unit,
 ) {
     fun Float.s(): Dp = scaledDp(scale)
 
@@ -241,6 +252,8 @@ private fun ChatStreamColumnContent(
             return@Column
         }
 
+        val messageIds = state.messages.map { message -> message.id }.toSet()
+
         state.messages.forEach { message ->
             ChatMessageItem(
                 message = message,
@@ -248,6 +261,14 @@ private fun ChatStreamColumnContent(
                 modifier = Modifier.align(
                     if (message.fromUser) Alignment.End else Alignment.Start,
                 ),
+            )
+
+            ComparisonEntryList(
+                actions = state.comparisonActions.filter { action ->
+                    action.anchorMessageId == message.id
+                },
+                scale = scale,
+                onComparisonClick = onComparisonClick,
             )
 
             if (message.id == state.productCardsAnchorMessageId) {
@@ -259,6 +280,14 @@ private fun ChatStreamColumnContent(
                 )
             }
         }
+
+        ComparisonEntryList(
+            actions = state.comparisonActions.filter { action ->
+                action.anchorMessageId !in messageIds
+            },
+            scale = scale,
+            onComparisonClick = onComparisonClick,
+        )
 
         if (state.productCardsAnchorMessageId == null) {
             ProductCardList(
@@ -279,6 +308,60 @@ private fun ChatStreamColumnContent(
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
                     .size(width = 352.667f.s(), height = 246f.s()),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ColumnScope.ComparisonEntryList(
+    actions: List<ChatComparisonActionUi>,
+    scale: Float,
+    onComparisonClick: (String) -> Unit,
+) {
+    fun Float.s(): Dp = scaledDp(scale)
+
+    actions.forEach { action ->
+        Column(
+            modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+                .padding(horizontal = 18f.s())
+                .fillMaxWidth()
+                .background(
+                    color = Color.White.copy(alpha = 0.98f),
+                    shape = RoundedCornerShape(18f.s()),
+                )
+                .padding(horizontal = 16f.s(), vertical = 12f.s()),
+        ) {
+            Text(
+                text = action.title.ifBlank { "商品对比详情" },
+                color = Color(0xFF172331),
+                fontSize = (14f * scale).sp,
+                lineHeight = (18f * scale).sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.sp,
+            )
+            if (action.summaryText.isNotBlank()) {
+                Text(
+                    text = action.summaryText,
+                    color = Color(0xFF65717C),
+                    fontSize = (11.5f * scale).sp,
+                    lineHeight = (16f * scale).sp,
+                    letterSpacing = 0.sp,
+                    modifier = Modifier.padding(top = 4f.s()),
+                )
+            }
+
+            Text(
+                text = "打开对比详情",
+                color = ShopMateGreen,
+                fontSize = (12.5f * scale).sp,
+                lineHeight = (16f * scale).sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.sp,
+                modifier = Modifier
+                    .padding(top = 10f.s())
+                    .clickable { onComparisonClick(action.comparisonId) },
             )
         }
     }
@@ -371,6 +454,7 @@ private fun ChatRecommendationScreenTargetPreview() {
             onCartClick = {},
             onProductClick = {},
             onAddCartClick = {},
+            onComparisonClick = {},
             onHistoryClick = {},
         )
     }
@@ -397,6 +481,7 @@ private fun ChatRecommendationScreenCompactPreview() {
             onCartClick = {},
             onProductClick = {},
             onAddCartClick = {},
+            onComparisonClick = {},
             onHistoryClick = {},
         )
     }
@@ -423,6 +508,7 @@ private fun ChatRecommendationScreenEmptyCompactPreview() {
             onCartClick = {},
             onProductClick = {},
             onAddCartClick = {},
+            onComparisonClick = {},
             onHistoryClick = {},
         )
     }

@@ -25,6 +25,7 @@ import type {
   VectorSearchHitMetadata,
 } from "../vector/vector-search.types";
 import type {
+  ChatComparisonResultPayload,
   ChatHistoryMessage,
   RagChatFallbackReason,
   RagChatRequest,
@@ -45,6 +46,16 @@ import type {
   ClarificationDecision,
   PendingClarification,
 } from "./clarification.types";
+import {
+  ComparisonGenerationOutputError,
+  ComparisonGenerationService,
+  type ComparisonGenerationProductContext,
+  type GeneratedComparisonOutput,
+} from "./comparison-generation.service";
+import {
+  ComparisonIntentService,
+  type ComparisonIntentResult,
+} from "./comparison-intent.service";
 import { filterContextsByNegativeConstraints } from "./negative-constraint-filter";
 import { NegativeConstraintIntentService } from "./negative-constraint-intent.service";
 import type {
@@ -111,6 +122,14 @@ export type RagNegativeConstraintIntentDetector = Pick<
   NegativeConstraintIntentService,
   "detect"
 >;
+export type RagComparisonIntentDetector = Pick<
+  ComparisonIntentService,
+  "detect"
+>;
+export type RagComparisonGenerator = Pick<
+  ComparisonGenerationService,
+  "generate"
+>;
 export type RagResponseGenerator = Pick<
   RagResponseGenerationService,
   "generateNoCandidatesResponse"
@@ -126,6 +145,8 @@ export interface RagChatServiceOptions {
   clarificationService?: ClarificationService;
   clarificationIntentService?: RagClarificationIntentDetector;
   negativeConstraintIntentService?: RagNegativeConstraintIntentDetector;
+  comparisonIntentService?: RagComparisonIntentDetector;
+  comparisonGenerationService?: RagComparisonGenerator;
   cartCommandService?: CartCommandService;
   cartCommandIntentService?: RagCartCommandIntentDetector;
   cartActionResponseService?: RagCartActionResponder;
@@ -145,12 +166,26 @@ interface RetrievedProductCandidate {
   metadata: VectorSearchHitMetadata;
 }
 
+type ComparisonTargetResolution =
+  | {
+      status: "ready";
+      contexts: RetrievedProductContext[];
+    }
+  | {
+      status: "needs_clarification";
+      question: string;
+      candidateCount?: number;
+    };
+
 const DEFAULT_MAX_RECOMMENDED_PRODUCTS = 3;
 const DEFAULT_MAX_SNIPPETS_PER_PRODUCT = 3;
 const DEFAULT_NEGATIVE_CONSTRAINT_TOP_K = 20;
 const RAG_LLM_MAX_COMPLETION_TOKENS = 2000;
 const MAX_CHAT_ANSWER_CHARS = 72;
 const CART_ACTIVE_PRODUCT_LOOKUP_LIMIT = 8;
+const COMPARISON_ACTIVE_PRODUCT_LOOKUP_LIMIT = 4;
+const COMPARISON_CATEGORY_SEARCH_TOP_K = 8;
+const COMPARISON_PRODUCT_COUNT = 2;
 
 export class RagChatError extends Error {
   readonly code = "INVALID_RAG_CHAT_REQUEST";
@@ -171,6 +206,8 @@ export class RagChatService {
   private readonly clarificationService: ClarificationService;
   private readonly clarificationIntentService: RagClarificationIntentDetector;
   private readonly negativeConstraintIntentService: RagNegativeConstraintIntentDetector;
+  private readonly comparisonIntentService: RagComparisonIntentDetector;
+  private readonly comparisonGenerationService: RagComparisonGenerator;
   private readonly cartCommandService: CartCommandService;
   private readonly cartCommandIntentService: RagCartCommandIntentDetector;
   private readonly cartActionResponseService: RagCartActionResponder;
@@ -200,6 +237,16 @@ export class RagChatService {
     this.negativeConstraintIntentService =
       options.negativeConstraintIntentService
       ?? new NegativeConstraintIntentService({
+        llmClient: this.llmClient,
+      });
+    this.comparisonIntentService =
+      options.comparisonIntentService
+      ?? new ComparisonIntentService({
+        llmClient: this.llmClient,
+      });
+    this.comparisonGenerationService =
+      options.comparisonGenerationService
+      ?? new ComparisonGenerationService({
         llmClient: this.llmClient,
       });
     this.cartCommandService =
@@ -304,6 +351,43 @@ export class RagChatService {
             missingSlots: [],
           },
         },
+      );
+    }
+
+    const comparisonIntent = await this.comparisonIntentService.detect({
+      question,
+      shortHistory: input.shortHistory,
+      contextMemory: memoryResolution.contextMemory,
+      filters: memoryResolution.filters,
+      recentProductIds:
+        memoryResolution.contextMemory?.lastRecommendedProductIds ?? [],
+      requestId: input.requestId,
+      abortSignal: input.abortSignal,
+    });
+    throwIfAborted(input.abortSignal);
+
+    if (comparisonIntent.isComparison) {
+      return this.withContextMemory(
+        memoryResolution,
+        await this.answerComparison(
+          comparisonIntent,
+          memoryResolution,
+          {
+            question,
+            shortHistory: input.shortHistory,
+            filters: memoryResolution.filters,
+            requestId: input.requestId,
+            abortSignal: input.abortSignal,
+          },
+        ),
+        comparisonIntent.needsClarification
+          ? {
+              pendingClarification: {
+                originalQuestion: question,
+                missingSlots: [],
+              },
+            }
+          : undefined,
       );
     }
 
@@ -542,6 +626,289 @@ export class RagChatService {
     return contextMemory
       ? { ...result, contextMemory }
       : result;
+  }
+
+  private async answerComparison(
+    intent: ComparisonIntentResult,
+    memoryResolution: ReturnType<ChatContextMemoryService["resolve"]>,
+    request: Pick<
+      RagChatRequest,
+      "question" | "shortHistory" | "filters" | "requestId" | "abortSignal"
+    >,
+  ): Promise<RagChatResult> {
+    if (intent.needsClarification && intent.clarificationQuestion?.trim()) {
+      return createClarificationResult({
+        needsClarification: true,
+        question: intent.clarificationQuestion,
+        missingSlots: [],
+      });
+    }
+
+    const targetResolution = await this.resolveComparisonTargets(
+      intent,
+      memoryResolution,
+      request,
+    );
+    throwIfAborted(request.abortSignal);
+
+    if (targetResolution.status === "needs_clarification") {
+      return createClarificationResult({
+        needsClarification: true,
+        question: targetResolution.question,
+        missingSlots: [],
+      });
+    }
+
+    const contexts = targetResolution.contexts.slice(0, COMPARISON_PRODUCT_COUNT);
+    const productCards = this.mapProductsToCards(
+      contexts.map((context) => context.product),
+    );
+    const recommendedProductIds = productCards.map((card) => card.id);
+    const baseRetrieval = {
+      candidateCount: targetResolution.contexts.length,
+      returnedProductIds: recommendedProductIds,
+    };
+
+    try {
+      const generated = await this.comparisonGenerationService.generate({
+        question: request.question,
+        shortHistory: request.shortHistory,
+        contextMemory: memoryResolution.contextMemory,
+        userPriority: intent.userPriority,
+        products: contexts.map(toComparisonGenerationProductContext),
+        generatedAt: this.now(),
+        requestId: request.requestId,
+        abortSignal: request.abortSignal,
+      });
+      throwIfAborted(request.abortSignal);
+
+      return createComparisonSuccessResult({
+        generated,
+        query: request.question,
+        contexts,
+        publicImageBaseUrl: this.publicImageBaseUrl,
+      });
+    } catch (error) {
+      rethrowIfAborted(request.abortSignal, error);
+      return {
+        answer: error instanceof ComparisonGenerationOutputError
+          ? createMinimalRagFallbackAnswer("LLM_INVALID_OUTPUT")
+          : createMinimalRagFallbackAnswer("LLM_ERROR"),
+        recommendedProductIds,
+        productCards,
+        fallbackUsed: true,
+        fallbackReason: error instanceof ComparisonGenerationOutputError
+          ? "LLM_INVALID_OUTPUT"
+          : "LLM_ERROR",
+        retrieval: baseRetrieval,
+      };
+    }
+  }
+
+  private async resolveComparisonTargets(
+    intent: ComparisonIntentResult,
+    memoryResolution: ReturnType<ChatContextMemoryService["resolve"]>,
+    request: Pick<
+      RagChatRequest,
+      "question" | "filters" | "abortSignal"
+    >,
+  ): Promise<ComparisonTargetResolution> {
+    const negativeConstraints = memoryResolution.negativeConstraints ?? [];
+
+    switch (intent.target.kind) {
+      case "recent_recommendations":
+        return this.resolveRecentComparisonTargets(
+          intent,
+          memoryResolution.contextMemory?.lastRecommendedProductIds ?? [],
+          negativeConstraints,
+          request.abortSignal,
+        );
+      case "names":
+        return this.resolveNamedComparisonTargets(
+          intent,
+          negativeConstraints,
+          request.abortSignal,
+        );
+      case "category_search":
+        return this.resolveCategoryComparisonTargets(
+          request.question,
+          request.filters,
+          negativeConstraints,
+          request.abortSignal,
+        );
+      case "unknown":
+        return {
+          status: "needs_clarification",
+          question: intent.clarificationQuestion
+            ?? "你想对比哪几款商品？可以说“对比第一款和第二款”。",
+        };
+    }
+  }
+
+  private async resolveRecentComparisonTargets(
+    intent: ComparisonIntentResult,
+    recentProductIds: string[],
+    negativeConstraints: readonly NegativeConstraint[],
+    abortSignal?: AbortSignal,
+  ): Promise<ComparisonTargetResolution> {
+    if (intent.target.ordinals.length > COMPARISON_PRODUCT_COUNT) {
+      return {
+        status: "needs_clarification",
+        question: intent.clarificationQuestion
+          ?? "目前只支持两款商品对比，请从这些商品里选两款。",
+      };
+    }
+
+    const recentIds = uniqueNonEmptyIds(recentProductIds);
+    if (
+      intent.target.ordinals.length === 0
+      && recentIds.length > COMPARISON_PRODUCT_COUNT
+    ) {
+      return {
+        status: "needs_clarification",
+        question: intent.clarificationQuestion
+          ?? "目前只支持两款商品对比，请从这些商品里选两款。",
+      };
+    }
+
+    const selectedIds = intent.target.ordinals.length > 0
+      ? intent.target.ordinals.flatMap((ordinal) => {
+          const productId = recentProductIds[ordinal - 1];
+
+          return productId ? [productId] : [];
+        })
+      : recentIds;
+    const uniqueSelectedIds = uniqueNonEmptyIds(selectedIds);
+
+    if (uniqueSelectedIds.length < 2) {
+      return {
+        status: "needs_clarification",
+        question: intent.clarificationQuestion
+          ?? "最近推荐里还不够两款可对比商品，你想对比哪几款？",
+      };
+    }
+
+    const products = orderProductsByIds(
+      await this.productReader.findActiveByIds(uniqueSelectedIds),
+      uniqueSelectedIds,
+    );
+    throwIfAborted(abortSignal);
+    const contexts = filterContextsByNegativeConstraints(
+      createComparisonContextsFromProducts(products),
+      negativeConstraints,
+    );
+
+    if (contexts.length < 2) {
+      return {
+        status: "needs_clarification",
+        question: intent.clarificationQuestion
+          ?? "这些商品里可用于对比的库内商品不足两款，请再指定要对比的商品。",
+      };
+    }
+
+    return {
+      status: "ready",
+      contexts,
+    };
+  }
+
+  private async resolveNamedComparisonTargets(
+    intent: ComparisonIntentResult,
+    negativeConstraints: readonly NegativeConstraint[],
+    abortSignal?: AbortSignal,
+  ): Promise<ComparisonTargetResolution> {
+    if (!this.productReader.findActiveByText || intent.target.names.length === 0) {
+      return {
+        status: "needs_clarification",
+        question: intent.clarificationQuestion
+          ?? "你想对比哪几款具体商品？可以补充商品名或品牌名。",
+      };
+    }
+
+    if (intent.target.names.length > COMPARISON_PRODUCT_COUNT) {
+      return {
+        status: "needs_clarification",
+        question: intent.clarificationQuestion
+          ?? "目前只支持两款商品对比，请从这些商品里选两款。",
+      };
+    }
+
+    const products: Product[] = [];
+
+    for (const name of intent.target.names) {
+      throwIfAborted(abortSignal);
+      const matches = await this.productReader.findActiveByText(
+        name,
+        COMPARISON_ACTIVE_PRODUCT_LOOKUP_LIMIT,
+      );
+      throwIfAborted(abortSignal);
+
+      if (matches.length !== 1) {
+        return {
+          status: "needs_clarification",
+          question: intent.clarificationQuestion
+            ?? `“${name}”匹配到的商品不唯一，请说出更完整的商品名。`,
+          candidateCount: matches.length,
+        };
+      }
+
+      products.push(matches[0]);
+    }
+
+    const contexts = filterContextsByNegativeConstraints(
+      createComparisonContextsFromProducts(dedupeProductsById(products)),
+      negativeConstraints,
+    );
+
+    if (contexts.length < 2) {
+      return {
+        status: "needs_clarification",
+        question: intent.clarificationQuestion
+          ?? "可用于对比的库内商品不足两款，请再补充一个商品名。",
+      };
+    }
+
+    return {
+      status: "ready",
+      contexts,
+    };
+  }
+
+  private async resolveCategoryComparisonTargets(
+    question: string,
+    filters: VectorSearchFilters | undefined,
+    negativeConstraints: readonly NegativeConstraint[],
+    abortSignal?: AbortSignal,
+  ): Promise<ComparisonTargetResolution> {
+    const hits = await this.vectorSearch.search({
+      query: question,
+      filters,
+      topK: COMPARISON_CATEGORY_SEARCH_TOP_K,
+      abortSignal,
+    });
+    throwIfAborted(abortSignal);
+    const candidates = dedupeVectorHits(hits, this.maxSnippetsPerProduct);
+    const products = await this.productReader.findActiveByIds(
+      candidates.map((candidate) => candidate.productId),
+    );
+    throwIfAborted(abortSignal);
+    const contexts = filterContextsByNegativeConstraints(
+      createRetrievedContexts(candidates, products),
+      negativeConstraints,
+    ).slice(0, COMPARISON_PRODUCT_COUNT);
+
+    if (contexts.length < 2) {
+      return {
+        status: "needs_clarification",
+        question: "我还需要至少两款可对比的库内商品，你想按哪几款来比？",
+        candidateCount: contexts.length,
+      };
+    }
+
+    return {
+      status: "ready",
+      contexts,
+    };
   }
 
   private async answerCartCommand(
@@ -1168,6 +1535,40 @@ function orderProductsByIds(
   });
 }
 
+function uniqueNonEmptyIds(productIds: string[]): string[] {
+  const seen = new Set<string>();
+  const uniqueIds: string[] = [];
+
+  for (const rawProductId of productIds) {
+    const productId = rawProductId.trim();
+
+    if (!productId || seen.has(productId)) {
+      continue;
+    }
+
+    seen.add(productId);
+    uniqueIds.push(productId);
+  }
+
+  return uniqueIds;
+}
+
+function dedupeProductsById(products: Product[]): Product[] {
+  const seen = new Set<string>();
+  const deduped: Product[] = [];
+
+  for (const product of products) {
+    if (seen.has(product.id)) {
+      continue;
+    }
+
+    seen.add(product.id);
+    deduped.push(product);
+  }
+
+  return deduped;
+}
+
 function dedupeVectorHits(
   hits: VectorSearchHit[],
   maxSnippetsPerProduct: number,
@@ -1240,6 +1641,58 @@ function createRetrievedContexts(
   });
 }
 
+function createComparisonContextsFromProducts(
+  products: Product[],
+): RetrievedProductContext[] {
+  return products.map((product, index) => ({
+    product,
+    score: 1 - index / 100,
+    snippets: [createComparisonProductSnippet(product)],
+    metadata: {
+      docType: "product",
+      category: product.category,
+      subCategory: product.subCategory,
+      brand: product.brand,
+      tags: product.visualTags,
+      recommendWhen: product.recommendWhen,
+      avoidWhen: product.avoidWhen,
+      blockType: null,
+      priceMinCents: product.priceMinCents,
+      priceMaxCents: product.priceMaxCents,
+      available: true,
+      embeddingModel: "postgresql",
+      embeddingDimensions: 0,
+      ingestBatchId: product.ingestBatchId,
+    },
+  }));
+}
+
+function toComparisonGenerationProductContext(
+  context: RetrievedProductContext,
+): ComparisonGenerationProductContext {
+  return {
+    product: context.product,
+    snippets: context.snippets.length > 0
+      ? context.snippets
+      : [createComparisonProductSnippet(context.product)],
+  };
+}
+
+function createComparisonProductSnippet(product: Product): string {
+  return [
+    product.knowledgeText,
+    product.marketingDescription,
+    product.pros.length > 0 ? `优点：${product.pros.join("、")}` : "",
+    product.cons.length > 0 ? `注意：${product.cons.join("、")}` : "",
+    product.recommendWhen.length > 0
+      ? `适合：${product.recommendWhen.join("、")}`
+      : "",
+    product.avoidWhen.length > 0 ? `不适合：${product.avoidWhen.join("、")}` : "",
+  ]
+    .filter((value) => value.trim().length > 0)
+    .join("\n");
+}
+
 function createNoCandidatesResult(answer: string): RagChatResult {
   return {
     answer,
@@ -1309,6 +1762,62 @@ function createSuccessResult(
       candidateCount: contexts.length,
       returnedProductIds,
     },
+  };
+}
+
+function createComparisonSuccessResult(input: {
+  generated: GeneratedComparisonOutput;
+  query: string;
+  contexts: RetrievedProductContext[];
+  publicImageBaseUrl?: string;
+}): RagChatResult {
+  const productsById = new Map(
+    input.contexts.map((context) => [context.product.id, context.product]),
+  );
+  const products = input.generated.products.flatMap((product) => {
+    const found = productsById.get(product.productId);
+
+    return found ? [found] : [];
+  });
+  const productCards = products.map((product) =>
+    mapProductToCardDto(product, {
+      publicImageBaseUrl: input.publicImageBaseUrl,
+    })
+  );
+  const returnedProductIds = productCards.map((card) => card.id);
+  const comparisonResult: ChatComparisonResultPayload = {
+    id: createComparisonResultId(input.query, returnedProductIds),
+    title: input.generated.title,
+    query: input.query,
+    productIds: returnedProductIds,
+    dimensions: input.generated.dimensions.map((dimension) => ({
+      id: dimension.id,
+      label: dimension.label,
+      cells: dimension.cells.map((cell) => ({
+        productId: cell.productId,
+        value: cell.value,
+        highlight: cell.highlight,
+      })),
+    })),
+    recommendedProductId: input.generated.recommendedProductId ?? null,
+    conclusion: input.generated.conclusion,
+    highlights: input.generated.highlights.map((highlight) => ({
+      productId: highlight.productId,
+      label: highlight.label,
+      text: highlight.text,
+    })),
+  };
+
+  return {
+    answer: input.generated.answer,
+    recommendedProductIds: returnedProductIds,
+    productCards,
+    fallbackUsed: false,
+    retrieval: {
+      candidateCount: input.contexts.length,
+      returnedProductIds,
+    },
+    comparisonResult,
   };
 }
 
@@ -1445,6 +1954,20 @@ function compactAnswer(answer: string): string {
   }
 
   return `${Array.from(normalized).slice(0, MAX_CHAT_ANSWER_CHARS).join("").trimEnd()}...`;
+}
+
+function createComparisonResultId(
+  query: string,
+  productIds: string[],
+): string {
+  const input = `${query.trim()}|${productIds.join("|")}`;
+  let hash = 0;
+
+  for (const char of input) {
+    hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  }
+
+  return `comparison-${hash.toString(36)}`;
 }
 
 function normalizeMaxRecommendedProducts(

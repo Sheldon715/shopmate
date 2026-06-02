@@ -3,6 +3,7 @@ import type { Request, Response } from "express";
 import { fail } from "../../types/api-response";
 import type {
   ChatDonePayload,
+  ChatComparisonResultPayload,
   ChatErrorPayload,
   ChatMessageDeltaPayload,
   ChatProductCardsPayload,
@@ -142,6 +143,19 @@ async function writeChatResult(
 
   if (productCardsStatus !== "ok") {
     return productCardsStatus;
+  }
+
+  if (result.comparisonResult) {
+    const comparisonPayload: ChatComparisonResultPayload = result.comparisonResult;
+    const comparisonStatus = await safeWriteSseEvent(
+      response,
+      "comparison_result",
+      comparisonPayload,
+    );
+
+    if (comparisonStatus !== "ok") {
+      return comparisonStatus;
+    }
   }
 
   const donePayload: ChatDonePayload = {

@@ -27,6 +27,11 @@ fun parseChatStreamEvent(
                 ChatStreamEvent.ProductCards(items = payload.items)
             }
 
+            "comparison_result" -> {
+                val payload = json.decodeFromString<ChatComparisonResultDto>(data)
+                ChatStreamEvent.ComparisonResult(result = payload)
+            }
+
             "done" -> {
                 val payload = json.decodeFromString<DonePayloadDto>(data)
                 ChatStreamEvent.Done(

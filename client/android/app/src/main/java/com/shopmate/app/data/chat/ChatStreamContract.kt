@@ -56,10 +56,45 @@ data class ChatCartSummaryDto(
     val currency: String = "CNY",
 )
 
+@Serializable
+data class ChatComparisonResultDto(
+    val id: String,
+    val title: String,
+    val query: String,
+    val productIds: List<String> = emptyList(),
+    val dimensions: List<ChatComparisonDimensionDto> = emptyList(),
+    val recommendedProductId: String? = null,
+    val conclusion: String,
+    val highlights: List<ChatComparisonHighlightDto> = emptyList(),
+)
+
+@Serializable
+data class ChatComparisonDimensionDto(
+    val id: String,
+    val label: String,
+    val cells: List<ChatComparisonCellDto> = emptyList(),
+)
+
+@Serializable
+data class ChatComparisonCellDto(
+    val productId: String,
+    val value: String,
+    val highlight: Boolean = false,
+)
+
+@Serializable
+data class ChatComparisonHighlightDto(
+    val productId: String,
+    val label: String,
+    val text: String,
+)
+
 sealed interface ChatStreamEvent {
     data class MessageDelta(val text: String, val index: Int) : ChatStreamEvent
 
     data class ProductCards(val items: List<ChatProductCardDto>) : ChatStreamEvent
+
+    data class ComparisonResult(val result: ChatComparisonResultDto) : ChatStreamEvent
 
     data class Done(
         val recommendedProductIds: List<String>,

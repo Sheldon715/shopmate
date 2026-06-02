@@ -18,6 +18,7 @@ export interface ChatHistoryMessage {
 export type ChatStreamEventName =
   | "message_delta"
   | "product_cards"
+  | "comparison_result"
   | "done"
   | "error";
 
@@ -28,6 +29,29 @@ export interface ChatMessageDeltaPayload {
 
 export interface ChatProductCardsPayload {
   items: ProductCardDto[];
+}
+
+export interface ChatComparisonResultPayload {
+  id: string;
+  title: string;
+  query: string;
+  productIds: string[];
+  dimensions: Array<{
+    id: string;
+    label: string;
+    cells: Array<{
+      productId: string;
+      value: string;
+      highlight?: boolean;
+    }>;
+  }>;
+  recommendedProductId?: string | null;
+  conclusion: string;
+  highlights: Array<{
+    productId: string;
+    label: string;
+    text: string;
+  }>;
 }
 
 export interface ChatDonePayload {
@@ -54,6 +78,7 @@ export interface ChatErrorPayload {
 export interface ChatStreamEventPayloadByName {
   message_delta: ChatMessageDeltaPayload;
   product_cards: ChatProductCardsPayload;
+  comparison_result: ChatComparisonResultPayload;
   done: ChatDonePayload;
   error: ChatErrorPayload;
 }
@@ -106,4 +131,5 @@ export interface RagChatResult {
   };
   contextMemory?: ChatContextMemorySummary;
   cartAction?: CartActionResult;
+  comparisonResult?: ChatComparisonResultPayload;
 }

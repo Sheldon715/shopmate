@@ -2,6 +2,8 @@ package com.shopmate.app.data.mock
 
 import com.shopmate.app.R
 import com.shopmate.app.ui.model.CartItemUi
+import com.shopmate.app.ui.model.ComparisonCellUi
+import com.shopmate.app.ui.model.ComparisonHighlightUi
 import com.shopmate.app.ui.model.ComparisonRowUi
 import com.shopmate.app.ui.model.ComparisonUi
 import com.shopmate.app.ui.model.HistoryConversationUi
@@ -118,44 +120,97 @@ object MockShopMateData {
         id = "comparison-sunscreen-la-roche-posay-anessa",
         queryText = "帮我对比理肤泉和安热沙这两款防晒霜",
         assistantText = "当然可以！我从防晒力、肤感、适合场景和预算帮你做了对比，方便你快速判断哪一款更适合日常使用。",
+        title = "防晒霜对比",
         products = listOf(
             skincareProducts.first { product -> product.id == "ui-la-roche-posay-sunscreen" },
             skincareProducts.first { product -> product.id == "ui-anessa-perfect-uv-sunscreen" }
         ),
         rows = listOf(
             ComparisonRowUi(
+                id = "sun_protection",
                 label = "防晒力",
-                firstProductValue = "SPF50+ PA++++\n日常通勤足够",
-                secondProductValue = "SPF50+\n耐水耐汗更强",
-                highlightedProductId = "ui-anessa-perfect-uv-sunscreen"
+                cells = listOf(
+                    ComparisonCellUi(
+                        productId = "ui-la-roche-posay-sunscreen",
+                        value = "SPF50+ PA++++\n日常通勤足够",
+                    ),
+                    ComparisonCellUi(
+                        productId = "ui-anessa-perfect-uv-sunscreen",
+                        value = "SPF50+\n耐水耐汗更强",
+                        highlighted = true,
+                    ),
+                ),
             ),
             ComparisonRowUi(
+                id = "skin_feel",
                 label = "肤感",
-                firstProductValue = "清透乳液感\n更轻薄",
-                secondProductValue = "成膜感更强\n略厚重",
-                highlightedProductId = "ui-la-roche-posay-sunscreen"
+                cells = listOf(
+                    ComparisonCellUi(
+                        productId = "ui-la-roche-posay-sunscreen",
+                        value = "清透乳液感\n更轻薄",
+                        highlighted = true,
+                    ),
+                    ComparisonCellUi(
+                        productId = "ui-anessa-perfect-uv-sunscreen",
+                        value = "成膜感更强\n略厚重",
+                    ),
+                ),
             ),
             ComparisonRowUi(
+                id = "skin_type",
                 label = "适合肤质",
-                firstProductValue = "油皮 / 敏感肌",
-                secondProductValue = "混合皮 / 户外人群",
-                highlightedProductId = "ui-la-roche-posay-sunscreen"
+                cells = listOf(
+                    ComparisonCellUi(
+                        productId = "ui-la-roche-posay-sunscreen",
+                        value = "油皮 / 敏感肌",
+                        highlighted = true,
+                    ),
+                    ComparisonCellUi(
+                        productId = "ui-anessa-perfect-uv-sunscreen",
+                        value = "混合皮 / 户外人群",
+                    ),
+                ),
             ),
             ComparisonRowUi(
+                id = "commute",
                 label = "通勤适配",
-                firstProductValue = "日常通勤\n补涂压力小",
-                secondProductValue = "长时间户外\n更安心",
-                highlightedProductId = "ui-la-roche-posay-sunscreen"
+                cells = listOf(
+                    ComparisonCellUi(
+                        productId = "ui-la-roche-posay-sunscreen",
+                        value = "日常通勤\n补涂压力小",
+                        highlighted = true,
+                    ),
+                    ComparisonCellUi(
+                        productId = "ui-anessa-perfect-uv-sunscreen",
+                        value = "长时间户外\n更安心",
+                    ),
+                ),
             ),
             ComparisonRowUi(
+                id = "budget",
                 label = "价格 / 预算",
-                firstProductValue = "¥168\n预算更友好",
-                secondProductValue = "¥229\n预算更高",
-                highlightedProductId = "ui-la-roche-posay-sunscreen"
+                cells = listOf(
+                    ComparisonCellUi(
+                        productId = "ui-la-roche-posay-sunscreen",
+                        value = "¥168\n预算更友好",
+                        highlighted = true,
+                    ),
+                    ComparisonCellUi(
+                        productId = "ui-anessa-perfect-uv-sunscreen",
+                        value = "¥229\n预算更高",
+                    ),
+                ),
             )
         ),
         recommendedProductId = "ui-la-roche-posay-sunscreen",
-        summaryText = "如果主要是夏季通勤、想要轻薄肤感和更好预算控制，推荐理肤泉；如果经常户外暴晒，安热沙会更稳。"
+        summaryText = "如果主要是夏季通勤、想要轻薄肤感和更好预算控制，推荐理肤泉；如果经常户外暴晒，安热沙会更稳。",
+        highlights = listOf(
+            ComparisonHighlightUi(
+                productId = "ui-la-roche-posay-sunscreen",
+                label = "通勤肤感",
+                text = "更轻薄，日常补涂压力小。",
+            ),
+        ),
     )
 
     val productDetails = listOf(

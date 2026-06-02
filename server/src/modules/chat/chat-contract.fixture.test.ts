@@ -45,6 +45,12 @@ describe("chat contract fixtures", () => {
       "product_cards",
       "done",
     ]);
+    expect(eventNames(chatContractFixtures.comparisonStream.events)).toEqual([
+      "message_delta",
+      "product_cards",
+      "comparison_result",
+      "done",
+    ]);
   });
 
   it("serializes every fixture event with writeSseEvent", async () => {
@@ -118,6 +124,26 @@ describe("chat contract fixtures", () => {
           message: expect.any(String) as unknown as string,
         });
       }
+    }
+  });
+
+  it("keeps comparison payloads compatible with Android parser expectations", () => {
+    for (const event of contractEventsByName("comparison_result")) {
+      expect(typeof event.payload.id).toBe("string");
+      expect(typeof event.payload.title).toBe("string");
+      expect(typeof event.payload.query).toBe("string");
+      expect(Array.isArray(event.payload.productIds)).toBe(true);
+      expect(event.payload.productIds.length).toBe(2);
+      expect(Array.isArray(event.payload.dimensions)).toBe(true);
+      for (const dimension of event.payload.dimensions) {
+        expect(typeof dimension.id).toBe("string");
+        expect(typeof dimension.label).toBe("string");
+        expect(dimension.cells.map((cell) => cell.productId).sort()).toEqual(
+          [...event.payload.productIds].sort(),
+        );
+      }
+      expect(typeof event.payload.conclusion).toBe("string");
+      expect(Array.isArray(event.payload.highlights)).toBe(true);
     }
   });
 

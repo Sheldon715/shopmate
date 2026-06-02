@@ -170,6 +170,54 @@ class ChatStreamEventParserTest {
     }
 
     @Test
+    fun parsesComparisonResult() {
+        val event = parseChatStreamEvent(
+            "comparison_result",
+            """
+                {
+                  "id": "comparison-demo-1",
+                  "title": "防晒霜对比",
+                  "query": "帮我对比这两款",
+                  "productIds": ["product_001", "product_002"],
+                  "dimensions": [
+                    {
+                      "id": "skin_feel",
+                      "label": "肤感",
+                      "cells": [
+                        {
+                          "productId": "product_001",
+                          "value": "更轻薄，适合通勤。",
+                          "highlight": true
+                        },
+                        {
+                          "productId": "product_002",
+                          "value": "成膜更强，户外稳定性更好。"
+                        }
+                      ]
+                    }
+                  ],
+                  "recommendedProductId": "product_001",
+                  "conclusion": "日常通勤优先看第一款。",
+                  "highlights": [
+                    {
+                      "productId": "product_001",
+                      "label": "通勤肤感",
+                      "text": "更轻薄。"
+                    }
+                  ]
+                }
+            """.trimIndent(),
+        )
+
+        val comparison = assertIs<ChatStreamEvent.ComparisonResult>(event).result
+        assertEquals("comparison-demo-1", comparison.id)
+        assertEquals(listOf("product_001", "product_002"), comparison.productIds)
+        assertEquals("skin_feel", comparison.dimensions.single().id)
+        assertEquals(true, comparison.dimensions.single().cells.first().highlight)
+        assertEquals("product_001", comparison.recommendedProductId)
+    }
+
+    @Test
     fun parsesClarificationDone() {
         val event = parseChatStreamEvent(
             "done",

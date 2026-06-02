@@ -1,6 +1,10 @@
 package com.shopmate.app.ui.chat
 
 import com.shopmate.app.data.chat.ChatCartActionDto
+import com.shopmate.app.data.chat.ChatComparisonCellDto
+import com.shopmate.app.data.chat.ChatComparisonDimensionDto
+import com.shopmate.app.data.chat.ChatComparisonHighlightDto
+import com.shopmate.app.data.chat.ChatComparisonResultDto
 import com.shopmate.app.data.chat.ChatProductCardDto
 import com.shopmate.app.data.chat.ChatRepository
 import com.shopmate.app.data.chat.ChatClarificationDto
@@ -89,6 +93,459 @@ class ChatViewModelTest {
         assertEquals("product_001", state.productCards.single().id)
         assertEquals(state.messages.last().id, state.productCardsAnchorMessageId)
         assertEquals(null, state.errorMessage)
+    }
+
+    @Test
+    fun comparisonResultCreatesActionAndLookupState() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("帮我对比这两款")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        repository.events.emit(ChatStreamEvent.MessageDelta("我做了对比。", 0))
+        repository.events.emit(
+            ChatStreamEvent.ProductCards(
+                listOf(
+                    productDto(),
+                    productDto(id = "product_002", name = "降噪蓝牙耳机"),
+                ),
+            ),
+        )
+        repository.events.emit(
+            ChatStreamEvent.ComparisonResult(
+                ChatComparisonResultDto(
+                    id = "comparison-demo-1",
+                    title = "耳机对比",
+                    query = "帮我对比这两款",
+                    productIds = listOf("product_001", "product_002"),
+                    dimensions = listOf(
+                        ChatComparisonDimensionDto(
+                            id = "commute",
+                            label = "通勤",
+                            cells = listOf(
+                                ChatComparisonCellDto(
+                                    productId = "product_001",
+                                    value = "更轻便。",
+                                    highlight = true,
+                                ),
+                                ChatComparisonCellDto(
+                                    productId = "product_002",
+                                    value = "降噪更强。",
+                                ),
+                            ),
+                        ),
+                    ),
+                    recommendedProductId = "product_001",
+                    conclusion = "日常通勤优先看第一款。",
+                    highlights = listOf(
+                        ChatComparisonHighlightDto(
+                            productId = "product_001",
+                            label = "通勤",
+                            text = "更轻便。",
+                        ),
+                    ),
+                ),
+            ),
+        )
+        repository.events.emit(
+            ChatStreamEvent.Done(
+                recommendedProductIds = listOf("product_001", "product_002"),
+                fallbackUsed = false,
+                fallbackReason = null,
+                retrieval = ChatRetrievalDto(candidateCount = 2),
+            ),
+        )
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals("comparison-demo-1", state.comparisonActions.single().comparisonId)
+        assertEquals("耳机对比", state.comparisonActions.single().title)
+        assertEquals("comparison-demo-1", state.comparisonResults.single().id)
+        assertEquals("我做了对比。", state.comparisonResults.single().assistantText)
+        assertEquals("product_001", state.comparisonResults.single().recommendedProductId)
+        assertEquals("comparison-demo-1", viewModel.findComparison("comparison-demo-1")?.id)
+    }
+
+    @Test
+    fun comparisonResultWithThreeProductsIsIgnored() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("帮我对比这三款")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        repository.events.emit(ChatStreamEvent.MessageDelta("我做了对比。", 0))
+        repository.events.emit(
+            ChatStreamEvent.ProductCards(
+                listOf(
+                    productDto(),
+                    productDto(id = "product_002", name = "降噪蓝牙耳机"),
+                    productDto(id = "product_003", name = "运动蓝牙耳机"),
+                ),
+            ),
+        )
+        repository.events.emit(
+            ChatStreamEvent.ComparisonResult(
+                ChatComparisonResultDto(
+                    id = "comparison-demo-3",
+                    title = "三款耳机对比",
+                    query = "帮我对比这三款",
+                    productIds = listOf("product_001", "product_002", "product_003"),
+                    dimensions = listOf(
+                        ChatComparisonDimensionDto(
+                            id = "commute",
+                            label = "通勤",
+                            cells = listOf(
+                                ChatComparisonCellDto(
+                                    productId = "product_001",
+                                    value = "更轻便。",
+                                ),
+                                ChatComparisonCellDto(
+                                    productId = "product_002",
+                                    value = "降噪更强。",
+                                ),
+                                ChatComparisonCellDto(
+                                    productId = "product_003",
+                                    value = "运动更稳。",
+                                ),
+                            ),
+                        ),
+                    ),
+                    recommendedProductId = "product_001",
+                    conclusion = "不应打开三款对比。",
+                    highlights = emptyList(),
+                ),
+            ),
+        )
+        repository.events.emit(
+            ChatStreamEvent.Done(
+                recommendedProductIds = listOf("product_001", "product_002", "product_003"),
+                fallbackUsed = false,
+                fallbackReason = null,
+                retrieval = ChatRetrievalDto(candidateCount = 3),
+            ),
+        )
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.comparisonActions.isEmpty())
+        assertTrue(state.comparisonResults.isEmpty())
+    }
+
+    @Test
+    fun comparisonResultWithMissingProductIdsIsIgnored() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("帮我对比这两款")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        repository.events.emit(ChatStreamEvent.MessageDelta("我做了对比。", 0))
+        repository.events.emit(
+            ChatStreamEvent.ProductCards(
+                listOf(
+                    productDto(id = "product_001", name = "通勤耳机"),
+                    productDto(id = "product_002", name = "降噪耳机"),
+                ),
+            ),
+        )
+        repository.events.emit(
+            ChatStreamEvent.ComparisonResult(
+                ChatComparisonResultDto(
+                    id = "comparison-missing-products",
+                    title = "耳机对比",
+                    query = "帮我对比这两款",
+                    productIds = emptyList(),
+                    dimensions = listOf(
+                        ChatComparisonDimensionDto(
+                            id = "commute",
+                            label = "通勤",
+                            cells = listOf(
+                                ChatComparisonCellDto(
+                                    productId = "product_001",
+                                    value = "更轻便。",
+                                ),
+                                ChatComparisonCellDto(
+                                    productId = "product_002",
+                                    value = "降噪更强。",
+                                ),
+                            ),
+                        ),
+                    ),
+                    recommendedProductId = null,
+                    conclusion = "不应靠当前商品卡兜底打开对比。",
+                    highlights = emptyList(),
+                ),
+            ),
+        )
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.comparisonActions.isEmpty())
+        assertTrue(state.comparisonResults.isEmpty())
+    }
+
+    @Test
+    fun comparisonFollowUpKeepsExistingProductCardsAtOriginalAnchor() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("推荐两款OPPO手机")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+        repository.events.emit(
+            ChatStreamEvent.ProductCards(
+                listOf(
+                    productDto(id = "product_001", name = "OPPO 手机 1"),
+                    productDto(id = "product_002", name = "OPPO 手机 2"),
+                ),
+            ),
+        )
+        repository.events.emit(
+            ChatStreamEvent.Done(
+                recommendedProductIds = listOf("product_001", "product_002"),
+                fallbackUsed = false,
+                fallbackReason = null,
+                retrieval = ChatRetrievalDto(candidateCount = 2),
+            ),
+        )
+        advanceUntilIdle()
+        val originalCardAnchorMessageId = viewModel.uiState.value.productCardsAnchorMessageId
+
+        viewModel.onComposerTextChange("对比一下这两款手机")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+        val comparisonAssistantId = viewModel.uiState.value.messages.last().id
+
+        repository.events.emit(ChatStreamEvent.MessageDelta("我做了对比。", 0))
+        repository.events.emit(
+            ChatStreamEvent.ProductCards(
+                listOf(
+                    productDto(id = "product_001", name = "OPPO 手机 1"),
+                    productDto(id = "product_002", name = "OPPO 手机 2"),
+                ),
+            ),
+        )
+        repository.events.emit(
+            ChatStreamEvent.ComparisonResult(
+                ChatComparisonResultDto(
+                    id = "comparison-phone-1",
+                    title = "OPPO 手机对比",
+                    query = "对比一下这两款手机",
+                    productIds = listOf("product_001", "product_002"),
+                    dimensions = listOf(
+                        ChatComparisonDimensionDto(
+                            id = "price",
+                            label = "价格",
+                            cells = listOf(
+                                ChatComparisonCellDto(
+                                    productId = "product_001",
+                                    value = "价格更低。",
+                                    highlight = true,
+                                ),
+                                ChatComparisonCellDto(
+                                    productId = "product_002",
+                                    value = "定位更旗舰。",
+                                ),
+                            ),
+                        ),
+                    ),
+                    recommendedProductId = null,
+                    conclusion = "预算敏感选第一款，追求旗舰体验选第二款。",
+                    highlights = emptyList(),
+                ),
+            ),
+        )
+        repository.events.emit(
+            ChatStreamEvent.Done(
+                recommendedProductIds = listOf("product_001", "product_002"),
+                fallbackUsed = false,
+                fallbackReason = null,
+                retrieval = ChatRetrievalDto(candidateCount = 2),
+            ),
+        )
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(originalCardAnchorMessageId, state.productCardsAnchorMessageId)
+        assertNotEquals(comparisonAssistantId, state.productCardsAnchorMessageId)
+        assertEquals(comparisonAssistantId, state.comparisonActions.single().anchorMessageId)
+        assertEquals("comparison-phone-1", state.comparisonResults.single().id)
+    }
+
+    @Test
+    fun comparisonResultUsesPreservedCardsWhenStreamProductCardsAreEmpty() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("推荐适合油皮的护肤品")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+        repository.events.emit(
+            ChatStreamEvent.ProductCards(
+                listOf(
+                    productDto(id = "product_001", name = "持妆粉底液"),
+                    productDto(id = "product_002", name = "淡纹紧致精华"),
+                ),
+            ),
+        )
+        repository.events.emit(
+            ChatStreamEvent.Done(
+                recommendedProductIds = listOf("product_001", "product_002"),
+                fallbackUsed = false,
+                fallbackReason = null,
+                retrieval = ChatRetrievalDto(candidateCount = 2),
+            ),
+        )
+        advanceUntilIdle()
+        val originalCardAnchorMessageId = viewModel.uiState.value.productCardsAnchorMessageId
+
+        viewModel.onComposerTextChange("对比一下第一和第二个")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+        val comparisonAssistantId = viewModel.uiState.value.messages.last().id
+
+        repository.events.emit(ChatStreamEvent.MessageDelta("你可以查看详情页了解二者核心差异。", 0))
+        repository.events.emit(ChatStreamEvent.ProductCards(emptyList()))
+        repository.events.emit(
+            ChatStreamEvent.ComparisonResult(
+                ChatComparisonResultDto(
+                    id = "comparison-skincare-1",
+                    title = "油皮护肤对比",
+                    query = "对比一下第一和第二个",
+                    productIds = listOf("product_001", "product_002"),
+                    dimensions = listOf(
+                        ChatComparisonDimensionDto(
+                            id = "usage",
+                            label = "使用场景",
+                            cells = listOf(
+                                ChatComparisonCellDto(
+                                    productId = "product_001",
+                                    value = "更适合作为底妆持妆选择。",
+                                ),
+                                ChatComparisonCellDto(
+                                    productId = "product_002",
+                                    value = "更偏向护肤淡纹和紧致。",
+                                    highlight = true,
+                                ),
+                            ),
+                        ),
+                    ),
+                    recommendedProductId = "product_002",
+                    conclusion = "想控油持妆选第一款，想护肤淡纹选第二款。",
+                    highlights = emptyList(),
+                ),
+            ),
+        )
+        repository.events.emit(
+            ChatStreamEvent.Done(
+                recommendedProductIds = listOf("product_001", "product_002"),
+                fallbackUsed = false,
+                fallbackReason = null,
+                retrieval = ChatRetrievalDto(candidateCount = 2),
+            ),
+        )
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(originalCardAnchorMessageId, state.productCardsAnchorMessageId)
+        assertEquals(listOf("product_001", "product_002"), state.productCards.map { product -> product.id })
+        assertEquals(comparisonAssistantId, state.comparisonActions.single().anchorMessageId)
+        assertEquals("comparison-skincare-1", state.comparisonResults.single().id)
+        assertEquals("product_002", state.comparisonResults.single().recommendedProductId)
+    }
+
+    @Test
+    fun ordinalComparisonResultUsesPreStreamCardsWhenCurrentStreamCardsAreEmpty() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("推荐适合油皮的护肤品")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+        repository.events.emit(
+            ChatStreamEvent.ProductCards(
+                listOf(
+                    productDto(id = "product_001", name = "控油粉底液"),
+                    productDto(id = "product_002", name = "淡纹紧致精华"),
+                    productDto(id = "product_003", name = "抗老面霜"),
+                ),
+            ),
+        )
+        repository.events.emit(
+            ChatStreamEvent.Done(
+                recommendedProductIds = listOf("product_001", "product_002", "product_003"),
+                fallbackUsed = false,
+                fallbackReason = null,
+                retrieval = ChatRetrievalDto(candidateCount = 3),
+            ),
+        )
+        advanceUntilIdle()
+        val originalCardAnchorMessageId = viewModel.uiState.value.productCardsAnchorMessageId
+
+        viewModel.onComposerTextChange("对比一下第二个和第三个")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+        val comparisonAssistantId = viewModel.uiState.value.messages.last().id
+
+        repository.events.emit(ChatStreamEvent.MessageDelta("可以查看详情页了解这两款的差异。", 0))
+        repository.events.emit(ChatStreamEvent.ProductCards(emptyList()))
+        repository.events.emit(
+            ChatStreamEvent.ComparisonResult(
+                ChatComparisonResultDto(
+                    id = "comparison-skincare-ordinal",
+                    title = "油皮护肤对比",
+                    query = "对比一下第二个和第三个",
+                    productIds = listOf("product_002", "product_003"),
+                    dimensions = listOf(
+                        ChatComparisonDimensionDto(
+                            id = "usage",
+                            label = "使用场景",
+                            cells = listOf(
+                                ChatComparisonCellDto(
+                                    productId = "product_002",
+                                    value = "更偏向淡纹和紧致护理。",
+                                ),
+                                ChatComparisonCellDto(
+                                    productId = "product_003",
+                                    value = "更适合作为抗老面霜使用。",
+                                    highlight = true,
+                                ),
+                            ),
+                        ),
+                    ),
+                    recommendedProductId = "product_003",
+                    conclusion = "想重点抗老选第三个，想淡纹紧致选第二个。",
+                    highlights = emptyList(),
+                ),
+            ),
+        )
+        repository.events.emit(
+            ChatStreamEvent.Done(
+                recommendedProductIds = listOf("product_002", "product_003"),
+                fallbackUsed = false,
+                fallbackReason = null,
+                retrieval = ChatRetrievalDto(candidateCount = 2),
+            ),
+        )
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(originalCardAnchorMessageId, state.productCardsAnchorMessageId)
+        assertEquals(
+            listOf("product_001", "product_002", "product_003"),
+            state.productCards.map { product -> product.id },
+        )
+        assertEquals(comparisonAssistantId, state.comparisonActions.single().anchorMessageId)
+        assertEquals("comparison-skincare-ordinal", state.comparisonResults.single().id)
+        assertEquals(
+            listOf("product_002", "product_003"),
+            state.comparisonResults.single().products.map { product -> product.id },
+        )
     }
 
     @Test
@@ -1003,10 +1460,13 @@ class ChatViewModelTest {
         }
     }
 
-    private fun productDto(): ChatProductCardDto =
+    private fun productDto(
+        id: String = "product_001",
+        name: String = "通勤蓝牙耳机",
+    ): ChatProductCardDto =
         ChatProductCardDto(
-            id = "product_001",
-            name = "通勤蓝牙耳机",
+            id = id,
+            name = name,
             brand = "示例品牌",
             category = "数码电子",
             priceCents = 19900,

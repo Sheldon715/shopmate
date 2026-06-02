@@ -1,6 +1,7 @@
 import type { ProductCardDto } from "../products/product.types";
 import type {
   ChatDonePayload,
+  ChatComparisonResultPayload,
   ChatErrorPayload,
   ChatMessageDeltaPayload,
   ChatProductCardsPayload,
@@ -172,6 +173,87 @@ const cartAddDone: ChatDonePayload = {
   },
 };
 
+const comparisonMessageDelta: ChatMessageDeltaPayload = {
+  text: "我把这两款按通勤肤感、防晒稳定性和预算做了对比。",
+  index: 0,
+};
+
+const comparisonProductCards: ChatProductCardsPayload = {
+  items: [commutingHeadphonesCard, fallbackHeadphonesCard],
+};
+
+const comparisonResult: ChatComparisonResultPayload = {
+  id: "comparison-demo-1",
+  title: "通勤耳机对比",
+  query: "帮我对比这两款，哪个更适合通勤",
+  productIds: ["product_001", "product_002"],
+  dimensions: [
+    {
+      id: "comfort",
+      label: "佩戴",
+      cells: [
+        {
+          productId: "product_001",
+          value: "更轻便，适合每天通勤。",
+          highlight: true,
+        },
+        {
+          productId: "product_002",
+          value: "机身略重，长时间佩戴压力更大。",
+        },
+      ],
+    },
+    {
+      id: "battery",
+      label: "续航",
+      cells: [
+        {
+          productId: "product_001",
+          value: "日常通勤够用。",
+        },
+        {
+          productId: "product_002",
+          value: "续航更长，适合长途。",
+          highlight: true,
+        },
+      ],
+    },
+    {
+      id: "budget",
+      label: "预算",
+      cells: [
+        {
+          productId: "product_001",
+          value: "价格更接近 200 元预算。",
+          highlight: true,
+        },
+        {
+          productId: "product_002",
+          value: "价格更高，适合预算放宽。",
+        },
+      ],
+    },
+  ],
+  recommendedProductId: "product_001",
+  conclusion: "如果主要是日常通勤并控制预算，优先看通勤蓝牙耳机 A；如果更在意长续航，再看耳机 B。",
+  highlights: [
+    {
+      productId: "product_001",
+      label: "通勤预算",
+      text: "更轻便，价格也更贴近日常通勤预算。",
+    },
+  ],
+};
+
+const comparisonDone: ChatDonePayload = {
+  recommendedProductIds: ["product_001", "product_002"],
+  fallbackUsed: false,
+  retrieval: {
+    candidateCount: 2,
+    returnedProductIds: ["product_001", "product_002"],
+  },
+};
+
 export const chatContractFixtures = {
   successStream: {
     name: "success stream",
@@ -223,6 +305,16 @@ export const chatContractFixtures = {
       { eventName: "message_delta", payload: cartAddMessageDelta },
       { eventName: "product_cards", payload: cartAddProductCards },
       { eventName: "done", payload: cartAddDone },
+    ],
+  },
+  comparisonStream: {
+    name: "comparison stream",
+    description: "A comparison assistant message, product cards, comparison_result, and done.",
+    events: [
+      { eventName: "message_delta", payload: comparisonMessageDelta },
+      { eventName: "product_cards", payload: comparisonProductCards },
+      { eventName: "comparison_result", payload: comparisonResult },
+      { eventName: "done", payload: comparisonDone },
     ],
   },
 } satisfies Record<string, ChatContractFixture>;

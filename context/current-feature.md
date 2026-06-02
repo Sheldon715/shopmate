@@ -1,4 +1,4 @@
-# Current Feature: Cart Natural Language Management
+# Current Feature: Comparison RAG Output
 
 ## 状态
 
@@ -6,46 +6,59 @@ Complete
 
 ## 目标
 
-- 支持聊天中用自然语言查看、删除、改数量和勾选 / 取消勾选购物车 item，并保留现有自然语言加购能力。
-- 扩展购物车 LLM intent，覆盖 `inspect`、`add`、`remove`、`update_quantity`、`update_selected`，所有业务 mutation 执行前都必须通过模型意图和后端事实校验。
-- 后端基于当前购物车快照、最近推荐商品 allowlist 和 PostgreSQL active 商品解析目标，不信任 LLM 直接给出的 itemId / productId。
-- 成功购物车 mutation 后通过 SSE `done.cartAction` 通知 Android 刷新购物车；`inspect`、失败、需确认或目标不明时不误触发刷新。
-- 用户可见购物车操作说明由 LLM 基于结构化 `cartAction` 和当前事实生成，不新增固定导购话术模板。
+- 将现有 mock 商品对比升级为真实 RAG / LLM 对比链路。
+- 用户能在主聊天中通过“帮我对比这两款”“对比第一款和第二款”等自然语言触发商品对比。
+- 后端新增 LLM comparison intent 和 comparison generation，基于库内商品事实生成结构化对比结果。
+- SSE 返回真实 `comparison_result` payload，普通 RAG / 澄清 / 购物车流程不发送对比事件。
+- Android 聊天页展示对比入口，并让 `ProductComparisonScreen` 正式运行路径消费真实对比 state。
+- 模型不可用、输出无效、目标不足或 product id 不在 allowlist 时，不生成预设对比表。
 
 ## 待办清单
 
-- [x] 梳理现有 conversational cart add、cart API、chat context memory、SSE `cartAction` 和 Android parser / side effect 代码路径。
-- [x] 设计并实现后端 cart management intent schema / prompt，支持 inspect / add / remove / update_quantity / update_selected / clear confirmation。
-- [x] 实现 `CartManagementCommandService` 或等价编排层，按当前 cart snapshot、最近推荐商品和 active product 解析目标，并处理 ordinal / name / deictic / ambiguous / missing。
-- [x] 将 cart management 接入 `RagChatService.answer()`：intent 失败、低置信、目标不明、需确认、provider error 时不执行 mutation。
-- [x] 扩展 `CartActionResult` / SSE `done.cartAction` contract，保留 add 行为并支持 remove / update_quantity / update_selected / inspect。
-- [x] 扩展或新增 `CartActionResponseService`，让成功、失败、澄清和确认回复都由 LLM 生成，禁止代码拼固定操作文案。
-- [x] 更新 Android `ChatCartActionDto`、SSE parser 和 `ChatViewModel.emitCartActionSideEffect()`，让成功 mutation 触发 `RefreshCart`，`inspect` / 非 success 不刷新。
-- [x] 补后端单元测试：intent schema、target resolution、RagChatService mutation / no-mutation、SSE contract 和缓存绕过边界。
-- [x] 补 Android 单元测试：新 `cartAction.type` 解析、成功 remove / update_quantity 刷新、非 success / inspect 不刷新。
-- [x] 运行后端 `npm.cmd test`、`npm.cmd run build`；如修改 Android contract，运行 `.\gradlew.bat --no-daemon testDebugUnitTest` 和 `.\gradlew.bat --no-daemon build`。
-- [x] 记录 smoke test 结果：至少覆盖“删除第二个商品”和“把数量改成 2”的成功 / 澄清路径。
+- [x] 后端新增 `ComparisonIntentService`，让 LLM 判断 comparison intent、目标来源、序号 / 名称和用户关注点。
+- [x] 在 `RagChatService.answer()` 中按购物车 intent、negative constraint、comparison intent、clarification / RAG 的优先级接入对比流程。
+- [x] 实现对比目标解析：最近推荐商品、用户提到的商品名 / 品牌、category search 候选，并做 active product、去重、数量和 negative constraint 校验。
+- [x] 新增 `ComparisonGenerationService`，让 LLM 基于已校验商品事实生成 `answer`、维度、cells、高亮和推荐结论。
+- [x] 对 comparison generation 输出做 schema、长度、cell 覆盖、product id allowlist 和推荐商品合法性校验。
+- [x] 扩展 SSE contract，新增 `comparison_result` event，并补 comparison success fixture / 顺序测试。
+- [x] 确保 comparison result 不写入 popular query cache，普通 RAG / clarification / cart action 不受影响。
+- [x] Android 扩展 `ChatStreamContract`、`ChatStreamEventParser` 和对应测试，解析 `comparison_result`。
+- [x] Android 新增 comparison UI state / mapper，`ChatViewModel` 收到对比结果后暴露“查看对比”入口。
+- [x] 改造 `ProductComparisonScreen` 和导航 route，让正式路径使用真实 `ComparisonUi`，mock 只保留给 Preview。
+- [x] 验证窄屏对比表不横向溢出，缺失或非法 comparison payload 不打开对比页。
+- [x] 运行后端验证：`cd server && npm.cmd test`、`cd server && npm.cmd run build`。
+- [x] 运行 Android 验证：`cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest`、`cd client/android && .\gradlew.bat --no-daemon build`。
+- [x] 用 spec 中的两轮 Chat SSE smoke test 确认 `comparison_result`、真实商品卡片和 allowlist 行为。
 
 ## 备注
 
-- 规格来源：`context/feature/cart-natural-language-management-spec.md`。
-- 开发顺序：这是 `context/spec-implementation-order.md` 中进阶加分阶段第 27 项，建立在 conversational cart add、cart add response generation、chat context memory、真实 cart API 和 negative constraint RAG 已完成的基础上。
-- 范围边界：第一版不做真实登录 / 多用户隔离、不做结算 / 下单 / 支付、不让 Android 解析自然语言或直接调用购物车 CRUD、不直接执行“清空购物车”。
-- 安全边界：LLM intent 无效、模型不可用、低置信、目标不唯一、目标不存在、权限 / allowlist 校验失败或 schema 不合法时，不执行购物车 mutation。
-- 目标解析边界：删除、改数量、勾选必须基于当前购物车 item；加购才允许使用最近推荐商品 allowlist 或明确库内 active 商品；数量继续由 `CartService` 校验到 `1..99`。
-- 用户可见回复边界：`cartAction.message` 只能表达结构化状态，不能承载硬编码导购话术；response LLM 失败时可以只返回结构化状态，不能补固定模板。
-- 验证计划：后端先跑目标测试，再跑 `cd server && npm.cmd test`、`cd server && npm.cmd run build`；Android contract 变更后跑 `cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest`、`cd client/android && .\gradlew.bat --no-daemon build`。
-- 验证记录：
-  - `cd server && npm.cmd test -- cart-command.service.test.ts cart-command-intent.service.test.ts rag.service.test.ts` 通过，3 个 test files / 51 个 tests。
-  - `cd server && npm.cmd run build` 通过。
-  - `cd server && npm.cmd test` 通过，33 个 test files / 220 个 tests。
-  - `cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.data.chat.ChatStreamEventParserTest" --tests "com.shopmate.app.ui.chat.ChatViewModelTest"` 通过。
-  - `cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest` 通过。
-  - `cd client/android && .\gradlew.bat --no-daemon -PSHOPMATE_DEMO_API_BASE_URL=https://api.example.test/ build` 通过。
-  - Review 修复后补齐明确库内 active 商品名称加购路径；`cd server && npm.cmd test -- cart-command.service.test.ts cart-command-intent.service.test.ts rag.service.test.ts` 通过，3 个 test files / 52 个 tests；`cd server && npm.cmd run build` 通过。
-  - Smoke 前发现真实 LLM 对简短“删除第二个商品”“把数量改成 2”识别不稳定，已补 cart intent prompt 正向示例；`cd server && npm.cmd test -- cart-command.service.test.ts cart-command-intent.service.test.ts rag.service.test.ts` 通过，3 个 test files / 52 个 tests。
-  - Smoke 修复后 `cd server && npm.cmd run build` 通过；`cd server && npm.cmd test` 通过，33 个 test files / 221 个 tests。
-- Smoke test 记录：启动本地后端 `cd server && npm.cmd run dev`，通过 Cart API 清空并加入 2 个 demo 商品；`POST /api/chat/stream` 发送“删除第二个商品”返回 `cartAction.type=remove,status=success`，购物车从 2 项变 1 项；再发送“把数量改成 2”返回 `cartAction.type=update_quantity,status=success`，剩余 item 数量从 1 变 2。
+- Spec 来源：`context/feature/comparison-rag-output-spec.md`。
+- 实现顺序参考 `context/spec-implementation-order.md` 第 28 项：该 feature 属于进阶加分阶段，前置的 RAG、商品详情真实 API、主聊天 App flow、否定约束和购物车自然语言管理已在历史记录中完成。
+- LLM-first 边界：comparison intent、对比维度、每格文案、推荐结论和用户可见说明都应由 LLM 基于库内商品事实生成；代码只负责候选、schema、长度、allowlist、active 商品和安全校验。
+- 目标解析边界：最近推荐商品只能来自 `contextMemory.lastRecommendedProductIds`；商品名 / 品牌必须回查 PostgreSQL active products；少于 2 个商品或候选歧义时应澄清，不自动猜。
+- 对比范围边界：第一版只支持 2 个商品对比；如果用户要求 3 个或更多商品，后端不生成对比表，由 LLM 自然说明目前只支持两款并请用户选出两款。不做真实 reranker、图片找货、多轮复杂决策树或把对比表塞进普通 assistant 文本。
+- SSE 第一版优先使用独立 `comparison_result` event，事件顺序建议为 `message_delta` -> `product_cards` -> `comparison_result` -> `done`。
+- Android 边界：Android 不根据关键词判断对比意图；如果 comparison payload 缺字段或校验失败，不打开对比页，只保留普通 assistant 回复。
+- Smoke test 需要先用同一 `conversationId` 触发普通推荐，再追问“帮我对比这两款，哪个更适合油皮通勤”。
+- 本轮实现：后端新增 comparison intent / generation 服务，`RagChatService` 在 negative constraint 后、clarification / 普通 RAG 前接入 comparison 分支；`comparison_result` 只在结构化生成成功时随 SSE 输出，模型错误或输出无效时保留普通商品卡片 fallback，不写入 popular query cache。
+- 本轮实现：Android 扩展 `comparison_result` DTO / parser / mapper / ViewModel state，聊天页显示“查看对比”入口，`ProductComparisonScreen` 与导航 route 可消费真实 `ComparisonUi`，mock 数据只保留为 Preview / fallback。
+- 验证通过：`cd server && npm.cmd test`（35 files / 234 tests passed）、`cd server && npm.cmd run build`。
+- 验证通过：`cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.data.chat.ChatStreamEventParserTest" --tests "com.shopmate.app.ui.chat.ChatViewModelTest"`、`cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest`、`cd client/android && .\gradlew.bat --no-daemon -PSHOPMATE_DEMO_API_BASE_URL=https://api.example.test/ build`。
+- 验证说明：`cd client/android && .\gradlew.bat --no-daemon build` 在未提供 `SHOPMATE_DEMO_API_BASE_URL` 时按既有 demo fail-fast 规则失败；带显式 HTTPS demo URL 的 build 已通过。
+- Smoke 通过：本地两轮 Chat SSE 使用显式 UTF-8 body，第一轮推荐返回真实商品 `p_beauty_006` / `p_beauty_023` 并写入 `contextMemory.lastRecommendedProductIds`；第二轮追问“帮我对比这两款，哪个更适合油皮通勤”返回 `comparison_result`，事件顺序为 `message_delta` -> `product_cards` -> `comparison_result` -> `done`。
+- Smoke 调整：PowerShell `Invoke-WebRequest` 直接传 JSON 字符串时中文 body 会导致本地 smoke 失真；本轮 smoke 改用 `[System.Text.Encoding]::UTF8.GetBytes($body)`。comparison generation 增加 60s LLM timeout，避免结构化对比在默认 30s provider timeout 下误落入 `LLM_ERROR` fallback。
+- 体验修复：手机对比场景已确认后端会返回 `comparison_result`；Android 原先把“查看对比”入口渲染在商品卡片之后，容易被两张大卡挤到首屏下方，看起来像未触发。本轮已调整为先显示 comparison action，再显示商品卡片。
+- 体验修复：对比追问不再把上一轮推荐商品卡挪到最新回复下方；`ChatViewModel` 对“对比这两款 / 这两个 / 第一款第二款”等追问保留原 `productCardsAnchorMessageId`。聊天页现在只保留轻量“打开对比详情”入口，完整对比进入独立详情页；`ProductComparisonScreen` 已去掉聊天气泡 / 输入框 / 侧边栏，改为纵向详情页 section，商品名称、参数值、亮点和结论不再使用省略号截断。
+- 体验修复验证通过：`cd client/android && .\gradlew.bat --no-daemon :app:compileDebugKotlin`、`cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.ui.chat.ChatViewModelTest"`、`cd client/android && .\gradlew.bat --no-daemon -PSHOPMATE_DEMO_API_BASE_URL=https://api.example.test/ build`。
+- 范围收口：comparison intent / generation / RAG target resolution / Android mapper 都已改为“刚好两款”契约；用户要求三款或更多时保留 LLM 生成的澄清说明，不创建 `comparison_result`。`ProductComparisonScreen` 的核心参数区改为每个维度下商品 1 / 商品 2 两格并列，文本自然换行撑高。
+- 范围收口验证通过：`cd server && npm.cmd test -- comparison-intent.service.test.ts comparison-generation.service.test.ts rag.service.test.ts`、`cd server && npm.cmd test`（35 files / 237 tests passed）、`cd server && npm.cmd run build`、`cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.ui.chat.ChatViewModelTest"`、`cd client/android && .\gradlew.bat --no-daemon :app:compileDebugKotlin`、`cd client/android && .\gradlew.bat --no-daemon -PSHOPMATE_DEMO_API_BASE_URL=https://api.example.test/ build`。
+- 入口消失修复：对比追问保留上一轮商品卡时，如果本轮 `product_cards` 为空或与 UI 锚点时序不一致，`ChatViewModel` 不再清空原商品卡；comparison mapper 会用本轮 stream 商品卡、当前商品卡和已保存 comparison 商品组成候选池，避免后端已返回 `comparison_result` 但“打开对比详情”入口消失。验证通过：`cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.ui.chat.ChatViewModelTest"`、`cd client/android && .\gradlew.bat --no-daemon :app:compileDebugKotlin`。
+- 对比详情 UI 修复：`ProductComparisonScreen` 的对比商品、核心参数和推荐亮点都改为商品 1 / 商品 2 两列并列等高卡片；推荐亮点区给两款商品都显示商品编号，缺少 LLM highlight 时用商品推荐理由兜底。comparison generation prompt / parser 收紧“更优”规则：每个维度最多一个 `highlight=true`，只有用户有明确优先需求且单款明显更适合时才标；没有用户优先需求时服务层清空维度 highlight，LLM 同一维度误标两款更优时解析层全部清掉。验证通过：`cd server && npm.cmd test -- comparison-generation.service.test.ts`、`cd server && npm.cmd test`（35 files / 239 tests passed）、`cd server && npm.cmd run build`、`cd client/android && .\gradlew.bat --no-daemon :app:compileDebugKotlin`、`cd client/android && .\gradlew.bat --no-daemon -PSHOPMATE_DEMO_API_BASE_URL=https://api.example.test/ build`。
+- Review 修复：Android comparison mapper 重新收紧为必须有刚好 2 个 `productIds`，且两个 id 都能映射到当前候选商品；不再用当前商品卡或推荐理由兜底生成对比详情。正式运行路径找不到真实 `comparisonId` 时返回聊天页，不再展示 mock 防晒对比。后端最近推荐超过两款且用户未明确序号时改为澄清，不静默截断前两款；comparison generation 至少要求 3 个完整维度。验证通过：`cd server && npm.cmd test -- comparison-generation.service.test.ts rag.service.test.ts chat-contract.fixture.test.ts`（3 files / 57 tests passed）、`cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.ui.chat.ChatViewModelTest"`、`cd client/android && .\gradlew.bat --no-daemon :app:compileDebugKotlin`。
+- 对比详情 UI 调整：核心参数和推荐亮点卡片不再重复显示商品名；对比商品卡的 1 / 2 序号从图片内部移到整体卡片左上角；商品品类 / 子类改为绿色 tag 横向排列，空间不足时自然换行；移除“查看商品”按钮，改为点击商品图片或商品名进入详情。商品详情返回链路改为保留来源页，从对比页进入详情后返回同一个对比页，从聊天页进入详情后返回聊天页。验证通过：`cd client/android && .\gradlew.bat --no-daemon :app:compileDebugKotlin`。
+- 入口偶发消失修复：Android 在每次发送前记录当前商品卡作为对比候选池，comparison mapper 会同时使用本轮 stream 商品卡、当前商品卡、发送前商品卡和已保存 comparison 商品，避免本轮空 `product_cards` 或时序抖动导致合法 `comparison_result` 被丢弃；对比追问期间聊天页始终保留上一轮商品卡原锚点，不被本轮对比商品卡替换。后端 recent recommendation 对比复核触发条件补充“第二个和第三个 / 2和3 / 二和三”等序号组合，避免第一跳 LLM 偶尔漏判后走普通 RAG。
+- Review 修复：comparison intent 第一跳如果返回 `is_comparison=true` 但 `confidence=low`，且用户消息带有最近推荐对比线索，也会进入 focused LLM 复核，避免明确序号对比被低置信度分支直接关掉。验证通过：`cd server && npm.cmd test -- comparison-intent.service.test.ts`（1 file / 8 tests passed）。
+- 入口再次消失修复：对“对比一下第二个和第三个 / 第2个和第3个 / 2和3”这类明确序号对比，若两轮 comparison intent LLM 偶尔都漏判为普通 RAG，后端会在确认最近推荐数量足够后只兜底解析目标为 `recent_recommendations` 的两个序号，仍由 LLM 生成对比标题、维度、亮点和结论；同时会修正 LLM 把明确序号错抽成 `category_search` 等不合规 target 的情况。验证通过：`cd server && npm.cmd test -- comparison-intent.service.test.ts`（1 file / 11 tests passed）、`cd server && npm.cmd run build`。
 
 ## 历史记录
 - 初始化前后端技术栈骨架：完成 Android Kotlin + Jetpack Compose 与 Node.js + TypeScript + Express 最小工程初始化，补充 README 与 Git 忽略配置，并通过后端构建与 Android `assembleDebug` 验证。
@@ -104,3 +117,4 @@ Complete
 - Refactor Scanner 高优先级重构：抽取 Android 商品展示格式化 / placeholder helper、后端 Chat LLM 输出解析工具和商品可售判定 helper，收口 catalog JSON / JSONL helper，并修正 repo-local feature workflow 文档；通过后端 test / build、Android testDebugUnitTest、带 demo URL 的 Android build 和 diff check 验证。
 - Android 语音输入回归修复：修复主聊天入口页语音按住后看不到识别中气泡的问题，语音监听 / 识别时进入聊天流，并固定 SpeechRecognizer 使用 `zh-CN` 识别中文；通过 Android 目标单测、完整 `testDebugUnitTest` 与 `assembleDebug` 验证。
 - Negative Constraint RAG：新增 LLM negative constraint intent、会话记忆负向约束、向量 must_not、检索后商品事实过滤和 RAG prompt 排除约束展示；自然语言否定约束不再由正则作为权威判断，最终 `productCards` 只来自过滤后的候选。通过后端目标测试、全量 test、build、JSON 校验和本地 Chat SSE smoke 验证。
+- Cart Natural Language Management：新增聊天自然语言购物车管理，支持查看、加购、删除、改数量、勾选 / 取消勾选和清空确认；后端基于当前购物车快照、最近推荐 allowlist 和 active 商品事实解析目标，Android 根据成功 mutation 的 `cartAction` 刷新购物车；通过后端 test / build、Android testDebugUnitTest / build 和本地 Chat SSE smoke 验证。

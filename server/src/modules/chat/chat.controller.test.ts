@@ -167,6 +167,25 @@ describe("createChatStreamController", () => {
     expect(response.ended).toBe(true);
   });
 
+  it("streams comparison results before done", async () => {
+    const service = createService(async () =>
+      createResultFromFixture(chatContractFixtures.comparisonStream.events)
+    );
+    const request = createRequest({ message: "帮我对比这两款" });
+    const response = new FakeResponse();
+
+    await createChatStreamController(service)(
+      request.asRequest(),
+      response.asResponse(),
+    );
+
+    expect(response.streamEvents()).toEqual(
+      chatContractFixtures.comparisonStream.events,
+    );
+    expect(response.ended).toBe(true);
+  });
+
+
   it("does not treat request body close as a client disconnect", async () => {
     let capturedSignal: AbortSignal | undefined;
     let resolveAnswer: ((result: RagChatResult) => void) | undefined;
@@ -372,6 +391,14 @@ function createResultFromFixture(
     retrieval: donePayload.retrieval,
     contextMemory: donePayload.contextMemory,
     cartAction: donePayload.cartAction,
+    comparisonResult: events.find(
+      (
+        event,
+      ): event is Extract<
+        ChatStreamContractEvent,
+        { eventName: "comparison_result" }
+      > => event.eventName === "comparison_result",
+    )?.payload,
   });
 }
 

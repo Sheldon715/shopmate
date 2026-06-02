@@ -206,7 +206,7 @@ class MainActivity : ComponentActivity() {
                     } else {
                         currentScreen = when (conversation.id) {
                             "history-commute-earbuds" -> ShopMateScreen.ChatRecommendation
-                            "history-sunscreen-compare" -> ShopMateScreen.ProductComparison
+                            "history-sunscreen-compare" -> ShopMateScreen.ChatRecommendation
                             else -> currentScreen
                         }
                     }
@@ -248,9 +248,15 @@ class MainActivity : ComponentActivity() {
                         onNewChatClick = startNewChat,
                         onCartClick = openCart,
                         onProductClick = { productId ->
-                            currentScreen = ShopMateScreen.ProductDetail(productId)
+                            currentScreen = ShopMateScreen.ProductDetail(
+                                productId = productId,
+                                previousScreen = ShopMateScreen.ChatRecommendation,
+                            )
                         },
                         onAddCartClick = addProductToCart,
+                        onComparisonClick = { comparisonId ->
+                            currentScreen = ShopMateScreen.ProductComparison(comparisonId)
+                        },
                         onHistoryClick = openHistoryConversation,
                         historyConversations = historyConversations,
                         editableConversationIds = editableHistoryIds,
@@ -258,28 +264,36 @@ class MainActivity : ComponentActivity() {
                         onDeleteHistory = deleteHistory
                     )
 
-                    ShopMateScreen.ProductComparison -> ProductComparisonScreen(
-                        onNewChatClick = startNewChat,
-                        onCartClick = openCart,
-                        onAddCartClick = {
-                            Toast.makeText(
-                                this@MainActivity,
-                                "商品对比页仍使用预览数据，请从聊天推荐或详情页加购",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        },
-                        onProductClick = { productId ->
-                            currentScreen = ShopMateScreen.ProductDetail(productId)
-                        },
-                        onHistoryClick = openHistoryConversation,
-                        historyConversations = historyConversations,
-                        editableConversationIds = editableHistoryIds,
-                        onRenameHistory = renameHistory,
-                        onDeleteHistory = deleteHistory
-                    )
+                    is ShopMateScreen.ProductComparison -> {
+                        val comparisonId =
+                            (currentScreen as ShopMateScreen.ProductComparison).comparisonId
+                        val comparison = comparisonId?.let(chatViewModel::findComparison)
+
+                        if (comparison == null) {
+                            LaunchedEffect(comparisonId) {
+                                currentScreen = ShopMateScreen.ChatRecommendation
+                            }
+                        } else {
+                            ProductComparisonScreen(
+                                comparison = comparison,
+                                onBackClick = {
+                                    currentScreen = ShopMateScreen.ChatRecommendation
+                                },
+                                onCartClick = openCart,
+                                onAddCartClick = addProductToCart,
+                                onProductClick = { productId ->
+                                    currentScreen = ShopMateScreen.ProductDetail(
+                                        productId = productId,
+                                        previousScreen = currentScreen,
+                                    )
+                                }
+                            )
+                        }
+                    }
 
                     is ShopMateScreen.ProductDetail -> {
-                        val productId = (currentScreen as ShopMateScreen.ProductDetail).productId
+                        val productDetailScreen = currentScreen as ShopMateScreen.ProductDetail
+                        val productId = productDetailScreen.productId
                         val productDetailViewModel: ProductDetailViewModel = viewModel(
                             key = "product-detail-$productId",
                             factory = appContainer.productDetailViewModelFactory(productId)
@@ -289,7 +303,9 @@ class MainActivity : ComponentActivity() {
                         ProductDetailScreen(
                             state = productDetailState,
                             onBackClick = {
-                                currentScreen = ShopMateScreen.ChatRecommendation
+                                currentScreen = restoreProductDetailPrevious(
+                                    productDetailScreen.previousScreen
+                                )
                             },
                             onCartClick = openCart,
                             onRetry = productDetailViewModel::retry,
@@ -332,8 +348,11 @@ private sealed class ShopMateScreen {
     object Onboarding : ShopMateScreen()
     object HomeChatEntry : ShopMateScreen()
     object ChatRecommendation : ShopMateScreen()
-    object ProductComparison : ShopMateScreen()
-    data class ProductDetail(val productId: String) : ShopMateScreen()
+    data class ProductComparison(val comparisonId: String? = null) : ShopMateScreen()
+    data class ProductDetail(
+        val productId: String,
+        val previousScreen: ShopMateScreen = ChatRecommendation,
+    ) : ShopMateScreen()
     data class Cart(val previousScreen: ShopMateScreen) : ShopMateScreen()
 }
 
@@ -349,13 +368,22 @@ private fun restoreCartPrevious(previousScreen: ShopMateScreen): ShopMateScreen 
         else -> previousScreen
     }
 
+private fun restoreProductDetailPrevious(previousScreen: ShopMateScreen): ShopMateScreen =
+    when (previousScreen) {
+        ShopMateScreen.Onboarding -> ShopMateScreen.HomeChatEntry
+        is ShopMateScreen.Cart -> ShopMateScreen.ChatRecommendation
+        is ShopMateScreen.ProductDetail -> ShopMateScreen.ChatRecommendation
+        else -> previousScreen
+    }
+
 private fun ShopMateScreen.toRouteParts(): List<String> =
     when (this) {
         ShopMateScreen.Onboarding -> listOf("onboarding")
         ShopMateScreen.HomeChatEntry -> listOf("home")
         ShopMateScreen.ChatRecommendation -> listOf("chat-recommendation")
-        ShopMateScreen.ProductComparison -> listOf("comparison")
-        is ShopMateScreen.ProductDetail -> listOf("product-detail", productId)
+        is ShopMateScreen.ProductComparison -> listOf("comparison", comparisonId.orEmpty())
+        is ShopMateScreen.ProductDetail -> listOf("product-detail", productId) +
+            previousScreen.toRouteParts().take(2)
         is ShopMateScreen.Cart -> listOf("cart") + previousScreen.toRouteParts().take(2)
     }
 
@@ -363,8 +391,14 @@ private fun restoreScreenFromRouteParts(parts: List<String>): ShopMateScreen =
     when (parts.firstOrNull()) {
         "home" -> ShopMateScreen.HomeChatEntry
         "chat-recommendation" -> ShopMateScreen.ChatRecommendation
-        "comparison" -> ShopMateScreen.ProductComparison
-        "product-detail" -> ShopMateScreen.ProductDetail(parts.getOrNull(1).orEmpty())
+        "comparison" -> ShopMateScreen.ProductComparison(
+            comparisonId = parts.getOrNull(1)?.takeIf { value -> value.isNotBlank() },
+        )
+        "product-detail" -> ShopMateScreen.ProductDetail(
+            productId = parts.getOrNull(1).orEmpty(),
+            previousScreen = restoreScreenFromRouteParts(parts.drop(2))
+                .let(::restoreProductDetailPrevious),
+        )
         "cart" -> ShopMateScreen.Cart(
             previousScreen = restoreScreenFromRouteParts(parts.drop(1))
                 .let(::restoreCartPrevious)
