@@ -48,7 +48,7 @@
     "expectedProductIdsAny": ["p_beauty_006", "p_beauty_010", "p_beauty_023"],
     "expectedNoResult": false,
     "passCriteria": {
-      "description": "top-k 至少命中防晒类目，且不得包含被 avoidTerms 排除的结果。",
+      "description": "top-k 至少命中防晒类目；明确“不含酒精”的安全证据不应因包含“酒精”两个字被判为冲突，明确酒精风险仍应判违规。",
       "minMatchingHits": 1
     }
   },
@@ -147,6 +147,112 @@
       "description": "top-k 至少命中 1000 元以内空气净化器商品。",
       "minMatchingHits": 1,
       "requireExpectedProductId": true
+    }
+  },
+  {
+    "caseId": "negative-brand-sunscreen",
+    "query": "除了安热沙还有什么防晒",
+    "filters": {
+      "category": "美妆护肤",
+      "subCategory": "防晒",
+      "availableOnly": true,
+      "avoidTerms": ["安热沙"]
+    },
+    "expectedCategory": "美妆护肤",
+    "expectedSubCategory": "防晒",
+    "expectedProductIdsAny": ["p_beauty_006", "p_beauty_023"],
+    "expectedNoResult": false,
+    "passCriteria": {
+      "description": "top-k 至少命中非安热沙品牌的库内防晒商品，且不得包含被 avoidTerms 排除的安热沙结果。",
+      "minMatchingHits": 1,
+      "requireExpectedProductId": true
+    }
+  },
+  {
+    "caseId": "alcohol-free-oily-sunscreen",
+    "query": "适合油皮通勤、不要酒精的防晒",
+    "filters": {
+      "category": "美妆护肤",
+      "subCategory": "防晒",
+      "availableOnly": true,
+      "avoidTerms": ["酒精"]
+    },
+    "expectedCategory": "美妆护肤",
+    "expectedSubCategory": "防晒",
+    "expectedProductIdsAny": ["p_beauty_006", "p_beauty_023"],
+    "expectedNoResult": false,
+    "passCriteria": {
+      "description": "top-k 至少命中适合油皮或清爽肤感的防晒候选；明确“不含酒精”候选应保留，明确酒精风险或酒精敏感风险应判违规。",
+      "minMatchingHits": 1
+    }
+  },
+  {
+    "caseId": "earbuds-not-in-ear",
+    "query": "耳机不要入耳式",
+    "filters": {
+      "category": "数码电子",
+      "subCategory": "真无线耳机",
+      "availableOnly": true,
+      "avoidTerms": ["入耳"]
+    },
+    "expectedCategory": "数码电子",
+    "expectedSubCategory": "真无线耳机",
+    "expectedProductIdsAny": [],
+    "expectedNoResult": false,
+    "passCriteria": {
+      "description": "用于观察佩戴形态排除条件是否导致候选不足或仍召回冲突耳机；入耳式应基于结构化佩戴形态或明确商品事实判定，半入耳 / 开放式 / 头戴式不得仅因包含“入耳”判冲突。",
+      "minMatchingHits": 1
+    }
+  },
+  {
+    "caseId": "cheap-earbuds-follow-up-proxy",
+    "query": "更便宜一点的蓝牙耳机",
+    "filters": {
+      "category": "数码电子",
+      "subCategory": "真无线耳机",
+      "availableOnly": true
+    },
+    "expectedCategory": "数码电子",
+    "expectedSubCategory": "真无线耳机",
+    "expectedProductIdsAny": ["p_digital_007"],
+    "expectedNoResult": false,
+    "passCriteria": {
+      "description": "离线层只观察口语化便宜追问是否仍能召回库内真无线耳机候选，真实历史依赖留给 Chat SSE case 判断。",
+      "minMatchingHits": 1
+    }
+  },
+  {
+    "caseId": "compare-oily-sunscreens",
+    "query": "对比两款适合油皮通勤的防晒",
+    "filters": {
+      "category": "美妆护肤",
+      "subCategory": "防晒",
+      "availableOnly": true
+    },
+    "expectedCategory": "美妆护肤",
+    "expectedSubCategory": "防晒",
+    "expectedProductIdsAny": ["p_beauty_006", "p_beauty_023"],
+    "expectedNoResult": false,
+    "passCriteria": {
+      "description": "top-k 至少返回两条防晒候选，便于后续结构化 comparison flow 生成两款对比。",
+      "minMatchingHits": 2
+    }
+  },
+  {
+    "caseId": "unrealistic-low-budget-earbuds",
+    "query": "50 元以内的蓝牙耳机",
+    "filters": {
+      "category": "数码电子",
+      "subCategory": "真无线耳机",
+      "maxPriceCents": 5000,
+      "availableOnly": true
+    },
+    "expectedCategory": "数码电子",
+    "expectedSubCategory": "真无线耳机",
+    "expectedProductIdsAny": [],
+    "expectedNoResult": true,
+    "passCriteria": {
+      "description": "当前商品库没有 50 元以内的真无线耳机，应合理返回 no result。"
     }
   }
 ]

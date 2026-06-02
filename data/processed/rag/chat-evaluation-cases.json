@@ -224,5 +224,143 @@
     "expectedNoResult": true,
     "riskFocus": ["no_result", "llm_grounding"],
     "priority": "p0"
+  },
+  {
+    "caseId": "unrealistic-low-budget-earbuds-chat",
+    "query": "50 元以内蓝牙耳机",
+    "history": [],
+    "filters": {
+      "category": "数码电子",
+      "subCategory": "真无线耳机",
+      "maxPriceCents": 5000,
+      "availableOnly": true
+    },
+    "topK": 8,
+    "maxRecommendedProducts": 3,
+    "expectedBehavior": "当前库内没有 50 元以内真无线耳机，应说明没有符合预算的库内商品；不能强行推荐超预算耳机，且 no-result 应是可继续聊天的普通 assistant turn。",
+    "expectedProductIdsAny": [],
+    "expectedNoResult": true,
+    "riskFocus": ["no_result", "filter", "llm_grounding"],
+    "priority": "p0"
+  },
+  {
+    "caseId": "cart-inspect-chat",
+    "query": "购物车里现在有什么",
+    "history": [],
+    "filters": {},
+    "topK": 8,
+    "maxRecommendedProducts": 3,
+    "expectedBehavior": "应识别为购物车 inspect，不执行 mutation；SSE done.cartAction.type 应为 inspect，assistant 回复基于当前购物车事实，不编造订单或优惠。",
+    "expectedProductIdsAny": [],
+    "expectedNoResult": false,
+    "riskFocus": ["cart_intent", "cart_action", "sse_contract"],
+    "priority": "p0"
+  },
+  {
+    "caseId": "cart-remove-second-chat",
+    "query": "删除第二个商品",
+    "history": [],
+    "filters": {},
+    "topK": 8,
+    "maxRecommendedProducts": 3,
+    "expectedBehavior": "测试前必须准备至少两个购物车 item 并记录顺序；目标明确时才允许 mutation，SSE done.cartAction.type 应为 remove 且 status 为 success。",
+    "expectedProductIdsAny": [],
+    "expectedNoResult": false,
+    "riskFocus": ["cart_intent", "cart_execution", "sse_contract"],
+    "priority": "p0"
+  },
+  {
+    "caseId": "cart-update-quantity-ambiguous-chat",
+    "query": "把数量改成 2",
+    "history": [],
+    "filters": {},
+    "topK": 8,
+    "maxRecommendedProducts": 3,
+    "expectedBehavior": "如果当前购物车中目标不唯一，应由 LLM 生成澄清或 needs_target，不执行 mutation；不能在目标不明时随便修改某个 item。",
+    "expectedProductIdsAny": [],
+    "expectedNoResult": false,
+    "riskFocus": ["cart_intent", "cart_execution", "safety"],
+    "priority": "p0"
+  },
+  {
+    "caseId": "cart-non-action-budget-chat",
+    "query": "预算加一点，推荐加湿器",
+    "history": [],
+    "filters": {
+      "category": "家用电器",
+      "availableOnly": true
+    },
+    "topK": 8,
+    "maxRecommendedProducts": 3,
+    "expectedBehavior": "不应因为“加一点”误触发购物车 add 或 update；done.cartAction 应缺失，流程应继续普通推荐、澄清或 no-result。",
+    "expectedProductIdsAny": [],
+    "expectedNoResult": false,
+    "riskFocus": ["cart_intent", "retrieval", "llm_grounding"],
+    "priority": "p0"
+  },
+  {
+    "caseId": "comparison-recent-two-sunscreens-chat",
+    "query": "帮我对比这两款",
+    "history": [
+      {
+        "role": "user",
+        "content": "推荐两款适合通勤的防晒"
+      },
+      {
+        "role": "assistant",
+        "content": "可以先看巴黎欧莱雅新多重防护隔离露和理肤泉特护清盈防晒乳。"
+      }
+    ],
+    "filters": {
+      "category": "美妆护肤",
+      "subCategory": "防晒",
+      "availableOnly": true
+    },
+    "topK": 8,
+    "maxRecommendedProducts": 3,
+    "expectedBehavior": "使用同一 conversationId 先准备最近推荐商品后再执行；应返回 comparison_result，productIds 只包含已校验库内商品，Android contract 可解析。",
+    "expectedProductIdsAny": ["p_beauty_006", "p_beauty_023"],
+    "expectedNoResult": false,
+    "riskFocus": ["comparison_intent", "comparison_contract", "sse_contract"],
+    "priority": "p0"
+  },
+  {
+    "caseId": "comparison-priority-oily-commute-chat",
+    "query": "这两个哪个更适合油皮通勤",
+    "history": [
+      {
+        "role": "user",
+        "content": "推荐两款适合通勤的防晒"
+      },
+      {
+        "role": "assistant",
+        "content": "可以先看巴黎欧莱雅新多重防护隔离露和理肤泉特护清盈防晒乳。"
+      }
+    ],
+    "filters": {
+      "category": "美妆护肤",
+      "subCategory": "防晒",
+      "availableOnly": true
+    },
+    "topK": 8,
+    "maxRecommendedProducts": 3,
+    "expectedBehavior": "使用同一 conversationId 准备最近两款防晒后再执行；comparison_result 的 conclusion 和 recommendation 应基于油皮通勤诉求与库内商品事实。",
+    "expectedProductIdsAny": ["p_beauty_006", "p_beauty_023"],
+    "expectedNoResult": false,
+    "riskFocus": ["comparison_intent", "comparison_contract", "llm_grounding"],
+    "priority": "p0"
+  },
+  {
+    "caseId": "comparison-ambiguous-chat",
+    "query": "帮我比较一下",
+    "history": [],
+    "filters": {},
+    "topK": 8,
+    "maxRecommendedProducts": 3,
+    "expectedBehavior": "目标不足时不应生成 comparison_result 或猜商品；应由 LLM 追问用户要比较哪两款商品，且不返回库外商品。",
+    "expectedProductIdsAny": [],
+    "expectedNoResult": false,
+    "riskFocus": ["comparison_intent", "comparison_contract", "clarification"],
+    "priority": "p0"
   }
 ]

@@ -40,7 +40,7 @@ interface ParsedNegativeConstraintIntent {
   clarificationQuestion?: string;
 }
 
-const NEGATIVE_INTENT_MAX_COMPLETION_TOKENS = 420;
+const NEGATIVE_INTENT_MAX_COMPLETION_TOKENS = 900;
 const MAX_NEGATIVE_CONSTRAINTS = 5;
 const MAX_NEGATIVE_TERM_CHARS = 80;
 const MAX_NEGATIVE_RAW_TEXT_CHARS = 120;
@@ -162,7 +162,8 @@ function parseNegativeConstraintIntentOutput(
   rawText: string,
 ): ParsedNegativeConstraintIntent {
   const payload = parseJsonObject(stripCodeFence(rawText));
-  const hasNegativeConstraints = payload.has_negative_constraints;
+  const hasNegativeConstraints =
+    payload.has_negative_constraints ?? payload.hasNegativeConstraints;
   const confidence = parseConfidence(payload.confidence);
 
   if (typeof hasNegativeConstraints !== "boolean") {
@@ -190,9 +191,12 @@ function parseNegativeConstraintIntentOutput(
     hasNegativeConstraints: true,
     confidence,
     constraints: parseConstraints(payload.constraints),
-    needsClarification: payload.needs_clarification === true,
+    needsClarification:
+      (payload.needs_clarification ?? payload.needsClarification) === true,
     clarificationQuestion: normalizeLlmText(
-      parseOptionalString(payload.clarification_question),
+      parseOptionalString(
+        payload.clarification_question ?? payload.clarificationQuestion,
+      ),
       {
         maxChars: MAX_NEGATIVE_CLARIFICATION_CHARS,
       },
@@ -213,15 +217,20 @@ function parseConstraints(value: unknown): NegativeConstraint[] {
     }
 
     const record = item as Record<string, unknown>;
-    const rawText = normalizeLlmText(parseOptionalString(record.raw_text), {
-      maxChars: MAX_NEGATIVE_RAW_TEXT_CHARS,
-    });
+    const rawText = normalizeLlmText(
+      parseOptionalString(record.raw_text ?? record.rawText),
+      {
+        maxChars: MAX_NEGATIVE_RAW_TEXT_CHARS,
+      },
+    );
     const term = normalizeLlmText(parseOptionalString(record.term), {
       maxChars: MAX_NEGATIVE_TERM_CHARS,
     });
     const kind = parseKind(record.kind);
     const scope = parseScope(record.scope);
-    const matchPolicy = parseMatchPolicy(record.match_policy);
+    const matchPolicy = parseMatchPolicy(
+      record.match_policy ?? record.matchPolicy,
+    );
 
     if (!rawText || !term || !kind || !scope || !matchPolicy) {
       continue;

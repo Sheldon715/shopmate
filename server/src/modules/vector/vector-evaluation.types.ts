@@ -28,8 +28,22 @@ export interface VectorEvaluationCase {
 export interface VectorEvaluationProductSnapshot {
   productId: string;
   status: string;
+  name: string;
+  brand: string;
   category: string;
   subCategory: string | null;
+  tags: string[];
+  recommendWhen: string[];
+  avoidWhen: string[];
+  pros: string[];
+  cons: string[];
+  attributes: Record<string, string[]>;
+  marketingDescription: string;
+  knowledgeText: string;
+  reviewSummary: unknown;
+  contentBlocks: unknown;
+  officialFaq: unknown;
+  userReviews: unknown;
   priceMinCents: number;
   priceMaxCents: number;
   available: boolean;
