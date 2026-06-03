@@ -2,18 +2,163 @@ package com.shopmate.app.ui.voice
 
 import android.content.Context
 import android.content.Intent
+import android.media.MediaRecorder
 import android.os.Bundle
+import android.os.Build
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import com.shopmate.app.data.asr.AsrRepository
+import java.io.File
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 
 internal const val SHOPMATE_VOICE_LANGUAGE_TAG = "zh-CN"
+internal const val SHOPMATE_CLOUD_AUDIO_MIME_TYPE = "audio/mp4"
 
 interface VoiceInputController {
     fun startListening()
     fun stopListening()
     fun cancel()
     fun destroy()
+}
+
+class CloudAsrVoiceInputController(
+    context: Context,
+    private val asrRepository: AsrRepository,
+    private val coroutineScope: CoroutineScope,
+    private val listener: AndroidSpeechVoiceInputController.Listener,
+    private val fallbackController: VoiceInputController? = null,
+) : VoiceInputController {
+    private val appContext = context.applicationContext
+    private var recorder: MediaRecorder? = null
+    private var audioFile: File? = null
+    private var transcribeJob: Job? = null
+    private var cancelled = false
+    private var fallbackActive = false
+
+    override fun startListening() {
+        cancelled = false
+        fallbackActive = false
+        cleanupRecording()
+        val file = File.createTempFile("shopmate-voice-", ".m4a", appContext.cacheDir)
+        val nextRecorder = createRecorder().apply {
+            setAudioSource(MediaRecorder.AudioSource.MIC)
+            setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+            setAudioSamplingRate(16_000)
+            setAudioEncodingBitRate(64_000)
+            setMaxDuration(MAX_RECORDING_DURATION_MS)
+            setOutputFile(file.absolutePath)
+        }
+
+        runCatching {
+            nextRecorder.prepare()
+            nextRecorder.start()
+        }.onSuccess {
+            recorder = nextRecorder
+            audioFile = file
+            listener.onListening()
+        }.onFailure { error ->
+            nextRecorder.release()
+            file.delete()
+            if (fallbackController != null && error !is SecurityException) {
+                fallbackActive = true
+                fallbackController.startListening()
+            } else {
+                listener.onError(error.toVoiceInputMessage())
+            }
+        }
+    }
+
+    override fun stopListening() {
+        if (fallbackActive) {
+            fallbackController?.stopListening()
+            return
+        }
+
+        val file = audioFile
+        val activeRecorder = recorder
+        recorder = null
+        audioFile = null
+
+        if (file == null || activeRecorder == null) {
+            return
+        }
+
+        runCatching {
+            activeRecorder.stop()
+        }.onFailure {
+            file.delete()
+            activeRecorder.release()
+            listener.onError("录音失败，请检查麦克风后再试。")
+            return
+        }
+        activeRecorder.release()
+
+        if (cancelled) {
+            file.delete()
+            return
+        }
+
+        listener.onTranscribing()
+        transcribeJob?.cancel()
+        transcribeJob = coroutineScope.launch {
+            try {
+                val result = asrRepository.transcribeVoice(file, SHOPMATE_CLOUD_AUDIO_MIME_TYPE)
+
+                if (cancelled) {
+                    return@launch
+                }
+
+                result
+                    .onSuccess(listener::onTranscriptReady)
+                    .onFailure { error ->
+                        listener.onError(error.toVoiceInputMessage())
+                    }
+            } catch (error: CancellationException) {
+                throw error
+            } finally {
+                file.delete()
+                transcribeJob = null
+            }
+        }
+    }
+
+    override fun cancel() {
+        cancelled = true
+        fallbackActive = false
+        transcribeJob?.cancel()
+        transcribeJob = null
+        cleanupRecording()
+        fallbackController?.cancel()
+    }
+
+    override fun destroy() {
+        cancel()
+        fallbackController?.destroy()
+    }
+
+    private fun cleanupRecording() {
+        recorder?.runCatchingStopAndRelease()
+        recorder = null
+        audioFile?.delete()
+        audioFile = null
+    }
+
+    private fun createRecorder(): MediaRecorder =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            MediaRecorder(appContext)
+        } else {
+            @Suppress("DEPRECATION")
+            MediaRecorder()
+        }
+
+    companion object {
+        private const val MAX_RECORDING_DURATION_MS = 30_000
+    }
 }
 
 class AndroidSpeechVoiceInputController(
@@ -134,6 +279,13 @@ class AndroidSpeechVoiceInputController(
         }
 }
 
+private fun MediaRecorder.runCatchingStopAndRelease() {
+    runCatching {
+        stop()
+    }
+    release()
+}
+
 private fun Int.toVoiceInputMessage(): String =
     when (this) {
         SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "需要开启麦克风权限才能语音输入。"
@@ -157,5 +309,6 @@ private fun Int.toVoiceInputMessage(): String =
 private fun Throwable.toVoiceInputMessage(): String =
     when (this) {
         is SecurityException -> "需要开启麦克风权限才能语音输入。"
+        is com.shopmate.app.data.asr.AsrRecognitionException -> message ?: "语音识别失败，请再试一次。"
         else -> "语音识别暂时不可用，请稍后重试。"
     }

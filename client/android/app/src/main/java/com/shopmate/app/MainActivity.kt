@@ -22,6 +22,7 @@ import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewModelScope
 import com.shopmate.app.data.mock.MockShopMateData
 import com.shopmate.app.ui.cart.CartScreen
 import com.shopmate.app.ui.cart.CartViewModel
@@ -37,6 +38,7 @@ import com.shopmate.app.ui.product.ProductDetailScreen
 import com.shopmate.app.ui.product.ProductDetailViewModel
 import com.shopmate.app.ui.theme.ShopMateTheme
 import com.shopmate.app.ui.voice.AndroidSpeechVoiceInputController
+import com.shopmate.app.ui.voice.CloudAsrVoiceInputController
 
 class MainActivity : ComponentActivity() {
     private val appContainer by lazy { ShopMateAppContainer() }
@@ -73,29 +75,36 @@ class MainActivity : ComponentActivity() {
                     factory = appContainer.cartViewModelFactory()
                 )
                 val cartUiState by cartViewModel.uiState.collectAsState()
-                val voiceController = remember(chatViewModel) {
-                    AndroidSpeechVoiceInputController(
+                val voiceController = remember(chatViewModel, appContainer.asrRepository) {
+                    val voiceListener = object : AndroidSpeechVoiceInputController.Listener {
+                        override fun onListening() {
+                            chatViewModel.onVoiceListening()
+                        }
+
+                        override fun onTranscribing() {
+                            chatViewModel.onVoiceTranscribing()
+                            currentScreen = ShopMateScreen.ChatRecommendation
+                        }
+
+                        override fun onTranscriptReady(transcript: String) {
+                            chatViewModel.onVoiceTranscriptReady(transcript)
+                            currentScreen = ShopMateScreen.ChatRecommendation
+                        }
+
+                        override fun onError(message: String) {
+                            chatViewModel.onVoiceInputError(message)
+                        }
+                    }
+                    val fallbackController = AndroidSpeechVoiceInputController(
                         context = this@MainActivity,
-                        listener = object : AndroidSpeechVoiceInputController.Listener {
-                            override fun onListening() {
-                                chatViewModel.onVoiceListening()
-                                currentScreen = ShopMateScreen.ChatRecommendation
-                            }
-
-                            override fun onTranscribing() {
-                                chatViewModel.onVoiceTranscribing()
-                                currentScreen = ShopMateScreen.ChatRecommendation
-                            }
-
-                            override fun onTranscriptReady(transcript: String) {
-                                chatViewModel.onVoiceTranscriptReady(transcript)
-                                currentScreen = ShopMateScreen.ChatRecommendation
-                            }
-
-                            override fun onError(message: String) {
-                                chatViewModel.onVoiceInputError(message)
-                            }
-                        },
+                        listener = voiceListener,
+                    )
+                    CloudAsrVoiceInputController(
+                        context = this@MainActivity,
+                        asrRepository = appContainer.asrRepository,
+                        coroutineScope = chatViewModel.viewModelScope,
+                        listener = voiceListener,
+                        fallbackController = fallbackController,
                     )
                 }
                 DisposableEffect(voiceController) {

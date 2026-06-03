@@ -8,4 +8,9 @@ class VoiceInputControllerTest {
     fun voiceRecognizerLanguageDefaultsToChinese() {
         assertEquals("zh-CN", SHOPMATE_VOICE_LANGUAGE_TAG)
     }
+
+    @Test
+    fun cloudAsrUploadUsesAndroidM4aMimeType() {
+        assertEquals("audio/mp4", SHOPMATE_CLOUD_AUDIO_MIME_TYPE)
+    }
 }

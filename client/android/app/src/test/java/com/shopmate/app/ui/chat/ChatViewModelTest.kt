@@ -1412,6 +1412,23 @@ class ChatViewModelTest {
         assertEquals(0, repository.streamCalls)
         assertEquals(emptyList(), state.messages)
         assertEquals(VoiceInputUiState.Idle, state.voiceInput)
+        assertEquals("没有识别到语音，请再试一次。", state.errorMessage)
+    }
+
+    @Test
+    fun emptyCloudAsrTranscriptDoesNotRequestChatStream() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onVoiceTranscribing()
+        viewModel.onVoiceTranscriptReady("   ")
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(0, repository.streamCalls)
+        assertEquals(emptyList(), state.messages)
+        assertEquals(VoiceInputUiState.Idle, state.voiceInput)
+        assertEquals("没有识别到语音，请再试一次。", state.errorMessage)
     }
 
     @Test

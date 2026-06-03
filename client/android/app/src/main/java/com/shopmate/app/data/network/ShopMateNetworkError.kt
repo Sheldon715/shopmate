@@ -17,6 +17,9 @@ sealed class ShopMateNetworkError(message: String, cause: Throwable? = null) :
     class CartResponseParseFailed(cause: Throwable) :
         ShopMateNetworkError("Failed to parse cart response.", cause)
 
+    class AsrResponseParseFailed(cause: Throwable) :
+        ShopMateNetworkError("Failed to parse ASR response.", cause)
+
     class StreamConnectionFailed(cause: Throwable? = null) :
         ShopMateNetworkError("Chat stream connection failed.", cause)
 
@@ -25,6 +28,9 @@ sealed class ShopMateNetworkError(message: String, cause: Throwable? = null) :
 
     class CartConnectionFailed(cause: Throwable? = null) :
         ShopMateNetworkError("Cart request failed.", cause)
+
+    class AsrConnectionFailed(cause: Throwable? = null) :
+        ShopMateNetworkError("ASR request failed.", cause)
 
     class HttpNonSuccess(val statusCode: Int) :
         ShopMateNetworkError("Chat stream request failed with HTTP $statusCode.")

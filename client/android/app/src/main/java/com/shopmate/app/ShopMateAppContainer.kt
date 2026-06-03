@@ -1,5 +1,9 @@
 package com.shopmate.app
 
+import com.shopmate.app.data.asr.AsrApiClient
+import com.shopmate.app.data.asr.AsrRepository
+import com.shopmate.app.data.asr.DefaultAsrRepository
+import com.shopmate.app.data.asr.OkHttpAsrApiClient
 import com.shopmate.app.data.cart.CartApiClient
 import com.shopmate.app.data.cart.CartRepository
 import com.shopmate.app.data.cart.DefaultCartRepository
@@ -33,6 +37,14 @@ class ShopMateAppContainer {
 
     val chatRepository: ChatRepository by lazy {
         DefaultChatRepository(chatStreamClient)
+    }
+
+    val asrApiClient: AsrApiClient by lazy {
+        OkHttpAsrApiClient(apiConfig = apiConfig)
+    }
+
+    val asrRepository: AsrRepository by lazy {
+        DefaultAsrRepository(asrApiClient)
     }
 
     val productApiClient: ProductApiClient by lazy {

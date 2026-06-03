@@ -2,6 +2,7 @@ import express from "express";
 import type { ErrorRequestHandler, RequestHandler } from "express";
 import { getEnv } from "./lib/env";
 import { createCorsMiddleware } from "./middleware/cors";
+import { asrRouter } from "./modules/asr/asr.routes";
 import { cartRouter } from "./modules/cart/cart.routes";
 import { chatRouter } from "./modules/chat/chat.routes";
 import { healthRouter } from "./modules/health/health.routes";
@@ -43,6 +44,7 @@ const apiErrorHandler: ErrorRequestHandler = (
 app.use(createCorsMiddleware(corsAllowedOrigins));
 app.use(express.json());
 app.use("/images/products", productImageRouter);
+app.use("/api/asr", asrRouter);
 app.use("/api/chat", chatRouter);
 app.use("/api/cart", cartRouter);
 app.use("/api/health", healthRouter);

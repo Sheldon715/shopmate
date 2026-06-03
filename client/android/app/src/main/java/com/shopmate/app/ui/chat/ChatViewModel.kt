@@ -150,9 +150,10 @@ class ChatViewModel(
         )
     }
 
-    fun onVoiceInputError(@Suppress("UNUSED_PARAMETER") message: String) {
+    fun onVoiceInputError(message: String) {
         removePendingVoiceMessage(
             nextVoiceState = VoiceInputUiState.Idle,
+            errorMessage = message.trim().ifBlank { "语音识别失败，请再试一次。" },
         )
     }
 
@@ -618,13 +619,18 @@ class ChatViewModel(
         return "$prefix-$messageSequence"
     }
 
-    private fun removePendingVoiceMessage(nextVoiceState: VoiceInputUiState) {
+    private fun removePendingVoiceMessage(
+        nextVoiceState: VoiceInputUiState,
+        errorMessage: String? = null,
+    ) {
         val pendingId = voicePendingMessageId
         voicePendingMessageId = null
         _uiState.update { state ->
             state.copy(
                 messages = state.messages.removeVoicePendingMessage(pendingId),
                 voiceInput = nextVoiceState,
+                errorMessage = errorMessage,
+                canRetry = false,
             )
         }
     }
