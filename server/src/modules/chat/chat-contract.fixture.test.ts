@@ -40,6 +40,13 @@ describe("chat contract fixtures", () => {
       "product_cards",
       "done",
     ]);
+    expect(
+      eventNames(chatContractFixtures.comparisonClarificationStream.events),
+    ).toEqual([
+      "message_delta",
+      "product_cards",
+      "done",
+    ]);
     expect(eventNames(chatContractFixtures.cartAddStream.events)).toEqual([
       "message_delta",
       "product_cards",

@@ -2002,6 +2002,228 @@ describe("RagChatService", () => {
     expect(result.recommendedProductIds).toEqual(["product_002"]);
   });
 
+  it("uses exactly two recent recommendations when comparison target is unknown", async () => {
+    const store = createStoreWithRecentRecommendations([
+      "product_001",
+      "product_002",
+    ]);
+    let vectorSearchCalled = false;
+    const service = new RagChatService(withNoCartIntent({
+      vectorSearch: {
+        search: async () => {
+          vectorSearchCalled = true;
+          return [];
+        },
+      },
+      productReader: createProductReader(),
+      contextMemoryService: new ChatContextMemoryService({ store }),
+      comparisonIntentService: {
+        detect: async () => ({
+          isComparison: true,
+          confidence: "high",
+          target: {
+            kind: "unknown",
+            ordinals: [],
+            names: [],
+          },
+          needsClarification: false,
+        }),
+      },
+      comparisonGenerationService: {
+        generate: async (input) => {
+          expect(input.products.map((context) => context.product.id)).toEqual([
+            "product_001",
+            "product_002",
+          ]);
+
+          return createGeneratedComparison(["product_001", "product_002"]);
+        },
+      },
+      popularQueryCacheVersionReader: createCacheVersionReader(),
+    }));
+
+    const result = await service.answer({
+      conversationId: "cart-demo-1",
+      question: "帮我对比一下",
+    });
+
+    expect(vectorSearchCalled).toBe(false);
+    expect(result.fallbackUsed).toBe(false);
+    expect(result.recommendedProductIds).toEqual(["product_001", "product_002"]);
+    expect(result.comparisonResult?.productIds).toEqual([
+      "product_001",
+      "product_002",
+    ]);
+  });
+
+  it("returns comparison result for the first two products when three were recently recommended", async () => {
+    const store = createStoreWithRecentRecommendations([
+      "product_001",
+      "product_002",
+      "product_003",
+    ]);
+    let vectorSearchCalled = false;
+    const service = new RagChatService(withNoCartIntent({
+      vectorSearch: {
+        search: async () => {
+          vectorSearchCalled = true;
+          return [];
+        },
+      },
+      productReader: createProductReader(),
+      contextMemoryService: new ChatContextMemoryService({ store }),
+      comparisonIntentService: {
+        detect: async () => ({
+          isComparison: true,
+          confidence: "high",
+          target: {
+            kind: "recent_recommendations",
+            ordinals: [1, 2],
+            names: [],
+          },
+          needsClarification: false,
+        }),
+      },
+      comparisonGenerationService: {
+        generate: async (input) => {
+          expect(input.products.map((context) => context.product.id)).toEqual([
+            "product_001",
+            "product_002",
+          ]);
+
+          return createGeneratedComparison(["product_001", "product_002"]);
+        },
+      },
+      popularQueryCacheVersionReader: createCacheVersionReader(),
+    }));
+
+    const result = await service.answer({
+      conversationId: "cart-demo-1",
+      question: "对比下前两个",
+    });
+
+    expect(vectorSearchCalled).toBe(false);
+    expect(result.fallbackUsed).toBe(false);
+    expect(result.recommendedProductIds).toEqual(["product_001", "product_002"]);
+    expect(result.comparisonResult?.productIds).toEqual([
+      "product_001",
+      "product_002",
+    ]);
+  });
+
+  it("asks comparison clarification when target is unknown and only one recent product exists", async () => {
+    const store = createStoreWithRecentRecommendations(["product_001"]);
+    let vectorSearchCalled = false;
+    let generationCalled = false;
+    const service = new RagChatService(withNoCartIntent({
+      vectorSearch: {
+        search: async () => {
+          vectorSearchCalled = true;
+          return [];
+        },
+      },
+      productReader: createProductReader(),
+      contextMemoryService: new ChatContextMemoryService({ store }),
+      comparisonIntentService: {
+        detect: async () => ({
+          isComparison: true,
+          confidence: "high",
+          target: {
+            kind: "unknown",
+            ordinals: [],
+            names: [],
+          },
+          needsClarification: false,
+          clarificationQuestion: "我现在只看到一款商品。你想拿它和哪款对比？",
+        }),
+      },
+      comparisonGenerationService: {
+        generate: async () => {
+          generationCalled = true;
+          throw new Error("comparison generation should not run");
+        },
+      },
+      popularQueryCacheVersionReader: createCacheVersionReader(),
+    }));
+
+    const result = await service.answer({
+      conversationId: "cart-demo-1",
+      question: "帮我对比一下",
+    });
+
+    expect(vectorSearchCalled).toBe(false);
+    expect(generationCalled).toBe(false);
+    expect(result.answer).toBe(
+      "我现在只看到一款商品。你想拿它和哪款对比？",
+    );
+    expect(result.fallbackReason).toBe("COMPARISON_TARGET_CLARIFICATION");
+    expect(result.recommendedProductIds).toEqual([]);
+    expect(result.productCards).toEqual([]);
+    expect(result.comparisonResult).toBeUndefined();
+  });
+
+  it("generates comparison clarification and preserves recent product anchors", async () => {
+    const recentProductIds = [
+      "product_001",
+      "product_002",
+      "product_003",
+    ];
+    const store = createStoreWithRecentRecommendations(recentProductIds);
+    let generationCalled = false;
+    let clarificationInput:
+      | Parameters<NonNullable<RagChatServiceOptions["comparisonIntentService"]>["createClarificationQuestion"]>[0]
+      | undefined;
+    const service = new RagChatService(withNoCartIntent({
+      vectorSearch: createVectorSearch([]),
+      productReader: createProductReader(),
+      contextMemoryService: new ChatContextMemoryService({ store }),
+      comparisonIntentService: {
+        detect: async () => ({
+          isComparison: true,
+          confidence: "high",
+          target: {
+            kind: "unknown",
+            ordinals: [],
+            names: [],
+          },
+          needsClarification: false,
+        }),
+        createClarificationQuestion: async (input) => {
+          clarificationInput = input;
+
+          return "你想从刚才推荐里选哪两款来比较？";
+        },
+      },
+      comparisonGenerationService: {
+        generate: async () => {
+          generationCalled = true;
+          throw new Error("comparison generation should not run");
+        },
+      },
+      popularQueryCacheVersionReader: createCacheVersionReader(),
+    }));
+
+    const result = await service.answer({
+      conversationId: "cart-demo-1",
+      question: "帮我对比一下",
+    });
+
+    expect(generationCalled).toBe(false);
+    expect(clarificationInput).toMatchObject({
+      question: "帮我对比一下",
+      reason: "too_many_targets",
+      recentProductIds,
+    });
+    expect(result.answer).toBe("你想从刚才推荐里选哪两款来比较？");
+    expect(result.fallbackReason).toBe("COMPARISON_TARGET_CLARIFICATION");
+    expect(result.recommendedProductIds).toEqual([]);
+    expect(result.productCards).toEqual([]);
+    expect(result.comparisonResult).toBeUndefined();
+    expect(result.contextMemory?.lastRecommendedProductIds).toEqual(
+      recentProductIds,
+    );
+  });
+
   it("returns comparison result from recent recommendations before RAG and cache", async () => {
     const store = createStoreWithRecentRecommendations([
       "product_001",
@@ -2115,6 +2337,118 @@ describe("RagChatService", () => {
     expect(result.comparisonResult?.dimensions[0]?.cells).toHaveLength(2);
   });
 
+  it("returns comparison result from two explicit active product names", async () => {
+    let vectorSearchCalled = false;
+    const textLookups: Array<{ text: string; limit: number }> = [];
+    const service = new RagChatService(withNoCartIntent({
+      vectorSearch: {
+        search: async () => {
+          vectorSearchCalled = true;
+          return [];
+        },
+      },
+      productReader: {
+        findActiveByIds: async () => [],
+        findActiveByText: async (text, limit) => {
+          textLookups.push({ text, limit });
+
+          return text === "理肤泉"
+            ? [createProduct({ id: "p_beauty_006", name: "理肤泉特护清盈防晒乳" })]
+            : [createProduct({ id: "p_beauty_023", name: "巴黎欧莱雅新多重防护隔离露" })];
+        },
+      },
+      comparisonIntentService: {
+        detect: async () => ({
+          isComparison: true,
+          confidence: "high",
+          target: {
+            kind: "names",
+            ordinals: [],
+            names: ["理肤泉", "欧莱雅"],
+          },
+          needsClarification: false,
+        }),
+      },
+      comparisonGenerationService: {
+        generate: async (input) => {
+          expect(input.products.map((context) => context.product.id)).toEqual([
+            "p_beauty_006",
+            "p_beauty_023",
+          ]);
+
+          return createGeneratedComparison(["p_beauty_006", "p_beauty_023"]);
+        },
+      },
+      popularQueryCacheVersionReader: createCacheVersionReader(),
+    }));
+
+    const result = await service.answer({
+      question: "对比理肤泉和欧莱雅",
+    });
+
+    expect(vectorSearchCalled).toBe(false);
+    expect(textLookups).toEqual([
+      { text: "理肤泉", limit: 4 },
+      { text: "欧莱雅", limit: 4 },
+    ]);
+    expect(result.fallbackUsed).toBe(false);
+    expect(result.comparisonResult?.productIds).toEqual([
+      "p_beauty_006",
+      "p_beauty_023",
+    ]);
+  });
+
+  it("asks comparison clarification when an explicit product name is ambiguous", async () => {
+    let vectorSearchCalled = false;
+    let generationCalled = false;
+    const service = new RagChatService(withNoCartIntent({
+      vectorSearch: {
+        search: async () => {
+          vectorSearchCalled = true;
+          return [];
+        },
+      },
+      productReader: {
+        findActiveByIds: async () => [],
+        findActiveByText: async () => [
+          createProduct({ id: "p_beauty_006", name: "理肤泉特护清盈防晒乳" }),
+          createProduct({ id: "p_beauty_007", name: "理肤泉每日防晒乳" }),
+        ],
+      },
+      comparisonIntentService: {
+        detect: async () => ({
+          isComparison: true,
+          confidence: "high",
+          target: {
+            kind: "names",
+            ordinals: [],
+            names: ["理肤泉", "欧莱雅"],
+          },
+          needsClarification: false,
+          clarificationQuestion: "理肤泉匹配到多款商品，你想比较哪一款？",
+        }),
+      },
+      comparisonGenerationService: {
+        generate: async () => {
+          generationCalled = true;
+          throw new Error("comparison generation should not run");
+        },
+      },
+      popularQueryCacheVersionReader: createCacheVersionReader(),
+    }));
+
+    const result = await service.answer({
+      question: "对比理肤泉和欧莱雅",
+    });
+
+    expect(vectorSearchCalled).toBe(false);
+    expect(generationCalled).toBe(false);
+    expect(result.answer).toBe("理肤泉匹配到多款商品，你想比较哪一款？");
+    expect(result.fallbackReason).toBe("COMPARISON_TARGET_CLARIFICATION");
+    expect(result.productCards).toEqual([]);
+    expect(result.comparisonResult).toBeUndefined();
+  });
+
   it("asks the user to choose two products when comparison targets exceed two", async () => {
     const store = createStoreWithRecentRecommendations([
       "product_001",
@@ -2163,7 +2497,7 @@ describe("RagChatService", () => {
     expect(vectorSearchCalled).toBe(false);
     expect(generationCalled).toBe(false);
     expect(result.answer).toBe("目前只支持两款商品对比，请从这三款里选两款。");
-    expect(result.fallbackReason).toBe("NEEDS_CLARIFICATION");
+    expect(result.fallbackReason).toBe("COMPARISON_TARGET_CLARIFICATION");
     expect(result.productCards).toEqual([]);
     expect(result.comparisonResult).toBeUndefined();
   });
@@ -2190,6 +2524,7 @@ describe("RagChatService", () => {
           },
           userPriority: "油皮通勤",
           needsClarification: false,
+          clarificationQuestion: "你想比较刚才推荐里的哪两款？",
         }),
       },
       comparisonGenerationService: {
@@ -2207,8 +2542,8 @@ describe("RagChatService", () => {
     });
 
     expect(generationCalled).toBe(false);
-    expect(result.answer).toBe("目前只支持两款商品对比，请从这些商品里选两款。");
-    expect(result.fallbackReason).toBe("NEEDS_CLARIFICATION");
+    expect(result.answer).toBe("你想比较刚才推荐里的哪两款？");
+    expect(result.fallbackReason).toBe("COMPARISON_TARGET_CLARIFICATION");
     expect(result.comparisonResult).toBeUndefined();
   });
 
@@ -2337,6 +2672,43 @@ function createNoComparisonIntentService() {
       },
       needsClarification: false,
     }),
+  };
+}
+
+function createGeneratedComparison(productIds: [string, string]) {
+  return {
+    answer: "我按你关心的点做了对比。",
+    title: "商品对比",
+    products: [
+      { productId: productIds[0], displayLabel: "Product 1" },
+      { productId: productIds[1], displayLabel: "Product 2" },
+    ],
+    dimensions: [
+      {
+        id: "fit",
+        label: "适配度",
+        cells: [
+          {
+            productId: productIds[0],
+            value: "更适合日常使用。",
+            highlight: true,
+          },
+          {
+            productId: productIds[1],
+            value: "配置更均衡。",
+          },
+        ],
+      },
+    ],
+    recommendedProductId: productIds[0],
+    conclusion: "优先考虑 Product 1。",
+    highlights: [
+      {
+        productId: productIds[0],
+        label: "适配度",
+        text: "更适合日常使用。",
+      },
+    ],
   };
 }
 

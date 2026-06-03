@@ -695,7 +695,7 @@ private fun ChatStreamEvent.Done.shouldShowNoMatchError(
 ): Boolean =
     productCards.isEmpty() &&
         fallbackUsed &&
-        fallbackReason != NEEDS_CLARIFICATION_REASON &&
+        fallbackReason !in CLARIFICATION_FALLBACK_REASONS &&
         messages.lastOrNull { message -> !message.fromUser }?.text.isNullOrBlank()
 
 private fun shouldKeepProductCardsForMessage(message: String): Boolean {
@@ -738,6 +738,11 @@ private fun isComparisonFollowUpMessage(message: String): Boolean {
 }
 
 private const val NEEDS_CLARIFICATION_REASON = "NEEDS_CLARIFICATION"
+private const val COMPARISON_TARGET_CLARIFICATION_REASON = "COMPARISON_TARGET_CLARIFICATION"
+private val CLARIFICATION_FALLBACK_REASONS = setOf(
+    NEEDS_CLARIFICATION_REASON,
+    COMPARISON_TARGET_CLARIFICATION_REASON,
+)
 private const val CART_ACTION_SUCCESS_STATUS = "success"
 private val CART_REFRESH_ACTION_TYPES = setOf(
     "add",

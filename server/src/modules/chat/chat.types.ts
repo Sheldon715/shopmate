@@ -116,6 +116,7 @@ export interface RetrievedProductContext {
 export type RagChatFallbackReason =
   | CartCommandFallbackReason
   | "NEEDS_CLARIFICATION"
+  | "COMPARISON_TARGET_CLARIFICATION"
   | "NO_CANDIDATES"
   | "LLM_ERROR"
   | "LLM_INVALID_OUTPUT"

@@ -1,44 +1,45 @@
-# Current Feature: RAG Negative Fact Metadata
+# Current Feature: Comparison Ambiguous Clarification
 
 ## 状态
 
-Complete
+In Progress
 
 ## 目标
 
-- 从现有 ShopMate product data 提取 `freeFromTerms`、`riskTerms`、`wearingStyles`，写入 RAG document metadata 与 Qdrant payload。
-- 让负向约束在 vector search 阶段更早、更稳定地生效，避免“不含酒精”被误伤，也避免“半入耳式”被当成“入耳式”。
-- 扩展 offline evaluator / report 输出，让剩余失败可以区分为数据缺失、query intent、embedding recall 或 evaluator expectation。
-- 保持“LLM 意图优先”的产品边界，代码只对已经识别出的用户约束做安全过滤。
+- 当 LLM 已判断为 comparison intent，但对比目标不足或过多时，后端返回 LLM 生成的澄清问题，而不是继续普通 RAG 推荐。
+- 用户只说“帮我对比一下”且最近推荐刚好 2 个 active 商品时，直接复用这 2 个商品生成 `comparison_result`。
+- 最近推荐少于 2 个或多于 2 个时，不返回普通 `product_cards` / `comparison_result`，转为 comparison clarification。
+- 明确指定 ordinal / 商品名的既有对比解析继续可用；无法安全解析时返回澄清。
+- Chat SSE / evaluation 能证明 `comparison-ambiguous-chat` 不再误给普通推荐卡片。
 
 ## 待办清单
 
-- [x] 新增负向事实 metadata helper，从现有 canonical / processed data 提取 free-from、risk 和佩戴形态证据。
-- [x] 扩展 `RagDocumentMetadata`，保证同一 product 的所有 RAG documents 携带一致 product-level metadata。
-- [x] 扩展 Qdrant payload mapper / 类型，写入 `free_from_terms`、`risk_terms`、`wearing_styles`，默认空数组。
-- [x] 扩展 vector search filter builder，让负向成分 / 风险约束排除 `risk_terms`，佩戴形态约束排除 `wearing_styles`。
-- [x] 确保 `free_from_terms` 不参与 must_not，只用于避免误伤和报告解释。
-- [x] 扩展 offline evaluator / report 输出，展示命中商品的 `riskTerms`、`freeFromTerms`、`wearingStyles` 与冲突 evidence。
-- [x] 增加单元测试覆盖“不含酒精”、酒精敏感、半入耳式、Qdrant payload 新字段和 vector filter 排除条件。
-- [x] 重建 RAG documents，并在 payload / source schema 改动后重建 Qdrant index。
-- [x] 跑 14 条 offline evaluation，重点复核 `alcohol-free-sunscreen`、`alcohol-free-oily-sunscreen`、`earbuds-not-in-ear`。
-- [x] 跑 Chat SSE smoke，验证“推荐不含酒精的防晒”“油皮，不要酒精的防晒”“不要入耳式耳机”正常完成且没有空结果误伤。
-- [x] 新增或更新完成报告，记录 before / after、metadata 示例、payload 示例、Chat SSE 结果和剩余失败归因。
+- [x] 在 comparison intent 和 target resolution 后增加 comparison target resolution gate。
+- [x] 支持目标为空且 `lastRecommendedProductIds` 去重后刚好 2 个 active 商品时直接进入 comparison generation。
+- [x] 支持目标为空且最近推荐少于 2 个时返回 LLM 澄清，并跳过普通 RAG / vector search。
+- [x] 支持目标为空且最近推荐超过 2 个时返回 LLM 澄清，不静默截断前两款。
+- [x] 保持用户明确指定两款商品 / ordinal / name 时的 `comparison_result` 流程；明确目标超过 2 个、无效或歧义时返回澄清。
+- [x] 确保 comparison clarification 的 SSE 不发送普通推荐 `product_cards`，不发送 `comparison_result`，`done.recommendedProductIds` 为空并记录稳定 fallback reason。
+- [x] 补后端单元测试覆盖 1 / 2 / 3 个最近推荐商品、明确 ordinals、明确商品名、ambiguous 商品名和 non-comparison query。
+- [x] 补 Chat SSE / evaluation case 期望，包括 `comparison-ambiguous-chat` 只澄清不推荐，以及最近推荐 1 个 / 超过 2 个后的“帮我对比一下”。
+- [x] 运行 `cd server && npm.cmd test` 与 `cd server && npm.cmd run build`。
+- [x] 校验新增 Chat SSE evaluation cases 的 JSON 结构、唯一 caseId 和目标 comparison case 存在性。
 
 ## 备注
 
-- Spec 来源：`context/feature/rag-negative-fact-metadata-spec.md`。
-- 数据边界：只允许使用当前项目已有数据和已生成的 canonical / processed product data；不查外部资料，不用 LLM 凭常识补商品事实。
-- 行为边界：不做 25 query rewrite 新策略，不做 29 rerank / reranker model，不做 Gradio / dashboard，不改 Android UI。
-- 意图边界：自然语言约束仍由 LLM 意图链路识别；本 feature 只在已识别出的负向约束上做 metadata 提取、payload 写入和安全过滤。
-- 重点规则：用户说“不要酒精”时，排除 `riskTerms` 命中酒精的商品，但不能因为 `freeFromTerms` 命中酒精而排除“不含酒精”的商品；用户说“不要入耳式”时，排除 `wearingStyles = in_ear`，保留 `semi_in_ear`。
-- 建议验证命令：`cd server` 后执行 `npm.cmd test`、`npm.cmd run build`；如改动 RAG source / payload / collection schema，再执行 `npm.cmd run rag:documents`、`npm.cmd run rag:index -- --recreate`、`npm.cmd run rag:evaluate -- --output ../data/processed/rag/evaluation-results-negative-metadata.jsonl`。
-- Chat SSE smoke 请求字段必须使用 `message`，不要使用 `question`。
-- 实际验证：目标测试 8 files / 107 tests passed；后端全量 `npm.cmd test` 为 38 files / 285 tests passed；`npm.cmd run build` 通过。
-- RAG 工件：`npm.cmd run rag:documents` 生成 175 products / 2064 documents；`npm.cmd run rag:index -- --recreate` 索引 2064 / 2064 documents 到 `shopmate_product_documents`。
-- 离线评估：`npm.cmd run rag:evaluate -- --output ../data/processed/rag/evaluation-results-negative-metadata.jsonl` 为 14 passed / 0 failed，三个重点 baseline case 均通过。
-- Chat SSE smoke：`推荐不含酒精的防晒`、`油皮，不要酒精的防晒` 均返回 `p_beauty_006`；`不要入耳式耳机` 返回 `p_digital_007`；三条均 HTTP 200、包含 `done` event、无 fallback。
-- 完成报告：`docs/rag-negative-fact-metadata-report.md`。
+- Spec 来源：`context/feature/comparison-ambiguous-clarification-spec.md`。
+- 行为边界：LLM 仍是 comparison intent、澄清问题、对比维度和结论的权威；代码只做目标数量、active 商品、allowlist、schema 和安全控制。
+- 非目标：不改 comparison output schema、不改 Android comparison UI、不做 query expansion / rerank、不改商品数据或 Qdrant index、不写死用户可见澄清文案。
+- 控制流要求：`comparison intent=true` 后先解析显式 target；解析成功 2 个 active 商品则对比；没有显式 target 时只在最近推荐刚好 2 个时直接对比，否则返回 comparison clarification。
+- 验证重点：`comparison-recent-two-sunscreens-chat` 和 `comparison-priority-oily-commute-chat` 仍返回 `comparison_result`；`comparison-ambiguous-chat` 不再返回普通推荐卡片。
+- Chat SSE smoke 使用 `message` 字段，不使用 `question` 字段。
+- 实现记录：新增 `COMPARISON_TARGET_CLARIFICATION` fallback reason；comparison target 缺失 / 过多 / 无效 / 歧义时返回空 `productCards`、空 `recommendedProductIds`，不进入普通 RAG；Android 将该 reason 视为澄清态，不显示无匹配错误。
+- 补充记录：`对比下前两个` / `前两款` / `前俩` 在最近推荐至少 2 个商品时会稳定解析为最近推荐 `[1,2]`，即使最近推荐有 3 个商品也只对比前两个。
+- 回归补强：新增测试覆盖 target gate 没有现成澄清问句时会调用 LLM 澄清生成器，并确认 comparison clarification 不会清掉上一轮 `lastRecommendedProductIds`。
+- 测试记录：目标测试 `npm.cmd test -- comparison-intent.service.test.ts rag.service.test.ts` 为 2 files / 69 tests passed；后端全量 `npm.cmd test` 为 38 files / 293 tests passed；`npm.cmd run build` 通过。
+- Android 验证：`.\gradlew.bat --no-daemon testDebugUnitTest` 通过；默认 `.\gradlew.bat --no-daemon build` 被既有 demo HTTPS Base URL fail-fast 拦截，随后 `.\gradlew.bat --no-daemon -PSHOPMATE_DEMO_API_BASE_URL=https://api.example.test/ build` 通过。
+- Chat case 校验：`node -e ...` 读取 `data/processed/rag/chat-evaluation-cases.json`，验证 22 cases / 22 unique ids，并确认 `comparison-ambiguous-chat`、`comparison-single-recent-product-chat`、`comparison-too-many-recent-products-chat` 存在。
+- 未完成验证：本仓库没有 `chat-evaluation-cases.json` 的专用 npm runner；本轮未启动依赖真实 PostgreSQL / Qdrant / LLM 的 dev server 做 live Chat SSE smoke。`rag:evaluate` 只读取离线 `evaluation-cases.json`，不覆盖这次新增的 Chat SSE cases。
 
 ## 历史记录
 - 初始化前后端技术栈骨架：完成 Android Kotlin + Jetpack Compose 与 Node.js + TypeScript + Express 最小工程初始化，补充 README 与 Git 忽略配置，并通过后端构建与 Android `assembleDebug` 验证。
@@ -101,3 +102,4 @@ Complete
 - Comparison RAG Output：新增真实商品对比链路，后端用 LLM comparison intent / generation 基于库内商品事实输出 `comparison_result`，Android 聊天页展示对比入口并让独立对比详情页消费真实 state；收口为仅支持两款商品对比，补齐入口稳定性、两款契约、UI 自适应和返回链路验证。
 - Negative Constraint Fact Evaluation：新增商品事实冲突判定 helper，统一 Chat 负向约束过滤与离线 evaluator，修复 free-from 安全证据误判；补充耳机佩戴形态结构化数据并重建 catalog / RAG documents / vector manifest，复跑后端 test / build、离线评估和 Chat SSE 评估。
 - RAG Query Rewrite：新增 LLM 驱动的检索 query 改写服务，在 cart / negative constraint / comparison / clarification 之后、popular cache 和 vector search 之前生成 retrieval query；原始 question 仍用于用户可见回复，cache key 和离线 evaluator 增加 rewrite metadata，并通过后端全量 test / build、baseline 与 rewrite 模式 `rag:evaluate` 验证。
+- RAG Negative Fact Metadata：新增负向事实 metadata 提取与 Qdrant payload，写入 free-from / risk / wearing style 字段；将负向约束转成结构化 vector filters，修复“不含酒精”和“不要入耳式”召回误伤，并通过后端全量 test / build、RAG documents / index 重建、14/14 离线评估和 Chat SSE smoke 验证。

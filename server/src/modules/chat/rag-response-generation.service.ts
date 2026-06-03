@@ -73,7 +73,10 @@ export class RagResponseGenerationService {
 }
 
 export function createMinimalRagFallbackAnswer(
-  fallbackReason: RagChatFallbackReason,
+  fallbackReason: Exclude<
+    RagChatFallbackReason,
+    "COMPARISON_TARGET_CLARIFICATION"
+  >,
 ): string {
   switch (fallbackReason) {
     case "NO_CANDIDATES":

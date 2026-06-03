@@ -166,6 +166,62 @@ describe("ComparisonIntentService", () => {
     expect(result.target.ordinals).toEqual([1, 2]);
   });
 
+  it("uses a focused LLM check for ambiguous comparison without targets", async () => {
+    let calls = 0;
+    const service = new ComparisonIntentService({
+      llmClient: new MockLlmClient({
+        handler: () => {
+          calls += 1;
+
+          return createLlmResponse(
+            calls === 1
+              ? {
+                  is_comparison: false,
+                  confidence: "low",
+                  target: {
+                    kind: "unknown",
+                    ordinals: [],
+                    names: [],
+                  },
+                  needs_clarification: false,
+                  clarification_question: null,
+                }
+              : {
+                  is_comparison: true,
+                  confidence: "high",
+                  target: {
+                    kind: "unknown",
+                    ordinals: [],
+                    names: [],
+                  },
+                  user_priority: null,
+                  needs_clarification: true,
+                  clarification_question: "你想比较哪两款商品？",
+                },
+          );
+        },
+      }),
+    });
+
+    const result = await service.detect({
+      question: "帮我比较一下",
+      recentProductIds: [],
+    });
+
+    expect(calls).toBe(2);
+    expect(result).toMatchObject({
+      isComparison: true,
+      confidence: "high",
+      target: {
+        kind: "unknown",
+        ordinals: [],
+        names: [],
+      },
+      needsClarification: true,
+      clarificationQuestion: "你想比较哪两款商品？",
+    });
+  });
+
   it("uses a focused LLM check for second and third ordinal comparison cues", async () => {
     let calls = 0;
     const service = new ComparisonIntentService({
@@ -293,6 +349,47 @@ describe("ComparisonIntentService", () => {
       target: {
         kind: "recent_recommendations",
         ordinals: [2, 3],
+        names: [],
+      },
+      needsClarification: false,
+    });
+  });
+
+  it("keeps leading pair comparison when three recent products exist and LLM checks miss", async () => {
+    let calls = 0;
+    const service = new ComparisonIntentService({
+      llmClient: new MockLlmClient({
+        handler: () => {
+          calls += 1;
+
+          return createLlmResponse({
+            is_comparison: false,
+            confidence: "high",
+            target: {
+              kind: "unknown",
+              ordinals: [],
+              names: [],
+            },
+            user_priority: null,
+            needs_clarification: false,
+            clarification_question: null,
+          });
+        },
+      }),
+    });
+
+    const result = await service.detect({
+      question: "对比下前两个",
+      recentProductIds: ["product_001", "product_002", "product_003"],
+    });
+
+    expect(calls).toBe(2);
+    expect(result).toMatchObject({
+      isComparison: true,
+      confidence: "medium",
+      target: {
+        kind: "recent_recommendations",
+        ordinals: [1, 2],
         names: [],
       },
       needsClarification: false,

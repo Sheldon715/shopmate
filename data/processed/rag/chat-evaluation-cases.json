@@ -362,5 +362,57 @@
     "expectedNoResult": false,
     "riskFocus": ["comparison_intent", "comparison_contract", "clarification"],
     "priority": "p0"
+  },
+  {
+    "caseId": "comparison-single-recent-product-chat",
+    "query": "帮我对比一下",
+    "history": [
+      {
+        "role": "user",
+        "content": "推荐一款适合油皮通勤的防晒"
+      },
+      {
+        "role": "assistant",
+        "content": "可以先看理肤泉特护清盈防晒乳。"
+      }
+    ],
+    "filters": {
+      "category": "美妆护肤",
+      "subCategory": "防晒",
+      "availableOnly": true
+    },
+    "topK": 8,
+    "maxRecommendedProducts": 1,
+    "expectedBehavior": "使用同一 conversationId 准备最近 1 款防晒后再执行；目标不足时应返回 LLM 澄清，done.fallbackReason 为 COMPARISON_TARGET_CLARIFICATION，不返回普通推荐商品卡或 comparison_result。",
+    "expectedProductIdsAny": [],
+    "expectedNoResult": false,
+    "riskFocus": ["comparison_intent", "comparison_contract", "clarification"],
+    "priority": "p0"
+  },
+  {
+    "caseId": "comparison-too-many-recent-products-chat",
+    "query": "帮我对比一下",
+    "history": [
+      {
+        "role": "user",
+        "content": "推荐三款适合通勤的防晒"
+      },
+      {
+        "role": "assistant",
+        "content": "可以先看理肤泉特护清盈防晒乳、巴黎欧莱雅新多重防护隔离露和安热沙金灿倍护防晒乳。"
+      }
+    ],
+    "filters": {
+      "category": "美妆护肤",
+      "subCategory": "防晒",
+      "availableOnly": true
+    },
+    "topK": 8,
+    "maxRecommendedProducts": 3,
+    "expectedBehavior": "使用同一 conversationId 准备最近 3 款防晒后再执行；不能静默截断前两款，应返回 LLM 澄清让用户选择两款，done.fallbackReason 为 COMPARISON_TARGET_CLARIFICATION，不返回 comparison_result。",
+    "expectedProductIdsAny": [],
+    "expectedNoResult": false,
+    "riskFocus": ["comparison_intent", "comparison_contract", "clarification"],
+    "priority": "p0"
   }
 ]

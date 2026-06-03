@@ -147,6 +147,28 @@ const clarificationDone: ChatDonePayload = {
   },
 };
 
+const comparisonClarificationMessageDelta: ChatMessageDeltaPayload = {
+  text: "你想比较哪两款商品？",
+  index: 0,
+};
+
+const comparisonClarificationProductCards: ChatProductCardsPayload = {
+  items: [],
+};
+
+const comparisonClarificationDone: ChatDonePayload = {
+  recommendedProductIds: [],
+  fallbackUsed: true,
+  fallbackReason: "COMPARISON_TARGET_CLARIFICATION",
+  clarification: {
+    missingSlots: [],
+  },
+  retrieval: {
+    candidateCount: 0,
+    returnedProductIds: [],
+  },
+};
+
 const cartAddMessageDelta: ChatMessageDeltaPayload = {
   text: "加购已完成。",
   index: 0,
@@ -296,6 +318,15 @@ export const chatContractFixtures = {
       { eventName: "message_delta", payload: clarificationMessageDelta },
       { eventName: "product_cards", payload: clarificationProductCards },
       { eventName: "done", payload: clarificationDone },
+    ],
+  },
+  comparisonClarificationStream: {
+    name: "comparison clarification stream",
+    description: "A comparison target clarification, no product cards, and a done event.",
+    events: [
+      { eventName: "message_delta", payload: comparisonClarificationMessageDelta },
+      { eventName: "product_cards", payload: comparisonClarificationProductCards },
+      { eventName: "done", payload: comparisonClarificationDone },
     ],
   },
   cartAddStream: {

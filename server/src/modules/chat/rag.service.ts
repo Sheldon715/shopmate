@@ -55,6 +55,7 @@ import {
 } from "./comparison-generation.service";
 import {
   ComparisonIntentService,
+  type ComparisonClarificationReason,
   type ComparisonIntentResult,
 } from "./comparison-intent.service";
 import { filterContextsByNegativeConstraints } from "./negative-constraint-filter";
@@ -130,7 +131,7 @@ export type RagNegativeConstraintIntentDetector = Pick<
 export type RagComparisonIntentDetector = Pick<
   ComparisonIntentService,
   "detect"
->;
+> & Partial<Pick<ComparisonIntentService, "createClarificationQuestion">>;
 export type RagComparisonGenerator = Pick<
   ComparisonGenerationService,
   "generate"
@@ -180,7 +181,8 @@ type ComparisonTargetResolution =
     }
   | {
       status: "needs_clarification";
-      question: string;
+      reason: ComparisonClarificationReason;
+      question?: string;
       candidateCount?: number;
     };
 
@@ -379,25 +381,28 @@ export class RagChatService {
     throwIfAborted(input.abortSignal);
 
     if (comparisonIntent.isComparison) {
+      const comparisonResult = await this.answerComparison(
+        comparisonIntent,
+        memoryResolution,
+        {
+          question,
+          shortHistory: input.shortHistory,
+          filters: memoryResolution.filters,
+          requestId: input.requestId,
+          abortSignal: input.abortSignal,
+        },
+      );
+
       return this.withContextMemory(
         memoryResolution,
-        await this.answerComparison(
-          comparisonIntent,
-          memoryResolution,
-          {
-            question,
-            shortHistory: input.shortHistory,
-            filters: memoryResolution.filters,
-            requestId: input.requestId,
-            abortSignal: input.abortSignal,
-          },
-        ),
-        comparisonIntent.needsClarification
+        comparisonResult,
+        comparisonResult.fallbackReason === "COMPARISON_TARGET_CLARIFICATION"
           ? {
               pendingClarification: {
                 originalQuestion: question,
                 missingSlots: [],
               },
+              preserveLastRecommendedProductIds: true,
             }
           : undefined,
       );
@@ -646,7 +651,10 @@ export class RagChatService {
   private withContextMemory(
     memoryResolution: ReturnType<ChatContextMemoryService["resolve"]>,
     result: RagChatResult,
-    options: { pendingClarification?: PendingClarification } = {},
+    options: {
+      pendingClarification?: PendingClarification;
+      preserveLastRecommendedProductIds?: boolean;
+    } = {},
   ): RagChatResult {
     const contextMemory = this.contextMemoryService.commit(
       memoryResolution,
@@ -668,7 +676,7 @@ export class RagChatService {
     >,
   ): Promise<RagChatResult> {
     if (intent.needsClarification && intent.clarificationQuestion?.trim()) {
-      return createClarificationResult({
+      return createComparisonClarificationResult({
         needsClarification: true,
         question: intent.clarificationQuestion,
         missingSlots: [],
@@ -683,9 +691,26 @@ export class RagChatService {
     throwIfAborted(request.abortSignal);
 
     if (targetResolution.status === "needs_clarification") {
-      return createClarificationResult({
+      const clarificationQuestion =
+        targetResolution.question
+        ?? await this.comparisonIntentService.createClarificationQuestion?.({
+          question: request.question,
+          reason: targetResolution.reason,
+          target: intent.target,
+          shortHistory: request.shortHistory,
+          contextMemory: memoryResolution.contextMemory,
+          filters: request.filters,
+          recentProductIds:
+            memoryResolution.contextMemory?.lastRecommendedProductIds ?? [],
+          candidateCount: targetResolution.candidateCount,
+          requestId: request.requestId,
+          abortSignal: request.abortSignal,
+        });
+      throwIfAborted(request.abortSignal);
+
+      return createComparisonClarificationResult({
         needsClarification: true,
-        question: targetResolution.question,
+        question: clarificationQuestion,
         missingSlots: [],
       });
     }
@@ -762,17 +787,19 @@ export class RagChatService {
         );
       case "category_search":
         return this.resolveCategoryComparisonTargets(
+          intent,
           request.question,
           request.filters,
           negativeConstraints,
           request.abortSignal,
         );
       case "unknown":
-        return {
-          status: "needs_clarification",
-          question: intent.clarificationQuestion
-            ?? "你想对比哪几款商品？可以说“对比第一款和第二款”。",
-        };
+        return this.resolveRecentComparisonTargets(
+          intent,
+          memoryResolution.contextMemory?.lastRecommendedProductIds ?? [],
+          negativeConstraints,
+          request.abortSignal,
+        );
     }
   }
 
@@ -785,8 +812,8 @@ export class RagChatService {
     if (intent.target.ordinals.length > COMPARISON_PRODUCT_COUNT) {
       return {
         status: "needs_clarification",
-        question: intent.clarificationQuestion
-          ?? "目前只支持两款商品对比，请从这些商品里选两款。",
+        reason: "too_many_targets",
+        question: createComparisonClarificationQuestion(intent),
       };
     }
 
@@ -797,8 +824,8 @@ export class RagChatService {
     ) {
       return {
         status: "needs_clarification",
-        question: intent.clarificationQuestion
-          ?? "目前只支持两款商品对比，请从这些商品里选两款。",
+        reason: "too_many_targets",
+        question: createComparisonClarificationQuestion(intent),
       };
     }
 
@@ -814,8 +841,8 @@ export class RagChatService {
     if (uniqueSelectedIds.length < 2) {
       return {
         status: "needs_clarification",
-        question: intent.clarificationQuestion
-          ?? "最近推荐里还不够两款可对比商品，你想对比哪几款？",
+        reason: "too_few_targets",
+        question: createComparisonClarificationQuestion(intent),
       };
     }
 
@@ -832,8 +859,8 @@ export class RagChatService {
     if (contexts.length < 2) {
       return {
         status: "needs_clarification",
-        question: intent.clarificationQuestion
-          ?? "这些商品里可用于对比的库内商品不足两款，请再指定要对比的商品。",
+        reason: "invalid_targets",
+        question: createComparisonClarificationQuestion(intent),
       };
     }
 
@@ -851,16 +878,16 @@ export class RagChatService {
     if (!this.productReader.findActiveByText || intent.target.names.length === 0) {
       return {
         status: "needs_clarification",
-        question: intent.clarificationQuestion
-          ?? "你想对比哪几款具体商品？可以补充商品名或品牌名。",
+        reason: "too_few_targets",
+        question: createComparisonClarificationQuestion(intent),
       };
     }
 
     if (intent.target.names.length > COMPARISON_PRODUCT_COUNT) {
       return {
         status: "needs_clarification",
-        question: intent.clarificationQuestion
-          ?? "目前只支持两款商品对比，请从这些商品里选两款。",
+        reason: "too_many_targets",
+        question: createComparisonClarificationQuestion(intent),
       };
     }
 
@@ -877,8 +904,8 @@ export class RagChatService {
       if (matches.length !== 1) {
         return {
           status: "needs_clarification",
-          question: intent.clarificationQuestion
-            ?? `“${name}”匹配到的商品不唯一，请说出更完整的商品名。`,
+          reason: matches.length === 0 ? "invalid_targets" : "ambiguous_targets",
+          question: createComparisonClarificationQuestion(intent),
           candidateCount: matches.length,
         };
       }
@@ -894,8 +921,8 @@ export class RagChatService {
     if (contexts.length < 2) {
       return {
         status: "needs_clarification",
-        question: intent.clarificationQuestion
-          ?? "可用于对比的库内商品不足两款，请再补充一个商品名。",
+        reason: "invalid_targets",
+        question: createComparisonClarificationQuestion(intent),
       };
     }
 
@@ -906,6 +933,7 @@ export class RagChatService {
   }
 
   private async resolveCategoryComparisonTargets(
+    intent: ComparisonIntentResult,
     question: string,
     filters: VectorSearchFilters | undefined,
     negativeConstraints: readonly NegativeConstraint[],
@@ -931,7 +959,8 @@ export class RagChatService {
     if (contexts.length < 2) {
       return {
         status: "needs_clarification",
-        question: "我还需要至少两款可对比的库内商品，你想按哪几款来比？",
+        reason: "too_few_targets",
+        question: createComparisonClarificationQuestion(intent),
         candidateCount: contexts.length,
       };
     }
@@ -1512,13 +1541,14 @@ export class RagChatService {
 
 function createClarificationResult(
   decision: ClarificationDecision,
+  fallbackReason: RagChatFallbackReason = "NEEDS_CLARIFICATION",
 ): RagChatResult {
   return {
     answer: decision.question ?? "",
     recommendedProductIds: [],
     productCards: [],
     fallbackUsed: true,
-    fallbackReason: "NEEDS_CLARIFICATION",
+    fallbackReason,
     clarification: {
       missingSlots: decision.missingSlots,
     },
@@ -1527,6 +1557,18 @@ function createClarificationResult(
       returnedProductIds: [],
     },
   };
+}
+
+function createComparisonClarificationResult(
+  decision: ClarificationDecision,
+): RagChatResult {
+  return createClarificationResult(decision, "COMPARISON_TARGET_CLARIFICATION");
+}
+
+function createComparisonClarificationQuestion(
+  intent: ComparisonIntentResult,
+): string | undefined {
+  return intent.clarificationQuestion?.trim() || undefined;
 }
 
 function createDefaultProductReader(): RagProductReader {
@@ -1752,7 +1794,10 @@ function createNoCandidatesResult(
 function createRetrievedFallbackResult(
   contexts: RetrievedProductContext[],
   maxRecommendedProducts: number,
-  fallbackReason: RagChatFallbackReason,
+  fallbackReason: Exclude<
+    RagChatFallbackReason,
+    "COMPARISON_TARGET_CLARIFICATION"
+  >,
   queryRewrite?: QueryRewriteResult,
   publicImageBaseUrl?: string,
 ): RagChatResult {

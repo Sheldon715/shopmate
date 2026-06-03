@@ -196,7 +196,10 @@ export class ChatContextMemoryService {
   commit(
     resolution: ChatContextMemoryResolution,
     recommendedProductIds: string[],
-    options: { pendingClarification?: PendingClarification } = {},
+    options: {
+      pendingClarification?: PendingClarification;
+      preserveLastRecommendedProductIds?: boolean;
+    } = {},
   ): ChatContextMemorySummary | undefined {
     if (!resolution.conversationId || !resolution.memory) {
       return undefined;
@@ -204,7 +207,9 @@ export class ChatContextMemoryService {
 
     const memory = {
       ...resolution.memory,
-      lastRecommendedProductIds: normalizeTerms(recommendedProductIds),
+      lastRecommendedProductIds: options.preserveLastRecommendedProductIds
+        ? resolution.memory.lastRecommendedProductIds
+        : normalizeTerms(recommendedProductIds),
       pendingClarification: options.pendingClarification,
       updatedAt: this.now().toISOString(),
     };
