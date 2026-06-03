@@ -4,6 +4,10 @@ import type {
   QdrantFilter,
   QdrantScoredPoint,
 } from "./qdrant.types";
+import {
+  buildNegativeFactVectorFilters,
+  type RagWearingStyle,
+} from "./rag-negative-fact-metadata";
 import type { VectorSearchFilters, VectorSearchHit } from "./vector-search.types";
 import { VectorSearchError } from "./vector-search.error";
 
@@ -59,6 +63,25 @@ export function buildQdrantFilter(
     mustNot.push(matchAny("avoid_when", avoidTerms));
   }
 
+  const avoidTermFactFilters = buildNegativeFactVectorFilters(avoidTerms);
+  const excludeRiskTerms = nonEmptyStrings([
+    ...(filters.excludeRiskTerms ?? []),
+    ...avoidTermFactFilters.excludeRiskTerms,
+  ]);
+
+  if (excludeRiskTerms.length > 0) {
+    mustNot.push(matchAny("risk_terms", excludeRiskTerms));
+  }
+
+  const excludeWearingStyles = nonEmptyStrings([
+    ...(filters.excludeWearingStyles ?? []),
+    ...avoidTermFactFilters.excludeWearingStyles,
+  ]);
+
+  if (excludeWearingStyles.length > 0) {
+    mustNot.push(matchAny("wearing_styles", excludeWearingStyles));
+  }
+
   const excludeBrands = nonEmptyStrings(filters.excludeBrands);
 
   if (excludeBrands.length > 0) {
@@ -99,6 +122,9 @@ export function mapQdrantScoredPointToVectorSearchHit(
       tags: payload.tags,
       recommendWhen: payload.recommend_when,
       avoidWhen: payload.avoid_when,
+      freeFromTerms: payload.free_from_terms,
+      riskTerms: payload.risk_terms,
+      wearingStyles: payload.wearing_styles,
       blockType: payload.block_type ?? null,
       priceMinCents: payload.price_min_cents,
       priceMaxCents: payload.price_max_cents,
@@ -151,6 +177,9 @@ function normalizePayload(payload: QdrantScoredPoint["payload"]): QdrantDocument
     tags: requireStringArray(record, "tags"),
     recommend_when: requireStringArray(record, "recommend_when"),
     avoid_when: requireStringArray(record, "avoid_when"),
+    free_from_terms: requireStringArray(record, "free_from_terms"),
+    risk_terms: requireStringArray(record, "risk_terms"),
+    wearing_styles: requireWearingStyleArray(record, "wearing_styles"),
     block_type: optionalString(record, "block_type"),
     ingest_batch_id: requireString(record, "ingest_batch_id"),
     embedding_model: requireString(record, "embedding_model"),
@@ -238,4 +267,21 @@ function requireStringArray(
   }
 
   return value;
+}
+
+function requireWearingStyleArray(
+  record: Record<string, unknown>,
+  key: string,
+): RagWearingStyle[] {
+  const values = requireStringArray(record, key);
+
+  for (const value of values) {
+    if (!["in_ear", "semi_in_ear", "open_ear", "over_ear"].includes(value)) {
+      throw new VectorSearchError(
+        `Qdrant payload field ${key} contains an invalid wearing style.`,
+      );
+    }
+  }
+
+  return values as RagWearingStyle[];
 }

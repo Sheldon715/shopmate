@@ -1,4 +1,5 @@
 import type { VectorSearchFilters, VectorSearchHit } from "./vector-search.types";
+import type { RagWearingStyle } from "./rag-negative-fact-metadata";
 
 export type VectorEvaluationFailureReason =
   | "no_vector_result"
@@ -35,6 +36,9 @@ export interface VectorEvaluationProductSnapshot {
   tags: string[];
   recommendWhen: string[];
   avoidWhen: string[];
+  freeFromTerms: string[];
+  riskTerms: string[];
+  wearingStyles: RagWearingStyle[];
   pros: string[];
   cons: string[];
   attributes: Record<string, string[]>;
@@ -59,6 +63,9 @@ export interface VectorEvaluationHit {
   priceMinCents: number;
   priceMaxCents: number;
   available: boolean;
+  freeFromTerms: string[];
+  riskTerms: string[];
+  wearingStyles: RagWearingStyle[];
 }
 
 export interface VectorEvaluationResult {

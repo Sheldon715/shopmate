@@ -259,6 +259,9 @@ function addHardFilterFailures(
       tags: hit.metadata.tags,
       recommendWhen: hit.metadata.recommendWhen,
       avoidWhen: hit.metadata.avoidWhen,
+      freeFromTerms: hit.metadata.freeFromTerms,
+      riskTerms: hit.metadata.riskTerms,
+      wearingStyles: hit.metadata.wearingStyles,
       pros: [],
       cons: [],
       attributes: {},
@@ -310,6 +313,24 @@ function addHardFilterFailures(
     if (filters.availableOnly !== false && !hit.metadata.available) {
       failureReasons.add("stale_hit");
       notes.push(`Hit product_id ${hit.productId} violates availableOnly.`);
+    }
+
+    for (const riskTerm of normalizeTerms(filters.excludeRiskTerms)) {
+      if (source.riskTerms.includes(riskTerm)) {
+        failureReasons.add("unexpected_result");
+        notes.push(
+          `Hit product_id ${hit.productId} violates excludeRiskTerms "${riskTerm}".`,
+        );
+      }
+    }
+
+    for (const wearingStyle of filters.excludeWearingStyles ?? []) {
+      if (source.wearingStyles.includes(wearingStyle)) {
+        failureReasons.add("unexpected_result");
+        notes.push(
+          `Hit product_id ${hit.productId} violates excludeWearingStyles "${wearingStyle}".`,
+        );
+      }
     }
 
     for (const conflict of findAvoidTermConflicts(
@@ -436,7 +457,9 @@ function hasMeaningfulFilters(filters: VectorSearchFilters): boolean {
       || filters.maxPriceCents !== undefined
       || filters.availableOnly !== undefined
       || (filters.tagsAny && filters.tagsAny.length > 0)
-      || (filters.avoidTerms && filters.avoidTerms.length > 0),
+      || (filters.avoidTerms && filters.avoidTerms.length > 0)
+      || (filters.excludeRiskTerms && filters.excludeRiskTerms.length > 0)
+      || (filters.excludeWearingStyles && filters.excludeWearingStyles.length > 0),
   );
 }
 
@@ -451,6 +474,9 @@ function mapHitForOutput(hit: VectorSearchHit): VectorEvaluationHit {
     priceMinCents: hit.metadata.priceMinCents,
     priceMaxCents: hit.metadata.priceMaxCents,
     available: hit.metadata.available,
+    freeFromTerms: hit.metadata.freeFromTerms,
+    riskTerms: hit.metadata.riskTerms,
+    wearingStyles: hit.metadata.wearingStyles,
   };
 }
 

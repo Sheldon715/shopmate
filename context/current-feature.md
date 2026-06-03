@@ -1,4 +1,4 @@
-# Current Feature: RAG Query Rewrite
+# Current Feature: RAG Negative Fact Metadata
 
 ## 状态
 
@@ -6,43 +6,39 @@ Complete
 
 ## 目标
 
-- 新增 LLM 驱动的 `QueryRewriteService`，把短追问、口语化或依赖上下文的问题改写成仅供向量检索使用的 `retrievalQuery`，并输出可观测 metadata。
-- 在 `RagChatService.answer()` 中把 query rewrite 放到 cart intent、negative constraint、comparison intent 和 clarification intent 之后，popular query cache / vector search 之前。
-- 保留原始 `question` 作为用户语义和用户可见回复依据，只让 `vectorSearch.search({ query })` 使用 rewrite 后的检索 query。
-- 对模型不可用、输出无效、低置信度、空 query、超长 query、泛词 query 或风险不明确的情况安全回退到现有 `memoryResolution.retrievalQuery`。
-- 扩展离线评估、Chat SSE 关键 case 和报告，记录 original query、base retrieval query、rewritten query、rewrite 状态与失败归因，为是否进入 29 query expansion / rerank 提供证据。
+- 从现有 ShopMate product data 提取 `freeFromTerms`、`riskTerms`、`wearingStyles`，写入 RAG document metadata 与 Qdrant payload。
+- 让负向约束在 vector search 阶段更早、更稳定地生效，避免“不含酒精”被误伤，也避免“半入耳式”被当成“入耳式”。
+- 扩展 offline evaluator / report 输出，让剩余失败可以区分为数据缺失、query intent、embedding recall 或 evaluator expectation。
+- 保持“LLM 意图优先”的产品边界，代码只对已经识别出的用户约束做安全过滤。
 
 ## 待办清单
 
-- [x] 新增 `server/src/modules/chat/query-rewrite.service.ts`，定义输入 / 输出类型、LLM prompt、schema 解析、fallback 和 abort 行为。
-- [x] 新增 `server/src/modules/chat/query-rewrite.service.test.ts`，覆盖有效 rewrite、无需 rewrite、low confidence、invalid JSON、空 / 超长 / 泛词 query、snake_case / camelCase 兼容和 abortSignal。
-- [x] 修改 `server/src/modules/chat/rag.service.ts`，在 clarification 之后、popular query cache 之前调用 query rewrite，并确保 cart / comparison / clarification 提前返回时不调用 rewrite。
-- [x] 确认 negative constraints 仍由 LLM negative intent、filters 和 post-filter 负责，rewrite 不新增 / 删除 `avoidTerms` 或负向约束。
-- [x] 让 vector search 使用 rewrite 后 query，同时保持 RAG prompt、response generation、cart / comparison / clarification 用户可见文案继续使用原始 question。
-- [x] 调整 popular query cache 输入或 key，使 rewrite query / rewrite version 不会和旧策略缓存混用。
-- [x] 按需扩展 `chat.types.ts`、vector evaluation 类型、`vector-evaluation.service.ts` 和 `evaluate-rag.ts`，让测试和评估能读取 rewrite metadata。
-- [x] 更新 `data/processed/rag/evaluation-cases.json` 与 `data/processed/rag/chat-evaluation-cases.json` 中的关键 case 覆盖，不删除或放宽既有 case。
-- [x] 新增 `docs/rag-query-rewrite-report.md`，记录实现范围、fallback 行为、baseline vs rewrite、Chat SSE 结果、29 / Gradio 决策和敏感信息检查。
-- [x] 补充 `rag.service.test.ts`，覆盖 vector query、原始 question、提前返回路径、negative constraints 和 cache key 行为。
-- [x] 运行后端目标测试、全量测试、build、原模式 / rewrite 模式 `rag:evaluate`，并记录 Chat SSE 关键 case 未复跑原因。
+- [x] 新增负向事实 metadata helper，从现有 canonical / processed data 提取 free-from、risk 和佩戴形态证据。
+- [x] 扩展 `RagDocumentMetadata`，保证同一 product 的所有 RAG documents 携带一致 product-level metadata。
+- [x] 扩展 Qdrant payload mapper / 类型，写入 `free_from_terms`、`risk_terms`、`wearing_styles`，默认空数组。
+- [x] 扩展 vector search filter builder，让负向成分 / 风险约束排除 `risk_terms`，佩戴形态约束排除 `wearing_styles`。
+- [x] 确保 `free_from_terms` 不参与 must_not，只用于避免误伤和报告解释。
+- [x] 扩展 offline evaluator / report 输出，展示命中商品的 `riskTerms`、`freeFromTerms`、`wearingStyles` 与冲突 evidence。
+- [x] 增加单元测试覆盖“不含酒精”、酒精敏感、半入耳式、Qdrant payload 新字段和 vector filter 排除条件。
+- [x] 重建 RAG documents，并在 payload / source schema 改动后重建 Qdrant index。
+- [x] 跑 14 条 offline evaluation，重点复核 `alcohol-free-sunscreen`、`alcohol-free-oily-sunscreen`、`earbuds-not-in-ear`。
+- [x] 跑 Chat SSE smoke，验证“推荐不含酒精的防晒”“油皮，不要酒精的防晒”“不要入耳式耳机”正常完成且没有空结果误伤。
+- [x] 新增或更新完成报告，记录 before / after、metadata 示例、payload 示例、Chat SSE 结果和剩余失败归因。
 
 ## 备注
 
-- Spec 来源：`context/feature/rag-query-rewrite-spec.md`。
-- 范围边界：本轮只做 query rewrite，不做 query expansion、多 query 并发检索、MMR、semantic rerank、模型化 reranker、Gradio / dashboard、comparison schema 修改、Android UI / SSE event 修改或购物车 contract 修改。
-- 语义边界：LLM 负责语义改写；代码只做 schema、长度、库内安全边界和 fallback。原始 `question` 不可被覆盖，rewrite 结果不得作为用户可见 assistant 文案。
-- 控制流边界：cart、comparison、clarification 和 negative constraint intent 必须先于 rewrite；rewrite 不能触发购物车、comparison、clarification 或 negative constraint 控制流变化。
-- 安全边界：日志和报告只能写状态、query 字符串和模型输出摘要，不写 API key、完整 prompt 或 provider 原始敏感错误。
-- Review 修复：`QueryRewriteService` 已把 product id 安全检测改为任意位置命中，覆盖中文黏连的 `p_*` / `product_*` 输出，避免 LLM 把商品 ID 注入 retrieval query。
-- 已运行后端目标测试、全量测试、build 和原模式 / rewrite 模式 `rag:evaluate`；Chat SSE 关键 case 未复跑，因为仓库当前没有提交版 Chat SSE evaluation runner，本轮未新增 Gradio / dashboard / debug endpoint。
-- 离线结果：baseline 14 case 为 11 pass / 3 fail；rewrite 14 case 为 11 pass / 3 fail，rewrite 状态为 10 rewritten / 4 fallback；3 个 fail 仍是 `alcohol-free-sunscreen`、`alcohol-free-oily-sunscreen`、`earbuds-not-in-ear` 的 `unexpected_result`。
-- 建议验证命令：
-  - `cd server && npm.cmd test -- query-rewrite.service.test.ts`
-  - `cd server && npm.cmd test -- rag.service.test.ts`
-  - `cd server && npm.cmd test`
-  - `cd server && npm.cmd run build`
-  - `cd server && npm.cmd run rag:evaluate -- --output ../data/processed/rag/evaluation-results-query-rewrite-baseline.jsonl`
-  - `cd server && npm.cmd run rag:evaluate -- --rewrite --output ../data/processed/rag/evaluation-results-query-rewrite.jsonl`
+- Spec 来源：`context/feature/rag-negative-fact-metadata-spec.md`。
+- 数据边界：只允许使用当前项目已有数据和已生成的 canonical / processed product data；不查外部资料，不用 LLM 凭常识补商品事实。
+- 行为边界：不做 25 query rewrite 新策略，不做 29 rerank / reranker model，不做 Gradio / dashboard，不改 Android UI。
+- 意图边界：自然语言约束仍由 LLM 意图链路识别；本 feature 只在已识别出的负向约束上做 metadata 提取、payload 写入和安全过滤。
+- 重点规则：用户说“不要酒精”时，排除 `riskTerms` 命中酒精的商品，但不能因为 `freeFromTerms` 命中酒精而排除“不含酒精”的商品；用户说“不要入耳式”时，排除 `wearingStyles = in_ear`，保留 `semi_in_ear`。
+- 建议验证命令：`cd server` 后执行 `npm.cmd test`、`npm.cmd run build`；如改动 RAG source / payload / collection schema，再执行 `npm.cmd run rag:documents`、`npm.cmd run rag:index -- --recreate`、`npm.cmd run rag:evaluate -- --output ../data/processed/rag/evaluation-results-negative-metadata.jsonl`。
+- Chat SSE smoke 请求字段必须使用 `message`，不要使用 `question`。
+- 实际验证：目标测试 8 files / 107 tests passed；后端全量 `npm.cmd test` 为 38 files / 285 tests passed；`npm.cmd run build` 通过。
+- RAG 工件：`npm.cmd run rag:documents` 生成 175 products / 2064 documents；`npm.cmd run rag:index -- --recreate` 索引 2064 / 2064 documents 到 `shopmate_product_documents`。
+- 离线评估：`npm.cmd run rag:evaluate -- --output ../data/processed/rag/evaluation-results-negative-metadata.jsonl` 为 14 passed / 0 failed，三个重点 baseline case 均通过。
+- Chat SSE smoke：`推荐不含酒精的防晒`、`油皮，不要酒精的防晒` 均返回 `p_beauty_006`；`不要入耳式耳机` 返回 `p_digital_007`；三条均 HTTP 200、包含 `done` event、无 fallback。
+- 完成报告：`docs/rag-negative-fact-metadata-report.md`。
 
 ## 历史记录
 - 初始化前后端技术栈骨架：完成 Android Kotlin + Jetpack Compose 与 Node.js + TypeScript + Express 最小工程初始化，补充 README 与 Git 忽略配置，并通过后端构建与 Android `assembleDebug` 验证。
@@ -104,3 +100,4 @@ Complete
 - Cart Natural Language Management：新增聊天自然语言购物车管理，支持查看、加购、删除、改数量、勾选 / 取消勾选和清空确认；后端基于当前购物车快照、最近推荐 allowlist 和 active 商品事实解析目标，Android 根据成功 mutation 的 `cartAction` 刷新购物车；通过后端 test / build、Android testDebugUnitTest / build 和本地 Chat SSE smoke 验证。
 - Comparison RAG Output：新增真实商品对比链路，后端用 LLM comparison intent / generation 基于库内商品事实输出 `comparison_result`，Android 聊天页展示对比入口并让独立对比详情页消费真实 state；收口为仅支持两款商品对比，补齐入口稳定性、两款契约、UI 自适应和返回链路验证。
 - Negative Constraint Fact Evaluation：新增商品事实冲突判定 helper，统一 Chat 负向约束过滤与离线 evaluator，修复 free-from 安全证据误判；补充耳机佩戴形态结构化数据并重建 catalog / RAG documents / vector manifest，复跑后端 test / build、离线评估和 Chat SSE 评估。
+- RAG Query Rewrite：新增 LLM 驱动的检索 query 改写服务，在 cart / negative constraint / comparison / clarification 之后、popular cache 和 vector search 之前生成 retrieval query；原始 question 仍用于用户可见回复，cache key 和离线 evaluator 增加 rewrite metadata，并通过后端全量 test / build、baseline 与 rewrite 模式 `rag:evaluate` 验证。

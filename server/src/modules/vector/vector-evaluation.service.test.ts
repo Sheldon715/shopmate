@@ -201,6 +201,41 @@ describe("evaluateSingleCase", () => {
     expect(result.notes.join("\n")).toContain("avoidTerm \"酒精\" (strict_risk_fact)");
     expect(result.notes.join("\n")).toContain("p_beauty_010");
   });
+
+  it("fails when a hit violates negative fact metadata filters", () => {
+    const hit = createHit({
+      productId: "p_digital_018",
+      category: "数码电子",
+      subCategory: "真无线耳机",
+      riskTerms: ["酒精"],
+      wearingStyles: ["in_ear"],
+    });
+    const result = evaluateSingleCase({
+      evaluationCase: createCase({
+        filters: {
+          category: "数码电子",
+          subCategory: "真无线耳机",
+          availableOnly: true,
+          excludeRiskTerms: ["酒精"],
+          excludeWearingStyles: ["in_ear"],
+        },
+        expectedCategory: "数码电子",
+        expectedSubCategory: "真无线耳机",
+        expectedProductIdsAny: [],
+      }),
+      hits: [hit],
+      productsById: new Map([[hit.productId, createProductSnapshot(hit)]]),
+      generatedAt: GENERATED_AT,
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.notes.join("\n")).toContain("excludeRiskTerms \"酒精\"");
+    expect(result.notes.join("\n")).toContain("excludeWearingStyles \"in_ear\"");
+    expect(result.hits[0]).toMatchObject({
+      riskTerms: ["酒精"],
+      wearingStyles: ["in_ear"],
+    });
+  });
 });
 
 describe("evaluateVectorSearchCases", () => {
@@ -319,6 +354,9 @@ function createHit(
     available: boolean;
     tags: string[];
     avoidWhen: string[];
+    freeFromTerms: string[];
+    riskTerms: string[];
+    wearingStyles: VectorSearchHit["metadata"]["wearingStyles"];
   }> = {},
 ): VectorSearchHit {
   const productId = overrides.productId ?? "p_beauty_011";
@@ -336,6 +374,9 @@ function createHit(
       tags: overrides.tags ?? ["美妆护肤", "洁面"],
       recommendWhen: ["日常护理"],
       avoidWhen: overrides.avoidWhen ?? [],
+      freeFromTerms: overrides.freeFromTerms ?? [],
+      riskTerms: overrides.riskTerms ?? [],
+      wearingStyles: overrides.wearingStyles ?? [],
       blockType: null,
       priceMinCents: overrides.priceMinCents ?? 5200,
       priceMaxCents: overrides.priceMaxCents ?? 6900,
@@ -361,6 +402,9 @@ function createProductSnapshot(
     tags: hit.metadata.tags,
     recommendWhen: hit.metadata.recommendWhen,
     avoidWhen: hit.metadata.avoidWhen,
+    freeFromTerms: hit.metadata.freeFromTerms,
+    riskTerms: hit.metadata.riskTerms,
+    wearingStyles: hit.metadata.wearingStyles,
     pros: [],
     cons: [],
     attributes: {},

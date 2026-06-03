@@ -1,4 +1,5 @@
 import type { VectorSearchFilters } from "../vector/vector-search.types";
+import { buildNegativeFactVectorFilters } from "../vector/rag-negative-fact-metadata";
 import { ChatContextMemoryStore } from "./chat-context-memory.store";
 import type {
   ChatContextConstraints,
@@ -88,7 +89,10 @@ export class ChatContextMemoryService {
       filtersToNegativeConstraints(input.filters);
 
     if (!input.conversationId) {
-      const filters = filtersWithoutFactAvoidTerms(input.filters);
+      const filters = mergeVectorFilters(
+        filtersWithoutFactAvoidTerms(input.filters),
+        negativeConstraintsToFactFilters(explicitNegativeConstraints),
+      );
 
       return {
         retrievalQuery: input.question,
@@ -116,7 +120,10 @@ export class ChatContextMemoryService {
       contextMemory: toSummary(memory),
       negativeConstraints: memory.negativeConstraints,
       retrievalQuery: buildRetrievalQuery(input.question, memory),
-      filters: mergeFilters(input.filters, memory.constraints),
+      filters: mergeVectorFilters(
+        mergeFilters(input.filters, memory.constraints),
+        negativeConstraintsToFactFilters(memory.negativeConstraints ?? []),
+      ),
     };
   }
 
@@ -138,12 +145,16 @@ export class ChatContextMemoryService {
     const excludeCategories = negativeConstraintsToExcludeCategories(
       mergedNegativeConstraints,
     );
+    const factFilters = negativeConstraintsToFactFilters(
+      mergedNegativeConstraints,
+    );
 
     if (!resolution.memory) {
       return {
         ...resolution,
         negativeConstraints: mergedNegativeConstraints,
         filters: mergeVectorFilters(filtersWithoutFactAvoidTerms(resolution.filters), {
+          ...factFilters,
           excludeBrands,
           excludeProductIds,
           excludeCategories,
@@ -174,6 +185,7 @@ export class ChatContextMemoryService {
       contextMemory: toSummary(memory),
       negativeConstraints: mergedNegativeConstraints,
       filters: mergeVectorFilters(baseFilters, {
+        ...factFilters,
         excludeBrands,
         excludeProductIds,
         excludeCategories,
@@ -281,6 +293,8 @@ function mergeFilters(
     excludeBrands: explicitFilters?.excludeBrands,
     excludeProductIds: explicitFilters?.excludeProductIds,
     excludeCategories: explicitFilters?.excludeCategories,
+    excludeRiskTerms: explicitFilters?.excludeRiskTerms,
+    excludeWearingStyles: explicitFilters?.excludeWearingStyles,
   };
 
   return Object.keys(pruneUndefined(merged)).length > 0
@@ -685,6 +699,19 @@ function negativeConstraintsToExcludeCategories(
   );
 }
 
+function negativeConstraintsToFactFilters(
+  constraints: readonly NegativeConstraint[],
+): Pick<VectorSearchFilters, "excludeRiskTerms" | "excludeWearingStyles"> {
+  return buildNegativeFactVectorFilters(
+    constraints
+      .filter((constraint) =>
+        constraint.matchPolicy === "exclude_if_product_facts_conflict"
+        && constraint.kind !== "price"
+      )
+      .map((constraint) => constraint.term),
+  );
+}
+
 function mergeVectorFilters(
   base: VectorSearchFilters | undefined,
   next: VectorSearchFilters,
@@ -704,12 +731,22 @@ function mergeVectorFilters(
       base?.excludeCategories ?? [],
       next.excludeCategories ?? [],
     ),
+    excludeRiskTerms: mergeTerms(
+      base?.excludeRiskTerms ?? [],
+      next.excludeRiskTerms ?? [],
+    ),
+    excludeWearingStyles: mergeTerms(
+      base?.excludeWearingStyles ?? [],
+      next.excludeWearingStyles ?? [],
+    ),
   });
 
   for (const key of [
     "excludeBrands",
     "excludeProductIds",
     "excludeCategories",
+    "excludeRiskTerms",
+    "excludeWearingStyles",
   ] as const) {
     if (Array.isArray(merged[key]) && merged[key].length === 0) {
       delete merged[key];

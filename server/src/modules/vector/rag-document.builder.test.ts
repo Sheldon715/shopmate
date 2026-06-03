@@ -139,6 +139,28 @@ describe("buildProductRagDocuments", () => {
     expect(contentBlock.metadata.documentHash).toMatch(/^[a-f0-9]{64}$/);
   });
 
+  it("adds product-level negative fact metadata to every document", () => {
+    const documents = buildProductRagDocuments(createProduct({
+      attributes: {
+        佩戴形态: ["半入耳式"],
+      },
+      officialFaq: [
+        {
+          question: "敏感肌能用吗？",
+          answer: "这款隔离露不含酒精，敏感肌建议先测试。",
+        },
+      ],
+    }));
+
+    expect(documents).not.toHaveLength(0);
+
+    for (const document of documents) {
+      expect(document.metadata.freeFromTerms).toContain("酒精");
+      expect(document.metadata.riskTerms).not.toContain("酒精");
+      expect(document.metadata.wearingStyles).toEqual(["semi_in_ear"]);
+    }
+  });
+
   it("does not generate documents for empty content", () => {
     const documents = buildProductRagDocuments(
       createProduct({

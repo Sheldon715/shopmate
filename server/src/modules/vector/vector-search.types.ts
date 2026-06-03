@@ -1,3 +1,5 @@
+import type { RagWearingStyle } from "./rag-negative-fact-metadata";
+
 export interface VectorSearchFilters {
   category?: string;
   subCategory?: string;
@@ -7,6 +9,8 @@ export interface VectorSearchFilters {
   availableOnly?: boolean;
   tagsAny?: string[];
   avoidTerms?: string[];
+  excludeRiskTerms?: string[];
+  excludeWearingStyles?: RagWearingStyle[];
   excludeBrands?: string[];
   excludeProductIds?: string[];
   excludeCategories?: string[];
@@ -20,6 +24,9 @@ export interface VectorSearchHitMetadata {
   tags: string[];
   recommendWhen: string[];
   avoidWhen: string[];
+  freeFromTerms: string[];
+  riskTerms: string[];
+  wearingStyles: RagWearingStyle[];
   blockType: string | null;
   priceMinCents: number;
   priceMaxCents: number;

@@ -16,6 +16,7 @@ import type {
   VectorEvaluationQueryRewriter,
 } from "../modules/vector/vector-evaluation.types";
 import { VectorSearchService } from "../modules/vector/vector-search.service";
+import { extractRagNegativeFactMetadata } from "../modules/vector/rag-negative-fact-metadata";
 import type { VectorSearchFilters } from "../modules/vector/vector-search.types";
 import { createLlmClient } from "../modules/llm/openai-compatible-chat.client";
 import {
@@ -188,6 +189,14 @@ function readFilters(value: unknown): VectorSearchFilters {
     ),
     tagsAny: optionalStringArray(record.tagsAny, "filters.tagsAny"),
     avoidTerms: optionalStringArray(record.avoidTerms, "filters.avoidTerms"),
+    excludeRiskTerms: optionalStringArray(
+      record.excludeRiskTerms,
+      "filters.excludeRiskTerms",
+    ),
+    excludeWearingStyles: optionalWearingStyleArray(
+      record.excludeWearingStyles,
+      "filters.excludeWearingStyles",
+    ),
   };
 }
 
@@ -316,6 +325,27 @@ function optionalStringArray(
   return readStringArray(value, name);
 }
 
+function optionalWearingStyleArray(
+  value: unknown,
+  name: string,
+): VectorSearchFilters["excludeWearingStyles"] {
+  const values = optionalStringArray(value, name);
+
+  if (!values) {
+    return undefined;
+  }
+
+  for (const item of values) {
+    if (!["in_ear", "semi_in_ear", "open_ear", "over_ear"].includes(item)) {
+      throw new Error(
+        `${name} must contain only in_ear, semi_in_ear, open_ear, or over_ear.`,
+      );
+    }
+  }
+
+  return values as VectorSearchFilters["excludeWearingStyles"];
+}
+
 function selectCases(
   cases: VectorEvaluationCase[],
   options: EvaluateRagOptions,
@@ -426,6 +456,8 @@ function createProductLookup(pool: Pool): VectorEvaluationProductLookup {
 }
 
 function mapProductToSnapshot(product: Product): VectorEvaluationProductSnapshot {
+  const negativeFactMetadata = extractRagNegativeFactMetadata(product);
+
   return {
     productId: product.id,
     status: product.status,
@@ -436,6 +468,9 @@ function mapProductToSnapshot(product: Product): VectorEvaluationProductSnapshot
     tags: product.visualTags,
     recommendWhen: product.recommendWhen,
     avoidWhen: product.avoidWhen,
+    freeFromTerms: negativeFactMetadata.freeFromTerms,
+    riskTerms: negativeFactMetadata.riskTerms,
+    wearingStyles: negativeFactMetadata.wearingStyles,
     pros: product.pros,
     cons: product.cons,
     attributes: product.attributes,

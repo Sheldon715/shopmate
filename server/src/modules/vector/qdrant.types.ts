@@ -1,5 +1,6 @@
 import type { Schemas } from "@qdrant/js-client-rest";
 import type { RagDocument } from "./rag-document.types";
+import type { RagWearingStyle } from "./rag-negative-fact-metadata";
 import type { VectorSearchFilters, VectorSearchHit } from "./vector-search.types";
 
 export type QdrantDistance = "Cosine";
@@ -26,6 +27,9 @@ export interface QdrantDocumentPayload {
   tags: string[];
   recommend_when: string[];
   avoid_when: string[];
+  free_from_terms: string[];
+  risk_terms: string[];
+  wearing_styles: RagWearingStyle[];
   block_type?: string;
   ingest_batch_id: string;
   embedding_model: string;

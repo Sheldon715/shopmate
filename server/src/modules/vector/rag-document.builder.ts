@@ -7,6 +7,7 @@ import type {
   RagDocumentMetadata,
   RagDocumentType,
 } from "./rag-document.types";
+import { extractRagNegativeFactMetadata } from "./rag-negative-fact-metadata";
 
 interface ContentBlock {
   blockId: string;
@@ -224,6 +225,8 @@ function createBaseMetadata(
   product: Product,
   docType: RagDocumentType,
 ): Omit<RagDocumentMetadata, "documentHash"> {
+  const negativeFactMetadata = extractRagNegativeFactMetadata(product);
+
   return {
     productName: product.name,
     brand: product.brand,
@@ -237,6 +240,9 @@ function createBaseMetadata(
     tags: product.visualTags,
     recommendWhen: product.recommendWhen,
     avoidWhen: product.avoidWhen,
+    freeFromTerms: negativeFactMetadata.freeFromTerms,
+    riskTerms: negativeFactMetadata.riskTerms,
+    wearingStyles: negativeFactMetadata.wearingStyles,
     pros: product.pros,
     cons: product.cons,
     sourceDataset: product.sourceDataset,

@@ -9,6 +9,8 @@ import {
 import type { EmbeddingClient, EmbeddingResult } from "./embedding.types";
 import { validateEmbeddingResult } from "./embedding.service";
 import type { QdrantScoredPoint, VectorStore } from "./qdrant.types";
+import { mapRagDocumentToQdrantPayload } from "./qdrant.client";
+import type { RagDocument } from "./rag-document.types";
 
 describe("FakeEmbeddingClient", () => {
   it("returns stable vectors for the same text", async () => {
@@ -80,6 +82,23 @@ describe("buildQdrantFilter", () => {
         { key: "brand", match: { any: ["酒精"] } },
         { key: "tags", match: { any: ["酒精"] } },
         { key: "avoid_when", match: { any: ["酒精"] } },
+        { key: "risk_terms", match: { any: ["酒精"] } },
+      ],
+    });
+  });
+
+  it("maps negative fact metadata filters to must_not risk and wearing fields", () => {
+    expect(buildQdrantFilter({
+      excludeRiskTerms: ["酒精"],
+      excludeWearingStyles: ["in_ear"],
+    })).toEqual({
+      must: [
+        { key: "status", match: { value: "active" } },
+        { key: "available", match: { value: true } },
+      ],
+      must_not: [
+        { key: "risk_terms", match: { any: ["酒精"] } },
+        { key: "wearing_styles", match: { any: ["in_ear"] } },
       ],
     });
   });
@@ -121,6 +140,9 @@ describe("mapQdrantScoredPointToVectorSearchHit", () => {
         tags: ["防晒", "清爽"],
         recommendWhen: ["通勤"],
         avoidWhen: ["酒精敏感"],
+        freeFromTerms: [],
+        riskTerms: ["酒精", "酒精敏感"],
+        wearingStyles: [],
         blockType: null,
         priceMinCents: 9900,
         priceMaxCents: 12900,
@@ -129,6 +151,22 @@ describe("mapQdrantScoredPointToVectorSearchHit", () => {
         embeddingDimensions: 8,
         ingestBatchId: "batch_001",
       },
+    });
+  });
+});
+
+describe("mapRagDocumentToQdrantPayload", () => {
+  it("writes negative fact metadata payload fields", () => {
+    expect(
+      mapRagDocumentToQdrantPayload(
+        createRagDocument(),
+        "fake",
+        8,
+      ),
+    ).toMatchObject({
+      free_from_terms: ["酒精"],
+      risk_terms: [],
+      wearing_styles: ["semi_in_ear"],
     });
   });
 });
@@ -261,6 +299,9 @@ function createScoredPoint(): QdrantScoredPoint {
       tags: ["防晒", "清爽"],
       recommend_when: ["通勤"],
       avoid_when: ["酒精敏感"],
+      free_from_terms: [],
+      risk_terms: ["酒精", "酒精敏感"],
+      wearing_styles: [],
       ingest_batch_id: "batch_001",
       embedding_model: "fake",
       embedding_dimensions: 8,
@@ -272,6 +313,44 @@ function createScoredPoint(): QdrantScoredPoint {
       source_dataset: "dataset",
       source_version: "v1",
       data_version: "v1",
+    },
+  };
+}
+
+function createRagDocument(): RagDocument {
+  return {
+    docId: "prod_001::description",
+    productId: "prod_001",
+    docType: "description",
+    text: "Demo document",
+    snippet: "Demo snippet",
+    metadata: {
+      productName: "Demo Product",
+      brand: "示例品牌",
+      category: "美妆护肤",
+      subCategory: "防晒",
+      status: "active",
+      available: true,
+      priceMinCents: 9900,
+      priceMaxCents: 12900,
+      currency: "CNY",
+      tags: ["防晒"],
+      recommendWhen: ["通勤"],
+      avoidWhen: [],
+      freeFromTerms: ["酒精"],
+      riskTerms: [],
+      wearingStyles: ["semi_in_ear"],
+      pros: [],
+      cons: [],
+      sourceDataset: "dataset",
+      sourceVersion: "v1",
+      sourceType: "synthetic_desensitized",
+      dataVersion: "v1",
+      isDesensitized: true,
+      ingestBatchId: "batch_001",
+      sourcePath: "data/raw/demo.json",
+      docType: "description",
+      documentHash: "abc123",
     },
   };
 }

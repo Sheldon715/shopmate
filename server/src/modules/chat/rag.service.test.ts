@@ -494,6 +494,7 @@ describe("RagChatService", () => {
     expect(vectorCalls[0]?.filters).toMatchObject({
       category: "美妆护肤",
       subCategory: "防晒",
+      excludeRiskTerms: ["酒精"],
     });
     expect(vectorCalls[0]?.filters?.avoidTerms).toBeUndefined();
   });
@@ -647,6 +648,7 @@ describe("RagChatService", () => {
     expect(vectorCalls[0]?.filters).toEqual({
       category: "美妆护肤",
       subCategory: "防晒",
+      excludeRiskTerms: ["酒精"],
     });
     expect(result.recommendedProductIds).toEqual(["product_002"]);
   });
@@ -756,6 +758,7 @@ describe("RagChatService", () => {
     expect(vectorCalls[0]?.filters).toMatchObject({
       category: "美妆护肤",
       subCategory: "防晒",
+      excludeRiskTerms: ["酒精"],
     });
     expect(vectorCalls[0]?.filters?.avoidTerms).toBeUndefined();
   });
@@ -2562,6 +2565,9 @@ function createHit(
       tags: ["SPF"],
       recommendWhen: ["commuting"],
       avoidWhen: ["fragrance sensitive"],
+      freeFromTerms: [],
+      riskTerms: [],
+      wearingStyles: [],
       blockType: null,
       priceMinCents: 1999,
       priceMaxCents: 2599,

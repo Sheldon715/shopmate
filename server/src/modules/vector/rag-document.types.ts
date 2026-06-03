@@ -1,4 +1,5 @@
 import type { JsonValue } from "../products/product.types";
+import type { RagWearingStyle } from "./rag-negative-fact-metadata";
 
 export type RagDocumentType =
   | "content_block"
@@ -19,6 +20,9 @@ export interface RagDocumentMetadata {
   tags: string[];
   recommendWhen: string[];
   avoidWhen: string[];
+  freeFromTerms: string[];
+  riskTerms: string[];
+  wearingStyles: RagWearingStyle[];
   pros: string[];
   cons: string[];
   sourceDataset: string;

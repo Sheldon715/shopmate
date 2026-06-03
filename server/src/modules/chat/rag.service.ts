@@ -19,6 +19,7 @@ import {
 } from "../products/product.repository";
 import type { Product } from "../products/product.types";
 import { VectorSearchService } from "../vector/vector-search.service";
+import { extractRagNegativeFactMetadata } from "../vector/rag-negative-fact-metadata";
 import type {
   VectorSearchFilters,
   VectorSearchHit,
@@ -1674,27 +1675,34 @@ function createRetrievedContexts(
 function createComparisonContextsFromProducts(
   products: Product[],
 ): RetrievedProductContext[] {
-  return products.map((product, index) => ({
-    product,
-    score: 1 - index / 100,
-    snippets: [createComparisonProductSnippet(product)],
-    metadata: {
-      docType: "product",
-      category: product.category,
-      subCategory: product.subCategory,
-      brand: product.brand,
-      tags: product.visualTags,
-      recommendWhen: product.recommendWhen,
-      avoidWhen: product.avoidWhen,
-      blockType: null,
-      priceMinCents: product.priceMinCents,
-      priceMaxCents: product.priceMaxCents,
-      available: true,
-      embeddingModel: "postgresql",
-      embeddingDimensions: 0,
-      ingestBatchId: product.ingestBatchId,
-    },
-  }));
+  return products.map((product, index) => {
+    const negativeFactMetadata = extractRagNegativeFactMetadata(product);
+
+    return {
+      product,
+      score: 1 - index / 100,
+      snippets: [createComparisonProductSnippet(product)],
+      metadata: {
+        docType: "product",
+        category: product.category,
+        subCategory: product.subCategory,
+        brand: product.brand,
+        tags: product.visualTags,
+        recommendWhen: product.recommendWhen,
+        avoidWhen: product.avoidWhen,
+        freeFromTerms: negativeFactMetadata.freeFromTerms,
+        riskTerms: negativeFactMetadata.riskTerms,
+        wearingStyles: negativeFactMetadata.wearingStyles,
+        blockType: null,
+        priceMinCents: product.priceMinCents,
+        priceMaxCents: product.priceMaxCents,
+        available: true,
+        embeddingModel: "postgresql",
+        embeddingDimensions: 0,
+        ingestBatchId: product.ingestBatchId,
+      },
+    };
+  });
 }
 
 function toComparisonGenerationProductContext(

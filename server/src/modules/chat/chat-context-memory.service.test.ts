@@ -298,6 +298,7 @@ describe("ChatContextMemoryService", () => {
     expect(followUp.filters).toMatchObject({
       category: "美妆护肤",
       subCategory: "防晒",
+      excludeRiskTerms: ["酒精"],
     });
     expect(followUp.filters?.avoidTerms).toBeUndefined();
     expect(followUp.negativeConstraints).toHaveLength(1);
@@ -318,6 +319,7 @@ describe("ChatContextMemoryService", () => {
     expect(resolution.filters).toMatchObject({
       category: "美妆护肤",
       subCategory: "防晒",
+      excludeRiskTerms: ["酒精"],
     });
     expect(resolution.filters?.avoidTerms).toBeUndefined();
     expect(resolution.negativeConstraints).toHaveLength(1);
@@ -338,6 +340,9 @@ describe("ChatContextMemoryService", () => {
     );
 
     expect(resolution.filters?.avoidTerms).toBeUndefined();
+    expect(resolution.filters?.excludeRiskTerms).toEqual(
+      expect.arrayContaining(["香精", "酒精"]),
+    );
     expect(resolution.negativeConstraints?.map((constraint) => constraint.term))
       .toEqual(
       expect.arrayContaining(["香精", "酒精"]),
@@ -346,6 +351,30 @@ describe("ChatContextMemoryService", () => {
     expect(resolution.contextMemory?.constraints.avoidTerms).toEqual(
       expect.arrayContaining(["香精", "酒精"]),
     );
+  });
+
+  it("turns LLM-confirmed wearing negative constraints into vector metadata filters", () => {
+    const service = createService();
+    const resolution = service.applyNegativeConstraints(
+      service.resolve({
+        conversationId: "wearing-session",
+        question: "耳机不要入耳式",
+      }),
+      [{
+        rawText: "不要入耳式",
+        term: "入耳",
+        kind: "feature",
+        scope: "product",
+        matchPolicy: "exclude_if_product_facts_conflict",
+      }],
+    );
+
+    expect(resolution.filters).toMatchObject({
+      category: "数码电子",
+      subCategory: "真无线耳机",
+      excludeWearingStyles: ["in_ear"],
+    });
+    expect(resolution.filters?.avoidTerms).toBeUndefined();
   });
 
   it("turns explicit no-memory avoid terms into fact constraints without vector avoidTerms", () => {
@@ -362,6 +391,7 @@ describe("ChatContextMemoryService", () => {
     expect(resolution.filters).toEqual({
       category: "美妆护肤",
       subCategory: "防晒",
+      excludeRiskTerms: ["酒精"],
     });
     expect(resolution.negativeConstraints).toEqual([
       {
