@@ -1,4 +1,4 @@
-# Current Feature: Comparison Ambiguous Clarification
+# Current Feature: RAG Gradio Evaluation Workbench
 
 ## 状态
 
@@ -6,40 +6,43 @@ In Progress
 
 ## 目标
 
-- 当 LLM 已判断为 comparison intent，但对比目标不足或过多时，后端返回 LLM 生成的澄清问题，而不是继续普通 RAG 推荐。
-- 用户只说“帮我对比一下”且最近推荐刚好 2 个 active 商品时，直接复用这 2 个商品生成 `comparison_result`。
-- 最近推荐少于 2 个或多于 2 个时，不返回普通 `product_cards` / `comparison_result`，转为 comparison clarification。
-- 明确指定 ordinal / 商品名的既有对比解析继续可用；无法安全解析时返回澄清。
-- Chat SSE / evaluation 能证明 `comparison-ambiguous-chat` 不再误给普通推荐卡片。
+- 新增一个本地 Gradio 内部评估工作台，界面语言使用中文，用于 RAG / Chat SSE 批量评估和单条调试。
+- 支持上传 UTF-8 CSV 测试集、字段校验、用例预览、批量调用现有 `POST /api/chat/stream`，并保存每轮运行结果。
+- 展示中文评估看板，包括通过率、平均人工分、商品命中率、约束通过率、幻觉 / 安全风险次数、失败类型和 fallback 分布。
+- 支持人工 0-5 分评分；可选 LLM 初评只作为建议，不覆盖人工最终分数。
+- 提供单条调试页，左侧显示聊天输出，右侧显示“检索证据 / 发送给 LLM 的上下文”摘要。
+- 严格保持内部工具边界：不替代 Android UI、不修改正式 RAG 主逻辑、不展示 API key、`.env`、完整 prompt 或 provider 原始敏感错误。
 
 ## 待办清单
 
-- [x] 在 comparison intent 和 target resolution 后增加 comparison target resolution gate。
-- [x] 支持目标为空且 `lastRecommendedProductIds` 去重后刚好 2 个 active 商品时直接进入 comparison generation。
-- [x] 支持目标为空且最近推荐少于 2 个时返回 LLM 澄清，并跳过普通 RAG / vector search。
-- [x] 支持目标为空且最近推荐超过 2 个时返回 LLM 澄清，不静默截断前两款。
-- [x] 保持用户明确指定两款商品 / ordinal / name 时的 `comparison_result` 流程；明确目标超过 2 个、无效或歧义时返回澄清。
-- [x] 确保 comparison clarification 的 SSE 不发送普通推荐 `product_cards`，不发送 `comparison_result`，`done.recommendedProductIds` 为空并记录稳定 fallback reason。
-- [x] 补后端单元测试覆盖 1 / 2 / 3 个最近推荐商品、明确 ordinals、明确商品名、ambiguous 商品名和 non-comparison query。
-- [x] 补 Chat SSE / evaluation case 期望，包括 `comparison-ambiguous-chat` 只澄清不推荐，以及最近推荐 1 个 / 超过 2 个后的“帮我对比一下”。
-- [x] 运行 `cd server && npm.cmd test` 与 `cd server && npm.cmd run build`。
-- [x] 校验新增 Chat SSE evaluation cases 的 JSON 结构、唯一 caseId 和目标 comparison case 存在性。
+- [x] 在仓库根目录新增独立 Gradio 工具目录 `rag-gradio-evaluation-workbench/`，而不是放进 `tools/`。
+- [x] 添加 `app.py`、`requirements.txt`、`README.md` 和中文 CSV 模板 / 示例用例。
+- [x] 实现 CSV 上传、UTF-8 解析、中文字段校验和用例预览。
+- [x] 实现 Chat SSE 批量运行，解析 `message_delta`、`product_cards`、`done`、`error` 等事件。
+- [x] 实现批量评估页的中文指标、图表 / 分布统计、结果表和 JSONL / CSV 导出。
+- [x] 实现人工评分、通过 / 可接受 / 失败状态、失败类型和备注记录。
+- [x] 实现可选 LLM 初评开关；初评只写建议分数 / 建议失败类型 / notes，不覆盖人工分。
+- [x] 实现单条调试聊天页，支持输入问题、展示流式 assistant 文本、商品卡片摘要、`comparison_result` 和 `cartAction` 摘要。
+- [x] 实现“检索证据 / 发送给 LLM 的上下文”面板，优先展示 SSE done payload、returnedProductIds、fallbackReason、filters、query rewrite 状态和可安全展示的商品事实摘要。
+- [x] 将运行结果保存到 `data/processed/rag/gradio-runs/<run-id>/`，至少包含 `cases.csv`、`results.jsonl`、`summary.json`。
+- [x] 在 README 写清后端启动、Gradio 启动、CSV 格式、敏感信息边界和本地-only 运行方式。
+- [x] 运行后端 `npm.cmd test` / `npm.cmd run build`，并对 Gradio 工具做最小 smoke test；如 Python / Gradio 环境缺失，记录真实 blocker。
 
 ## 备注
 
-- Spec 来源：`context/feature/comparison-ambiguous-clarification-spec.md`。
-- 行为边界：LLM 仍是 comparison intent、澄清问题、对比维度和结论的权威；代码只做目标数量、active 商品、allowlist、schema 和安全控制。
-- 非目标：不改 comparison output schema、不改 Android comparison UI、不做 query expansion / rerank、不改商品数据或 Qdrant index、不写死用户可见澄清文案。
-- 控制流要求：`comparison intent=true` 后先解析显式 target；解析成功 2 个 active 商品则对比；没有显式 target 时只在最近推荐刚好 2 个时直接对比，否则返回 comparison clarification。
-- 验证重点：`comparison-recent-two-sunscreens-chat` 和 `comparison-priority-oily-commute-chat` 仍返回 `comparison_result`；`comparison-ambiguous-chat` 不再返回普通推荐卡片。
-- Chat SSE smoke 使用 `message` 字段，不使用 `question` 字段。
-- 实现记录：新增 `COMPARISON_TARGET_CLARIFICATION` fallback reason；comparison target 缺失 / 过多 / 无效 / 歧义时返回空 `productCards`、空 `recommendedProductIds`，不进入普通 RAG；Android 将该 reason 视为澄清态，不显示无匹配错误。
-- 补充记录：`对比下前两个` / `前两款` / `前俩` 在最近推荐至少 2 个商品时会稳定解析为最近推荐 `[1,2]`，即使最近推荐有 3 个商品也只对比前两个。
-- 回归补强：新增测试覆盖 target gate 没有现成澄清问句时会调用 LLM 澄清生成器，并确认 comparison clarification 不会清掉上一轮 `lastRecommendedProductIds`。
-- 测试记录：目标测试 `npm.cmd test -- comparison-intent.service.test.ts rag.service.test.ts` 为 2 files / 69 tests passed；后端全量 `npm.cmd test` 为 38 files / 293 tests passed；`npm.cmd run build` 通过。
-- Android 验证：`.\gradlew.bat --no-daemon testDebugUnitTest` 通过；默认 `.\gradlew.bat --no-daemon build` 被既有 demo HTTPS Base URL fail-fast 拦截，随后 `.\gradlew.bat --no-daemon -PSHOPMATE_DEMO_API_BASE_URL=https://api.example.test/ build` 通过。
-- Chat case 校验：`node -e ...` 读取 `data/processed/rag/chat-evaluation-cases.json`，验证 22 cases / 22 unique ids，并确认 `comparison-ambiguous-chat`、`comparison-single-recent-product-chat`、`comparison-too-many-recent-products-chat` 存在。
-- 未完成验证：本仓库没有 `chat-evaluation-cases.json` 的专用 npm runner；本轮未启动依赖真实 PostgreSQL / Qdrant / LLM 的 dev server 做 live Chat SSE smoke。`rag:evaluate` 只读取离线 `evaluation-cases.json`，不覆盖这次新增的 Chat SSE cases。
+- Spec 来源：`context/feature/rag-gradio-evaluation-workbench-spec.md`。
+- 路径决策：本次按用户要求在仓库根目录新建 `rag-gradio-evaluation-workbench/` 实现 Gradio；spec 中的 `tools/rag-evaluation-workbench/` 仅作为原建议，不作为本轮落地路径。
+- 后端接口边界：第一版优先复用现有 `POST /api/chat/stream`，不为了 Gradio 修改正式 Express API；如需要 debug evidence，优先用本地 helper 或稳定 SSE / product payload 可获得字段。
+- 评分边界：人工评分是最终分数；LLM judge 默认可关闭，只能提供建议，不能成为唯一评分来源。
+- 敏感信息边界：UI、日志、导出文件和 README 都不能包含真实 API key、数据库 URL、`.env` 内容、完整系统 prompt 或 provider 原始敏感错误。
+- 验证记录：`python -m pip install -r rag-gradio-evaluation-workbench/requirements.txt` 已安装 Gradio 6.15.2、requests 2.34.2；`python -m py_compile rag-gradio-evaluation-workbench/app.py` 通过。
+- 验证记录：`python rag-gradio-evaluation-workbench/app.py --self-test` 通过，覆盖 CSV 解析、SSE 解析、人工评分状态、启发式 judge、summary 和导出保存。
+- 验证记录：`cd server; npm.cmd test` 通过，38 个 test files / 293 个 tests；`cd server; npm.cmd run build` 通过。
+- 验证记录：本地启动 Gradio `python rag-gradio-evaluation-workbench/app.py --api-base-url http://localhost:3000 --host 127.0.0.1 --port 7860`，用 Playwright 打开 `http://127.0.0.1:7860/`，确认批量评估页、单条调试页、CSV 上传、运行按钮、结果表、人工评分和导出控件可见。
+- 验证记录：后端本地 dev server 可用时，用 `sample-cases.csv` 跑 3 条 live smoke，生成 `data/processed/rag/gradio-runs/rag_eval_20260603_162555/`，包含 `results.jsonl`、`results.csv`、`summary.json`；3 条均完成，未人工评分所以状态为“未评审”，商品事实覆盖 100%，约束初判 100%，fallback 分布为 2 条无 fallback、1 条 `NO_VALID_PRODUCT_IDS`。
+- 体验调整：根据用户反馈将默认页面从复杂表单改为一键 `评估仪表盘`，直接展示答案质量、商品命中率、约束通过率、MRR、nDCG、要点覆盖和分布图；CSV 上传、后端地址、运行范围、留档文件下载改放进折叠的 `高级设置`。
+- 配置调整：LLM 初评默认读取仓库根目录 `.env` 中的 `LLM_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL`；`SHOPMATE_GRADIO_JUDGE_*` 仅作为临时覆盖项，不要求单独配置 `SHOPMATE_GRADIO_JUDGE_MODEL`。
+- 小增量：在不做完整 v2 的前提下先加入首 token 指标；Gradio 从发出 `POST /api/chat/stream` 开始计时，收到第一条带文本的 `message_delta` 记录 `首token(ms)`，流结束记录 `总耗时(ms)`，用于后续首 token 优化前后对比。
 
 ## 历史记录
 - 初始化前后端技术栈骨架：完成 Android Kotlin + Jetpack Compose 与 Node.js + TypeScript + Express 最小工程初始化，补充 README 与 Git 忽略配置，并通过后端构建与 Android `assembleDebug` 验证。
@@ -103,3 +106,4 @@ In Progress
 - Negative Constraint Fact Evaluation：新增商品事实冲突判定 helper，统一 Chat 负向约束过滤与离线 evaluator，修复 free-from 安全证据误判；补充耳机佩戴形态结构化数据并重建 catalog / RAG documents / vector manifest，复跑后端 test / build、离线评估和 Chat SSE 评估。
 - RAG Query Rewrite：新增 LLM 驱动的检索 query 改写服务，在 cart / negative constraint / comparison / clarification 之后、popular cache 和 vector search 之前生成 retrieval query；原始 question 仍用于用户可见回复，cache key 和离线 evaluator 增加 rewrite metadata，并通过后端全量 test / build、baseline 与 rewrite 模式 `rag:evaluate` 验证。
 - RAG Negative Fact Metadata：新增负向事实 metadata 提取与 Qdrant payload，写入 free-from / risk / wearing style 字段；将负向约束转成结构化 vector filters，修复“不含酒精”和“不要入耳式”召回误伤，并通过后端全量 test / build、RAG documents / index 重建、14/14 离线评估和 Chat SSE smoke 验证。
+- Comparison Ambiguous Clarification：新增 comparison target resolution gate，目标不足、过多、无效或歧义时返回 LLM 澄清并跳过普通 RAG；最近推荐刚好两款时直接生成 `comparison_result`，并补齐 SSE contract、Android fallback、Chat evaluation case 和后端回归测试。

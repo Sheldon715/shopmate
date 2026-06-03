@@ -23,6 +23,8 @@ context/spec-implementation-order.md
 # Generated data/tooling artifacts
 __pycache__/
 *.pyc
+.playwright-mcp/
+data/processed/rag/gradio-runs/
 data/raw/**/outputs/
 data/raw/**/*.zip
 data/raw/**/*.jsonl
