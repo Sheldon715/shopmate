@@ -218,6 +218,40 @@ describe("evaluateVectorSearchCases", () => {
     expect(results[0].passed).toBe(true);
   });
 
+  it("uses rewritten retrieval query and records rewrite metadata", async () => {
+    const searchInputs: string[] = [];
+    const hit = createHit();
+    const results = await evaluateVectorSearchCases({
+      cases: [createCase({
+        query: "再便宜一点的有吗？",
+      })],
+      queryRewriter: async (input) => ({
+        query: `${input.query} 真无线耳机 更便宜`,
+        baseQuery: input.query,
+        rewrittenQuery: `${input.query} 真无线耳机 更便宜`,
+        status: "rewritten",
+        reason: "短追问补全品类和价格偏好",
+      }),
+      search: async (input) => {
+        searchInputs.push(input.query);
+        return [hit];
+      },
+      productLookup: async () =>
+        new Map([[hit.productId, createProductSnapshot(hit)]]),
+      generatedAt: GENERATED_AT,
+    });
+
+    expect(searchInputs).toEqual(["再便宜一点的有吗？ 真无线耳机 更便宜"]);
+    expect(results[0]).toMatchObject({
+      query: "再便宜一点的有吗？",
+      originalQuery: "再便宜一点的有吗？",
+      baseRetrievalQuery: "再便宜一点的有吗？",
+      retrievalQuery: "再便宜一点的有吗？ 真无线耳机 更便宜",
+      queryRewriteStatus: "rewritten",
+      queryRewriteReason: "短追问补全品类和价格偏好",
+    });
+  });
+
   it("records search errors without calling external services in tests", async () => {
     const results = await evaluateVectorSearchCases({
       cases: [createCase()],

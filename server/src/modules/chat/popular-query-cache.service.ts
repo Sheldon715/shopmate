@@ -13,6 +13,8 @@ export interface PopularQueryCacheVersions {
 
 export interface PopularQueryCacheReadInput extends PopularQueryCacheVersions {
   question: string;
+  retrievalQuery?: string;
+  queryRewriteVersion?: string;
   filters?: VectorSearchFilters;
   topK?: number;
   maxRecommendedProducts: number;
@@ -132,6 +134,11 @@ export class PopularQueryCacheService implements PopularQueryCache {
       fallbackUsed: input.result.fallbackUsed,
       fallbackReason: toCacheFallbackReason(input.result.fallbackReason),
       retrieval: {
+        query: input.result.retrieval.query,
+        baseQuery: input.result.retrieval.baseQuery,
+        rewrittenQuery: input.result.retrieval.rewrittenQuery,
+        queryRewriteStatus: input.result.retrieval.queryRewriteStatus,
+        queryRewriteReason: input.result.retrieval.queryRewriteReason,
         candidateCount: input.result.retrieval.candidateCount,
         returnedProductIds: [...input.result.retrieval.returnedProductIds],
       },
@@ -173,6 +180,10 @@ export class PopularQueryCacheService implements PopularQueryCache {
   buildKey(input: PopularQueryCacheReadInput): string {
     const payload = {
       normalizedQuery: normalizeQuery(input.question),
+      normalizedRetrievalQuery: normalizeQuery(
+        input.retrievalQuery ?? input.question,
+      ),
+      queryRewriteVersion: input.queryRewriteVersion ?? "none",
       filters: normalizeJson(input.filters ?? {}),
       topK: input.topK ?? null,
       maxRecommendedProducts: input.maxRecommendedProducts,
@@ -224,6 +235,11 @@ export function createCacheHitResult(
     fallbackUsed: hit.fallbackUsed,
     fallbackReason: hit.fallbackReason,
     retrieval: {
+      query: hit.retrieval.query,
+      baseQuery: hit.retrieval.baseQuery,
+      rewrittenQuery: hit.retrieval.rewrittenQuery,
+      queryRewriteStatus: hit.retrieval.queryRewriteStatus,
+      queryRewriteReason: hit.retrieval.queryRewriteReason,
       candidateCount: hit.retrieval.candidateCount,
       returnedProductIds: recommendedProductIds,
     },
@@ -238,6 +254,11 @@ function toHit(entry: PopularQueryCacheEntry): PopularQueryCacheHit {
     fallbackUsed: entry.fallbackUsed,
     fallbackReason: entry.fallbackReason,
     retrieval: {
+      query: entry.retrieval.query,
+      baseQuery: entry.retrieval.baseQuery,
+      rewrittenQuery: entry.retrieval.rewrittenQuery,
+      queryRewriteStatus: entry.retrieval.queryRewriteStatus,
+      queryRewriteReason: entry.retrieval.queryRewriteReason,
       candidateCount: entry.retrieval.candidateCount,
       returnedProductIds: [...entry.retrieval.returnedProductIds],
     },

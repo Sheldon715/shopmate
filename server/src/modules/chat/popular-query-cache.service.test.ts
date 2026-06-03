@@ -52,6 +52,28 @@ describe("PopularQueryCacheService", () => {
     );
   });
 
+  it("changes the key when retrieval query or rewrite version changes", () => {
+    const cache = new PopularQueryCacheService();
+    const baseInput = createReadInput({
+      question: "再便宜一点的有吗？",
+      retrievalQuery: "真无线耳机 更便宜",
+      queryRewriteVersion: "query-rewrite-v1",
+    });
+
+    expect(cache.buildKey(baseInput)).not.toBe(
+      cache.buildKey({
+        ...baseInput,
+        retrievalQuery: "真无线耳机 降噪",
+      }),
+    );
+    expect(cache.buildKey(baseInput)).not.toBe(
+      cache.buildKey({
+        ...baseInput,
+        queryRewriteVersion: "query-rewrite-v2",
+      }),
+    );
+  });
+
   it("does not read personalized or temporary-context questions", () => {
     const cache = new PopularQueryCacheService();
 
@@ -175,6 +197,11 @@ describe("PopularQueryCacheService", () => {
         recommendedProductIds: ["product_001"],
         fallbackUsed: false,
         retrieval: {
+          query: "真无线耳机 更便宜",
+          baseQuery: "再便宜一点的有吗？",
+          rewrittenQuery: "真无线耳机 更便宜",
+          queryRewriteStatus: "rewritten",
+          queryRewriteReason: "短追问补全检索目标",
           candidateCount: 2,
           returnedProductIds: ["product_001"],
         },
@@ -207,6 +234,11 @@ describe("PopularQueryCacheService", () => {
       recommendedProductIds: ["product_001"],
       fallbackUsed: false,
       retrieval: {
+        query: "真无线耳机 更便宜",
+        baseQuery: "再便宜一点的有吗？",
+        rewrittenQuery: "真无线耳机 更便宜",
+        queryRewriteStatus: "rewritten",
+        queryRewriteReason: "短追问补全检索目标",
         candidateCount: 2,
         returnedProductIds: ["product_001"],
       },
@@ -265,10 +297,15 @@ function createResult(overrides: Partial<RagChatResult> = {}): RagChatResult {
     recommendedProductIds: ["product_001"],
     productCards: [],
     fallbackUsed: false,
-    retrieval: {
-      candidateCount: 2,
-      returnedProductIds: ["product_001"],
-    },
+      retrieval: {
+        query: "真无线耳机 更便宜",
+        baseQuery: "再便宜一点的有吗？",
+        rewrittenQuery: "真无线耳机 更便宜",
+        queryRewriteStatus: "rewritten",
+        queryRewriteReason: "短追问补全检索目标",
+        candidateCount: 2,
+        returnedProductIds: ["product_001"],
+      },
     ...overrides,
   };
 }

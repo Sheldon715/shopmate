@@ -1,51 +1,48 @@
-# Current Feature: Negative Constraint Fact Evaluation
+# Current Feature: RAG Query Rewrite
 
 ## 状态
 
-In Progress
+Complete
 
 ## 目标
 
-- 修复离线 `rag:evaluate` 的 `avoidTerms` 商品事实判定，区分明确冲突证据和“不含 / 未添加 / alcohol free”等 free-from 安全证据。
-- 让离线 evaluator 和 Chat 检索后过滤复用同一套负向约束商品事实判定 helper，避免线上可通过、离线误失败。
-- 为本轮暴露的耳机佩戴形态问题补充最小结构化商品事实，让“不要入耳式”不再依赖裸 substring。
-- 保留 26 Negative Constraint RAG 的 LLM-first 边界：用户自然语言负向意图必须来自 LLM intent 或显式 filters，代码只负责 schema、allowlist、事实校验、评估和安全过滤。
-- 复跑 post-advanced 离线检索 case 和 Chat SSE case，确认修复不引入推荐、购物车、对比或 SSE contract 回归。
+- 新增 LLM 驱动的 `QueryRewriteService`，把短追问、口语化或依赖上下文的问题改写成仅供向量检索使用的 `retrievalQuery`，并输出可观测 metadata。
+- 在 `RagChatService.answer()` 中把 query rewrite 放到 cart intent、negative constraint、comparison intent 和 clarification intent 之后，popular query cache / vector search 之前。
+- 保留原始 `question` 作为用户语义和用户可见回复依据，只让 `vectorSearch.search({ query })` 使用 rewrite 后的检索 query。
+- 对模型不可用、输出无效、低置信度、空 query、超长 query、泛词 query 或风险不明确的情况安全回退到现有 `memoryResolution.retrievalQuery`。
+- 扩展离线评估、Chat SSE 关键 case 和报告，记录 original query、base retrieval query、rewritten query、rewrite 状态与失败归因，为是否进入 29 query expansion / rerank 提供证据。
 
 ## 待办清单
 
-- [x] 阅读 spec 与前置证据：`context/feature/negative-constraint-fact-evaluation-spec.md`、`docs/rag-evaluation-post-advanced-report.md`、当前 26/27/28 相关实现和 `context/spec-implementation-order.md` 中 25 / 29 启动条件。
-- [x] 盘点现有负向约束链路：`negative-constraint-filter.ts`、`vector-evaluation.service.ts`、`vector-evaluation.types.ts`、`evaluate-rag.ts`、离线 evaluation case 与 post-advanced 结果文件，确认 substring 判定和 Chat 过滤分叉点。
-- [x] 新增或抽取 shared helper（如 `negative-constraint-evidence.ts`），只判断已确认 constraint 与商品事实是否冲突，不从用户原话抽取语义。
-- [x] 补齐 helper 单元测试：free-from 不冲突、`avoidWhen` / `cons` 风险冲突、free-from 不能掩盖独立风险、brand / product / category 排除、`半入耳式` 不等于 `入耳式`、事实不足时返回 no conflict evidence。
-- [x] 重构 Chat 检索后过滤复用 shared helper，保持 `p_beauty_006` 不被误过滤、`p_beauty_010` 在“不要酒精”下仍被排除、LLM invalid / unavailable 不新增负向约束、price constraint 不进入普通 `avoidTerms`。
-- [x] 扩展离线 evaluator 的 product snapshot / facts，合并 hit metadata、snippet 和商品事实后调用 shared helper；`notes` 写清 productId、avoidTerm、reason 和 evidence 摘要。
-- [x] 为已暴露问题的耳机商品补最小结构化佩戴形态事实，优先改 raw dataset 或 catalog enrichment；必要时重新生成 normalized catalog、RAG documents 和 manifest。
-- [x] 更新 evaluation case 的 notes / passCriteria 描述，但不删除 `alcohol-free-sunscreen`、`alcohol-free-oily-sunscreen`、`negative-brand-sunscreen`、`earbuds-not-in-ear` 等失败 / 回归 case。
-- [x] 运行后端基础验证：`cd server; npm.cmd test`、`cd server; npm.cmd run build`。
-- [x] 如果改动 catalog / RAG documents，运行 `catalog:normalize`、`catalog:validate`、`catalog:import`、`rag:documents`，并只在文档、embedding 配置、collection 或 manifest 需要时重新 `rag:index -- --recreate`。
-- [x] 复跑单 case 与 post-advanced 评估：`alcohol-free-sunscreen`、`alcohol-free-oily-sunscreen`、`earbuds-not-in-ear`、14 个离线检索 case，以及 20 个 Chat SSE case。
-- [x] 新增或更新 `docs/negative-constraint-fact-evaluation-report.md`，记录命令、结果、失败归因、25 / 29 是否仍暂缓，以及未运行项原因。
-- [x] 最终检查未改 Android UI、CartService、comparison schema、用户可见 no-result / cartAction / comparison 文案模板，也未写入真实 API key、连接串、完整 prompt、`.env` 内容或 provider 原始敏感错误。
+- [x] 新增 `server/src/modules/chat/query-rewrite.service.ts`，定义输入 / 输出类型、LLM prompt、schema 解析、fallback 和 abort 行为。
+- [x] 新增 `server/src/modules/chat/query-rewrite.service.test.ts`，覆盖有效 rewrite、无需 rewrite、low confidence、invalid JSON、空 / 超长 / 泛词 query、snake_case / camelCase 兼容和 abortSignal。
+- [x] 修改 `server/src/modules/chat/rag.service.ts`，在 clarification 之后、popular query cache 之前调用 query rewrite，并确保 cart / comparison / clarification 提前返回时不调用 rewrite。
+- [x] 确认 negative constraints 仍由 LLM negative intent、filters 和 post-filter 负责，rewrite 不新增 / 删除 `avoidTerms` 或负向约束。
+- [x] 让 vector search 使用 rewrite 后 query，同时保持 RAG prompt、response generation、cart / comparison / clarification 用户可见文案继续使用原始 question。
+- [x] 调整 popular query cache 输入或 key，使 rewrite query / rewrite version 不会和旧策略缓存混用。
+- [x] 按需扩展 `chat.types.ts`、vector evaluation 类型、`vector-evaluation.service.ts` 和 `evaluate-rag.ts`，让测试和评估能读取 rewrite metadata。
+- [x] 更新 `data/processed/rag/evaluation-cases.json` 与 `data/processed/rag/chat-evaluation-cases.json` 中的关键 case 覆盖，不删除或放宽既有 case。
+- [x] 新增 `docs/rag-query-rewrite-report.md`，记录实现范围、fallback 行为、baseline vs rewrite、Chat SSE 结果、29 / Gradio 决策和敏感信息检查。
+- [x] 补充 `rag.service.test.ts`，覆盖 vector query、原始 question、提前返回路径、negative constraints 和 cache key 行为。
+- [x] 运行后端目标测试、全量测试、build、原模式 / rewrite 模式 `rag:evaluate`，并记录 Chat SSE 关键 case 未复跑原因。
 
 ## 备注
 
-- Spec 来源：`context/feature/negative-constraint-fact-evaluation-spec.md`。
-- 本轮是 26 Negative Constraint RAG 的 follow-up，来自 post-advanced 评估发现的 `avoidTerms` / product facts 判定问题；不是 25 query rewrite、29 query expansion / rerank、Gradio、dashboard 或 LLM-as-judge。
-- 关键 case：`alcohol-free-sunscreen`、`alcohol-free-oily-sunscreen`、`negative-brand-sunscreen`、`earbuds-not-in-ear`。
-- 行为边界：LLM 或显式 filters 仍是负向约束来源；代码不能用关键词 / 正则从用户原话直接判断 negative intent。
-- 事实判定边界：`exclude_brand` / `exclude_product` / `exclude_category` 可以做后端事实匹配；`exclude_if_product_facts_conflict` 只能排除有明确冲突证据的商品。
-- Free-from 边界：“不含酒精”“无酒精”“未添加酒精”“0 添加酒精”“alcohol free”等安全证据不能因包含 term 被判冲突；但独立风险事实仍优先，例如 `avoidWhen` 写“酒精敏感人群慎用”。
-- 佩戴形态边界：优先使用结构化 attributes / tags 标准值；`半入耳式`、`入耳式`、`开放式`、`头戴式` 不能靠互相包含的字符串判等。
-- 数据边界：只补本轮评估暴露出的最小结构化事实；若数据改动影响 RAG documents，需要按 catalog / RAG 流程重建并记录 manifest。
-- Android 边界：本 spec 默认不改 Android；只有 SSE payload contract 意外变化时才需要补 Android `testDebugUnitTest` / build。
-- 报告边界：结果必须说明失败是否仍不是 `retrieval_query` 或 `retrieval_ranking`；若不是，继续暂缓 25 / 29。
-- 本轮已补 `p_digital_007` / `p_digital_018` 的结构化 `佩戴形态`，并完成 `catalog:normalize`、`catalog:validate`、真实 `catalog:import`、`rag:documents`、完整 `rag:index -- --recreate`。
-- 后端验证：`cd server; npm.cmd test` 通过 36 files / 260 tests，`cd server; npm.cmd run build` 通过。
-- 离线 `rag:evaluate -- --output ../data/processed/rag/evaluation-results-post-advanced.jsonl` 为 11 pass / 3 fail；3 个 fail 都是 raw retrieval 召回明确冲突候选，不再是 free-from substring 误判。
-- Chat SSE：关键 smoke 中“不含酒精防晒”返回 `p_beauty_006`，显式 `filters.avoidTerms=["酒精"]` 也返回 `p_beauty_006`，“耳机不要入耳式”返回 `p_digital_007` 且 context memory 记录 `avoidTerms=["入耳式"]`。
-- 20 个 Chat SSE case 已用临时 Node runner 复跑，输出 `data/processed/rag/chat-evaluation-results-negative-facts.jsonl`：18 pass / 1 acceptable / 1 fail；唯一 fail 是 `comparison-priority-oily-commute-chat` 的 transient `LLM_ERROR`，focused retry 输出 `data/processed/rag/chat-evaluation-results-negative-facts-retry.jsonl` 后 pass。
-- 25 query rewrite 与 29 query expansion / rerank 继续暂缓；当前证据不是 retrieval query / ranking 方向错误，暂不需要转 research。
+- Spec 来源：`context/feature/rag-query-rewrite-spec.md`。
+- 范围边界：本轮只做 query rewrite，不做 query expansion、多 query 并发检索、MMR、semantic rerank、模型化 reranker、Gradio / dashboard、comparison schema 修改、Android UI / SSE event 修改或购物车 contract 修改。
+- 语义边界：LLM 负责语义改写；代码只做 schema、长度、库内安全边界和 fallback。原始 `question` 不可被覆盖，rewrite 结果不得作为用户可见 assistant 文案。
+- 控制流边界：cart、comparison、clarification 和 negative constraint intent 必须先于 rewrite；rewrite 不能触发购物车、comparison、clarification 或 negative constraint 控制流变化。
+- 安全边界：日志和报告只能写状态、query 字符串和模型输出摘要，不写 API key、完整 prompt 或 provider 原始敏感错误。
+- Review 修复：`QueryRewriteService` 已把 product id 安全检测改为任意位置命中，覆盖中文黏连的 `p_*` / `product_*` 输出，避免 LLM 把商品 ID 注入 retrieval query。
+- 已运行后端目标测试、全量测试、build 和原模式 / rewrite 模式 `rag:evaluate`；Chat SSE 关键 case 未复跑，因为仓库当前没有提交版 Chat SSE evaluation runner，本轮未新增 Gradio / dashboard / debug endpoint。
+- 离线结果：baseline 14 case 为 11 pass / 3 fail；rewrite 14 case 为 11 pass / 3 fail，rewrite 状态为 10 rewritten / 4 fallback；3 个 fail 仍是 `alcohol-free-sunscreen`、`alcohol-free-oily-sunscreen`、`earbuds-not-in-ear` 的 `unexpected_result`。
+- 建议验证命令：
+  - `cd server && npm.cmd test -- query-rewrite.service.test.ts`
+  - `cd server && npm.cmd test -- rag.service.test.ts`
+  - `cd server && npm.cmd test`
+  - `cd server && npm.cmd run build`
+  - `cd server && npm.cmd run rag:evaluate -- --output ../data/processed/rag/evaluation-results-query-rewrite-baseline.jsonl`
+  - `cd server && npm.cmd run rag:evaluate -- --rewrite --output ../data/processed/rag/evaluation-results-query-rewrite.jsonl`
 
 ## 历史记录
 - 初始化前后端技术栈骨架：完成 Android Kotlin + Jetpack Compose 与 Node.js + TypeScript + Express 最小工程初始化，补充 README 与 Git 忽略配置，并通过后端构建与 Android `assembleDebug` 验证。
@@ -106,3 +103,4 @@ In Progress
 - Negative Constraint RAG：新增 LLM negative constraint intent、会话记忆负向约束、向量 must_not、检索后商品事实过滤和 RAG prompt 排除约束展示；自然语言否定约束不再由正则作为权威判断，最终 `productCards` 只来自过滤后的候选。通过后端目标测试、全量 test、build、JSON 校验和本地 Chat SSE smoke 验证。
 - Cart Natural Language Management：新增聊天自然语言购物车管理，支持查看、加购、删除、改数量、勾选 / 取消勾选和清空确认；后端基于当前购物车快照、最近推荐 allowlist 和 active 商品事实解析目标，Android 根据成功 mutation 的 `cartAction` 刷新购物车；通过后端 test / build、Android testDebugUnitTest / build 和本地 Chat SSE smoke 验证。
 - Comparison RAG Output：新增真实商品对比链路，后端用 LLM comparison intent / generation 基于库内商品事实输出 `comparison_result`，Android 聊天页展示对比入口并让独立对比详情页消费真实 state；收口为仅支持两款商品对比，补齐入口稳定性、两款契约、UI 自适应和返回链路验证。
+- Negative Constraint Fact Evaluation：新增商品事实冲突判定 helper，统一 Chat 负向约束过滤与离线 evaluator，修复 free-from 安全证据误判；补充耳机佩戴形态结构化数据并重建 catalog / RAG documents / vector manifest，复跑后端 test / build、离线评估和 Chat SSE 评估。

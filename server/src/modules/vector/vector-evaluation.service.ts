@@ -10,6 +10,8 @@ import type {
   VectorEvaluationHit,
   VectorEvaluationProductLookup,
   VectorEvaluationProductSnapshot,
+  VectorEvaluationQueryRewriteResult,
+  VectorEvaluationQueryRewriter,
   VectorEvaluationResult,
   VectorEvaluationSearchRunner,
 } from "./vector-evaluation.types";
@@ -17,6 +19,7 @@ import type {
 interface EvaluateVectorSearchCasesInput {
   cases: VectorEvaluationCase[];
   search: VectorEvaluationSearchRunner;
+  queryRewriter?: VectorEvaluationQueryRewriter;
   productLookup?: VectorEvaluationProductLookup;
   topK?: number;
   generatedAt?: string;
@@ -25,6 +28,7 @@ interface EvaluateVectorSearchCasesInput {
 interface EvaluateSingleCaseInput {
   evaluationCase: VectorEvaluationCase;
   hits: VectorSearchHit[];
+  rewriteResult?: VectorEvaluationQueryRewriteResult;
   productsById?: Map<string, VectorEvaluationProductSnapshot>;
   generatedAt: string;
   searchError?: unknown;
@@ -40,9 +44,18 @@ export async function evaluateVectorSearchCases(
   const results: VectorEvaluationResult[] = [];
 
   for (const evaluationCase of input.cases) {
+    let rewriteResult: VectorEvaluationQueryRewriteResult | undefined;
+
     try {
+      rewriteResult = input.queryRewriter
+        ? await input.queryRewriter({
+            query: evaluationCase.query,
+            filters: evaluationCase.filters,
+            caseId: evaluationCase.caseId,
+          })
+        : undefined;
       const hits = await input.search({
-        query: evaluationCase.query,
+        query: rewriteResult?.query ?? evaluationCase.query,
         filters: evaluationCase.filters,
         topK: input.topK,
       });
@@ -52,6 +65,7 @@ export async function evaluateVectorSearchCases(
         evaluateSingleCase({
           evaluationCase,
           hits,
+          rewriteResult,
           productsById: lookupResult.productsById,
           generatedAt,
           productLookupError: lookupResult.error,
@@ -62,6 +76,7 @@ export async function evaluateVectorSearchCases(
         evaluateSingleCase({
           evaluationCase,
           hits: [],
+          rewriteResult,
           generatedAt,
           searchError: error,
         }),
@@ -108,12 +123,37 @@ export function evaluateSingleCase(
   return {
     caseId: input.evaluationCase.caseId,
     query: input.evaluationCase.query,
+    ...createRewriteOutputFields(input.evaluationCase.query, input.rewriteResult),
     filters: input.evaluationCase.filters,
     hits,
     passed: failureReasons.size === 0,
     failureReasons: [...failureReasons],
     notes,
     generatedAt: input.generatedAt,
+  };
+}
+
+function createRewriteOutputFields(
+  originalQuery: string,
+  rewriteResult: VectorEvaluationQueryRewriteResult | undefined,
+): Pick<
+  VectorEvaluationResult,
+  | "originalQuery"
+  | "baseRetrievalQuery"
+  | "retrievalQuery"
+  | "queryRewriteStatus"
+  | "queryRewriteReason"
+> {
+  if (!rewriteResult) {
+    return {};
+  }
+
+  return {
+    originalQuery,
+    baseRetrievalQuery: rewriteResult.baseQuery ?? originalQuery,
+    retrievalQuery: rewriteResult.query,
+    queryRewriteStatus: rewriteResult.status,
+    queryRewriteReason: rewriteResult.reason ?? rewriteResult.fallbackReason,
   };
 }
 

@@ -18,6 +18,8 @@ export interface PopularQueryCacheCoordinatorOptions {
 
 export interface PopularQueryCacheInputRequest {
   question: string;
+  retrievalQuery?: string;
+  queryRewriteVersion?: string;
   request: RagChatRequest;
   memoryResolution: ReturnType<ChatContextMemoryService["resolve"]>;
   maxRecommendedProducts: number;
@@ -40,6 +42,8 @@ export class PopularQueryCacheCoordinator {
     return {
       ...(await this.versionReader.read()),
       question: input.question,
+      retrievalQuery: input.retrievalQuery,
+      queryRewriteVersion: input.queryRewriteVersion,
       filters: input.memoryResolution.filters,
       topK: input.request.topK,
       maxRecommendedProducts: input.maxRecommendedProducts,

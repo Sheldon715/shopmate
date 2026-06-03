@@ -72,6 +72,10 @@ import {
   createMinimalRagFallbackAnswer,
 } from "./rag-response-generation.service";
 import {
+  QueryRewriteService,
+  type QueryRewriteResult,
+} from "./query-rewrite.service";
+import {
   createCacheHitResult,
   type PopularQueryCacheReadInput,
 } from "./popular-query-cache.service";
@@ -134,6 +138,7 @@ export type RagResponseGenerator = Pick<
   RagResponseGenerationService,
   "generateNoCandidatesResponse"
 >;
+export type RagQueryRewriter = Pick<QueryRewriteService, "rewrite">;
 
 export interface RagChatServiceOptions {
   vectorSearch?: RagVectorSearchClient;
@@ -151,6 +156,7 @@ export interface RagChatServiceOptions {
   cartCommandIntentService?: RagCartCommandIntentDetector;
   cartActionResponseService?: RagCartActionResponder;
   ragResponseGenerationService?: RagResponseGenerator;
+  queryRewriteService?: RagQueryRewriter;
   popularQueryCacheCoordinator?: PopularQueryCacheCoordinator;
   popularQueryCache?: PopularQueryCache;
   popularQueryCacheVersionReader?: PopularQueryCacheVersionReader;
@@ -181,6 +187,7 @@ const DEFAULT_MAX_RECOMMENDED_PRODUCTS = 3;
 const DEFAULT_MAX_SNIPPETS_PER_PRODUCT = 3;
 const DEFAULT_NEGATIVE_CONSTRAINT_TOP_K = 20;
 const RAG_LLM_MAX_COMPLETION_TOKENS = 2000;
+const QUERY_REWRITE_VERSION = "query-rewrite-v1";
 const MAX_CHAT_ANSWER_CHARS = 72;
 const CART_ACTIVE_PRODUCT_LOOKUP_LIMIT = 8;
 const COMPARISON_ACTIVE_PRODUCT_LOOKUP_LIMIT = 4;
@@ -212,6 +219,7 @@ export class RagChatService {
   private readonly cartCommandIntentService: RagCartCommandIntentDetector;
   private readonly cartActionResponseService: RagCartActionResponder;
   private readonly ragResponseGenerationService: RagResponseGenerator;
+  private readonly queryRewriteService: RagQueryRewriter;
   private readonly popularQueryCacheCoordinator: PopularQueryCacheCoordinator;
   private readonly maxSnippetsPerProduct: number;
   private readonly defaultMaxRecommendedProducts: number;
@@ -263,6 +271,9 @@ export class RagChatService {
     this.ragResponseGenerationService =
       options.ragResponseGenerationService
       ?? new RagResponseGenerationService({ llmClient: this.llmClient });
+    this.queryRewriteService =
+      options.queryRewriteService
+      ?? new QueryRewriteService({ llmClient: this.llmClient });
     this.popularQueryCacheCoordinator =
       options.popularQueryCacheCoordinator
       ?? new PopularQueryCacheCoordinator({
@@ -417,8 +428,21 @@ export class RagChatService {
     }
 
     const negativeConstraints = memoryResolution.negativeConstraints ?? [];
+    const queryRewrite = await this.queryRewriteService.rewrite({
+      question,
+      baseRetrievalQuery: memoryResolution.retrievalQuery,
+      shortHistory: input.shortHistory,
+      contextMemory: memoryResolution.contextMemory,
+      filters: memoryResolution.filters,
+      negativeConstraints,
+      requestId: input.requestId,
+      abortSignal: input.abortSignal,
+    });
+    throwIfAborted(input.abortSignal);
     const cacheInput = await this.popularQueryCacheCoordinator.createInput({
       question,
+      retrievalQuery: queryRewrite.query,
+      queryRewriteVersion: QUERY_REWRITE_VERSION,
       request: input,
       memoryResolution,
       maxRecommendedProducts,
@@ -451,7 +475,7 @@ export class RagChatService {
     }
 
     const hits = await this.vectorSearch.search({
-      query: memoryResolution.retrievalQuery,
+      query: queryRewrite.query,
       filters: memoryResolution.filters,
       topK: resolveVectorSearchTopK(input.topK, negativeConstraints),
       abortSignal: input.abortSignal,
@@ -463,6 +487,7 @@ export class RagChatService {
       return this.answerNoCandidates({
         cacheInput,
         memoryResolution,
+        queryRewrite,
         question,
         request: input,
       });
@@ -480,6 +505,7 @@ export class RagChatService {
       return this.answerNoCandidates({
         cacheInput,
         memoryResolution,
+        queryRewrite,
         question,
         request: input,
       });
@@ -518,6 +544,7 @@ export class RagChatService {
               contexts,
               maxRecommendedProducts,
               "NO_VALID_PRODUCT_IDS",
+              queryRewrite,
               this.publicImageBaseUrl,
             ),
           ),
@@ -532,6 +559,7 @@ export class RagChatService {
             compactAnswer(parsed.answer),
             recommendedProductIds,
             contexts,
+            queryRewrite,
             this.publicImageBaseUrl,
           ),
         ),
@@ -548,6 +576,7 @@ export class RagChatService {
             error instanceof RagLlmOutputParseError
               ? "LLM_INVALID_OUTPUT"
               : "LLM_ERROR",
+            queryRewrite,
             this.publicImageBaseUrl,
           ),
         ),
@@ -558,6 +587,7 @@ export class RagChatService {
   private async answerNoCandidates(input: {
     cacheInput: PopularQueryCacheReadInput;
     memoryResolution: ReturnType<ChatContextMemoryService["resolve"]>;
+    queryRewrite: QueryRewriteResult;
     question: string;
     request: Pick<RagChatRequest, "requestId" | "abortSignal">;
   }): Promise<RagChatResult> {
@@ -572,7 +602,7 @@ export class RagChatService {
     throwIfAborted(input.request.abortSignal);
     const result = this.withContextMemory(
       input.memoryResolution,
-      createNoCandidatesResult(noCandidatesResponse.answer),
+      createNoCandidatesResult(noCandidatesResponse.answer, input.queryRewrite),
     );
 
     return noCandidatesResponse.generatedByLlm
@@ -1693,7 +1723,10 @@ function createComparisonProductSnippet(product: Product): string {
     .join("\n");
 }
 
-function createNoCandidatesResult(answer: string): RagChatResult {
+function createNoCandidatesResult(
+  answer: string,
+  queryRewrite?: QueryRewriteResult,
+): RagChatResult {
   return {
     answer,
     recommendedProductIds: [],
@@ -1701,6 +1734,7 @@ function createNoCandidatesResult(answer: string): RagChatResult {
     fallbackUsed: true,
     fallbackReason: "NO_CANDIDATES",
     retrieval: {
+      ...createQueryRewriteRetrievalFields(queryRewrite),
       candidateCount: 0,
       returnedProductIds: [],
     },
@@ -1711,6 +1745,7 @@ function createRetrievedFallbackResult(
   contexts: RetrievedProductContext[],
   maxRecommendedProducts: number,
   fallbackReason: RagChatFallbackReason,
+  queryRewrite?: QueryRewriteResult,
   publicImageBaseUrl?: string,
 ): RagChatResult {
   const products = contexts
@@ -1728,6 +1763,7 @@ function createRetrievedFallbackResult(
     fallbackUsed: true,
     fallbackReason,
     retrieval: {
+      ...createQueryRewriteRetrievalFields(queryRewrite),
       candidateCount: contexts.length,
       returnedProductIds: recommendedProductIds,
     },
@@ -1738,6 +1774,7 @@ function createSuccessResult(
   answer: string,
   recommendedProductIds: string[],
   contexts: RetrievedProductContext[],
+  queryRewrite?: QueryRewriteResult,
   publicImageBaseUrl?: string,
 ): RagChatResult {
   const productsById = new Map(
@@ -1759,9 +1796,26 @@ function createSuccessResult(
     productCards,
     fallbackUsed: false,
     retrieval: {
+      ...createQueryRewriteRetrievalFields(queryRewrite),
       candidateCount: contexts.length,
       returnedProductIds,
     },
+  };
+}
+
+function createQueryRewriteRetrievalFields(
+  queryRewrite: QueryRewriteResult | undefined,
+): Partial<RagChatResult["retrieval"]> {
+  if (!queryRewrite) {
+    return {};
+  }
+
+  return {
+    query: queryRewrite.query,
+    baseQuery: queryRewrite.baseQuery,
+    rewrittenQuery: queryRewrite.rewrittenQuery,
+    queryRewriteStatus: queryRewrite.status,
+    queryRewriteReason: queryRewrite.reason ?? queryRewrite.fallbackReason,
   };
 }
 

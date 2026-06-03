@@ -62,6 +62,11 @@ export interface ChatDonePayload {
     missingSlots: ClarificationSlot[];
   };
   retrieval: {
+    query?: string;
+    baseQuery?: string;
+    rewrittenQuery?: string;
+    queryRewriteStatus?: "rewritten" | "not_needed" | "fallback";
+    queryRewriteReason?: string;
     candidateCount: number;
     returnedProductIds: string[];
   };
@@ -126,6 +131,11 @@ export interface RagChatResult {
     missingSlots: ClarificationSlot[];
   };
   retrieval: {
+    query?: string;
+    baseQuery?: string;
+    rewrittenQuery?: string;
+    queryRewriteStatus?: "rewritten" | "not_needed" | "fallback";
+    queryRewriteReason?: string;
     candidateCount: number;
     returnedProductIds: string[];
   };

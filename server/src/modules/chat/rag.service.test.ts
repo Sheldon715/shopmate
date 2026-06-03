@@ -21,6 +21,7 @@ import type {
   RagCartWriter,
   RagChatServiceOptions,
   RagProductReader,
+  RagQueryRewriter,
   RagVectorSearchClient,
 } from "./rag.service";
 import { RagChatService } from "./rag.service";
@@ -517,6 +518,7 @@ describe("RagChatService", () => {
           missingSlots: [],
         }),
       },
+      queryRewriteService: createNoopQueryRewriter(),
       llmClient: new MockLlmClient({
         response: createLlmResponse(JSON.stringify({
           answer: "Use product 1.",
@@ -647,6 +649,228 @@ describe("RagChatService", () => {
       subCategory: "防晒",
     });
     expect(result.recommendedProductIds).toEqual(["product_002"]);
+  });
+
+  it("uses rewritten query for vector search while keeping original question in RAG prompt", async () => {
+    const vectorCalls: Array<Parameters<RagVectorSearchClient["search"]>[0]> = [];
+    let ragPrompt = "";
+    const service = new RagChatService(withNoCartIntent({
+      vectorSearch: {
+        search: async (input) => {
+          vectorCalls.push(input);
+          return [createHit("product_001")];
+        },
+      },
+      productReader: createProductReader(),
+      clarificationIntentService: {
+        decide: async () => ({
+          needsClarification: false,
+          missingSlots: [],
+        }),
+      },
+      queryRewriteService: {
+        rewrite: async (input) => ({
+          status: "rewritten",
+          query: "真无线耳机 更便宜 蓝牙耳机 预算更低",
+          baseQuery: input.baseRetrievalQuery,
+          rewrittenQuery: "真无线耳机 更便宜 蓝牙耳机 预算更低",
+          reason: "短追问补全检索目标",
+          confidence: "high",
+        }),
+      },
+      llmClient: new MockLlmClient({
+        handler: (request) => {
+          ragPrompt = request.messages.map((message) => message.content).join("\n");
+          return createLlmResponse(JSON.stringify({
+            answer: "Use product 1.",
+            recommended_product_ids: ["product_001"],
+          }));
+        },
+      }),
+    }));
+
+    const result = await service.answer({
+      question: "再便宜一点的有吗？",
+    });
+
+    expect(vectorCalls).toHaveLength(1);
+    expect(vectorCalls[0]?.query).toBe("真无线耳机 更便宜 蓝牙耳机 预算更低");
+    expect(ragPrompt).toContain("再便宜一点的有吗？");
+    expect(ragPrompt).not.toContain("真无线耳机 更便宜 蓝牙耳机 预算更低");
+    expect(result.retrieval).toMatchObject({
+      query: "真无线耳机 更便宜 蓝牙耳机 预算更低",
+      baseQuery: "再便宜一点的有吗？",
+      rewrittenQuery: "真无线耳机 更便宜 蓝牙耳机 预算更低",
+      queryRewriteStatus: "rewritten",
+      queryRewriteReason: "短追问补全检索目标",
+    });
+  });
+
+  it("does not let rewrite add negative avoidTerms", async () => {
+    const vectorCalls: Array<Parameters<RagVectorSearchClient["search"]>[0]> = [];
+    const service = new RagChatService(withNoCartIntent({
+      vectorSearch: {
+        search: async (input) => {
+          vectorCalls.push(input);
+          return [createHit("product_001")];
+        },
+      },
+      productReader: createProductReader(),
+      clarificationIntentService: {
+        decide: async () => ({
+          needsClarification: false,
+          missingSlots: [],
+        }),
+      },
+      negativeConstraintIntentService: {
+        detect: async () => ({
+          hasNegativeConstraints: true,
+          confidence: "high",
+          constraints: [createNegativeConstraint("酒精")],
+          needsClarification: false,
+        }),
+      },
+      queryRewriteService: {
+        rewrite: async () => ({
+          status: "rewritten",
+          query: "美妆护肤 防晒 通勤 不含酒精",
+          baseQuery: "推荐防晒霜，不要酒精",
+          rewrittenQuery: "美妆护肤 防晒 通勤 不含酒精",
+          confidence: "medium",
+        }),
+      },
+      llmClient: new MockLlmClient({
+        response: createLlmResponse(JSON.stringify({
+          answer: "Use product 1.",
+          recommended_product_ids: ["product_001"],
+        })),
+      }),
+    }));
+
+    await service.answer({
+      conversationId: "rewrite-negative-demo",
+      question: "推荐防晒霜，不要酒精",
+    });
+
+    expect(vectorCalls[0]?.query).toBe("美妆护肤 防晒 通勤 不含酒精");
+    expect(vectorCalls[0]?.filters).toMatchObject({
+      category: "美妆护肤",
+      subCategory: "防晒",
+    });
+    expect(vectorCalls[0]?.filters?.avoidTerms).toBeUndefined();
+  });
+
+  it("builds cache input with rewritten retrieval query and rewrite version", async () => {
+    let cacheReadInput: PopularQueryCacheReadInput | undefined;
+    const service = new RagChatService(withNoCartIntent({
+      vectorSearch: createVectorSearch([createHit("product_001")]),
+      productReader: createProductReader(),
+      clarificationIntentService: {
+        decide: async () => ({
+          needsClarification: false,
+          missingSlots: [],
+        }),
+      },
+      queryRewriteService: {
+        rewrite: async (input) => ({
+          status: "rewritten",
+          query: "真无线耳机 更便宜",
+          baseQuery: input.baseRetrievalQuery,
+          rewrittenQuery: "真无线耳机 更便宜",
+          confidence: "high",
+        }),
+      },
+      popularQueryCacheVersionReader: createCacheVersionReader(),
+      popularQueryCache: createFakeCache({
+        onGet: (input) => {
+          cacheReadInput = input;
+        },
+      }),
+      llmClient: new MockLlmClient({
+        response: createLlmResponse(JSON.stringify({
+          answer: "Use product 1.",
+          recommended_product_ids: ["product_001"],
+        })),
+      }),
+    }));
+
+    await service.answer({ question: "再便宜一点的有吗？" });
+
+    expect(cacheReadInput).toMatchObject({
+      question: "再便宜一点的有吗？",
+      retrievalQuery: "真无线耳机 更便宜",
+      queryRewriteVersion: "query-rewrite-v1",
+    });
+  });
+
+  it("does not call query rewrite for cart, comparison, or clarification early returns", async () => {
+    let rewriteCallCount = 0;
+    const queryRewriteService: RagQueryRewriter = {
+      rewrite: async (input) => {
+        rewriteCallCount += 1;
+        return {
+          status: "not_needed",
+          query: input.baseRetrievalQuery,
+          baseQuery: input.baseRetrievalQuery,
+        };
+      },
+    };
+
+    await new RagChatService(withNoCartIntent({
+      vectorSearch: createVectorSearch([]),
+      productReader: createProductReader(),
+      queryRewriteService,
+      cartActionResponseService: {
+        generate: async () => "需要你告诉我要加哪款商品。",
+      },
+      cartCommandIntentService: {
+        detect: async () => ({
+          isCartCommand: true,
+          action: "add",
+          target: { kind: "unknown" },
+          quantity: 1,
+          needsConfirmation: false,
+          confidence: "high",
+        }),
+      },
+    })).answer({
+      conversationId: "cart-demo-1",
+      question: "把这个加入购物车",
+    });
+
+    await new RagChatService(withNoCartIntent({
+      vectorSearch: createVectorSearch([]),
+      productReader: createProductReader(),
+      queryRewriteService,
+      comparisonIntentService: {
+        detect: async () => ({
+          isComparison: true,
+          confidence: "high",
+          target: {
+            kind: "unknown",
+            ordinals: [],
+            names: [],
+          },
+          needsClarification: true,
+          clarificationQuestion: "你想对比哪两款商品？",
+        }),
+      },
+    })).answer({ question: "对比一下" });
+
+    await new RagChatService(withNoCartIntent({
+      vectorSearch: createVectorSearch([]),
+      productReader: createProductReader(),
+      queryRewriteService,
+      clarificationIntentService: {
+        decide: async () => ({
+          needsClarification: true,
+          question: "你要什么预算和用途？",
+          missingSlots: ["budget", "use_case"],
+        }),
+      },
+    })).answer({ question: "推荐一款手机" });
+
+    expect(rewriteCallCount).toBe(0);
   });
 
   it("returns LLM-generated negative clarification before vector search", async () => {
@@ -1153,6 +1377,7 @@ describe("RagChatService", () => {
           missingSlots: [],
         }),
       },
+      queryRewriteService: createNoopQueryRewriter(),
       llmClient: new MockLlmClient({
         handler: (request) => {
           llmRequests.push(request);
@@ -1746,6 +1971,7 @@ describe("RagChatService", () => {
           missingSlots: [],
         }),
       },
+      queryRewriteService: createNoopQueryRewriter(),
       llmClient: new MockLlmClient({
         handler: (request) => {
           llmRequests.push(request);
@@ -2067,9 +2293,11 @@ function withNoCartIntent(
 ): RagChatServiceOptions {
   return {
     ...options,
-    cartCommandIntentService: {
-      detect: async () => ({ isCartCommand: false }),
-    },
+    cartCommandIntentService:
+      options.cartCommandIntentService
+      ?? {
+        detect: async () => ({ isCartCommand: false }),
+      },
     negativeConstraintIntentService:
       options.negativeConstraintIntentService
       ?? {
@@ -2078,6 +2306,19 @@ function withNoCartIntent(
     comparisonIntentService:
       options.comparisonIntentService
       ?? createNoComparisonIntentService(),
+    queryRewriteService:
+      options.queryRewriteService
+      ?? createNoopQueryRewriter(),
+  };
+}
+
+function createNoopQueryRewriter(): RagQueryRewriter {
+  return {
+    rewrite: async (input) => ({
+      status: "not_needed",
+      query: input.baseRetrievalQuery.trim(),
+      baseQuery: input.baseRetrievalQuery.trim(),
+    }),
   };
 }
 
@@ -2209,13 +2450,13 @@ function createCacheVersionReader() {
 
 function createFakeCache(input: {
   hit?: PopularQueryCacheHit | null;
-  onGet?: () => void;
+  onGet?: (cacheInput: PopularQueryCacheReadInput) => void;
   onSet?: (cacheInput: PopularQueryCacheWriteInput) => void;
   onDelete?: () => void;
 }): PopularQueryCache {
   return {
-    get: async () => {
-      input.onGet?.();
+    get: async (cacheInput) => {
+      input.onGet?.(cacheInput);
       return input.hit ?? null;
     },
     set: async (cacheInput) => {

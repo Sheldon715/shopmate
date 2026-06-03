@@ -64,6 +64,11 @@ export interface VectorEvaluationHit {
 export interface VectorEvaluationResult {
   caseId: string;
   query: string;
+  originalQuery?: string;
+  baseRetrievalQuery?: string;
+  retrievalQuery?: string;
+  queryRewriteStatus?: "rewritten" | "not_needed" | "fallback";
+  queryRewriteReason?: string;
   filters: VectorSearchFilters;
   hits: VectorEvaluationHit[];
   passed: boolean;
@@ -81,6 +86,25 @@ export interface VectorEvaluationSearchInput {
 export type VectorEvaluationSearchRunner = (
   input: VectorEvaluationSearchInput,
 ) => Promise<VectorSearchHit[]>;
+
+export interface VectorEvaluationQueryRewriteInput {
+  query: string;
+  filters: VectorSearchFilters;
+  caseId: string;
+}
+
+export interface VectorEvaluationQueryRewriteResult {
+  query: string;
+  baseQuery?: string;
+  rewrittenQuery?: string;
+  status: "rewritten" | "not_needed" | "fallback";
+  reason?: string;
+  fallbackReason?: string;
+}
+
+export type VectorEvaluationQueryRewriter = (
+  input: VectorEvaluationQueryRewriteInput,
+) => Promise<VectorEvaluationQueryRewriteResult>;
 
 export type VectorEvaluationProductLookup = (
   productIds: string[],

@@ -4,6 +4,7 @@ import { createDatabasePool } from "../lib/db/pool";
 import { getEnv } from "../lib/env";
 import { findActiveProductsByIds } from "../modules/products/product.repository";
 import type { Product } from "../modules/products/product.types";
+import { QueryRewriteService } from "../modules/chat/query-rewrite.service";
 import {
   evaluateVectorSearchCases,
 } from "../modules/vector/vector-evaluation.service";
@@ -12,9 +13,11 @@ import type {
   VectorEvaluationPassCriteria,
   VectorEvaluationProductLookup,
   VectorEvaluationProductSnapshot,
+  VectorEvaluationQueryRewriter,
 } from "../modules/vector/vector-evaluation.types";
 import { VectorSearchService } from "../modules/vector/vector-search.service";
 import type { VectorSearchFilters } from "../modules/vector/vector-search.types";
+import { createLlmClient } from "../modules/llm/openai-compatible-chat.client";
 import {
   parseCsv,
   parsePositiveInteger,
@@ -30,6 +33,7 @@ interface EvaluateRagOptions {
   caseIds: string[];
   limit?: number;
   output?: string;
+  rewrite: boolean;
 }
 
 interface VectorIndexManifest {
@@ -45,6 +49,7 @@ const VECTOR_INDEX_MANIFEST_FILE = "vector-index-manifest.json";
 function parseArgs(argv: string[]): EvaluateRagOptions {
   const options: EvaluateRagOptions = {
     caseIds: [],
+    rewrite: false,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -86,10 +91,39 @@ function parseArgs(argv: string[]): EvaluateRagOptions {
       continue;
     }
 
+    if (arg === "--rewrite") {
+      options.rewrite = true;
+      continue;
+    }
+
     throw new Error(`Unknown option: ${arg}`);
   }
 
   return options;
+}
+
+function createEvaluationQueryRewriter(): VectorEvaluationQueryRewriter {
+  const queryRewriteService = new QueryRewriteService({
+    llmClient: createLlmClient(),
+  });
+
+  return async (input) => {
+    const result = await queryRewriteService.rewrite({
+      question: input.query,
+      baseRetrievalQuery: input.query,
+      filters: input.filters,
+      requestId: `rag-evaluate:${input.caseId}`,
+    });
+
+    return {
+      query: result.query,
+      baseQuery: result.baseQuery,
+      rewrittenQuery: result.rewrittenQuery,
+      status: result.status,
+      reason: result.reason,
+      fallbackReason: result.fallbackReason,
+    };
+  };
 }
 
 async function readEvaluationCases(
@@ -434,6 +468,9 @@ export async function evaluateRagCommand(
     const results = await evaluateVectorSearchCases({
       cases,
       search: (input) => searchService.search(input),
+      queryRewriter: options.rewrite
+        ? createEvaluationQueryRewriter()
+        : undefined,
       productLookup: createProductLookup(pool),
     });
 
