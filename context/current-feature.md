@@ -1,4 +1,4 @@
-# Current Feature: Voice LLM ASR Upgrade
+# Current Feature: 首 Token 优化
 
 ## 状态
 
@@ -6,41 +6,41 @@ Complete
 
 ## 目标
 
-- 新增后端 `POST /api/asr/transcribe` 转写接口，让 Android 上传短音频后由 server 代理调用云端 LLM-ASR，并只返回安全的 transcript metadata。
-- Android 语音输入优先使用后端 ASR transcript，同时保留现有语音 UI、权限、按住说话、取消和 pending 气泡体验。
-- ASR 成功后继续复用现有 `ChatViewModel.onVoiceTranscriptReady(...)`、Chat SSE、LLM intent、RAG、comparison、cartAction 和缓存流程。
-- 严格隔离两段式调用：ASR 阶段只转写用户原话，不生成导购回复、不判断购物意图、不改写检索 query、不触发购物车或对比动作。
-- 覆盖 ASR 失败、超时、空结果、格式异常、文件限制和可选系统 ASR fallback，避免把语音识别失败误报成 RAG 失败。
+- 让 `POST /api/chat/stream` 普通 RAG success 路径在最终 LLM 仍在生成时就写出第一条 `message_delta`，消除“完整结果返回后再切块”的假流式体验。
+- 增加 Chat SSE / RAG / LLM 阶段耗时观测，能区分 intent、query rewrite、cache、vector search、商品回查、最终 LLM first delta 和 done 的耗时。
+- 保持现有 SSE contract 兼容，`message_delta`、`product_cards`、`comparison_result`、`done`、`error` 等事件名称和 Android parser 行为不回退。
+- 保持商品事实安全边界：商品卡、`done` metadata 和推荐 product id 仍只来自后端校验过的库内商品。
+- 压缩普通 RAG prompt、候选上下文和 completion token 上限，优先改善推荐路径首 token 和总耗时。
+- 为 Gradio sample 和直接 Chat SSE smoke 留下优化前后可对比的首 token 证据。
 
 ## 待办清单
 
-- [x] 读取现有 Android 语音输入、Chat ViewModel / Repository、后端 chat / API response / LLM client 结构，确认最小接入点。
-- [x] 新增后端 ASR 模块类型、配置、provider adapter、service、controller 和 route，挂载 `POST /api/asr/transcribe`。
-- [x] 实现 multipart 音频上传校验：字段名 `audio`、MIME type、最大大小、空文件、超时、provider 错误和 transcript 清洗。
-- [x] 为 LLM-ASR provider 添加严格 prompt 和 JSON schema 解析，确保只输出 transcript，不泄漏 provider 原始响应、prompt、API key 或敏感错误。
-- [x] 更新 server env / README / `.env.example` 说明 `ASR_*` 覆盖项，默认复用现有 `LLM_*`，并注明模型必须支持音频输入。
-- [x] Android 端新增录音上传 / ASR repository 或 cloud voice controller，保持 recorder / network 细节不进入 ViewModel。
-- [x] 调整 `ChatViewModel` 语音状态：录音结束后进入云端 `Transcribing`，成功后走现有 voice transcript 发送路径，失败或空结果不请求 `/api/chat/stream`。
-- [x] 处理取消、临时音频清理、录音时长 / 大小限制和可配置系统 `SpeechRecognizer` fallback。
-- [x] 修复主界面长按语音时 `onListening` 立即切页导致第一次录音被卸载打断的问题，改为松手进入转写阶段后再切到聊天页。
-- [x] 修正 Android m4a / `audio/mp4` 上传到方舟 Chat `input_audio` 时的 format 映射为 `m4a`，并记录安全的 provider 状态码 / 错误码用于排查。
-- [x] 补充后端 `asr.config`、`asr.service`、controller / route 测试，覆盖成功、空 transcript、invalid output、timeout、文件过大、非音频和信息不泄漏。
-- [x] 补充 Android ViewModel / API client 测试，覆盖 ASR 成功进入 chat stream、失败不触发 chat、取消不上传、错误映射和 multipart 字段。
-- [x] 运行验证命令并记录结果：`cd server && npm.cmd test`、`cd server && npm.cmd run build`、`cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest`、`cd client/android && .\gradlew.bat --no-daemon build`。
-- [ ] 手动 smoke：真机中文语音成功进入 RAG、后端关闭时只显示语音识别失败、空白 / 噪声音频不触发 RAG、过长音频返回限制错误、fallback 行为符合配置。
+- [x] 读取 `chat.controller.ts`、`rag.service.ts`、LLM client、prompt builder 和现有测试，确认当前假流式入口与非流式 fallback 边界。
+- [x] 扩展 LLM 类型与 OpenAI-compatible client，支持 `streamGenerate()` / streaming delta、abortSignal、provider error 和 non-stream fallback。
+- [x] 更新 mock LLM client 与 LLM client 测试，覆盖 streaming delta、done、abort 和 provider error。
+- [x] 新增轻量 timing helper，并在 Chat SSE / RAG 普通路径中标记 request、SSE header、intent、rewrite、cache、vector、lookup、LLM first delta、LLM complete 和 done。
+- [x] 为普通 RAG success 路径新增真实 streaming 编排，让 service 能在 promise 完成前通过 writer 写出用户可见 `message_delta`。
+- [x] 保留 clarification、cartAction、comparison clarification、cache hit、no candidates 等快速 / fallback 路径的现有行为，不为 streaming 改造引入额外等待。
+- [x] 调整最终 RAG prompt / 输出收口：流式发送用户可见短答，流结束后解析并校验 product ids，再发送 `product_cards` 与 `done`。
+- [x] 压缩普通 RAG prompt、候选商品上下文、shortHistory 和 completion token 上限，确保不删除商品事实与库内 allowlist 约束。
+- [x] 补充 controller / service 测试，证明第一段 `message_delta` 可早于完整结果完成写出，并覆盖事件顺序、abort 传播和 fallback。
+- [x] 运行 `cd server; npm.cmd test` 与 `cd server; npm.cmd run build`。
+- [x] 运行 Gradio sample 3 条或直接 Chat SSE smoke，对比首 token baseline 与优化后结果，并记录 timing metadata 中的剩余瓶颈。
 
 ## 备注
 
-- Spec 来源：`context/feature/voice-llm-asr-upgrade-spec.md`。
-- 功能边界：本功能只升级语音识别层，不重写 Chat SSE、RAG、LLM intent、query rewrite、comparison、cartAction、TTS 或实时流式 ASR。
-- 语义边界：LLM-ASR 调用只能作为转写器使用；后续购物语义仍由既有 chat orchestration prompts、LLM intent、RAG 和工具 contract 负责。
-- 安全边界：Android 不保存 provider key；server 不返回 provider 原始错误、完整 prompt、原始音频 URL、API key、完整 transcript 日志或音频内容。
-- Provider 边界：第一版可复用现有 Ark / OpenAI-compatible LLM 音频输入能力，但 ASR adapter 要可替换，后续可换专门 ASR 服务。
-- UX 边界：识别失败、空文本、网络失败、provider 不支持音频、文件过大和取消录音都必须停在语音错误状态，不进入 RAG，也不显示 assistant RAG 失败。
-- 验证计划：先以后端单测 / build 和 Android 单测 / build 为主，再做真机中文语音、服务不可用、空白音频、过长音频和 fallback smoke。
-- 验证结果：`cd server && npm.cmd test` 通过（42 files / 306 tests）；`cd server && npm.cmd run build` 通过；`cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest` 通过；默认 `cd client/android && .\gradlew.bat --no-daemon build` 按 demo/release HTTPS 配置规则 fail-fast，随后使用 `-PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/ -PSHOPMATE_RELEASE_API_BASE_URL=https://shopmate-api.example.com/` 重跑通过。
-- 本轮 bugfix 验证：`cd server && npm.cmd test -- --run src/modules/asr/llm-audio-asr.client.test.ts src/modules/asr/asr.service.test.ts src/modules/asr/asr.controller.test.ts` 通过（3 files / 13 tests）；`cd server && npm.cmd run build` 通过；`cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.ui.voice.VoiceInputControllerTest" --tests "com.shopmate.app.data.asr.*"` 通过。
-- 手动 smoke 尚未执行：需要真实 ASR-capable provider 配置和真机录音环境后验证中文语音、后端关闭、空白音频、过长音频与 fallback。
+- Spec 来源：`context/feature/first-token-optimization-spec.md`，对应 `context/spec-implementation-order.md` 中的 29.3。
+- 当前 baseline：Gradio sample 3 条平均首 token 约 37.9s，P95 约 43.1s；单条直接 Chat SSE smoke 约 39.3s。
+- 本轮 V1 先修“完整 `RagChatResult` 生成后才写 `message_delta`”的结构性问题；1s 是最终挑战目标，不作为本轮硬验收。
+- 不做 query expansion、rerank、GraphRAG、Agentic RAG、新向量库替换或 Android 性能图表。
+- 不改变 negative constraint、comparison、cartAction、clarification 的业务语义；LLM 意图仍是控制流主心骨，代码只做候选预筛、schema 校验、allowlist、安全过滤和 fallback。
+- 只流式用户可见 assistant 文本；商品卡、comparison result、cartAction 和 `done` payload 仍在后端安全校验后发送。
+- Timing metadata 只允许输出阶段名和耗时毫秒数，不输出真实 `.env`、API key、完整 prompt、商品知识全文或 provider 原始敏感错误。
+- 如果实现时发现当前 OpenAI-compatible provider 的 streaming delta、finish reason、abort 或错误事件不稳定，再补 `performance-optimization-research.md` 或模型流式 API research。
+- 本轮实现补充了 intent 候选预筛：明显不含购物车操作、否定约束或对比线索的普通推荐，不再进入对应 LLM intent；真正候选 action / constraint / comparison 仍由 LLM 判断。
+- 验证结果：`cd server; npm.cmd test` 通过（42 files / 314 tests）；`cd server; npm.cmd run build` 通过。
+- 直接 Chat SSE smoke：临时启动最新 build 于 `PORT=3100`，同类通勤耳机冷路径问题“推荐一款适合每天地铁通勤、降噪好的蓝牙耳机”，首 token 约 14.04s，总耗时约 14.32s；对比旧直接 baseline 约 39.3s，下降约 64%。timing 显示剩余主要耗时在 query rewrite（约 6.66s）、vector search（约 7.45s 累计）和最终 LLM first delta（约 13.93s 累计）。
+- 重复查询缓存 smoke：同题“推荐一款适合通勤的蓝牙耳机”命中热门查询缓存后，首 token / 总耗时约 7.93s，事件顺序仍为 `message_delta` -> `product_cards` -> `done`。
 
 ## 历史记录
 - 初始化前后端技术栈骨架：完成 Android Kotlin + Jetpack Compose 与 Node.js + TypeScript + Express 最小工程初始化，补充 README 与 Git 忽略配置，并通过后端构建与 Android `assembleDebug` 验证。
@@ -106,3 +106,4 @@ Complete
 - RAG Negative Fact Metadata：新增负向事实 metadata 提取与 Qdrant payload，写入 free-from / risk / wearing style 字段；将负向约束转成结构化 vector filters，修复“不含酒精”和“不要入耳式”召回误伤，并通过后端全量 test / build、RAG documents / index 重建、14/14 离线评估和 Chat SSE smoke 验证。
 - Comparison Ambiguous Clarification：新增 comparison target resolution gate，目标不足、过多、无效或歧义时返回 LLM 澄清并跳过普通 RAG；最近推荐刚好两款时直接生成 `comparison_result`，并补齐 SSE contract、Android fallback、Chat evaluation case 和后端回归测试。
 - RAG Gradio Evaluation Workbench：新增仓库根目录本地 Gradio 内部评估工作台，支持 CSV 批量 Chat SSE 评估、中文仪表盘、人工评分、可选 LLM 初评、单条调试、证据摘要、首 token / 总耗时指标和 JSONL / CSV / summary 留档；通过 Gradio self-test、后端 test / build、Playwright 页面 smoke 和 3 条 live sample smoke 验证。
+- Voice LLM ASR Upgrade：新增后端 `POST /api/asr/transcribe` 云端转写接口和 Android 录音上传链路，ASR 成功后复用现有聊天 / RAG 流程，失败或空结果不触发 RAG；修复主界面长按语音首次录音被切页打断，并补充后端 ASR 与 Android ASR 相关测试。

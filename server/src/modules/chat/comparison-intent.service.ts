@@ -115,6 +115,14 @@ export class ComparisonIntentService {
       hasRecentRecommendationComparisonCue(input)
       || hasAmbiguousComparisonCue(input);
 
+    if (
+      !explicitRecentComparisonIntent
+      && !shouldRunFocusedComparisonCheck
+      && !hasGeneralComparisonCue(input)
+    ) {
+      return NO_COMPARISON_INTENT;
+    }
+
     try {
       const response = await this.llmClient.generate({
         messages: buildComparisonIntentPrompt(input),
@@ -459,6 +467,24 @@ function hasAmbiguousComparisonCue(input: ComparisonIntentDetectInput): boolean 
     "比较下",
     "帮我对比",
     "帮我比较",
+  ].some((term) => normalized.includes(term));
+}
+
+function hasGeneralComparisonCue(input: ComparisonIntentDetectInput): boolean {
+  const normalized = input.question.replace(/\s+/gu, "");
+
+  return [
+    "对比",
+    "比较",
+    "哪个更",
+    "哪款更",
+    "哪个好",
+    "哪款好",
+    "怎么选",
+    "差异",
+    "区别",
+    "优缺点",
+    "更适合",
   ].some((term) => normalized.includes(term));
 }
 

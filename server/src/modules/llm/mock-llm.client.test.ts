@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { LlmError } from "./llm.error";
 import { MockLlmClient } from "./mock-llm.client";
-import type { LlmGenerateResponse } from "./llm.types";
+import type { LlmGenerateResponse, LlmStreamChunk } from "./llm.types";
 
 describe("MockLlmClient", () => {
   it("returns a fixed response", async () => {
@@ -44,5 +44,29 @@ describe("MockLlmClient", () => {
     await expect(
       client.generate({ messages: [{ role: "user", content: "hello" }] }),
     ).rejects.toBe(error);
+  });
+
+  it("streams configured chunks", async () => {
+    const client = new MockLlmClient({
+      streamChunks: [
+        { textDelta: "part 1" },
+        { textDelta: "part 2" },
+        { finishReason: "stop" },
+      ],
+    });
+
+    const chunks: LlmStreamChunk[] = [];
+
+    for await (const chunk of client.streamGenerate({
+      messages: [{ role: "user", content: "hello" }],
+    })) {
+      chunks.push(chunk);
+    }
+
+    expect(chunks).toEqual([
+      { textDelta: "part 1" },
+      { textDelta: "part 2" },
+      { finishReason: "stop" },
+    ]);
   });
 });

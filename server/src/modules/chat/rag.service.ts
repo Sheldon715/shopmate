@@ -10,7 +10,7 @@ import {
   MIN_CART_QUANTITY,
 } from "../cart/cart.service";
 import type { CartDto, CartItemDto } from "../cart/cart.types";
-import type { LlmClient } from "../llm/llm.types";
+import type { LlmClient, LlmGenerateRequest } from "../llm/llm.types";
 import { createLlmClient } from "../llm/openai-compatible-chat.client";
 import { mapProductToCardDto } from "../products/product.mapper";
 import {
@@ -27,11 +27,13 @@ import type {
 } from "../vector/vector-search.types";
 import type {
   ChatComparisonResultPayload,
+  ChatDonePayload,
   ChatHistoryMessage,
   RagChatFallbackReason,
   RagChatRequest,
   RagChatResult,
   RetrievedProductContext,
+  ChatStreamWriter,
 } from "./chat.types";
 import { CartActionResponseService } from "./cart-action-response.service";
 import { CartCommandService } from "./cart-command.service";
@@ -186,10 +188,20 @@ type ComparisonTargetResolution =
       candidateCount?: number;
     };
 
+interface RagAnswerExecutionOptions {
+  streamWriter?: ChatStreamWriter;
+  messageDeltasWritten?: boolean;
+}
+
+interface RagLlmGenerationResult {
+  text: string;
+  messageDeltasWritten: boolean;
+}
+
 const DEFAULT_MAX_RECOMMENDED_PRODUCTS = 3;
-const DEFAULT_MAX_SNIPPETS_PER_PRODUCT = 3;
+const DEFAULT_MAX_SNIPPETS_PER_PRODUCT = 2;
 const DEFAULT_NEGATIVE_CONSTRAINT_TOP_K = 20;
-const RAG_LLM_MAX_COMPLETION_TOKENS = 2000;
+const RAG_LLM_MAX_COMPLETION_TOKENS = 320;
 const QUERY_REWRITE_VERSION = "query-rewrite-v1";
 const MAX_CHAT_ANSWER_CHARS = 72;
 const CART_ACTIVE_PRODUCT_LOOKUP_LIMIT = 8;
@@ -292,6 +304,25 @@ export class RagChatService {
   }
 
   async answer(input: RagChatRequest): Promise<RagChatResult> {
+    return this.answerInternal(input);
+  }
+
+  async answerStream(
+    input: RagChatRequest,
+    writer: ChatStreamWriter,
+  ): Promise<void> {
+    const options: RagAnswerExecutionOptions = { streamWriter: writer };
+    const result = await this.answerInternal(input, options);
+
+    await writeRagResultToStream(writer, result, {
+      skipMessageDeltas: options.messageDeltasWritten === true,
+    });
+  }
+
+  private async answerInternal(
+    input: RagChatRequest,
+    options: RagAnswerExecutionOptions = {},
+  ): Promise<RagChatResult> {
     const question = input.question.trim();
 
     if (question.length === 0) {
@@ -308,6 +339,7 @@ export class RagChatService {
       filters: input.filters,
     });
     const cartSnapshot = await this.readCartSnapshot(input.abortSignal);
+    input.timing?.mark("cart_snapshot_done");
     const cartCommandDetection = await this.cartCommandIntentService.detect({
       question,
       contextMemory: memoryResolution.contextMemory,
@@ -316,6 +348,7 @@ export class RagChatService {
       abortSignal: input.abortSignal,
     });
     throwIfAborted(input.abortSignal);
+    input.timing?.mark("cart_intent_done");
 
     if (cartCommandDetection.isCartCommand) {
       return this.withContextMemory(
@@ -341,8 +374,9 @@ export class RagChatService {
         filters: memoryResolution.filters,
         requestId: input.requestId,
         abortSignal: input.abortSignal,
-      });
+    });
     throwIfAborted(input.abortSignal);
+    input.timing?.mark("negative_intent_done");
     memoryResolution = this.applyNegativeConstraintIntent(
       memoryResolution,
       negativeConstraintIntent,
@@ -379,6 +413,7 @@ export class RagChatService {
       abortSignal: input.abortSignal,
     });
     throwIfAborted(input.abortSignal);
+    input.timing?.mark("comparison_intent_done");
 
     if (comparisonIntent.isComparison) {
       const comparisonResult = await this.answerComparison(
@@ -416,6 +451,7 @@ export class RagChatService {
       abortSignal: input.abortSignal,
     });
     throwIfAborted(input.abortSignal);
+    input.timing?.mark("clarification_intent_done");
 
     if (
       clarificationDecision.needsClarification
@@ -445,6 +481,7 @@ export class RagChatService {
       abortSignal: input.abortSignal,
     });
     throwIfAborted(input.abortSignal);
+    input.timing?.mark("query_rewrite_done");
     const cacheInput = await this.popularQueryCacheCoordinator.createInput({
       question,
       retrievalQuery: queryRewrite.query,
@@ -455,6 +492,7 @@ export class RagChatService {
     });
     const cacheHit = await this.popularQueryCacheCoordinator.read(cacheInput);
     throwIfAborted(input.abortSignal);
+    input.timing?.mark("cache_read_done");
 
     if (cacheHit) {
       const cacheHitProducts = orderProductsByIds(
@@ -487,6 +525,7 @@ export class RagChatService {
       abortSignal: input.abortSignal,
     });
     throwIfAborted(input.abortSignal);
+    input.timing?.mark("vector_search_done");
     const candidates = dedupeVectorHits(hits, this.maxSnippetsPerProduct);
 
     if (candidates.length === 0) {
@@ -502,6 +541,7 @@ export class RagChatService {
     const products = await this.productReader.findActiveByIds(
       candidates.map((candidate) => candidate.productId),
     );
+    input.timing?.mark("product_lookup_done");
     const contexts = filterContextsByNegativeConstraints(
       createRetrievedContexts(candidates, products),
       negativeConstraints,
@@ -518,22 +558,31 @@ export class RagChatService {
     }
 
     try {
-      const response = await this.llmClient.generate({
-        messages: buildRagPrompt({
-          question,
-          shortHistory: normalizeChatHistory(input.shortHistory ?? []),
-          contextMemory: memoryResolution.contextMemory,
-          negativeConstraints,
-          candidates: contexts,
-          generatedAt: this.now(),
-        }),
-        maxCompletionTokens: RAG_LLM_MAX_COMPLETION_TOKENS,
-        requestId: input.requestId,
-        abortSignal: input.abortSignal,
-      });
+      const promptContexts = selectPromptContexts(
+        contexts,
+        maxRecommendedProducts,
+      );
+      const generation = await this.generateRagLlmOutput(
+        {
+          messages: buildRagPrompt({
+            question,
+            shortHistory: normalizeChatHistory(input.shortHistory ?? []),
+            contextMemory: memoryResolution.contextMemory,
+            negativeConstraints,
+            candidates: promptContexts,
+            generatedAt: this.now(),
+          }),
+          maxCompletionTokens: RAG_LLM_MAX_COMPLETION_TOKENS,
+          requestId: input.requestId,
+          abortSignal: input.abortSignal,
+        },
+        options.streamWriter,
+        input.timing,
+      );
+      options.messageDeltasWritten ||= generation.messageDeltasWritten;
       const parsed = parseRagLlmOutput(
-        response.text,
-        contexts.map((context) => context.product.id),
+        generation.text,
+        promptContexts.map((context) => context.product.id),
       );
       throwIfAborted(input.abortSignal);
       const recommendedProductIds = parsed.recommendedProductIds.slice(
@@ -614,6 +663,65 @@ export class RagChatService {
     return noCandidatesResponse.generatedByLlm
       ? this.popularQueryCacheCoordinator.write(input.cacheInput, result)
       : result;
+  }
+
+  private async generateRagLlmOutput(
+    request: LlmGenerateRequest,
+    streamWriter: ChatStreamWriter | undefined,
+    timing: RagChatRequest["timing"],
+  ): Promise<RagLlmGenerationResult> {
+    if (streamWriter && this.llmClient.streamGenerate) {
+      const answerExtractor = new StreamingJsonAnswerExtractor();
+      let streamedText = "";
+      let messageDeltasWritten = false;
+
+      try {
+        for await (const chunk of this.llmClient.streamGenerate(request)) {
+          if (chunk.textDelta) {
+            streamedText += chunk.textDelta;
+            const visibleDelta = answerExtractor.push(chunk.textDelta);
+
+            if (visibleDelta.length > 0) {
+              if (!messageDeltasWritten) {
+                timing?.mark("llm_first_delta");
+              }
+
+              messageDeltasWritten = true;
+              const wrote = await streamWriter.writeMessageDelta(visibleDelta);
+
+              if (!wrote) {
+                throwIfAborted(request.abortSignal);
+                break;
+              }
+            }
+          }
+        }
+
+        if (streamedText.trim().length > 0) {
+          timing?.mark("llm_complete");
+
+          return {
+            text: streamedText,
+            messageDeltasWritten,
+          };
+        }
+      } catch (error) {
+        rethrowIfAborted(request.abortSignal, error);
+
+        if (messageDeltasWritten) {
+          throw error;
+        }
+      }
+    }
+
+    const response = await this.llmClient.generate(request);
+    timing?.mark("llm_first_delta");
+    timing?.mark("llm_complete");
+
+    return {
+      text: response.text,
+      messageDeltasWritten: false,
+    };
   }
 
   private async readCartSnapshot(
@@ -1539,6 +1647,161 @@ export class RagChatService {
   }
 }
 
+async function writeRagResultToStream(
+  writer: ChatStreamWriter,
+  result: RagChatResult,
+  options: { skipMessageDeltas: boolean },
+): Promise<void> {
+  if (!options.skipMessageDeltas) {
+    for (const chunk of chunkMessageDelta(result.answer)) {
+      if (!(await writer.writeMessageDelta(chunk))) {
+        return;
+      }
+    }
+  }
+
+  if (!(await writer.writeProductCards(result.productCards))) {
+    return;
+  }
+
+  if (result.comparisonResult) {
+    if (!(await writer.writeComparisonResult(result.comparisonResult))) {
+      return;
+    }
+  }
+
+  await writer.writeDone(createDonePayload(result));
+}
+
+function createDonePayload(result: RagChatResult): ChatDonePayload {
+  return {
+    recommendedProductIds: result.recommendedProductIds,
+    fallbackUsed: result.fallbackUsed,
+    fallbackReason: result.fallbackReason,
+    clarification: result.clarification,
+    retrieval: result.retrieval,
+    contextMemory: result.contextMemory,
+    cartAction: result.cartAction,
+  };
+}
+
+function chunkMessageDelta(answer: string, chunkSize = 100): string[] {
+  if (chunkSize < 1 || !Number.isInteger(chunkSize)) {
+    throw new Error("chunkSize must be a positive integer.");
+  }
+
+  const characters = Array.from(answer);
+  const chunks: string[] = [];
+
+  for (let index = 0; index < characters.length; index += chunkSize) {
+    chunks.push(characters.slice(index, index + chunkSize).join(""));
+  }
+
+  return chunks;
+}
+
+class StreamingJsonAnswerExtractor {
+  private state: "seeking_answer" | "in_answer" | "done" = "seeking_answer";
+  private buffer = "";
+  private escaped = false;
+  private unicodeEscape = "";
+
+  push(textDelta: string): string {
+    if (this.state === "done") {
+      return "";
+    }
+
+    if (this.state === "seeking_answer") {
+      this.buffer += textDelta;
+      const match = /"answer"\s*:\s*"/u.exec(this.buffer);
+
+      if (!match) {
+        this.buffer = this.buffer.slice(-32);
+        return "";
+      }
+
+      const answerStartIndex = match.index + match[0].length;
+      const remaining = this.buffer.slice(answerStartIndex);
+      this.buffer = "";
+      this.state = "in_answer";
+
+      return this.consumeAnswerText(remaining);
+    }
+
+    return this.consumeAnswerText(textDelta);
+  }
+
+  private consumeAnswerText(text: string): string {
+    let output = "";
+
+    for (const char of text) {
+      if (this.unicodeEscape.length > 0) {
+        this.unicodeEscape += char;
+
+        if (this.unicodeEscape.length === 5) {
+          output += decodeUnicodeEscape(this.unicodeEscape);
+          this.unicodeEscape = "";
+        }
+        continue;
+      }
+
+      if (this.escaped) {
+        if (char === "u") {
+          this.unicodeEscape = "u";
+        } else {
+          output += decodeJsonStringEscape(char);
+        }
+        this.escaped = false;
+        continue;
+      }
+
+      if (char === "\\") {
+        this.escaped = true;
+        continue;
+      }
+
+      if (char === "\"") {
+        this.state = "done";
+        break;
+      }
+
+      output += char;
+    }
+
+    return output;
+  }
+}
+
+function decodeJsonStringEscape(char: string): string {
+  switch (char) {
+    case "\"":
+      return "\"";
+    case "\\":
+      return "\\";
+    case "/":
+      return "/";
+    case "b":
+      return "\b";
+    case "f":
+      return "\f";
+    case "n":
+      return "\n";
+    case "r":
+      return "\r";
+    case "t":
+      return "\t";
+    default:
+      return char;
+  }
+}
+
+function decodeUnicodeEscape(value: string): string {
+  const hex = value.slice(1);
+  const codePoint = Number.parseInt(hex, 16);
+
+  return Number.isFinite(codePoint) ? String.fromCharCode(codePoint) : "";
+}
+
 function createClarificationResult(
   decision: ClarificationDecision,
   fallbackReason: RagChatFallbackReason = "NEEDS_CLARIFICATION",
@@ -2061,6 +2324,16 @@ function compactAnswer(answer: string): string {
   }
 
   return `${Array.from(normalized).slice(0, MAX_CHAT_ANSWER_CHARS).join("").trimEnd()}...`;
+}
+
+function selectPromptContexts(
+  contexts: RetrievedProductContext[],
+  maxRecommendedProducts: number,
+): RetrievedProductContext[] {
+  return contexts.slice(
+    0,
+    Math.max(maxRecommendedProducts, DEFAULT_MAX_RECOMMENDED_PRODUCTS),
+  );
 }
 
 function createComparisonResultId(

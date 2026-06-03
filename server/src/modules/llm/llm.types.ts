@@ -40,6 +40,12 @@ export interface LlmGenerateResponse {
   latencyMs: number;
 }
 
+export interface LlmStreamChunk {
+  textDelta?: string;
+  finishReason?: LlmFinishReason;
+}
+
 export interface LlmClient {
   generate(request: LlmGenerateRequest): Promise<LlmGenerateResponse>;
+  streamGenerate?(request: LlmGenerateRequest): AsyncIterable<LlmStreamChunk>;
 }

@@ -7,11 +7,11 @@ import type {
 } from "./chat.types";
 import type { NegativeConstraint } from "./negative-constraint.types";
 
-export const MAX_SHORT_HISTORY_MESSAGES = 4;
-export const MAX_HISTORY_CONTENT_CHARS = 500;
-const MAX_PRODUCT_SUMMARY_CHARS = 360;
-const MAX_SNIPPET_CHARS = 280;
-const MAX_SNIPPETS_PER_PRODUCT = 3;
+export const MAX_SHORT_HISTORY_MESSAGES = 3;
+export const MAX_HISTORY_CONTENT_CHARS = 280;
+const MAX_PRODUCT_SUMMARY_CHARS = 220;
+const MAX_SNIPPET_CHARS = 160;
+const MAX_SNIPPETS_PER_PRODUCT = 2;
 
 export interface BuildRagPromptInput {
   question: string;
@@ -41,7 +41,7 @@ export function buildRagPrompt(input: BuildRagPromptInput): LlmMessage[] {
         "如果没有合适商品，可以说明暂时没有合适推荐，不要硬推荐。",
         "answer 要适合移动端聊天列表展示：最多 70 个中文字符，用 1 句话概括推荐方向，不要逐条复述商品名、价格或详细参数。",
         "商品优势、限制、参数和长解释交给 product_cards 或商品详情页承载，answer 只做简短导购引导。",
-        "只输出 JSON object，格式为 {\"answer\":\"string\",\"recommended_product_ids\":[\"product_id\"]}。",
+        "只输出 JSON object，且必须先输出 answer 字段，格式为 {\"answer\":\"string\",\"recommended_product_ids\":[\"product_id\"]}。",
         "recommended_product_ids 只能使用候选列表中的 product_id。",
       ].join("\n"),
     },

@@ -41,6 +41,8 @@ interface ParsedNegativeConstraintIntent {
 }
 
 const NEGATIVE_INTENT_MAX_COMPLETION_TOKENS = 900;
+const NEGATIVE_CONSTRAINT_CUE_PATTERN =
+  /(不要|不想要|不需要|不含|避开|排除|除了|别.*(?:推荐|要|选)|不要太贵|别太贵|太贵|便宜一点|更便宜|低预算|不入耳|不要入耳|非入耳|不油腻|不刺激|不闷|不粘|不辣|不甜|低糖|无糖|少糖|无酒精|不含酒精)/u;
 const MAX_NEGATIVE_CONSTRAINTS = 5;
 const MAX_NEGATIVE_TERM_CHARS = 80;
 const MAX_NEGATIVE_RAW_TEXT_CHARS = 120;
@@ -83,6 +85,10 @@ export class NegativeConstraintIntentService {
   async detect(
     input: NegativeConstraintIntentDetectInput,
   ): Promise<NegativeConstraintIntentResult> {
+    if (!shouldRunNegativeConstraintIntent(input)) {
+      return NO_NEGATIVE_CONSTRAINTS;
+    }
+
     try {
       const response = await this.llmClient.generate({
         messages: buildNegativeConstraintPrompt(input),
@@ -142,6 +148,27 @@ function buildNegativeConstraintPrompt(
       }),
     },
   ];
+}
+
+function shouldRunNegativeConstraintIntent(
+  input: NegativeConstraintIntentDetectInput,
+): boolean {
+  const filters = input.filters;
+
+  if (
+    (filters?.avoidTerms?.length ?? 0) > 0
+    || (filters?.excludeRiskTerms?.length ?? 0) > 0
+    || (filters?.excludeWearingStyles?.length ?? 0) > 0
+    || (filters?.excludeBrands?.length ?? 0) > 0
+    || (filters?.excludeProductIds?.length ?? 0) > 0
+    || (filters?.excludeCategories?.length ?? 0) > 0
+  ) {
+    return true;
+  }
+
+  return NEGATIVE_CONSTRAINT_CUE_PATTERN.test(
+    input.question.replace(/\s+/gu, ""),
+  );
 }
 
 function summarizeContextMemory(

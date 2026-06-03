@@ -55,7 +55,7 @@ describe("buildRagPrompt", () => {
     expect(text).toContain("exclude_if_product_facts_conflict");
     expect(text).not.toContain("conversationId");
     expect(text).not.toContain("local-chat-session-1");
-    expect(text).toContain("first kept answer");
+    expect(text).not.toContain("first kept answer");
     expect(text).toContain("latest kept question");
     expect(text).not.toContain("oldest message should be dropped");
     expect(text).not.toContain("x".repeat(501));
@@ -86,7 +86,13 @@ describe("buildRagPrompt", () => {
     expect(text).not.toContain("history_0");
     expect(text).not.toContain("history_1");
 
-    for (let index = 2; index < 2 + MAX_SHORT_HISTORY_MESSAGES; index += 1) {
+    const firstKeptIndex = 6 - MAX_SHORT_HISTORY_MESSAGES;
+
+    for (
+      let index = firstKeptIndex;
+      index < firstKeptIndex + MAX_SHORT_HISTORY_MESSAGES;
+      index += 1
+    ) {
       expect(text).toContain(`history_${index}`);
     }
   });

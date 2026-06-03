@@ -11,6 +11,7 @@ import type {
 import type { ChatAnswerService } from "./chat.controller";
 import { createChatStreamController } from "./chat.controller";
 import {
+  eventNames,
   parseSseEvents,
   payloadFor,
 } from "./sse-test-utils";
@@ -50,8 +51,76 @@ describe("createChatStreamController", () => {
     expect(response.headers.get("content-type")).toBe(
       "text/event-stream; charset=utf-8",
     );
-    expect(response.streamEvents()).toEqual(
+    expect(stripTiming(response.streamEvents())).toEqual(
       chatContractFixtures.successStream.events,
+    );
+    expect(response.ended).toBe(true);
+  });
+
+  it("lets a streaming service write message_delta before it finishes", async () => {
+    let finishStream: (() => Promise<void>) | undefined;
+    let resolveFirstDelta: (() => void) | undefined;
+    const firstDeltaWritten = new Promise<void>((resolve) => {
+      resolveFirstDelta = resolve;
+    });
+    const service: ChatAnswerService = {
+      answer: vi.fn(async () => createResult()),
+      answerStream: async (_input, writer) => {
+        await writer.writeMessageDelta("early text");
+        resolveFirstDelta?.();
+        await new Promise<void>((resolve) => {
+          finishStream = async () => {
+            await writer.writeProductCards([]);
+            await writer.writeDone({
+              recommendedProductIds: [],
+              fallbackUsed: false,
+              retrieval: {
+                candidateCount: 0,
+                returnedProductIds: [],
+              },
+            });
+            resolve();
+          };
+        });
+      },
+    };
+    const request = createRequest({ message: "recommend one" });
+    const response = new FakeResponse();
+    const controllerPromise = createChatStreamController(service)(
+      request.asRequest(),
+      response.asResponse(),
+    );
+
+    await firstDeltaWritten;
+
+    expect(response.streamEvents()).toEqual([{
+      eventName: "message_delta",
+      payload: {
+        text: "early text",
+        index: 0,
+      },
+    }]);
+    expect(response.ended).toBe(false);
+
+    if (!finishStream) {
+      throw new Error("finishStream was not initialized.");
+    }
+
+    await finishStream();
+    await controllerPromise;
+
+    const events = response.streamEvents();
+
+    expect(eventNames(events)).toEqual([
+      "message_delta",
+      "product_cards",
+      "done",
+    ]);
+    expect(payloadFor(events, "done").retrieval.timing).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "sse_started" }),
+        expect.objectContaining({ name: "done_sent" }),
+      ]),
     );
     expect(response.ended).toBe(true);
   });
@@ -68,7 +137,7 @@ describe("createChatStreamController", () => {
       response.asResponse(),
     );
 
-    expect(response.streamEvents()).toEqual(
+    expect(stripTiming(response.streamEvents())).toEqual(
       chatContractFixtures.emptyAnswerFallback.events,
     );
   });
@@ -107,7 +176,7 @@ describe("createChatStreamController", () => {
       response.asResponse(),
     );
 
-    expect(response.streamEvents()).toEqual(
+    expect(stripTiming(response.streamEvents())).toEqual(
       chatContractFixtures.errorStream.events,
     );
     expect(response.ended).toBe(true);
@@ -125,7 +194,7 @@ describe("createChatStreamController", () => {
       response.asResponse(),
     );
 
-    expect(response.streamEvents()).toEqual(
+    expect(stripTiming(response.streamEvents())).toEqual(
       chatContractFixtures.noProductStream.events,
     );
     expect(response.ended).toBe(true);
@@ -143,7 +212,7 @@ describe("createChatStreamController", () => {
       response.asResponse(),
     );
 
-    expect(response.streamEvents()).toEqual(
+    expect(stripTiming(response.streamEvents())).toEqual(
       chatContractFixtures.clarificationStream.events,
     );
     expect(response.ended).toBe(true);
@@ -161,7 +230,7 @@ describe("createChatStreamController", () => {
       response.asResponse(),
     );
 
-    expect(response.streamEvents()).toEqual(
+    expect(stripTiming(response.streamEvents())).toEqual(
       chatContractFixtures.cartAddStream.events,
     );
     expect(response.ended).toBe(true);
@@ -179,7 +248,7 @@ describe("createChatStreamController", () => {
       response.asResponse(),
     );
 
-    expect(response.streamEvents()).toEqual(
+    expect(stripTiming(response.streamEvents())).toEqual(
       chatContractFixtures.comparisonStream.events,
     );
     expect(response.ended).toBe(true);
@@ -402,6 +471,26 @@ function createResultFromFixture(
   });
 }
 
+function stripTiming(
+  events: ChatStreamContractEvent[],
+): ChatStreamContractEvent[] {
+  return events.map((event) => {
+    if (event.eventName !== "done") {
+      return event;
+    }
+
+    const { timing: _timing, ...retrieval } = event.payload.retrieval;
+
+    return {
+      ...event,
+      payload: {
+        ...event.payload,
+        retrieval,
+      },
+    };
+  });
+}
+
 function createProductCard(): ProductCardDto {
   return {
     id: "product_001",
@@ -420,4 +509,20 @@ function createProductCard(): ProductCardDto {
     tags: ["wireless"],
     available: true,
   };
+}
+
+function flushPromises(): Promise<void> {
+  return Promise.resolve();
+}
+
+async function waitForCondition(predicate: () => boolean): Promise<void> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    if (predicate()) {
+      return;
+    }
+
+    await flushPromises();
+  }
+
+  throw new Error("Timed out waiting for condition.");
 }

@@ -7,9 +7,11 @@ import type {
   ChatErrorPayload,
   ChatMessageDeltaPayload,
   ChatProductCardsPayload,
+  ChatStreamWriter,
   RagChatRequest,
   RagChatResult,
 } from "./chat.types";
+import { ChatTiming, type ChatTimingTracker } from "./chat-timing";
 import {
   CHAT_STREAM_REQUEST_ERROR_CODE,
   ChatStreamRequestError,
@@ -25,6 +27,10 @@ import {
 
 export interface ChatAnswerService {
   answer(input: RagChatRequest): Promise<RagChatResult>;
+  answerStream?(
+    input: RagChatRequest,
+    writer: ChatStreamWriter,
+  ): Promise<void>;
 }
 
 type SseWriteStatus = "ok" | "closed" | "serialization_error";
@@ -65,22 +71,41 @@ async function handleChatStream(
   try {
     const body = parseChatStreamRequestBody(request.body);
     const requestId = resolveRequestId(request);
+    const timing = new ChatTiming();
+    timing.mark("request_received");
 
     response.status(200);
     startSseStream(response);
     sseStarted = true;
+    timing.mark("sse_started");
 
-    const result = await chatService.answer({
+    const answerInput: RagChatRequest = {
       ...body,
       requestId,
       abortSignal: abortController.signal,
-    });
+      timing,
+    };
+
+    if (chatService.answerStream) {
+      await chatService.answerStream(
+        answerInput,
+        createChatStreamWriter(response, timing),
+      );
+
+      if (!clientClosed && !isResponseClosed(response)) {
+        responseFinished = true;
+        response.end();
+      }
+      return;
+    }
+
+    const result = await chatService.answer(answerInput);
 
     if (clientClosed || isResponseClosed(response)) {
       return;
     }
 
-    const writeStatus = await writeChatResult(response, result);
+    const writeStatus = await writeChatResult(response, result, timing);
 
     if (writeStatus === "serialization_error") {
       await writeSseError(response, {
@@ -120,6 +145,7 @@ async function handleChatStream(
 async function writeChatResult(
   response: Response,
   result: RagChatResult,
+  timing?: ChatTimingTracker,
 ): Promise<SseWriteStatus> {
   const chunks = chunkMessageDelta(result.answer);
 
@@ -161,17 +187,73 @@ async function writeChatResult(
     }
   }
 
+  timing?.mark("done_sent");
   const donePayload: ChatDonePayload = {
     recommendedProductIds: result.recommendedProductIds,
     fallbackUsed: result.fallbackUsed,
     fallbackReason: result.fallbackReason,
     clarification: result.clarification,
-    retrieval: result.retrieval,
+    retrieval: withTiming(result.retrieval, timing),
     contextMemory: result.contextMemory,
     cartAction: result.cartAction,
   };
 
   return safeWriteSseEvent(response, "done", donePayload);
+}
+
+function createChatStreamWriter(
+  response: Response,
+  timing: ChatTimingTracker,
+): ChatStreamWriter {
+  let messageIndex = 0;
+
+  return {
+    writeMessageDelta: async (text) => {
+      if (text.length === 0) {
+        return true;
+      }
+
+      const payload: ChatMessageDeltaPayload = {
+        text,
+        index: messageIndex,
+      };
+      messageIndex += 1;
+
+      return (await safeWriteSseEvent(response, "message_delta", payload))
+        === "ok";
+    },
+    writeProductCards: async (items) => {
+      const payload: ChatProductCardsPayload = { items };
+
+      return (await safeWriteSseEvent(response, "product_cards", payload))
+        === "ok";
+    },
+    writeComparisonResult: async (payload) =>
+      (await safeWriteSseEvent(response, "comparison_result", payload)) === "ok",
+    writeDone: async (payload) => {
+      timing.mark("done_sent");
+
+      return (await safeWriteSseEvent(response, "done", {
+        ...payload,
+        retrieval: withTiming(payload.retrieval, timing),
+      })) === "ok";
+    },
+    isClosed: () => isResponseClosed(response),
+  };
+}
+
+function withTiming(
+  retrieval: ChatDonePayload["retrieval"],
+  timing: ChatTimingTracker | undefined,
+): ChatDonePayload["retrieval"] {
+  if (!timing || retrieval.timing) {
+    return retrieval;
+  }
+
+  return {
+    ...retrieval,
+    timing: timing.toSafeMetadata(),
+  };
 }
 
 function writeJsonError(response: Response, error: unknown): void {

@@ -8,6 +8,7 @@ import type {
 } from "../vector/vector-search.types";
 import type { ChatContextMemorySummary } from "./chat-context-memory.types";
 import type { CartActionResult, CartCommandFallbackReason } from "./cart-command.types";
+import type { ChatTimingEntry, ChatTimingTracker } from "./chat-timing";
 import type { ClarificationSlot } from "./clarification.types";
 
 export interface ChatHistoryMessage {
@@ -69,6 +70,7 @@ export interface ChatDonePayload {
     queryRewriteReason?: string;
     candidateCount: number;
     returnedProductIds: string[];
+    timing?: ChatTimingEntry[];
   };
   contextMemory?: ChatContextMemorySummary;
   cartAction?: CartActionResult;
@@ -104,6 +106,7 @@ export interface RagChatRequest {
   maxRecommendedProducts?: number;
   requestId?: string;
   abortSignal?: AbortSignal;
+  timing?: ChatTimingTracker;
 }
 
 export interface RetrievedProductContext {
@@ -139,8 +142,17 @@ export interface RagChatResult {
     queryRewriteReason?: string;
     candidateCount: number;
     returnedProductIds: string[];
+    timing?: ChatTimingEntry[];
   };
   contextMemory?: ChatContextMemorySummary;
   cartAction?: CartActionResult;
   comparisonResult?: ChatComparisonResultPayload;
+}
+
+export interface ChatStreamWriter {
+  writeMessageDelta(text: string): Promise<boolean>;
+  writeProductCards(items: ProductCardDto[]): Promise<boolean>;
+  writeComparisonResult(payload: ChatComparisonResultPayload): Promise<boolean>;
+  writeDone(payload: ChatDonePayload): Promise<boolean>;
+  isClosed(): boolean;
 }

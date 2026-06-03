@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { LlmConfig } from "./llm.config";
 import { OpenAiCompatibleChatClient } from "./openai-compatible-chat.client";
-import type { LlmGenerateRequest } from "./llm.types";
+import type { LlmGenerateRequest, LlmStreamChunk } from "./llm.types";
 
 describe("OpenAiCompatibleChatClient", () => {
   it("maps successful OpenAI-compatible responses", async () => {
@@ -196,6 +196,59 @@ describe("OpenAiCompatibleChatClient", () => {
       code: "LLM_EMPTY_RESPONSE",
     });
   });
+
+  it("streams OpenAI-compatible chat completion deltas", async () => {
+    const fetchImpl = vi.fn(async () =>
+      streamResponse([
+        sseData({ choices: [{ delta: { content: "hello " } }] }),
+        sseData({ choices: [{ delta: { content: "world" } }] }),
+        sseData({ choices: [{ delta: {}, finish_reason: "stop" }] }),
+        "data: [DONE]\n\n",
+      ]),
+    );
+    const client = createClient({ fetchImpl });
+    const chunks: LlmStreamChunk[] = [];
+
+    for await (const chunk of client.streamGenerate({
+      ...request(),
+      requestId: "stream-req-001",
+    })) {
+      chunks.push(chunk);
+    }
+
+    expect(chunks).toEqual([
+      { textDelta: "hello " },
+      { textDelta: "world" },
+      { finishReason: "stop" },
+    ]);
+
+    const init = fetchImpl.mock.calls[0]?.[1] as RequestInit;
+    const body = JSON.parse(init.body as string) as Record<string, unknown>;
+
+    expect(body).toMatchObject({
+      model: "Doubao-Seed-2.0-lite",
+      stream: true,
+      messages: [{ role: "user", content: "推荐蓝牙耳机" }],
+    });
+    expect(init.headers).toMatchObject({
+      "X-Request-Id": "stream-req-001",
+    });
+  });
+
+  it("maps streaming provider errors", async () => {
+    const fetchImpl = vi.fn(async () => textResponse("bad key", 401));
+    const client = createClient({ fetchImpl });
+
+    await expect(async () => {
+      for await (const _chunk of client.streamGenerate(request())) {
+        // exhaust stream
+      }
+    }).rejects.toMatchObject({
+      code: "LLM_AUTH_FAILED",
+      retryable: false,
+      statusCode: 401,
+    });
+  });
 });
 
 function request(): LlmGenerateRequest {
@@ -258,4 +311,24 @@ function textResponse(body: string, status: number): Response {
     status,
     statusText: status === 429 ? "Too Many Requests" : "Error",
   });
+}
+
+function sseData(body: unknown): string {
+  return `data: ${JSON.stringify(body)}\n\n`;
+}
+
+function streamResponse(chunks: string[]): Response {
+  const encoder = new TextEncoder();
+
+  return new Response(
+    new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const chunk of chunks) {
+          controller.enqueue(encoder.encode(chunk));
+        }
+        controller.close();
+      },
+    }),
+    { status: 200 },
+  );
 }

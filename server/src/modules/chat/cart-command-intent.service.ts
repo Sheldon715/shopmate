@@ -33,6 +33,12 @@ interface ParsedCartIntent {
 }
 
 const CART_INTENT_MAX_COMPLETION_TOKENS = 220;
+const CART_OPERATION_CUE_PATTERN =
+  /(购物车|加购|加入购物车|加到购物车|放到购物车|加进去|删除|删掉|移除|数量|改成|清空|勾选|取消勾选|取消选择|结算|买这个|要这个|这款也要|这个也要|第[一二两三四五六七八九十0-9]{1,3}(?:个|款)?(?:也|也是|要|买|加))/u;
+const CART_RECENT_TARGET_CUE_PATTERN =
+  /(这个|这款|刚才|上面|上一款|上一件|第[一二两三四五六七八九十0-9]{1,3}(?:个|款)?|也要|也是)/u;
+const CART_ITEM_EDIT_CUE_PATTERN =
+  /(购物车|删除|删掉|移除|数量|改成|清空|勾选|取消勾选|取消选择|不要了|第[一二两三四五六七八九十0-9]{1,3}(?:个|款)?)/u;
 
 export class CartCommandIntentService {
   private readonly llmClient: LlmClient;
@@ -47,6 +53,10 @@ export class CartCommandIntentService {
   async detect(
     input: CartCommandIntentDetectInput,
   ): Promise<CartCommandDetection> {
+    if (!shouldRunCartIntent(input)) {
+      return { isCartCommand: false };
+    }
+
     const intent = await this.detectIntent(input);
 
     if (!intent.isCartManagement) {
@@ -133,6 +143,30 @@ function buildCartIntentPrompt(
       }),
     },
   ];
+}
+
+function shouldRunCartIntent(input: CartCommandIntentDetectInput): boolean {
+  const question = input.question.replace(/\s+/gu, "");
+
+  if (CART_OPERATION_CUE_PATTERN.test(question)) {
+    return true;
+  }
+
+  if (
+    (input.contextMemory?.lastRecommendedProductIds.length ?? 0) > 0
+    && CART_RECENT_TARGET_CUE_PATTERN.test(question)
+  ) {
+    return true;
+  }
+
+  if (
+    (input.cartSnapshot?.items.length ?? 0) > 0
+    && CART_ITEM_EDIT_CUE_PATTERN.test(question)
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 function parseCartIntentOutput(rawText: string): ParsedCartIntent {

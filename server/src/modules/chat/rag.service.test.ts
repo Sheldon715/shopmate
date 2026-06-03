@@ -18,6 +18,8 @@ import {
 } from "./popular-query-cache.service";
 import { NO_NEGATIVE_CONSTRAINTS } from "./negative-constraint.types";
 import type {
+  ChatStreamContractEvent,
+  ChatStreamWriter,
   RagCartWriter,
   RagChatServiceOptions,
   RagProductReader,
@@ -71,7 +73,7 @@ describe("RagChatService", () => {
 
     expect(productReaderCalls).toEqual([["product_001", "product_002"]]);
     expect(llmRequest?.responseFormat).toBeUndefined();
-    expect(llmRequest?.maxCompletionTokens).toBe(2000);
+    expect(llmRequest?.maxCompletionTokens).toBe(320);
     expect(llmRequest?.messages.map((message) => message.content).join("\n"))
       .toContain("first snippet");
     expect(llmRequest?.messages.map((message) => message.content).join("\n"))
@@ -92,6 +94,92 @@ describe("RagChatService", () => {
       id: "product_002",
       name: "PostgreSQL Product 2",
       priceCents: 3200,
+    });
+  });
+
+  it("streams visible RAG answer text before final product cards and done", async () => {
+    let releaseStream: (() => void) | undefined;
+    const service = new RagChatService(withNoCartIntent({
+      vectorSearch: createVectorSearch([createHit("product_001")]),
+      productReader: createProductReader(),
+      cartWriter: {
+        addItem: async () => createCartDto(),
+      },
+      clarificationIntentService: {
+        decide: async () => ({
+          needsClarification: false,
+          missingSlots: [],
+        }),
+      },
+      llmClient: new MockLlmClient({
+        streamHandler: async function* () {
+          const continueStream = new Promise<void>((resolve) => {
+            releaseStream = resolve;
+          });
+          yield { textDelta: "{\"answer\":\"先推荐 Product" };
+          await continueStream;
+          yield {
+            textDelta:
+              " 1。\",\"recommended_product_ids\":[\"product_001\"]}",
+          };
+          yield { finishReason: "stop" };
+        },
+      }),
+    }));
+    let resolveFirstDelta: (() => void) | undefined;
+    const firstDeltaWritten = new Promise<void>((resolve) => {
+      resolveFirstDelta = resolve;
+    });
+    const { events, writer } = createCollectingStreamWriter(() => {
+      resolveFirstDelta?.();
+    });
+    const streamPromise = service.answerStream(
+      { question: "recommend one" },
+      writer,
+    );
+
+    await firstDeltaWritten;
+
+    expect(events).toEqual([{
+      eventName: "message_delta",
+      payload: {
+        text: "先推荐 Product",
+        index: 0,
+      },
+    }]);
+
+    if (!releaseStream) {
+      throw new Error("releaseStream was not initialized.");
+    }
+
+    releaseStream();
+    await streamPromise;
+
+    expect(events.map((event) => event.eventName)).toEqual([
+      "message_delta",
+      "message_delta",
+      "product_cards",
+      "done",
+    ]);
+    expect(events[1]).toMatchObject({
+      eventName: "message_delta",
+      payload: {
+        text: " 1。",
+        index: 1,
+      },
+    });
+    expect(events[2]).toMatchObject({
+      eventName: "product_cards",
+      payload: {
+        items: [expect.objectContaining({ id: "product_001" })],
+      },
+    });
+    expect(events[3]).toMatchObject({
+      eventName: "done",
+      payload: {
+        recommendedProductIds: ["product_001"],
+        fallbackUsed: false,
+      },
     });
   });
 
@@ -327,6 +415,8 @@ describe("RagChatService", () => {
     expect(llmRequests).toHaveLength(2);
     expect(llmRequests[0]?.messages.map((message) => message.content).join("\n"))
       .toContain("主动澄清意图判断器");
+    expect(llmRequests[1]?.messages.map((message) => message.content).join("\n"))
+      .toContain("只输出 JSON object");
     expect(result).toMatchObject({
       fallbackUsed: false,
       recommendedProductIds: ["product_001"],
@@ -1978,7 +2068,11 @@ describe("RagChatService", () => {
       llmClient: new MockLlmClient({
         handler: (request) => {
           llmRequests.push(request);
-          return llmRequests.length === 1
+          const promptText = request.messages
+            .map((message) => message.content)
+            .join("\n");
+
+          return promptText.includes("购物车操作意图分类器")
             ? createCartIntentResponse({ isCartAdd: false })
             : createLlmResponse(
                 JSON.stringify({
@@ -1997,7 +2091,7 @@ describe("RagChatService", () => {
 
     expect(cartCalled).toBe(false);
     expect(vectorSearchCalled).toBe(true);
-    expect(llmRequests).toHaveLength(2);
+    expect(llmRequests).toHaveLength(1);
     expect(result.cartAction).toBeUndefined();
     expect(result.recommendedProductIds).toEqual(["product_002"]);
   });
@@ -2624,6 +2718,68 @@ function createServiceWithProducts(input: {
       ),
     }),
   }));
+}
+
+function createCollectingStreamWriter(onMessageDelta?: () => void): {
+  events: ChatStreamContractEvent[];
+  writer: ChatStreamWriter;
+} {
+  const events: ChatStreamContractEvent[] = [];
+  let messageIndex = 0;
+  const writer: ChatStreamWriter = {
+    writeMessageDelta: async (text) => {
+      events.push({
+        eventName: "message_delta",
+        payload: {
+          text,
+          index: messageIndex,
+        },
+      });
+      messageIndex += 1;
+      onMessageDelta?.();
+      return true;
+    },
+    writeProductCards: async (items) => {
+      events.push({
+        eventName: "product_cards",
+        payload: { items },
+      });
+      return true;
+    },
+    writeComparisonResult: async (payload) => {
+      events.push({
+        eventName: "comparison_result",
+        payload,
+      });
+      return true;
+    },
+    writeDone: async (payload) => {
+      events.push({
+        eventName: "done",
+        payload,
+      });
+      return true;
+    },
+    isClosed: () => false,
+  };
+
+  return { events, writer };
+}
+
+function flushPromises(): Promise<void> {
+  return Promise.resolve();
+}
+
+async function waitForCondition(predicate: () => boolean): Promise<void> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    if (predicate()) {
+      return;
+    }
+
+    await flushPromises();
+  }
+
+  throw new Error("Timed out waiting for condition.");
 }
 
 function withNoCartIntent(
