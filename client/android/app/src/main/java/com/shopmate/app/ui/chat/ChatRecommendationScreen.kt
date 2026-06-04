@@ -263,6 +263,16 @@ private fun ChatStreamColumnContent(
                 ),
             )
 
+            if (message.shouldShowStreamingContinuationIndicator()) {
+                ChatTypingIndicatorBubble(
+                    textScale = scale,
+                    modifier = Modifier
+                        .align(Alignment.Start)
+                        .padding(start = 16f.s())
+                        .size(width = 66f.s(), height = 34f.s()),
+                )
+            }
+
             ComparisonEntryList(
                 actions = state.comparisonActions.filter { action ->
                     action.anchorMessageId == message.id
@@ -432,6 +442,9 @@ private fun ChatMessageUi.displayText(): String =
 
 private fun ChatMessageUi.isTypingPlaceholder(): Boolean =
     !fromUser && isStreaming && text.isBlank()
+
+private fun ChatMessageUi.shouldShowStreamingContinuationIndicator(): Boolean =
+    !fromUser && isStreaming && text.isNotBlank()
 
 @Preview(
     name = "Chat recommendation - 389 x 843",

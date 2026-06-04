@@ -25,6 +25,7 @@ import kotlinx.coroutines.launch
 class ChatViewModel(
     private val chatRepository: ChatRepository,
     private val imageUrlResolver: ShopMateImageUrlResolver? = null,
+    private val typewriterTickerFactory: () -> TypewriterTicker = { CoroutineTypewriterTicker() },
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
@@ -41,6 +42,7 @@ class ChatViewModel(
     private var latestStreamProductCards: List<ProductCardUi> = emptyList()
     private var preStreamProductCards: List<ProductCardUi> = emptyList()
     private var voicePendingMessageId: String? = null
+    private var assistantTextRevealer: AssistantTextRevealer? = null
     private val sessionSnapshots = mutableMapOf<String, ChatSessionSnapshot>()
 
     fun onComposerTextChange(text: String) {
@@ -191,12 +193,7 @@ class ChatViewModel(
     fun startNewChat() {
         val state = _uiState.value
         val historyConversations = saveCurrentSession(state)
-        streamJob?.cancel()
-        streamJob = null
-        preservingProductCardsForCurrentStream = false
-        preservingExistingProductCardsForCurrentStream = false
-        latestStreamProductCards = emptyList()
-        preStreamProductCards = emptyList()
+        cancelActiveStreamState()
         voicePendingMessageId = null
         lastSentMessage = null
         currentSessionId = null
@@ -211,12 +208,7 @@ class ChatViewModel(
     fun openHistoryConversation(conversationId: String): Boolean {
         val snapshot = sessionSnapshots[conversationId] ?: return false
 
-        streamJob?.cancel()
-        streamJob = null
-        preservingProductCardsForCurrentStream = false
-        preservingExistingProductCardsForCurrentStream = false
-        latestStreamProductCards = emptyList()
-        preStreamProductCards = emptyList()
+        cancelActiveStreamState()
         currentSessionId = conversationId
         lastSentMessage = snapshot.messages.lastOrNull { message -> message.fromUser }?.text
 
@@ -265,12 +257,7 @@ class ChatViewModel(
         sessionSnapshots.remove(conversationId)
         val wasCurrentSession = currentSessionId == conversationId
         if (wasCurrentSession) {
-            streamJob?.cancel()
-            streamJob = null
-            preservingProductCardsForCurrentStream = false
-            preservingExistingProductCardsForCurrentStream = false
-            latestStreamProductCards = emptyList()
-            preStreamProductCards = emptyList()
+            cancelActiveStreamState()
             voicePendingMessageId = null
             currentSessionId = null
             lastSentMessage = null
@@ -383,7 +370,7 @@ class ChatViewModel(
         clearComposer: Boolean,
         userMessageId: String? = null,
     ) {
-        streamJob?.cancel()
+        cancelActiveStreamState()
         lastSentMessage = message
         preservingProductCardsForCurrentStream = false
         preservingExistingProductCardsForCurrentStream = false
@@ -404,6 +391,11 @@ class ChatViewModel(
             text = "",
             fromUser = false,
             isStreaming = true,
+        )
+        assistantTextRevealer = AssistantTextRevealer(
+            scope = viewModelScope,
+            ticker = typewriterTickerFactory(),
+            onVisibleTextChanged = ::updateStreamingAssistantText,
         )
         val shouldKeepProductCards = shouldKeepProductCardsForMessage(message)
         preservingProductCardsForCurrentStream = shouldKeepProductCards
@@ -457,8 +449,9 @@ class ChatViewModel(
 
     private fun applyStreamEvent(event: ChatStreamEvent) {
         when (event) {
-            is ChatStreamEvent.MessageDelta -> appendAssistantDelta(event.text)
+            is ChatStreamEvent.MessageDelta -> enqueueAssistantDelta(event.text)
             is ChatStreamEvent.ProductCards -> {
+                flushAssistantText()
                 val incomingProductCards = event.items.toProductCardUiList(imageUrlResolver)
                 latestStreamProductCards = incomingProductCards
                 _uiState.update { state ->
@@ -486,6 +479,7 @@ class ChatViewModel(
             }
 
             is ChatStreamEvent.ComparisonResult -> {
+                flushAssistantText()
                 _uiState.update { state ->
                     val assistantMessage = state.messages.lastOrNull { message ->
                         !message.fromUser
@@ -509,6 +503,7 @@ class ChatViewModel(
             }
 
             is ChatStreamEvent.Done -> {
+                flushAssistantText()
                 emitCartActionSideEffect(event.cartAction)
                 _uiState.update { state ->
                     state.copy(
@@ -526,13 +521,11 @@ class ChatViewModel(
                         canRetry = false,
                     ).also(::saveCurrentSession)
                 }
-                preservingProductCardsForCurrentStream = false
-                preservingExistingProductCardsForCurrentStream = false
-                latestStreamProductCards = emptyList()
-                preStreamProductCards = emptyList()
+                clearCompletedStreamState()
             }
 
             is ChatStreamEvent.Error -> {
+                flushAssistantText()
                 _uiState.update { state ->
                     state.copy(
                         messages = state.messages.markAssistantDone(),
@@ -541,23 +534,30 @@ class ChatViewModel(
                         canRetry = event.retryable,
                     ).also(::saveCurrentSession)
                 }
-                preservingProductCardsForCurrentStream = false
-                preservingExistingProductCardsForCurrentStream = false
-                latestStreamProductCards = emptyList()
-                preStreamProductCards = emptyList()
+                clearCompletedStreamState()
             }
 
             is ChatStreamEvent.Unknown -> Unit
         }
     }
 
-    private fun appendAssistantDelta(text: String) {
+    private fun enqueueAssistantDelta(text: String) {
+        assistantTextRevealer?.enqueue(text)
+    }
+
+    private fun updateStreamingAssistantText(text: String) {
         _uiState.update { state ->
             state.copy(
                 messages = state.messages.replaceLastAssistant { assistant ->
-                    assistant.copy(text = assistant.text + text)
+                    assistant.copy(text = text)
                 },
-            ).also(::saveCurrentSession)
+            )
+        }
+    }
+
+    private fun flushAssistantText() {
+        if (assistantTextRevealer?.flush() == true) {
+            saveCurrentSession(_uiState.value)
         }
     }
 
@@ -581,6 +581,7 @@ class ChatViewModel(
     }
 
     private fun applyFailure(error: Throwable) {
+        flushAssistantText()
         _uiState.update { state ->
             state.copy(
                 messages = state.messages.markAssistantDone(),
@@ -589,13 +590,11 @@ class ChatViewModel(
                 canRetry = true,
             ).also(::saveCurrentSession)
         }
-        preservingProductCardsForCurrentStream = false
-        preservingExistingProductCardsForCurrentStream = false
-        latestStreamProductCards = emptyList()
-        preStreamProductCards = emptyList()
+        clearCompletedStreamState()
     }
 
     private fun applyIncompleteStreamCompletion() {
+        flushAssistantText()
         _uiState.update { state ->
             if (!state.isSending) {
                 state
@@ -608,6 +607,24 @@ class ChatViewModel(
                 ).also(::saveCurrentSession)
             }
         }
+        clearCompletedStreamState()
+    }
+
+    private fun cancelActiveStreamState() {
+        streamJob?.cancel()
+        streamJob = null
+        assistantTextRevealer?.cancel()
+        assistantTextRevealer = null
+        clearStreamProductState()
+    }
+
+    private fun clearCompletedStreamState() {
+        assistantTextRevealer?.cancel()
+        assistantTextRevealer = null
+        clearStreamProductState()
+    }
+
+    private fun clearStreamProductState() {
         preservingProductCardsForCurrentStream = false
         preservingExistingProductCardsForCurrentStream = false
         latestStreamProductCards = emptyList()

@@ -25,9 +25,11 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Before
@@ -118,6 +120,160 @@ class ChatViewModelTest {
         assertEquals("product_001", state.productCards.single().id)
         assertEquals(state.messages.last().id, state.productCardsAnchorMessageId)
         assertEquals(null, state.errorMessage)
+    }
+
+    @Test
+    fun firstMessageDeltaShowsOnlyFirstCodePointsImmediatelyThenRevealsGradually() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+        val longAnswer = "一二三四五六七八九十，继续推荐适合通勤的耳机。"
+
+        viewModel.onComposerTextChange("推荐耳机")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        repository.events.emit(ChatStreamEvent.MessageDelta(longAnswer, 0))
+
+        assertEquals("一二三四", viewModel.uiState.value.messages.last().text)
+
+        advanceTimeBy(120)
+        runCurrent()
+
+        val partiallyRevealedText = viewModel.uiState.value.messages.last().text
+        assertTrue(partiallyRevealedText.length > "一二三四".length)
+        assertTrue(partiallyRevealedText.length < longAnswer.length)
+
+        advanceUntilIdle()
+
+        assertEquals(longAnswer, viewModel.uiState.value.messages.last().text)
+    }
+
+    @Test
+    fun productCardsFlushPendingAssistantTextBeforeAnchoringCards() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+        val answer = "好的，我会先完整说明这款商品，再展示商品卡。"
+
+        viewModel.onComposerTextChange("推荐耳机")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        repository.events.emit(ChatStreamEvent.MessageDelta(answer, 0))
+        assertEquals("好的，我", viewModel.uiState.value.messages.last().text)
+
+        repository.events.emit(ChatStreamEvent.ProductCards(listOf(productDto())))
+
+        val state = viewModel.uiState.value
+        assertEquals(answer, state.messages.last().text)
+        assertEquals(state.messages.last().id, state.productCardsAnchorMessageId)
+        assertEquals("product_001", state.productCards.single().id)
+    }
+
+    @Test
+    fun doneFlushesPendingAssistantTextAndMarksAssistantComplete() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+        val answer = "这是完整的最终回答，done 到达时不能留下半截文字。"
+
+        viewModel.onComposerTextChange("推荐耳机")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        repository.events.emit(ChatStreamEvent.MessageDelta(answer, 0))
+        assertEquals("这是完整", viewModel.uiState.value.messages.last().text)
+
+        repository.events.emit(
+            ChatStreamEvent.Done(
+                recommendedProductIds = emptyList(),
+                fallbackUsed = false,
+                fallbackReason = null,
+                retrieval = ChatRetrievalDto(candidateCount = 0),
+            ),
+        )
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isSending)
+        assertFalse(state.messages.last().isStreaming)
+        assertEquals(answer, state.messages.last().text)
+    }
+
+    @Test
+    fun errorEventFlushesPendingAssistantTextBeforeShowingRetry() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+        val answer = "已经收到的真实回答片段，即使后续错误也不能丢失。"
+
+        viewModel.onComposerTextChange("推荐耳机")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        repository.events.emit(ChatStreamEvent.MessageDelta(answer, 0))
+        assertEquals("已经收到", viewModel.uiState.value.messages.last().text)
+
+        repository.events.emit(
+            ChatStreamEvent.Error(
+                code = "CHAT_STREAM_CONNECTION_FAILED",
+                message = "failed",
+                retryable = true,
+            ),
+        )
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isSending)
+        assertTrue(state.canRetry)
+        assertEquals(answer, state.messages.last().text)
+    }
+
+    @Test
+    fun startNewChatCancelsOldRevealerBeforeNextConversation() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("第一轮")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+        repository.events.emit(ChatStreamEvent.MessageDelta("旧回答会很长很长，不应该继续吐到新气泡。", 0))
+        assertEquals("旧回答会", viewModel.uiState.value.messages.last().text)
+
+        viewModel.startNewChat()
+        viewModel.onComposerTextChange("第二轮")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+        advanceTimeBy(1000)
+        runCurrent()
+
+        val state = viewModel.uiState.value
+        assertEquals(2, state.messages.size)
+        assertEquals("第二轮", state.messages.first().text)
+        assertEquals("", state.messages.last().text)
+    }
+
+    @Test
+    fun typewriterKeepsEmojiCodePointIntact() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+        val answer = "耳机🙂很好用，续航也稳定。"
+
+        viewModel.onComposerTextChange("推荐耳机")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        repository.events.emit(ChatStreamEvent.MessageDelta(answer, 0))
+
+        val visibleText = viewModel.uiState.value.messages.last().text
+        assertEquals("耳机🙂很", visibleText)
+        assertFalse(visibleText.contains("\uFFFD"))
+
+        repository.events.emit(
+            ChatStreamEvent.Done(
+                recommendedProductIds = emptyList(),
+                fallbackUsed = false,
+                fallbackReason = null,
+                retrieval = ChatRetrievalDto(candidateCount = 0),
+            ),
+        )
+
+        assertEquals(answer, viewModel.uiState.value.messages.last().text)
     }
 
     @Test
