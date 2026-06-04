@@ -70,11 +70,11 @@ export class ComparisonGenerationOutputError extends Error {
   }
 }
 
-const COMPARISON_GENERATION_MAX_COMPLETION_TOKENS = 1800;
+const COMPARISON_GENERATION_MAX_COMPLETION_TOKENS = 1200;
 const COMPARISON_GENERATION_TIMEOUT_MS = 60_000;
 const COMPARISON_PRODUCT_COUNT = 2;
 const MAX_DIMENSIONS = 6;
-const MIN_DIMENSIONS = 3;
+const MIN_DIMENSIONS = 2;
 const MAX_HIGHLIGHTS = 4;
 const MAX_ANSWER_CHARS = 90;
 const MAX_TITLE_CHARS = 40;
@@ -82,7 +82,12 @@ const MAX_LABEL_CHARS = 32;
 const MAX_CELL_VALUE_CHARS = 90;
 const MAX_CONCLUSION_CHARS = 160;
 const MAX_HIGHLIGHT_TEXT_CHARS = 90;
-const MAX_PRODUCT_FACT_CHARS = 900;
+const MAX_PRODUCT_FACT_CHARS = 180;
+const MAX_PRODUCT_FACTS = 8;
+const MAX_PRODUCT_LIST_ITEMS = 4;
+const MAX_PRODUCT_ATTRIBUTE_KEYS = 6;
+const MAX_PRODUCT_ATTRIBUTE_VALUES = 4;
+const MAX_COMPARISON_HISTORY_MESSAGES = 2;
 
 export class ComparisonGenerationService {
   private readonly llmClient: LlmClient;
@@ -141,30 +146,25 @@ function buildComparisonGenerationPrompt(
     {
       role: "system",
       content: [
-        "你是 ShopMate 的商品对比结果生成器。",
-        "只能基于后端提供的库内商品事实、snippets 和字段生成对比。",
-        "不要引入库外商品，不要编造价格、库存、优惠、功效或成分。",
-        "answer 是聊天气泡里的简短中文回复，不超过 90 个中文字符。",
-        "只生成两款商品的对比；comparison.products 必须刚好包含 2 个商品。",
-        "comparison.products 的 product_id 必须来自输入 allowlist。",
-        "dimensions 生成 3 到 6 行；每个 dimension.cells 必须覆盖所有 comparison.products。",
-        "对比维度、每格内容、高亮和推荐结论都要围绕用户问题和关注点生成，不能使用固定品类模板。",
-        "每个 dimension 最多只能有一个 cell.highlight=true；只有当用户有明确优先需求且某一款在该维度明显更适合时才标 true。",
-        "如果用户没有明确需求，或两款在该维度各有优势/无法判断单一更优，两个 cell 都不要输出 highlight=true。",
-        "highlights 应尽量为两款商品各给一条基于事实的产品亮点；这不是“更优”标记。",
-        "recommended_product_id 可以为 null；没有明确优势时不要硬推荐。",
-        "conclusion 不超过 160 个中文字符。",
-        "不允许输出 markdown、表格字符串或解释文字；只输出 JSON object。",
+        "你是 ShopMate 的两款商品对比生成器。",
+        "只能基于输入 facts 生成；不得编造库外商品、价格、库存、优惠、功效或成分。",
+        "输出紧凑 JSON object，不要 markdown 或解释文字。",
+        "answer <=90 中文字符；title <=40；conclusion <=160。",
+        "comparison.products 必须刚好 2 个，product_id 只能来自 allowlistProductIds。",
+        "dimensions 生成 2-5 行，每行 cells 覆盖两款商品；每个 cell <=90 字。",
+        "维度、单元格、高亮和结论必须围绕用户问题，不能套固定品类模板。",
+        "每行最多一个 highlight=true；只有用户有明确优先需求且事实明显支持时才高亮。",
+        "recommended_product_id 没有明确优势时为 null。",
+        "highlights 是产品亮点，不代表更优；每款至多一条。",
       ].join("\n"),
     },
     {
       role: "user",
       content: JSON.stringify({
         message: input.question,
-        shortHistory: normalizeChatHistory(input.shortHistory ?? []),
+        shortHistory: normalizeComparisonHistory(input.shortHistory ?? []),
         contextMemory: summarizeContextMemory(input.contextMemory),
         userPriority: input.userPriority,
-        generatedAt: input.generatedAt.toISOString(),
         allowlistProductIds: input.products.map((context) => context.product.id),
         products: input.products.map(summarizeProductContext),
         schema: {
@@ -489,24 +489,32 @@ function summarizeProductContext(
     product_id: product.id,
     name: product.name,
     brand: product.brand,
-    category: product.category,
-    subCategory: product.subCategory,
-    priceCents: product.basePriceCents,
-    priceRangeCents: {
+    cat: product.category,
+    subCat: product.subCategory,
+    price: product.basePriceCents,
+    priceRange: {
       min: product.priceMinCents,
       max: product.priceMaxCents,
     },
-    currency: product.currency,
-    ratingAvg: product.ratingAvg,
-    marketingDescription: product.marketingDescription,
-    knowledgeText: truncateProductFact(product.knowledgeText),
-    attributes: product.attributes,
-    pros: product.pros,
-    cons: product.cons,
-    recommendWhen: product.recommendWhen,
-    avoidWhen: product.avoidWhen,
-    snippets: context.snippets,
+    cur: product.currency,
+    rating: product.ratingAvg,
+    tags: compactList(product.visualTags),
+    attrs: summarizeAttributes(product.attributes),
+    facts: compactList([
+      product.marketingDescription,
+      ...context.snippets,
+      ...prefixFacts("优点", product.pros),
+      ...prefixFacts("注意", product.cons),
+      ...prefixFacts("适合", product.recommendWhen),
+      ...prefixFacts("不适合", product.avoidWhen),
+    ], MAX_PRODUCT_FACTS),
   };
+}
+
+function normalizeComparisonHistory(
+  history: ChatHistoryMessage[],
+): ChatHistoryMessage[] {
+  return normalizeChatHistory(history).slice(-MAX_COMPARISON_HISTORY_MESSAGES);
 }
 
 function summarizeContextMemory(
@@ -523,8 +531,58 @@ function summarizeContextMemory(
   };
 }
 
+function summarizeAttributes(
+  attributes: Product["attributes"],
+): Record<string, string[]> {
+  const summarized: Record<string, string[]> = {};
+
+  for (const [key, values] of Object.entries(attributes)) {
+    if (Object.keys(summarized).length >= MAX_PRODUCT_ATTRIBUTE_KEYS) {
+      break;
+    }
+
+    const compactValues = compactList(values, MAX_PRODUCT_ATTRIBUTE_VALUES);
+    if (compactValues.length > 0) {
+      summarized[key] = compactValues;
+    }
+  }
+
+  return summarized;
+}
+
+function prefixFacts(prefix: string, values: string[]): string[] {
+  return compactList(values).map((value) => `${prefix}:${value}`);
+}
+
+function compactList(
+  values: string[],
+  maxItems: number = MAX_PRODUCT_LIST_ITEMS,
+): string[] {
+  const seen = new Set<string>();
+  const compacted: string[] = [];
+
+  for (const value of values) {
+    const compactedValue = truncateProductFact(value);
+
+    if (!compactedValue || seen.has(compactedValue)) {
+      continue;
+    }
+
+    seen.add(compactedValue);
+    compacted.push(compactedValue);
+
+    if (compacted.length >= maxItems) {
+      break;
+    }
+  }
+
+  return compacted;
+}
+
 function truncateProductFact(value: string): string {
-  return Array.from(value).slice(0, MAX_PRODUCT_FACT_CHARS).join("");
+  const normalized = value.replace(/\s+/gu, " ").trim();
+
+  return Array.from(normalized).slice(0, MAX_PRODUCT_FACT_CHARS).join("");
 }
 
 function parseOptionalString(value: unknown): string | undefined {

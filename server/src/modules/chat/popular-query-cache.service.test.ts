@@ -202,6 +202,8 @@ describe("PopularQueryCacheService", () => {
           rewrittenQuery: "真无线耳机 更便宜",
           queryRewriteStatus: "rewritten",
           queryRewriteReason: "短追问补全检索目标",
+          retrievalStrategy: "original_query",
+          queryRewriteTimedOut: true,
           candidateCount: 2,
           returnedProductIds: ["product_001"],
         },
@@ -239,10 +241,12 @@ describe("PopularQueryCacheService", () => {
         rewrittenQuery: "真无线耳机 更便宜",
         queryRewriteStatus: "rewritten",
         queryRewriteReason: "短追问补全检索目标",
+        retrievalStrategy: "cache",
         candidateCount: 2,
         returnedProductIds: ["product_001"],
       },
     });
+    expect(result.retrieval).not.toHaveProperty("queryRewriteTimedOut");
     expect(result.productCards).toHaveLength(1);
   });
 });

@@ -57,7 +57,91 @@ describe("parseComparisonGenerationOutput", () => {
     });
 
     expect(request?.timeoutMs).toBe(60_000);
-    expect(request?.maxCompletionTokens).toBe(1800);
+    expect(request?.maxCompletionTokens).toBe(1200);
+  });
+
+  it("sends compact comparison facts instead of full product knowledge payloads", async () => {
+    let request: LlmGenerateRequest | undefined;
+    const service = new ComparisonGenerationService({
+      llmClient: {
+        generate: async (input) => {
+          request = input;
+          return {
+            text: JSON.stringify({
+              answer: "我按核心差异做了对比。",
+              comparison: {
+                title: "防晒霜对比",
+                products: [
+                  { product_id: "product_001", display_label: "Product 1" },
+                  { product_id: "product_002", display_label: "Product 2" },
+                ],
+                dimensions: createValidComparisonDimensions(
+                  {
+                    id: "skin_feel",
+                    label: "肤感",
+                    cells: [
+                      { product_id: "product_001", value: "轻薄。" },
+                      { product_id: "product_002", value: "清爽。" },
+                    ],
+                  },
+                ),
+                recommended_product_id: null,
+                conclusion: "两款各有侧重。",
+                highlights: [],
+              },
+            }),
+            model: "mock",
+            provider: "mock",
+            finishReason: "stop",
+            latencyMs: 0,
+          };
+        },
+      },
+    });
+    const longKnowledgeText = "FULL_KNOWLEDGE_TEXT_SHOULD_NOT_BE_SENT ".repeat(40);
+
+    await service.generate({
+      question: "帮我对比这两款",
+      shortHistory: [
+        { role: "user", content: "第一轮历史" },
+        { role: "assistant", content: "第二轮历史" },
+        { role: "user", content: "第三轮历史" },
+      ],
+      products: [
+        {
+          product: createProduct("product_001", {
+            knowledgeText: longKnowledgeText,
+            attributes: {
+              skin_type: ["oily", "dry", "sensitive", "normal", "combo"],
+              finish: ["matte"],
+              region: ["commute"],
+              season: ["summer"],
+              extra_1: ["a"],
+              extra_2: ["b"],
+              extra_3: ["c"],
+            },
+          }),
+          snippets: [" ".repeat(4) + "轻薄通勤事实 ".repeat(30)],
+        },
+        { product: createProduct("product_002"), snippets: ["清爽"] },
+      ],
+      generatedAt: new Date("2026-05-31T00:00:00.000Z"),
+    });
+
+    const userPayload = JSON.parse(request?.messages[1]?.content ?? "{}") as {
+      shortHistory?: unknown[];
+      products?: Array<Record<string, unknown>>;
+    };
+    const promptText = request?.messages.map((message) => message.content).join("\n")
+      ?? "";
+
+    expect(promptText).not.toContain("FULL_KNOWLEDGE_TEXT_SHOULD_NOT_BE_SENT");
+    expect(userPayload.shortHistory).toHaveLength(2);
+    expect(userPayload.products?.[0]).toMatchObject({
+      product_id: "product_001",
+      facts: expect.arrayContaining([expect.stringContaining("轻薄通勤事实")]),
+    });
+    expect(Object.keys(userPayload.products?.[0]?.attrs ?? {})).toHaveLength(6);
   });
 
   it("clears dimension highlights when the user has no explicit priority", async () => {
@@ -200,7 +284,46 @@ describe("parseComparisonGenerationOutput", () => {
     ).toThrow(ComparisonGenerationOutputError);
   });
 
-  it("rejects comparison output with fewer than three complete dimensions", () => {
+  it("accepts two complete dimensions for concise comparison output", () => {
+    const result = parseComparisonGenerationOutput(
+      JSON.stringify({
+        answer: "我做了对比。",
+        comparison: {
+          title: "防晒霜对比",
+          products: [
+            { product_id: "product_001", display_label: "理肤泉" },
+            { product_id: "product_002", display_label: "安热沙" },
+          ],
+          dimensions: [
+            {
+              id: "skin_feel",
+              label: "肤感",
+              cells: [
+                { product_id: "product_001", value: "更轻薄。" },
+                { product_id: "product_002", value: "更清爽。" },
+              ],
+            },
+            {
+              id: "price",
+              label: "价格",
+              cells: [
+                { product_id: "product_001", value: "价格更低。" },
+                { product_id: "product_002", value: "价格更高。" },
+              ],
+            },
+          ],
+          recommended_product_id: null,
+          conclusion: "两款都有清晰差异，可按肤感和预算选择。",
+          highlights: [],
+        },
+      }),
+      ["product_001", "product_002"],
+    );
+
+    expect(result.dimensions).toHaveLength(2);
+  });
+
+  it("rejects comparison output with fewer than two complete dimensions", () => {
     expect(() =>
       parseComparisonGenerationOutput(
         JSON.stringify({
@@ -218,14 +341,6 @@ describe("parseComparisonGenerationOutput", () => {
                 cells: [
                   { product_id: "product_001", value: "更轻薄。" },
                   { product_id: "product_002", value: "更清爽。" },
-                ],
-              },
-              {
-                id: "price",
-                label: "价格",
-                cells: [
-                  { product_id: "product_001", value: "价格更低。" },
-                  { product_id: "product_002", value: "价格更高。" },
                 ],
               },
             ],
@@ -337,7 +452,7 @@ describe("parseComparisonGenerationOutput", () => {
   });
 });
 
-function createProduct(id: string): Product {
+function createProduct(id: string, overrides: Partial<Product> = {}): Product {
   return {
     id,
     status: "active",
@@ -375,6 +490,7 @@ function createProduct(id: string): Product {
     ingestBatchId: "test",
     sourcePath: "test",
     skus: [],
+    ...overrides,
   };
 }
 

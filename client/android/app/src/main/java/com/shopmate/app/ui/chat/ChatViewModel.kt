@@ -722,6 +722,10 @@ private fun isComparisonFollowUpMessage(message: String): Boolean {
         "第?[一二两三四五六七八九十0-9]{1,3}(个|款)?(和|跟|与|及|、|,|，|和第|跟第|与第|及第)" +
             "第?[一二两三四五六七八九十0-9]{1,3}(个|款)?",
     )
+    val recentPairReferencePattern = Regex(
+        "((前|前面|上面|刚才|刚刚|刚推荐|刚才推荐|刚刚推荐)(的|那|这)?" +
+            "[两二2](个|款|件|种|台|支|瓶)?|(这|那)[俩两二2](个|款|件|种|台|支|瓶)?)",
+    )
     val hasComparisonCue = listOf("对比", "比较", "哪个更", "哪款更", "怎么选", "差异", "区别")
         .any(normalized::contains)
     val hasRecentComparisonTarget = listOf(
@@ -738,7 +742,7 @@ private fun isComparisonFollowUpMessage(message: String): Boolean {
         "2和3",
         "一和二",
         "二和三",
-    ).any(normalized::contains)
+    ).any(normalized::contains) || recentPairReferencePattern.containsMatchIn(normalized)
 
     return hasComparisonCue && (hasRecentComparisonTarget || ordinalPairPattern.containsMatchIn(normalized))
 }

@@ -18,7 +18,8 @@ export type QueryRewriteFallbackReason =
   | "LLM_INVALID_OUTPUT"
   | "LOW_CONFIDENCE"
   | "EMPTY_QUERY"
-  | "UNSAFE_QUERY";
+  | "UNSAFE_QUERY"
+  | "TIMEOUT";
 
 export interface QueryRewriteInput {
   question: string;

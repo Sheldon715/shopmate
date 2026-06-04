@@ -188,6 +188,11 @@ type ComparisonTargetResolution =
       candidateCount?: number;
     };
 
+interface ComparisonRecentProductsPrefetch {
+  productIds: string[];
+  productsPromise: Promise<Product[] | undefined>;
+}
+
 interface RagAnswerExecutionOptions {
   streamWriter?: ChatStreamWriter;
   messageDeltasWritten?: boolean;
@@ -198,11 +203,67 @@ interface RagLlmGenerationResult {
   messageDeltasWritten: boolean;
 }
 
+type RetrievalStrategy = NonNullable<
+  RagChatResult["retrieval"]["retrievalStrategy"]
+>;
+
+interface RetrievalSelectionMetadata {
+  retrievalStrategy: RetrievalStrategy;
+  queryRewriteTimedOut?: boolean;
+}
+
+type RetrievalPipelineResult =
+  | {
+      status: "cache_hit";
+      result: RagChatResult;
+    }
+  | {
+      status: "search";
+      cacheInput: PopularQueryCacheReadInput;
+      queryRewrite: QueryRewriteResult;
+      candidates: RetrievedProductCandidate[];
+      metadata: RetrievalSelectionMetadata;
+      cacheable?: boolean;
+    }
+  | {
+      status: "fallback";
+      queryRewrite: QueryRewriteResult;
+      candidates: [];
+      metadata: RetrievalSelectionMetadata;
+      cacheable: false;
+    };
+
+type RetrievalSearchResult =
+  | {
+      status: "cache_hit";
+      result: RagChatResult;
+      cacheInput: PopularQueryCacheReadInput;
+      queryRewrite: QueryRewriteResult;
+      candidates: [];
+      metadata: RetrievalSelectionMetadata;
+    }
+  | {
+      status: "search";
+      cacheInput: PopularQueryCacheReadInput;
+      queryRewrite: QueryRewriteResult;
+      candidates: RetrievedProductCandidate[];
+      metadata: RetrievalSelectionMetadata;
+      cacheable?: boolean;
+    };
+
+interface RetrievalSearchErrorResult {
+  status: "error";
+  queryRewrite: QueryRewriteResult;
+  metadata: RetrievalSelectionMetadata;
+  error: unknown;
+}
+
 const DEFAULT_MAX_RECOMMENDED_PRODUCTS = 3;
 const DEFAULT_MAX_SNIPPETS_PER_PRODUCT = 2;
 const DEFAULT_NEGATIVE_CONSTRAINT_TOP_K = 20;
 const RAG_LLM_MAX_COMPLETION_TOKENS = 320;
 const QUERY_REWRITE_VERSION = "query-rewrite-v1";
+const QUERY_REWRITE_FIRST_TOKEN_TIMEOUT_MS = 900;
 const MAX_CHAT_ANSWER_CHARS = 72;
 const CART_ACTIVE_PRODUCT_LOOKUP_LIMIT = 8;
 const COMPARISON_ACTIVE_PRODUCT_LOOKUP_LIMIT = 4;
@@ -402,13 +463,21 @@ export class RagChatService {
       );
     }
 
+    const recentProductIds =
+      memoryResolution.contextMemory?.lastRecommendedProductIds ?? [];
+    const comparisonRecentProductsPrefetch =
+      this.prefetchRecentComparisonProducts({
+        question,
+        recentProductIds,
+        abortSignal: input.abortSignal,
+        timing: input.timing,
+      });
     const comparisonIntent = await this.comparisonIntentService.detect({
       question,
       shortHistory: input.shortHistory,
       contextMemory: memoryResolution.contextMemory,
       filters: memoryResolution.filters,
-      recentProductIds:
-        memoryResolution.contextMemory?.lastRecommendedProductIds ?? [],
+      recentProductIds,
       requestId: input.requestId,
       abortSignal: input.abortSignal,
     });
@@ -425,7 +494,9 @@ export class RagChatService {
           filters: memoryResolution.filters,
           requestId: input.requestId,
           abortSignal: input.abortSignal,
+          timing: input.timing,
         },
+        comparisonRecentProductsPrefetch,
       );
 
       return this.withContextMemory(
@@ -470,69 +541,31 @@ export class RagChatService {
     }
 
     const negativeConstraints = memoryResolution.negativeConstraints ?? [];
-    const queryRewrite = await this.queryRewriteService.rewrite({
+    const retrieval = await this.runRetrievalPipeline({
       question,
-      baseRetrievalQuery: memoryResolution.retrievalQuery,
-      shortHistory: input.shortHistory,
-      contextMemory: memoryResolution.contextMemory,
-      filters: memoryResolution.filters,
-      negativeConstraints,
-      requestId: input.requestId,
-      abortSignal: input.abortSignal,
-    });
-    throwIfAborted(input.abortSignal);
-    input.timing?.mark("query_rewrite_done");
-    const cacheInput = await this.popularQueryCacheCoordinator.createInput({
-      question,
-      retrievalQuery: queryRewrite.query,
-      queryRewriteVersion: QUERY_REWRITE_VERSION,
       request: input,
       memoryResolution,
       maxRecommendedProducts,
+      negativeConstraints,
     });
-    const cacheHit = await this.popularQueryCacheCoordinator.read(cacheInput);
-    throwIfAborted(input.abortSignal);
-    input.timing?.mark("cache_read_done");
 
-    if (cacheHit) {
-      const cacheHitProducts = orderProductsByIds(
-        await this.productReader.findActiveByIds(cacheHit.recommendedProductIds),
-        cacheHit.recommendedProductIds,
-      );
-
-      if (cacheHitProducts.length === cacheHit.recommendedProductIds.length) {
-        return this.withContextMemory(
-          memoryResolution,
-          createCacheHitResult(
-            cacheHit,
-            cacheHitProducts,
-            cacheHitProducts.map((product) =>
-              mapProductToCardDto(product, {
-                publicImageBaseUrl: this.publicImageBaseUrl,
-              })
-            ),
-          ),
-        );
-      }
-
-      await this.popularQueryCacheCoordinator.delete(cacheInput);
+    if (retrieval.status === "cache_hit") {
+      input.timing?.mark("retrieval_plan_selected");
+      return this.withContextMemory(memoryResolution, retrieval.result);
     }
 
-    const hits = await this.vectorSearch.search({
-      query: queryRewrite.query,
-      filters: memoryResolution.filters,
-      topK: resolveVectorSearchTopK(input.topK, negativeConstraints),
-      abortSignal: input.abortSignal,
-    });
-    throwIfAborted(input.abortSignal);
-    input.timing?.mark("vector_search_done");
-    const candidates = dedupeVectorHits(hits, this.maxSnippetsPerProduct);
+    const { queryRewrite, candidates, metadata } = retrieval;
+    input.timing?.mark("retrieval_plan_selected");
 
-    if (candidates.length === 0) {
+    if (retrieval.status === "fallback" || candidates.length === 0) {
       return this.answerNoCandidates({
-        cacheInput,
+        cacheInput: retrieval.status === "search"
+          ? retrieval.cacheInput
+          : undefined,
         memoryResolution,
         queryRewrite,
+        retrievalMetadata: metadata,
+        cacheable: retrieval.cacheable,
         question,
         request: input,
       });
@@ -549,9 +582,11 @@ export class RagChatService {
 
     if (contexts.length === 0) {
       return this.answerNoCandidates({
-        cacheInput,
+        cacheInput: retrieval.cacheInput,
         memoryResolution,
         queryRewrite,
+        retrievalMetadata: metadata,
+        cacheable: retrieval.cacheable,
         question,
         request: input,
       });
@@ -562,6 +597,7 @@ export class RagChatService {
         contexts,
         maxRecommendedProducts,
       );
+      input.timing?.mark("grounded_llm_started");
       const generation = await this.generateRagLlmOutput(
         {
           messages: buildRagPrompt({
@@ -592,7 +628,7 @@ export class RagChatService {
 
       if (recommendedProductIds.length === 0) {
         return this.popularQueryCacheCoordinator.write(
-          cacheInput,
+          retrieval.cacheInput,
           this.withContextMemory(
             memoryResolution,
             createRetrievedFallbackResult(
@@ -600,6 +636,7 @@ export class RagChatService {
               maxRecommendedProducts,
               "NO_VALID_PRODUCT_IDS",
               queryRewrite,
+              metadata,
               this.publicImageBaseUrl,
             ),
           ),
@@ -607,7 +644,7 @@ export class RagChatService {
       }
 
       return this.popularQueryCacheCoordinator.write(
-        cacheInput,
+        retrieval.cacheInput,
         this.withContextMemory(
           memoryResolution,
           createSuccessResult(
@@ -615,6 +652,7 @@ export class RagChatService {
             recommendedProductIds,
             contexts,
             queryRewrite,
+            metadata,
             this.publicImageBaseUrl,
           ),
         ),
@@ -622,7 +660,7 @@ export class RagChatService {
     } catch (error) {
       rethrowIfAborted(input.abortSignal, error);
       return this.popularQueryCacheCoordinator.write(
-        cacheInput,
+        retrieval.cacheInput,
         this.withContextMemory(
           memoryResolution,
           createRetrievedFallbackResult(
@@ -632,6 +670,7 @@ export class RagChatService {
               ? "LLM_INVALID_OUTPUT"
               : "LLM_ERROR",
             queryRewrite,
+            metadata,
             this.publicImageBaseUrl,
           ),
         ),
@@ -640,9 +679,11 @@ export class RagChatService {
   }
 
   private async answerNoCandidates(input: {
-    cacheInput: PopularQueryCacheReadInput;
+    cacheInput?: PopularQueryCacheReadInput;
     memoryResolution: ReturnType<ChatContextMemoryService["resolve"]>;
     queryRewrite: QueryRewriteResult;
+    retrievalMetadata?: RetrievalSelectionMetadata;
+    cacheable?: boolean;
     question: string;
     request: Pick<RagChatRequest, "requestId" | "abortSignal">;
   }): Promise<RagChatResult> {
@@ -657,12 +698,343 @@ export class RagChatService {
     throwIfAborted(input.request.abortSignal);
     const result = this.withContextMemory(
       input.memoryResolution,
-      createNoCandidatesResult(noCandidatesResponse.answer, input.queryRewrite),
+      createNoCandidatesResult(
+        noCandidatesResponse.answer,
+        input.queryRewrite,
+        input.retrievalMetadata,
+      ),
     );
 
     return noCandidatesResponse.generatedByLlm
+        && input.cacheable !== false
+        && input.cacheInput
       ? this.popularQueryCacheCoordinator.write(input.cacheInput, result)
       : result;
+  }
+
+  private async runRetrievalPipeline(input: {
+    question: string;
+    request: RagChatRequest;
+    memoryResolution: ReturnType<ChatContextMemoryService["resolve"]>;
+    maxRecommendedProducts: number;
+    negativeConstraints: readonly NegativeConstraint[];
+  }): Promise<RetrievalPipelineResult> {
+    const baseQuery = input.memoryResolution.retrievalQuery.trim();
+    const originalQueryRewrite = createOriginalQueryRewrite(baseQuery);
+    const originalSearchTask = this.runRetrievalSearch({
+      question: input.question,
+      request: input.request,
+      memoryResolution: input.memoryResolution,
+      maxRecommendedProducts: input.maxRecommendedProducts,
+      negativeConstraints: [...input.negativeConstraints],
+      queryRewrite: originalQueryRewrite,
+      metadata: { retrievalStrategy: "original_query" },
+      queryRewriteVersion: undefined,
+      startedMarkName: "original_search_started",
+      doneMarkName: "original_search_done",
+    });
+    void originalSearchTask.catch(() => {
+      // Late aborts are handled when the selected retrieval path is awaited.
+    });
+    const rewriteOutcomeTask = this.raceQueryRewriteWithTimeout({
+      question: input.question,
+      request: input.request,
+      memoryResolution: input.memoryResolution,
+      negativeConstraints: [...input.negativeConstraints],
+      baseQuery,
+    });
+    const originalFirstTask = originalSearchTask.then(
+      (result) => ({
+        kind: "original" as const,
+        result,
+      }),
+      (error) => ({
+        kind: "original" as const,
+        result: {
+          status: "error" as const,
+          queryRewrite: originalQueryRewrite,
+          metadata: { retrievalStrategy: "original_query" as const },
+          error,
+        },
+      }),
+    );
+    const firstDone = await Promise.race([
+      originalFirstTask,
+      rewriteOutcomeTask,
+    ]);
+
+    let originalResult:
+      | RetrievalSearchResult
+      | RetrievalSearchErrorResult
+      | undefined;
+    let rewriteOutcome:
+      | Awaited<ReturnType<RagChatService["raceQueryRewriteWithTimeout"]>>
+      | undefined;
+
+    if (firstDone.kind === "original") {
+      originalResult = firstDone.result;
+      throwIfAborted(input.request.abortSignal);
+
+      if (originalResult.status === "cache_hit") {
+        return {
+          status: "cache_hit",
+          result: originalResult.result,
+        };
+      }
+
+      rewriteOutcome = await rewriteOutcomeTask;
+    } else {
+      rewriteOutcome = firstDone;
+    }
+
+    throwIfAborted(input.request.abortSignal);
+
+    if (rewriteOutcome.status === "timeout") {
+      const selectedOriginal = originalResult ?? await originalSearchTask;
+      return this.toRetrievalPipelineResult(
+        selectedOriginal,
+        createTimeoutQueryRewrite(baseQuery),
+        {
+          retrievalStrategy: "original_query",
+          queryRewriteTimedOut: true,
+        },
+      );
+    }
+
+    if (rewriteOutcome.status === "error") {
+      const selectedOriginal = originalResult ?? await originalSearchTask;
+      return this.toRetrievalPipelineResult(
+        selectedOriginal,
+        createFallbackQueryRewrite(baseQuery),
+        { retrievalStrategy: "original_query" },
+      );
+    }
+
+    const queryRewrite = rewriteOutcome.queryRewrite;
+
+    if (queryRewrite.status !== "rewritten" || queryRewrite.query === baseQuery) {
+      const selectedOriginal = originalResult ?? await originalSearchTask;
+      return this.toRetrievalPipelineResult(
+        selectedOriginal,
+        queryRewrite,
+        { retrievalStrategy: "original_query" },
+      );
+    }
+
+    const rewriteResult = await this.runRetrievalSearch({
+      question: input.question,
+      request: input.request,
+      memoryResolution: input.memoryResolution,
+      maxRecommendedProducts: input.maxRecommendedProducts,
+      negativeConstraints: [...input.negativeConstraints],
+      queryRewrite,
+      metadata: { retrievalStrategy: "rewritten_query" },
+      queryRewriteVersion: QUERY_REWRITE_VERSION,
+      startedMarkName: "rewrite_search_started",
+      doneMarkName: "rewrite_search_done",
+    });
+    throwIfAborted(input.request.abortSignal);
+
+    if (
+      rewriteResult.status === "cache_hit"
+      || (rewriteResult.status === "search" && rewriteResult.candidates.length > 0)
+    ) {
+      return this.toRetrievalPipelineResult(
+        rewriteResult,
+        queryRewrite,
+        { retrievalStrategy: "rewritten_query" },
+      );
+    }
+
+    const selectedOriginal = originalResult ?? await originalSearchTask;
+    return this.toRetrievalPipelineResult(
+      selectedOriginal,
+      queryRewrite,
+      { retrievalStrategy: "original_query" },
+    );
+  }
+
+  private async runRetrievalSearch(input: {
+    question: string;
+    request: RagChatRequest;
+    memoryResolution: ReturnType<ChatContextMemoryService["resolve"]>;
+    maxRecommendedProducts: number;
+    negativeConstraints: readonly NegativeConstraint[];
+    queryRewrite: QueryRewriteResult;
+    metadata: RetrievalSelectionMetadata;
+    queryRewriteVersion?: string;
+    startedMarkName: "original_search_started" | "rewrite_search_started";
+    doneMarkName: "original_search_done" | "rewrite_search_done";
+  }): Promise<RetrievalSearchResult | RetrievalSearchErrorResult> {
+    try {
+      input.request.timing?.mark(input.startedMarkName);
+      const cacheInput = await this.popularQueryCacheCoordinator.createInput({
+        question: input.question,
+        retrievalQuery: input.queryRewrite.query,
+        queryRewriteVersion: input.queryRewriteVersion,
+        request: input.request,
+        memoryResolution: input.memoryResolution,
+        maxRecommendedProducts: input.maxRecommendedProducts,
+      });
+      const cacheHit = await this.popularQueryCacheCoordinator.read(cacheInput);
+      throwIfAborted(input.request.abortSignal);
+      input.request.timing?.mark("cache_read_done");
+
+      if (cacheHit) {
+        const cacheHitProducts = orderProductsByIds(
+          await this.productReader.findActiveByIds(cacheHit.recommendedProductIds),
+          cacheHit.recommendedProductIds,
+        );
+        throwIfAborted(input.request.abortSignal);
+
+        if (cacheHitProducts.length === cacheHit.recommendedProductIds.length) {
+          input.request.timing?.mark(input.doneMarkName);
+          return {
+            status: "cache_hit",
+            result: createCacheHitResult(
+              cacheHit,
+              cacheHitProducts,
+              cacheHitProducts.map((product) =>
+                mapProductToCardDto(product, {
+                  publicImageBaseUrl: this.publicImageBaseUrl,
+                })
+              ),
+            ),
+            cacheInput,
+            queryRewrite: input.queryRewrite,
+            candidates: [],
+            metadata: { retrievalStrategy: "cache" },
+          };
+        }
+
+        await this.popularQueryCacheCoordinator.delete(cacheInput);
+      }
+
+      const hits = await this.vectorSearch.search({
+        query: input.queryRewrite.query,
+        filters: input.memoryResolution.filters,
+        topK: resolveVectorSearchTopK(
+          input.request.topK,
+          input.negativeConstraints,
+        ),
+        abortSignal: input.request.abortSignal,
+      });
+      throwIfAborted(input.request.abortSignal);
+      input.request.timing?.mark(input.doneMarkName);
+      input.request.timing?.mark("vector_search_done");
+
+      return {
+        status: "search",
+        cacheInput,
+        queryRewrite: input.queryRewrite,
+        candidates: dedupeVectorHits(hits, this.maxSnippetsPerProduct),
+        metadata: input.metadata,
+      };
+    } catch (error) {
+      rethrowIfAborted(input.request.abortSignal, error);
+
+      return {
+        status: "error",
+        queryRewrite: input.queryRewrite,
+        metadata: input.metadata,
+        error,
+      };
+    }
+  }
+
+  private async raceQueryRewriteWithTimeout(input: {
+    question: string;
+    request: RagChatRequest;
+    memoryResolution: ReturnType<ChatContextMemoryService["resolve"]>;
+    negativeConstraints: readonly NegativeConstraint[];
+    baseQuery: string;
+  }): Promise<
+    | { kind: "rewrite"; status: "done"; queryRewrite: QueryRewriteResult }
+    | { kind: "rewrite"; status: "error"; error: unknown }
+    | { kind: "rewrite"; status: "timeout" }
+  > {
+    input.request.timing?.mark("query_rewrite_started");
+    let rewriteSettled = false;
+    const rewriteTask = this.queryRewriteService.rewrite({
+      question: input.question,
+      baseRetrievalQuery: input.memoryResolution.retrievalQuery,
+      shortHistory: input.request.shortHistory,
+      contextMemory: input.memoryResolution.contextMemory,
+      filters: input.memoryResolution.filters,
+      negativeConstraints: [...input.negativeConstraints],
+      requestId: input.request.requestId,
+      abortSignal: input.request.abortSignal,
+    })
+      .then((queryRewrite) => {
+        rewriteSettled = true;
+        input.request.timing?.mark("query_rewrite_done");
+        return {
+          kind: "rewrite" as const,
+          status: "done" as const,
+          queryRewrite,
+        };
+      })
+      .catch((error) => {
+        rewriteSettled = true;
+        input.request.timing?.mark("query_rewrite_done");
+        return {
+          kind: "rewrite" as const,
+          status: "error" as const,
+          error,
+        };
+      });
+    const timeoutTask = delay(QUERY_REWRITE_FIRST_TOKEN_TIMEOUT_MS)
+      .then(() => {
+        if (!rewriteSettled) {
+          input.request.timing?.mark("query_rewrite_timeout");
+        }
+
+        return {
+          kind: "rewrite" as const,
+          status: "timeout" as const,
+        };
+      });
+
+    return Promise.race([rewriteTask, timeoutTask]);
+  }
+
+  private toRetrievalPipelineResult(
+    result: RetrievalSearchResult | RetrievalSearchErrorResult,
+    queryRewrite: QueryRewriteResult,
+    metadata: RetrievalSelectionMetadata,
+  ): RetrievalPipelineResult {
+    if (result.status === "cache_hit" && result.result) {
+      return {
+        status: "cache_hit",
+        result: result.result,
+      };
+    }
+
+    if (result.status === "search") {
+      return {
+        status: "search",
+        cacheInput: result.cacheInput,
+        queryRewrite,
+        candidates: result.candidates,
+        metadata: {
+          ...metadata,
+          queryRewriteTimedOut:
+            metadata.queryRewriteTimedOut ?? result.metadata.queryRewriteTimedOut,
+        },
+        cacheable: result.cacheable,
+      };
+    }
+
+    return {
+      status: "fallback",
+      queryRewrite,
+      candidates: [],
+      metadata: {
+        ...metadata,
+        retrievalStrategy: "fallback",
+      },
+      cacheable: false,
+    };
   }
 
   private async generateRagLlmOutput(
@@ -780,8 +1152,14 @@ export class RagChatService {
     memoryResolution: ReturnType<ChatContextMemoryService["resolve"]>,
     request: Pick<
       RagChatRequest,
-      "question" | "shortHistory" | "filters" | "requestId" | "abortSignal"
+      | "question"
+      | "shortHistory"
+      | "filters"
+      | "requestId"
+      | "abortSignal"
+      | "timing"
     >,
+    recentProductsPrefetch?: ComparisonRecentProductsPrefetch,
   ): Promise<RagChatResult> {
     if (intent.needsClarification && intent.clarificationQuestion?.trim()) {
       return createComparisonClarificationResult({
@@ -791,12 +1169,15 @@ export class RagChatService {
       });
     }
 
+    request.timing?.mark("comparison_targets_started");
     const targetResolution = await this.resolveComparisonTargets(
       intent,
       memoryResolution,
       request,
+      recentProductsPrefetch,
     );
     throwIfAborted(request.abortSignal);
+    request.timing?.mark("comparison_targets_done");
 
     if (targetResolution.status === "needs_clarification") {
       const clarificationQuestion =
@@ -834,6 +1215,7 @@ export class RagChatService {
     };
 
     try {
+      request.timing?.mark("comparison_generation_started");
       const generated = await this.comparisonGenerationService.generate({
         question: request.question,
         shortHistory: request.shortHistory,
@@ -845,6 +1227,7 @@ export class RagChatService {
         abortSignal: request.abortSignal,
       });
       throwIfAborted(request.abortSignal);
+      request.timing?.mark("comparison_generation_done");
 
       return createComparisonSuccessResult({
         generated,
@@ -854,6 +1237,7 @@ export class RagChatService {
       });
     } catch (error) {
       rethrowIfAborted(request.abortSignal, error);
+      request.timing?.mark("comparison_generation_done");
       return {
         answer: error instanceof ComparisonGenerationOutputError
           ? createMinimalRagFallbackAnswer("LLM_INVALID_OUTPUT")
@@ -876,6 +1260,7 @@ export class RagChatService {
       RagChatRequest,
       "question" | "filters" | "abortSignal"
     >,
+    recentProductsPrefetch?: ComparisonRecentProductsPrefetch,
   ): Promise<ComparisonTargetResolution> {
     const negativeConstraints = memoryResolution.negativeConstraints ?? [];
 
@@ -886,6 +1271,7 @@ export class RagChatService {
           memoryResolution.contextMemory?.lastRecommendedProductIds ?? [],
           negativeConstraints,
           request.abortSignal,
+          recentProductsPrefetch,
         );
       case "names":
         return this.resolveNamedComparisonTargets(
@@ -907,8 +1293,48 @@ export class RagChatService {
           memoryResolution.contextMemory?.lastRecommendedProductIds ?? [],
           negativeConstraints,
           request.abortSignal,
+          recentProductsPrefetch,
         );
     }
+  }
+
+  private prefetchRecentComparisonProducts(input: {
+    question: string;
+    recentProductIds: string[];
+    abortSignal?: AbortSignal;
+    timing?: RagChatRequest["timing"];
+  }): ComparisonRecentProductsPrefetch | undefined {
+    const productIds = uniqueNonEmptyIds(input.recentProductIds).slice(
+      0,
+      COMPARISON_ACTIVE_PRODUCT_LOOKUP_LIMIT,
+    );
+
+    if (
+      productIds.length < COMPARISON_PRODUCT_COUNT
+      || !hasComparisonPrefetchCue(input.question)
+    ) {
+      return undefined;
+    }
+
+    input.timing?.mark("comparison_prefetch_started");
+    const productsPromise = this.productReader.findActiveByIds(productIds)
+      .then((products) => {
+        input.timing?.mark("comparison_prefetch_done");
+        return orderProductsByIds(products, productIds);
+      })
+      .catch((error) => {
+        rethrowIfAborted(input.abortSignal, error);
+        input.timing?.mark("comparison_prefetch_done");
+        return undefined;
+      });
+    void productsPromise.catch(() => {
+      // The request path will surface aborts if it needs the prefetched result.
+    });
+
+    return {
+      productIds,
+      productsPromise,
+    };
   }
 
   private async resolveRecentComparisonTargets(
@@ -916,6 +1342,7 @@ export class RagChatService {
     recentProductIds: string[],
     negativeConstraints: readonly NegativeConstraint[],
     abortSignal?: AbortSignal,
+    recentProductsPrefetch?: ComparisonRecentProductsPrefetch,
   ): Promise<ComparisonTargetResolution> {
     if (intent.target.ordinals.length > COMPARISON_PRODUCT_COUNT) {
       return {
@@ -954,11 +1381,11 @@ export class RagChatService {
       };
     }
 
-    const products = orderProductsByIds(
-      await this.productReader.findActiveByIds(uniqueSelectedIds),
+    const products = await this.readComparisonProductsByIds(
       uniqueSelectedIds,
+      recentProductsPrefetch,
+      abortSignal,
     );
-    throwIfAborted(abortSignal);
     const contexts = filterContextsByNegativeConstraints(
       createComparisonContextsFromProducts(products),
       negativeConstraints,
@@ -983,7 +1410,9 @@ export class RagChatService {
     negativeConstraints: readonly NegativeConstraint[],
     abortSignal?: AbortSignal,
   ): Promise<ComparisonTargetResolution> {
-    if (!this.productReader.findActiveByText || intent.target.names.length === 0) {
+    const findActiveByText = this.productReader.findActiveByText;
+
+    if (!findActiveByText || intent.target.names.length === 0) {
       return {
         status: "needs_clarification",
         reason: "too_few_targets",
@@ -999,26 +1428,32 @@ export class RagChatService {
       };
     }
 
-    const products: Product[] = [];
-
-    for (const name of intent.target.names) {
+    const lookupResults = await Promise.all(intent.target.names.map(async (name) => {
       throwIfAborted(abortSignal);
-      const matches = await this.productReader.findActiveByText(
+      const matches = await findActiveByText(
         name,
         COMPARISON_ACTIVE_PRODUCT_LOOKUP_LIMIT,
       );
       throwIfAborted(abortSignal);
 
-      if (matches.length !== 1) {
+      return { name, matches };
+    }));
+
+    const products: Product[] = [];
+
+    for (const lookupResult of lookupResults) {
+      if (lookupResult.matches.length !== 1) {
         return {
           status: "needs_clarification",
-          reason: matches.length === 0 ? "invalid_targets" : "ambiguous_targets",
+          reason: lookupResult.matches.length === 0
+            ? "invalid_targets"
+            : "ambiguous_targets",
           question: createComparisonClarificationQuestion(intent),
-          candidateCount: matches.length,
+          candidateCount: lookupResult.matches.length,
         };
       }
 
-      products.push(matches[0]);
+      products.push(lookupResult.matches[0]);
     }
 
     const contexts = filterContextsByNegativeConstraints(
@@ -1038,6 +1473,41 @@ export class RagChatService {
       status: "ready",
       contexts,
     };
+  }
+
+  private async readComparisonProductsByIds(
+    productIds: string[],
+    recentProductsPrefetch: ComparisonRecentProductsPrefetch | undefined,
+    abortSignal?: AbortSignal,
+  ): Promise<Product[]> {
+    if (
+      recentProductsPrefetch
+      && productIds.every((productId) =>
+        recentProductsPrefetch.productIds.includes(productId)
+      )
+    ) {
+      const prefetchedProducts = await recentProductsPrefetch.productsPromise;
+      throwIfAborted(abortSignal);
+
+      if (prefetchedProducts) {
+        const selectedProducts = orderProductsByIds(
+          prefetchedProducts,
+          productIds,
+        );
+
+        if (selectedProducts.length === productIds.length) {
+          return selectedProducts;
+        }
+      }
+    }
+
+    const products = orderProductsByIds(
+      await this.productReader.findActiveByIds(productIds),
+      productIds,
+    );
+    throwIfAborted(abortSignal);
+
+    return products;
   }
 
   private async resolveCategoryComparisonTargets(
@@ -2039,6 +2509,7 @@ function createComparisonProductSnippet(product: Product): string {
 function createNoCandidatesResult(
   answer: string,
   queryRewrite?: QueryRewriteResult,
+  retrievalMetadata?: RetrievalSelectionMetadata,
 ): RagChatResult {
   return {
     answer,
@@ -2047,7 +2518,7 @@ function createNoCandidatesResult(
     fallbackUsed: true,
     fallbackReason: "NO_CANDIDATES",
     retrieval: {
-      ...createQueryRewriteRetrievalFields(queryRewrite),
+      ...createRetrievalFields(queryRewrite, retrievalMetadata),
       candidateCount: 0,
       returnedProductIds: [],
     },
@@ -2062,6 +2533,7 @@ function createRetrievedFallbackResult(
     "COMPARISON_TARGET_CLARIFICATION"
   >,
   queryRewrite?: QueryRewriteResult,
+  retrievalMetadata?: RetrievalSelectionMetadata,
   publicImageBaseUrl?: string,
 ): RagChatResult {
   const products = contexts
@@ -2079,7 +2551,7 @@ function createRetrievedFallbackResult(
     fallbackUsed: true,
     fallbackReason,
     retrieval: {
-      ...createQueryRewriteRetrievalFields(queryRewrite),
+      ...createRetrievalFields(queryRewrite, retrievalMetadata),
       candidateCount: contexts.length,
       returnedProductIds: recommendedProductIds,
     },
@@ -2091,6 +2563,7 @@ function createSuccessResult(
   recommendedProductIds: string[],
   contexts: RetrievedProductContext[],
   queryRewrite?: QueryRewriteResult,
+  retrievalMetadata?: RetrievalSelectionMetadata,
   publicImageBaseUrl?: string,
 ): RagChatResult {
   const productsById = new Map(
@@ -2112,10 +2585,20 @@ function createSuccessResult(
     productCards,
     fallbackUsed: false,
     retrieval: {
-      ...createQueryRewriteRetrievalFields(queryRewrite),
+      ...createRetrievalFields(queryRewrite, retrievalMetadata),
       candidateCount: contexts.length,
       returnedProductIds,
     },
+  };
+}
+
+function createRetrievalFields(
+  queryRewrite: QueryRewriteResult | undefined,
+  retrievalMetadata: RetrievalSelectionMetadata | undefined,
+): Partial<RagChatResult["retrieval"]> {
+  return {
+    ...createQueryRewriteRetrievalFields(queryRewrite),
+    ...createRetrievalMetadataFields(retrievalMetadata),
   };
 }
 
@@ -2132,6 +2615,45 @@ function createQueryRewriteRetrievalFields(
     rewrittenQuery: queryRewrite.rewrittenQuery,
     queryRewriteStatus: queryRewrite.status,
     queryRewriteReason: queryRewrite.reason ?? queryRewrite.fallbackReason,
+  };
+}
+
+function createRetrievalMetadataFields(
+  retrievalMetadata: RetrievalSelectionMetadata | undefined,
+): Partial<RagChatResult["retrieval"]> {
+  if (!retrievalMetadata) {
+    return {};
+  }
+
+  return {
+    retrievalStrategy: retrievalMetadata.retrievalStrategy,
+    queryRewriteTimedOut: retrievalMetadata.queryRewriteTimedOut,
+  };
+}
+
+function createOriginalQueryRewrite(baseQuery: string): QueryRewriteResult {
+  return {
+    status: "not_needed",
+    query: baseQuery,
+    baseQuery,
+  };
+}
+
+function createTimeoutQueryRewrite(baseQuery: string): QueryRewriteResult {
+  return {
+    status: "fallback",
+    query: baseQuery,
+    baseQuery,
+    fallbackReason: "TIMEOUT",
+  };
+}
+
+function createFallbackQueryRewrite(baseQuery: string): QueryRewriteResult {
+  return {
+    status: "fallback",
+    query: baseQuery,
+    baseQuery,
+    fallbackReason: "LLM_ERROR",
   };
 }
 
@@ -2326,6 +2848,24 @@ function compactAnswer(answer: string): string {
   return `${Array.from(normalized).slice(0, MAX_CHAT_ANSWER_CHARS).join("").trimEnd()}...`;
 }
 
+function hasComparisonPrefetchCue(question: string): boolean {
+  const normalized = question.replace(/\s+/gu, "");
+
+  return [
+    "对比",
+    "比较",
+    "哪个更",
+    "哪款更",
+    "哪个好",
+    "哪款好",
+    "怎么选",
+    "差异",
+    "区别",
+    "优缺点",
+    "更适合",
+  ].some((term) => normalized.includes(term));
+}
+
 function selectPromptContexts(
   contexts: RetrievedProductContext[],
   maxRecommendedProducts: number,
@@ -2377,4 +2917,10 @@ function resolveVectorSearchTopK(
     requestedTopK ?? 0,
     DEFAULT_NEGATIVE_CONSTRAINT_TOP_K,
   );
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }

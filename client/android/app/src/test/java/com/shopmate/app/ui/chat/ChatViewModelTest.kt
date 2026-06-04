@@ -65,6 +65,31 @@ class ChatViewModelTest {
     }
 
     @Test
+    fun waitingStateUsesLocalStreamingBubbleForDifferentMessageIntents() = runTest {
+        val messages = listOf(
+            "推荐适合油皮的护肤品",
+            "对比一下前两个",
+            "把第一个加入购物车",
+            "这两个哪个更适合我",
+        )
+
+        messages.forEach { message ->
+            val repository = FakeChatRepository()
+            val viewModel = ChatViewModel(repository)
+
+            viewModel.onComposerTextChange(message)
+            viewModel.sendMessage()
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertTrue(state.isSending)
+            assertEquals(message, state.messages[0].text)
+            assertEquals("", state.messages[1].text)
+            assertTrue(state.messages[1].isStreaming)
+        }
+    }
+
+    @Test
     fun messageDeltaProductCardsAndDoneUpdateState() = runTest {
         val repository = FakeChatRepository()
         val viewModel = ChatViewModel(repository)
@@ -316,7 +341,7 @@ class ChatViewModelTest {
         advanceUntilIdle()
         val originalCardAnchorMessageId = viewModel.uiState.value.productCardsAnchorMessageId
 
-        viewModel.onComposerTextChange("对比一下这两款手机")
+        viewModel.onComposerTextChange("对比一下前两个")
         viewModel.sendMessage()
         advanceUntilIdle()
         val comparisonAssistantId = viewModel.uiState.value.messages.last().id
@@ -335,7 +360,7 @@ class ChatViewModelTest {
                 ChatComparisonResultDto(
                     id = "comparison-phone-1",
                     title = "OPPO 手机对比",
-                    query = "对比一下这两款手机",
+                    query = "对比一下前两个",
                     productIds = listOf("product_001", "product_002"),
                     dimensions = listOf(
                         ChatComparisonDimensionDto(

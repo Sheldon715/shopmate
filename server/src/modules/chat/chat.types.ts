@@ -68,6 +68,8 @@ export interface ChatDonePayload {
     rewrittenQuery?: string;
     queryRewriteStatus?: "rewritten" | "not_needed" | "fallback";
     queryRewriteReason?: string;
+    retrievalStrategy?: "cache" | "original_query" | "rewritten_query" | "fallback";
+    queryRewriteTimedOut?: boolean;
     candidateCount: number;
     returnedProductIds: string[];
     timing?: ChatTimingEntry[];
@@ -140,6 +142,8 @@ export interface RagChatResult {
     rewrittenQuery?: string;
     queryRewriteStatus?: "rewritten" | "not_needed" | "fallback";
     queryRewriteReason?: string;
+    retrievalStrategy?: "cache" | "original_query" | "rewritten_query" | "fallback";
+    queryRewriteTimedOut?: boolean;
     candidateCount: number;
     returnedProductIds: string[];
     timing?: ChatTimingEntry[];

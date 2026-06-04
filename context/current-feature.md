@@ -1,4 +1,4 @@
-# Current Feature: 首 Token 优化
+# Current Feature: RAG Pipeline 并行首 Token 优化
 
 ## 状态
 
@@ -6,41 +6,36 @@ Complete
 
 ## 目标
 
-- 让 `POST /api/chat/stream` 普通 RAG success 路径在最终 LLM 仍在生成时就写出第一条 `message_delta`，消除“完整结果返回后再切块”的假流式体验。
-- 增加 Chat SSE / RAG / LLM 阶段耗时观测，能区分 intent、query rewrite、cache、vector search、商品回查、最终 LLM first delta 和 done 的耗时。
-- 保持现有 SSE contract 兼容，`message_delta`、`product_cards`、`comparison_result`、`done`、`error` 等事件名称和 Android parser 行为不回退。
-- 保持商品事实安全边界：商品卡、`done` metadata 和推荐 product id 仍只来自后端校验过的库内商品。
-- 压缩普通 RAG prompt、候选上下文和 completion token 上限，优先改善推荐路径首 token 和总耗时。
-- 为 Gradio sample 和直接 Chat SSE smoke 留下优化前后可对比的首 token 证据。
+- 让普通 RAG 推荐在 query rewrite 未及时返回时可先使用原 query 检索结果继续，减少首条真实 `message_delta` 被 rewrite 串行阻塞。
+- 保持 Android 本地 streaming / loading 气泡作为 1s 内等待反馈，后端不发送固定安全预响应。
+- 扩展 timing metadata，能区分 original search、rewrite timeout、rewrite search、retrieval strategy、comparison prefetch / generation 等阶段。
+- 顺手修复“对比一下前两个”进入 comparison 后返回“这次没有生成可靠推荐说明”的回归。
+- 保持 LLM intent 权威、商品 allowlist、安全过滤、SSE contract 和 Android parser 不变。
 
 ## 待办清单
 
-- [x] 读取 `chat.controller.ts`、`rag.service.ts`、LLM client、prompt builder 和现有测试，确认当前假流式入口与非流式 fallback 边界。
-- [x] 扩展 LLM 类型与 OpenAI-compatible client，支持 `streamGenerate()` / streaming delta、abortSignal、provider error 和 non-stream fallback。
-- [x] 更新 mock LLM client 与 LLM client 测试，覆盖 streaming delta、done、abort 和 provider error。
-- [x] 新增轻量 timing helper，并在 Chat SSE / RAG 普通路径中标记 request、SSE header、intent、rewrite、cache、vector、lookup、LLM first delta、LLM complete 和 done。
-- [x] 为普通 RAG success 路径新增真实 streaming 编排，让 service 能在 promise 完成前通过 writer 写出用户可见 `message_delta`。
-- [x] 保留 clarification、cartAction、comparison clarification、cache hit、no candidates 等快速 / fallback 路径的现有行为，不为 streaming 改造引入额外等待。
-- [x] 调整最终 RAG prompt / 输出收口：流式发送用户可见短答，流结束后解析并校验 product ids，再发送 `product_cards` 与 `done`。
-- [x] 压缩普通 RAG prompt、候选商品上下文、shortHistory 和 completion token 上限，确保不删除商品事实与库内 allowlist 约束。
-- [x] 补充 controller / service 测试，证明第一段 `message_delta` 可早于完整结果完成写出，并覆盖事件顺序、abort 传播和 fallback。
-- [x] 运行 `cd server; npm.cmd test` 与 `cd server; npm.cmd run build`。
-- [x] 运行 Gradio sample 3 条或直接 Chat SSE smoke，对比首 token baseline 与优化后结果，并记录 timing metadata 中的剩余瓶颈。
+- [x] 更新 `rag-pipeline-parallel-first-token-spec.md`，明确不再发送后端固定安全预响应，等待反馈由 Android 本地 streaming 气泡承担。
+- [x] 实现 query rewrite 与原 query 检索并行竞速，rewrite 超时时降级使用原 query，避免阻塞普通 RAG 首 token。
+- [x] 在 `done.retrieval` 和 timing 中记录 retrieval strategy、rewrite timeout、original / rewrite search 与 grounded LLM 阶段。
+- [x] 保持 popular query cache 只缓存真实业务回答，并透传安全 retrieval metadata。
+- [x] 泛化 Android comparison follow-up 识别，让“对比一下前两个”保留已有商品卡锚点。
+- [x] 优化 comparison 路径：最近推荐商品预取、命名商品并行查找、generation prompt / facts 压缩。
+- [x] 调整 comparison generation 输出解析容错，接受 2 个完整维度，避免模型压缩输出被整体判为 invalid。
+- [x] 补充后端 / Android / Gradio 回归测试并记录验证结果。
 
 ## 备注
 
-- Spec 来源：`context/feature/first-token-optimization-spec.md`，对应 `context/spec-implementation-order.md` 中的 29.3。
-- 当前 baseline：Gradio sample 3 条平均首 token 约 37.9s，P95 约 43.1s；单条直接 Chat SSE smoke 约 39.3s。
-- 本轮 V1 先修“完整 `RagChatResult` 生成后才写 `message_delta`”的结构性问题；1s 是最终挑战目标，不作为本轮硬验收。
-- 不做 query expansion、rerank、GraphRAG、Agentic RAG、新向量库替换或 Android 性能图表。
-- 不改变 negative constraint、comparison、cartAction、clarification 的业务语义；LLM 意图仍是控制流主心骨，代码只做候选预筛、schema 校验、allowlist、安全过滤和 fallback。
-- 只流式用户可见 assistant 文本；商品卡、comparison result、cartAction 和 `done` payload 仍在后端安全校验后发送。
-- Timing metadata 只允许输出阶段名和耗时毫秒数，不输出真实 `.env`、API key、完整 prompt、商品知识全文或 provider 原始敏感错误。
-- 如果实现时发现当前 OpenAI-compatible provider 的 streaming delta、finish reason、abort 或错误事件不稳定，再补 `performance-optimization-research.md` 或模型流式 API research。
-- 本轮实现补充了 intent 候选预筛：明显不含购物车操作、否定约束或对比线索的普通推荐，不再进入对应 LLM intent；真正候选 action / constraint / comparison 仍由 LLM 判断。
-- 验证结果：`cd server; npm.cmd test` 通过（42 files / 314 tests）；`cd server; npm.cmd run build` 通过。
-- 直接 Chat SSE smoke：临时启动最新 build 于 `PORT=3100`，同类通勤耳机冷路径问题“推荐一款适合每天地铁通勤、降噪好的蓝牙耳机”，首 token 约 14.04s，总耗时约 14.32s；对比旧直接 baseline 约 39.3s，下降约 64%。timing 显示剩余主要耗时在 query rewrite（约 6.66s）、vector search（约 7.45s 累计）和最终 LLM first delta（约 13.93s 累计）。
-- 重复查询缓存 smoke：同题“推荐一款适合通勤的蓝牙耳机”命中热门查询缓存后，首 token / 总耗时约 7.93s，事件顺序仍为 `message_delta` -> `product_cards` -> `done`。
+- Spec 来源：`context/feature/rag-pipeline-parallel-first-token-spec.md`。
+- 本轮继续上一轮首 token 优化：上一轮已完成真实 RAG LLM streaming 和 prompt 压缩，本轮把 query rewrite / 原 query search 改成可并行竞速、短超时降级、安全收口。
+- Android 等待反馈仍是本地空 streaming assistant 气泡；后端第一条 `message_delta` 必须是真实业务回答，不写固定“正在处理”模板。
+- 普通 RAG 并行只发生在不会改变控制流的检索阶段；cart、negative、comparison、clarification 仍由 LLM intent / gate 决定。
+- Comparison 修复来源：真机截图中“对比一下前两个”返回 `这次没有生成可靠推荐说明。`，判断为后端 `LLM_INVALID_OUTPUT` fallback，不是 Android parser 错误。
+- Comparison parser 将完整维度下限从 3 行放宽为 2 行，并同步 prompt 为 2-5 行；仍要求刚好两款 allowlist 商品、每个有效维度 cells 覆盖两款商品，库外 product id 和不完整 cells 继续失败。
+- Gradio 补充下载文件 `allowed_paths`，避免结果已生成但页面下载被 Gradio cache path 拦截。
+- 验证结果：`cd server; npm.cmd test -- rag.service.test.ts comparison-generation.service.test.ts popular-query-cache.service.test.ts` 通过（3 files / 80 tests）。
+- 验证结果：`cd server; npm.cmd test` 通过（42 files / 321 tests）；`cd server; npm.cmd run build` 通过。
+- 验证结果：`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 通过；默认 `.\gradlew.bat --no-daemon build` 因 demo/release 未配置 HTTPS API URL 按预期 fail-fast；使用 `-PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 后 `.\gradlew.bat --no-daemon build` 通过。
+- 验证结果：`cd rag-gradio-evaluation-workbench; python app.py --self-test` 通过。
 
 ## 历史记录
 - 初始化前后端技术栈骨架：完成 Android Kotlin + Jetpack Compose 与 Node.js + TypeScript + Express 最小工程初始化，补充 README 与 Git 忽略配置，并通过后端构建与 Android `assembleDebug` 验证。
@@ -107,3 +102,7 @@ Complete
 - Comparison Ambiguous Clarification：新增 comparison target resolution gate，目标不足、过多、无效或歧义时返回 LLM 澄清并跳过普通 RAG；最近推荐刚好两款时直接生成 `comparison_result`，并补齐 SSE contract、Android fallback、Chat evaluation case 和后端回归测试。
 - RAG Gradio Evaluation Workbench：新增仓库根目录本地 Gradio 内部评估工作台，支持 CSV 批量 Chat SSE 评估、中文仪表盘、人工评分、可选 LLM 初评、单条调试、证据摘要、首 token / 总耗时指标和 JSONL / CSV / summary 留档；通过 Gradio self-test、后端 test / build、Playwright 页面 smoke 和 3 条 live sample smoke 验证。
 - Voice LLM ASR Upgrade：新增后端 `POST /api/asr/transcribe` 云端转写接口和 Android 录音上传链路，ASR 成功后复用现有聊天 / RAG 流程，失败或空结果不触发 RAG；修复主界面长按语音首次录音被切页打断，并补充后端 ASR 与 Android ASR 相关测试。
+- 首 Token 优化：新增 OpenAI-compatible LLM streaming、RAG SSE 真实流式 `message_delta`、阶段 timing metadata、prompt / token 压缩和普通推荐 intent 候选预筛；通过后端 test / build 与直接 Chat SSE smoke 验证，冷路径首 token 从约 39.3s 降至约 14.04s，缓存重复查询约 7.93s。
+- 首 Token 体验回归修复：移除后端固定安全预响应，统一由 Android 本地 streaming/loading 气泡承担等待反馈，后端首条 `message_delta` 保持为真实业务回答；补充后端真实首 delta 与 Android 多意图等待态测试。
+- 对比追问商品卡锚点修复：泛化 Android 对最近双商品比较追问的识别，修复“对比前两个”时商品卡片重新挂到新问题下面的问题；通过 ChatViewModel 单测验证。
+- 对比回答首 Token 优化：压缩 comparison generation prompt 和商品 facts，上调并行度；最近推荐对比在 intent 阶段并行预取商品上下文，命名商品对比并行查找目标，并补充 comparison timing 与后端回归测试。

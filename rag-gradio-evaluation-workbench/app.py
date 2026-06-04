@@ -20,8 +20,9 @@ from urllib.parse import urljoin
 APP_TITLE = "ShopMate RAG Gradio 评估工作台"
 DEFAULT_API_BASE_URL = "http://localhost:3000"
 ROOT_DIR = Path(__file__).resolve().parents[1]
+WORKBENCH_DIR = Path(__file__).resolve().parent
 RUNS_DIR = ROOT_DIR / "data" / "processed" / "rag" / "gradio-runs"
-SAMPLE_CASES_PATH = Path(__file__).resolve().parent / "sample-cases.csv"
+SAMPLE_CASES_PATH = WORKBENCH_DIR / "sample-cases.csv"
 LOCAL_ENV_PATH = ROOT_DIR / ".env"
 JUDGE_API_KEY_ENV = "SHOPMATE_GRADIO_JUDGE_API_KEY"
 JUDGE_BASE_URL_ENV = "SHOPMATE_GRADIO_JUDGE_BASE_URL"
@@ -2026,7 +2027,7 @@ def create_ui(default_api_base_url: str) -> Any:
     initial_groups = sorted({case.group for case in initial_cases})
     initial_case_ids = [case.case_id for case in initial_cases]
 
-    with gr.Blocks(title=APP_TITLE, css=APP_CSS) as demo:
+    with gr.Blocks(title=APP_TITLE) as demo:
         batch_results_state = gr.State([])
         gr.Markdown("# RAG Evaluation Dashboard")
         gr.Markdown("默认使用示例测试集和本地后端；日常评估只需要启动后端后点一次运行。")
@@ -2245,6 +2246,14 @@ def create_ui(default_api_base_url: str) -> Any:
     return demo
 
 
+def prepare_launch_allowed_paths() -> list[str]:
+    RUNS_DIR.mkdir(parents=True, exist_ok=True)
+    return [
+        str(WORKBENCH_DIR.resolve()),
+        str(RUNS_DIR.resolve()),
+    ]
+
+
 def run_self_test() -> None:
     cases, warnings = parse_cases_csv(SAMPLE_CASES_PATH)
     assert cases, "sample cases should parse"
@@ -2299,6 +2308,9 @@ def run_self_test() -> None:
     assert Path(cases_path).exists()
     assert Path(results_path).exists()
     assert Path(summary_path).exists()
+    allowed_paths = prepare_launch_allowed_paths()
+    assert str(WORKBENCH_DIR.resolve()) in allowed_paths
+    assert str(RUNS_DIR.resolve()) in allowed_paths
     shutil.rmtree(tmp_run_dir)
     print("self-test passed")
 
@@ -2324,6 +2336,8 @@ def main(argv: list[str] | None = None) -> int:
         server_name=args.host,
         server_port=args.port,
         share=args.share,
+        css=APP_CSS,
+        allowed_paths=prepare_launch_allowed_paths(),
     )
     return 0
 

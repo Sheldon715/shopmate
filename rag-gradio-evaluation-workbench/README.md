@@ -23,6 +23,14 @@ python app.py --api-base-url http://localhost:3000
 
 默认地址是 `http://127.0.0.1:7860`。
 
+如果之前已经开着 Gradio，改完代码或切换参数后先在终端按 `Ctrl+C` 停掉，再重新运行上面的命令。Gradio 的下载文件白名单是在启动时注册的。
+
+## 常见报错
+
+如果终端出现 `InvalidPathError: Cannot move ... results.jsonl to the gradio cache dir`，含义是 Gradio 拦截了下载文件路径。评估结果实际已经写入 `data/processed/rag/gradio-runs/<run-id>/`，只是页面想返回 `results.jsonl` / `results.csv` / `summary.json` 时，Gradio 发现它们不在当前工作目录或允许目录里。
+
+当前版本启动时会自动把 `rag-gradio-evaluation-workbench/` 和 `data/processed/rag/gradio-runs/` 加入 `allowed_paths`。如果仍看到同类报错，先确认正在运行的是最新 `app.py`，然后重启 Gradio。
+
 ## 日常使用
 
 打开页面后停留在 `评估仪表盘`：
