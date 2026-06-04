@@ -14,6 +14,8 @@ const MAX_RECOMMENDED_PRODUCTS_MIN = 1;
 const MAX_RECOMMENDED_PRODUCTS_MAX = 5;
 const FILTER_ARRAY_MAX_ITEMS = 12;
 const FILTER_ARRAY_ITEM_MAX_LENGTH = 80;
+const RECENT_PRODUCT_IDS_MAX_ITEMS = 5;
+const PRODUCT_ID_MAX_LENGTH = 80;
 
 const FILTER_FIELDS = [
   "category",
@@ -46,6 +48,12 @@ export function parseChatStreamRequestBody(body: unknown): RagChatRequest {
     conversationId: readConversationId(body.conversationId),
     question: readRequiredString(body.message, "message", MESSAGE_MAX_LENGTH),
     shortHistory: readHistory(body.history),
+    recentProductIds: readOptionalStringArray(
+      body.recentProductIds,
+      "recentProductIds",
+      RECENT_PRODUCT_IDS_MAX_ITEMS,
+      PRODUCT_ID_MAX_LENGTH,
+    ),
     filters: readFilters(body.filters),
     topK: readOptionalInteger(body.topK, "topK", TOP_K_MIN, TOP_K_MAX),
     maxRecommendedProducts: readOptionalInteger(
@@ -214,6 +222,8 @@ function readOptionalString(
 function readOptionalStringArray(
   value: unknown,
   fieldName: string,
+  maxItems = FILTER_ARRAY_MAX_ITEMS,
+  maxItemLength = FILTER_ARRAY_ITEM_MAX_LENGTH,
 ): string[] | undefined {
   if (value === undefined) {
     return undefined;
@@ -223,9 +233,9 @@ function readOptionalStringArray(
     throw new ChatStreamRequestError(`${fieldName} must be an array`);
   }
 
-  if (value.length > FILTER_ARRAY_MAX_ITEMS) {
+  if (value.length > maxItems) {
     throw new ChatStreamRequestError(
-      `${fieldName} can include at most ${FILTER_ARRAY_MAX_ITEMS} items`,
+      `${fieldName} can include at most ${maxItems} items`,
     );
   }
 
@@ -236,7 +246,7 @@ function readOptionalStringArray(
     const normalizedValue = readRequiredString(
       item,
       `${fieldName}[${index}]`,
-      FILTER_ARRAY_ITEM_MAX_LENGTH,
+      maxItemLength,
     );
 
     if (!seen.has(normalizedValue)) {

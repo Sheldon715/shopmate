@@ -10,6 +10,7 @@ class DefaultChatRepository(
         message: String,
         conversationId: String,
         history: List<ChatMessageUi>,
+        recentProductIds: List<String>,
     ): Flow<ChatStreamEvent> =
         chatStreamClient.streamChat(
             ChatStreamRequestDto(
@@ -25,6 +26,10 @@ class DefaultChatRepository(
                     }
                     .takeLast(MAX_HISTORY_MESSAGES)
                     .toList(),
+                recentProductIds = recentProductIds
+                    .map(String::trim)
+                    .filter(String::isNotBlank)
+                    .distinct(),
             ),
         )
 

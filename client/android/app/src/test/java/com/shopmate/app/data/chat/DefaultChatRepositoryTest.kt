@@ -23,6 +23,7 @@ class DefaultChatRepositoryTest {
                 ChatMessageUi(id = "5", text = "four", fromUser = true),
                 ChatMessageUi(id = "6", text = "", fromUser = false),
             ),
+            recentProductIds = listOf(" product_001 ", "", "product_002", "product_001"),
         )
 
         val request = client.lastRequest
@@ -37,6 +38,7 @@ class DefaultChatRepositoryTest {
             ),
             request.history,
         )
+        assertEquals(listOf("product_001", "product_002"), request.recentProductIds)
     }
 
     private class RecordingChatStreamClient : ChatStreamClient {

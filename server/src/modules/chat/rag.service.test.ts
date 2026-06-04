@@ -748,11 +748,18 @@ describe("RagChatService", () => {
 
   it("uses rewritten query for vector search while keeping original question in RAG prompt", async () => {
     const vectorCalls: Array<Parameters<RagVectorSearchClient["search"]>[0]> = [];
+    let resolveOriginalSearchStarted: (() => void) | undefined;
+    const originalSearchStarted = new Promise<void>((resolve) => {
+      resolveOriginalSearchStarted = resolve;
+    });
     let ragPrompt = "";
     const service = new RagChatService(withNoCartIntent({
       vectorSearch: {
         search: async (input) => {
           vectorCalls.push(input);
+          if (input.query === "再便宜一点的有吗？") {
+            resolveOriginalSearchStarted?.();
+          }
           return [createHit("product_001")];
         },
       },
@@ -764,14 +771,18 @@ describe("RagChatService", () => {
         }),
       },
       queryRewriteService: {
-        rewrite: async (input) => ({
-          status: "rewritten",
-          query: "真无线耳机 更便宜 蓝牙耳机 预算更低",
-          baseQuery: input.baseRetrievalQuery,
-          rewrittenQuery: "真无线耳机 更便宜 蓝牙耳机 预算更低",
-          reason: "短追问补全检索目标",
-          confidence: "high",
-        }),
+        rewrite: async (input) => {
+          await originalSearchStarted;
+
+          return {
+            status: "rewritten",
+            query: "真无线耳机 更便宜 蓝牙耳机 预算更低",
+            baseQuery: input.baseRetrievalQuery,
+            rewrittenQuery: "真无线耳机 更便宜 蓝牙耳机 预算更低",
+            reason: "短追问补全检索目标",
+            confidence: "high",
+          };
+        },
       },
       llmClient: new MockLlmClient({
         handler: (request) => {
@@ -2321,7 +2332,128 @@ describe("RagChatService", () => {
     ]);
   });
 
-  it("keeps leading-pair comparison successful when generation returns two dimensions", async () => {
+  it("uses request recent product ids before memory for explicit ordinal comparison", async () => {
+    const store = createStoreWithRecentRecommendations([
+      "product_001",
+      "product_002",
+    ]);
+    const requestRecentProductIds = [
+      "product_003",
+      "product_002",
+      "product_001",
+    ];
+    const productLookupCalls: string[][] = [];
+    const service = new RagChatService(withNoCartIntent({
+      vectorSearch: createVectorSearch([]),
+      productReader: {
+        findActiveByIds: async (productIds) => {
+          productLookupCalls.push(productIds);
+
+          return createProductReader().findActiveByIds(productIds);
+        },
+      },
+      contextMemoryService: new ChatContextMemoryService({ store }),
+      comparisonIntentService: {
+        detect: async (input) => {
+          expect(input.recentProductIds).toEqual(requestRecentProductIds);
+
+          return {
+            isComparison: true,
+            confidence: "high",
+            target: {
+              kind: "recent_recommendations",
+              ordinals: [1, 3],
+              names: [],
+            },
+            needsClarification: false,
+          };
+        },
+      },
+      comparisonGenerationService: {
+        generate: async (input) => {
+          expect(input.products.map((context) => context.product.id)).toEqual([
+            "product_003",
+            "product_001",
+          ]);
+
+          return createGeneratedComparison(["product_003", "product_001"]);
+        },
+      },
+      popularQueryCacheVersionReader: createCacheVersionReader(),
+    }));
+
+    const result = await service.answer({
+      conversationId: "cart-demo-1",
+      question: "对比一下第一个和第三个",
+      recentProductIds: requestRecentProductIds,
+    });
+
+    expect(productLookupCalls).toEqual([requestRecentProductIds]);
+    expect(result.fallbackUsed).toBe(false);
+    expect(result.recommendedProductIds).toEqual([
+      "product_003",
+      "product_001",
+    ]);
+    expect(result.comparisonResult?.productIds).toEqual([
+      "product_003",
+      "product_001",
+    ]);
+  });
+
+  it("asks comparison clarification when request ordinals exceed visible products", async () => {
+    const store = createStoreWithRecentRecommendations([
+      "product_001",
+      "product_002",
+      "product_003",
+    ]);
+    let generationCalled = false;
+    const service = new RagChatService(withNoCartIntent({
+      vectorSearch: createVectorSearch([]),
+      productReader: createProductReader(),
+      contextMemoryService: new ChatContextMemoryService({ store }),
+      comparisonIntentService: {
+        detect: async (input) => {
+          expect(input.recentProductIds).toEqual([
+            "product_001",
+            "product_002",
+          ]);
+
+          return {
+            isComparison: true,
+            confidence: "high",
+            target: {
+              kind: "recent_recommendations",
+              ordinals: [1, 3],
+              names: [],
+            },
+            needsClarification: false,
+            clarificationQuestion: "我现在只看到两款商品，请再选一款来对比。",
+          };
+        },
+      },
+      comparisonGenerationService: {
+        generate: async () => {
+          generationCalled = true;
+          throw new Error("comparison generation should not run");
+        },
+      },
+      popularQueryCacheVersionReader: createCacheVersionReader(),
+    }));
+
+    const result = await service.answer({
+      conversationId: "cart-demo-1",
+      question: "对比一下第一个和第三个",
+      recentProductIds: ["product_001", "product_002"],
+    });
+
+    expect(generationCalled).toBe(false);
+    expect(result.answer).toBe("我现在只看到两款商品，请再选一款来对比。");
+    expect(result.fallbackReason).toBe("COMPARISON_TARGET_CLARIFICATION");
+    expect(result.productCards).toEqual([]);
+    expect(result.comparisonResult).toBeUndefined();
+  });
+
+  it("keeps leading-pair comparison successful when generation returns four dimensions", async () => {
     const store = createStoreWithRecentRecommendations([
       "product_001",
       "product_002",
@@ -2351,6 +2483,22 @@ describe("RagChatService", () => {
                 cells: [
                   { product_id: "product_001", value: "适合想加强精华护理时。" },
                   { product_id: "product_002", value: "适合想要基础保湿时。" },
+                ],
+              },
+              {
+                id: "price",
+                label: "价格",
+                cells: [
+                  { product_id: "product_001", value: "价格更低，适合预算敏感。" },
+                  { product_id: "product_002", value: "价格更高，适合看重质地。" },
+                ],
+              },
+              {
+                id: "limits",
+                label: "注意点",
+                cells: [
+                  { product_id: "product_001", value: "需要搭配后续保湿。" },
+                  { product_id: "product_002", value: "厚涂时肤感更明显。" },
                 ],
               },
             ],
@@ -2393,7 +2541,106 @@ describe("RagChatService", () => {
       "product_001",
       "product_002",
     ]);
-    expect(result.comparisonResult?.dimensions).toHaveLength(2);
+    expect(result.comparisonResult?.dimensions).toHaveLength(4);
+  });
+
+  it("streams a preset comparison delta before structured comparison generation", async () => {
+    const store = createStoreWithRecentRecommendations([
+      "product_001",
+      "product_002",
+    ]);
+    let generationCalled = false;
+    const timingMarks: string[] = [];
+    const { events, writer } = createCollectingStreamWriter();
+    const comparisonGenerationService = {
+      generate: async () => {
+        generationCalled = true;
+        expect(events.map((event) => event.eventName)).toEqual([
+          "message_delta",
+        ]);
+        expect(events[0]).toMatchObject({
+          eventName: "message_delta",
+          payload: {
+            text: "我先帮你核对这两款商品的关键信息。",
+            index: 0,
+          },
+        });
+
+        return createGeneratedComparison(["product_001", "product_002"]);
+      },
+    };
+    const service = new RagChatService(withNoCartIntent({
+      vectorSearch: createVectorSearch([]),
+      productReader: createProductReader(),
+      contextMemoryService: new ChatContextMemoryService({ store }),
+      comparisonIntentService: {
+        detect: async () => ({
+          isComparison: true,
+          confidence: "high",
+          target: {
+            kind: "recent_recommendations",
+            ordinals: [1, 2],
+            names: [],
+          },
+          needsClarification: false,
+        }),
+      },
+      comparisonGenerationService,
+      popularQueryCacheVersionReader: createCacheVersionReader(),
+    }));
+
+    await service.answerStream(
+      {
+        conversationId: "cart-demo-1",
+        question: "对比一下前两个",
+        timing: {
+          mark: (name) => {
+            timingMarks.push(name);
+          },
+          toSafeMetadata: () => [],
+        },
+      },
+      writer,
+    );
+
+    expect(events.map((event) => event.eventName)).toEqual([
+      "message_delta",
+      "product_cards",
+      "comparison_result",
+      "done",
+    ]);
+    expect(events[0]).toMatchObject({
+      eventName: "message_delta",
+      payload: {
+        text: "我先帮你核对这两款商品的关键信息。",
+        index: 0,
+      },
+    });
+    expect(events.filter((event) => event.eventName === "message_delta"))
+      .toHaveLength(1);
+    expect(events[2]).toMatchObject({
+      eventName: "comparison_result",
+      payload: {
+        productIds: ["product_001", "product_002"],
+      },
+    });
+    expect(events[3]).toMatchObject({
+      eventName: "done",
+      payload: {
+        recommendedProductIds: ["product_001", "product_002"],
+        fallbackUsed: false,
+      },
+    });
+    expect(generationCalled).toBe(true);
+    expect(timingMarks).toEqual(
+      expect.arrayContaining([
+        "comparison_preset_delta_sent",
+        "comparison_generation_started",
+        "comparison_generation_done",
+      ]),
+    );
+    expect(timingMarks.indexOf("comparison_preset_delta_sent"))
+      .toBeLessThan(timingMarks.indexOf("comparison_generation_started"));
   });
 
   it("asks comparison clarification when target is unknown and only one recent product exists", async () => {
@@ -2986,7 +3233,7 @@ describe("RagChatService", () => {
     expect(result.comparisonResult).toBeUndefined();
   });
 
-  it("does not send comparison result when comparison generation is invalid", async () => {
+  it("returns safe fact comparison result when comparison generation is invalid", async () => {
     const store = createStoreWithRecentRecommendations([
       "product_001",
       "product_002",
@@ -3021,8 +3268,61 @@ describe("RagChatService", () => {
 
     expect(result.fallbackUsed).toBe(true);
     expect(result.fallbackReason).toBe("LLM_INVALID_OUTPUT");
-    expect(result.comparisonResult).toBeUndefined();
+    expect(result.comparisonResult).toMatchObject({
+      title: "基础事实对比",
+      query: "帮我对比这两款",
+      productIds: ["product_001", "product_002"],
+      recommendedProductId: null,
+      highlights: [],
+    });
+    expect(result.comparisonResult?.dimensions.map((dimension) => dimension.id))
+      .toEqual(["brand_category", "price", "facts"]);
+    expect(result.answer).toBe(
+      "对比结论生成不稳定，先展示两款商品的库内基础事实。",
+    );
     expect(result.productCards.map((card) => card.id)).toEqual([
+      "product_001",
+      "product_002",
+    ]);
+  });
+
+  it("classifies malformed comparison generation JSON as invalid output fallback", async () => {
+    const store = createStoreWithRecentRecommendations([
+      "product_001",
+      "product_002",
+    ]);
+    const service = new RagChatService(withNoCartIntent({
+      vectorSearch: createVectorSearch([]),
+      productReader: createProductReader(),
+      contextMemoryService: new ChatContextMemoryService({ store }),
+      llmClient: new MockLlmClient({
+        response: createLlmResponse("{\"answer\":\"截断"),
+      }),
+      comparisonIntentService: {
+        detect: async () => ({
+          isComparison: true,
+          confidence: "high",
+          target: {
+            kind: "recent_recommendations",
+            ordinals: [1, 2],
+            names: [],
+          },
+          needsClarification: false,
+        }),
+      },
+    }));
+
+    const result = await service.answer({
+      conversationId: "cart-demo-1",
+      question: "帮我对比这两款",
+    });
+
+    expect(result.fallbackUsed).toBe(true);
+    expect(result.fallbackReason).toBe("LLM_INVALID_OUTPUT");
+    expect(result.answer).toBe(
+      "对比结论生成不稳定，先展示两款商品的库内基础事实。",
+    );
+    expect(result.comparisonResult?.productIds).toEqual([
       "product_001",
       "product_002",
     ]);

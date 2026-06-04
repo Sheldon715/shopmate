@@ -8,5 +8,6 @@ interface ChatRepository {
         message: String,
         conversationId: String,
         history: List<ChatMessageUi>,
+        recentProductIds: List<String> = emptyList(),
     ): Flow<ChatStreamEvent>
 }

@@ -7,6 +7,7 @@ data class ChatStreamRequestDto(
     val conversationId: String? = null,
     val message: String,
     val history: List<ChatHistoryMessageDto> = emptyList(),
+    val recentProductIds: List<String> = emptyList(),
     val filters: ChatStreamFiltersDto? = null,
     val topK: Int? = null,
     val maxRecommendedProducts: Int? = null,

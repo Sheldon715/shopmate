@@ -88,6 +88,7 @@ import type { PopularQueryCache } from "./popular-query-cache.service";
 import type {
   PopularQueryCacheVersionReader,
 } from "./popular-query-cache-version.service";
+import { StreamingJsonAnswerExtractor } from "./streaming-json-answer-extractor";
 
 export interface RagVectorSearchClient {
   search(input: {
@@ -269,6 +270,8 @@ const CART_ACTIVE_PRODUCT_LOOKUP_LIMIT = 8;
 const COMPARISON_ACTIVE_PRODUCT_LOOKUP_LIMIT = 4;
 const COMPARISON_CATEGORY_SEARCH_TOP_K = 8;
 const COMPARISON_PRODUCT_COUNT = 2;
+const COMPARISON_PRESET_DELTA = "我先帮你核对这两款商品的关键信息。";
+const FALLBACK_COMPARISON_FACT_MAX_CHARS = 90;
 
 export class RagChatError extends Error {
   readonly code = "INVALID_RAG_CHAT_REQUEST";
@@ -399,6 +402,10 @@ export class RagChatService {
       question,
       filters: input.filters,
     });
+    const recentProductIds = resolveRecentProductIds(
+      input.recentProductIds,
+      memoryResolution.contextMemory?.lastRecommendedProductIds,
+    );
     const cartSnapshot = await this.readCartSnapshot(input.abortSignal);
     input.timing?.mark("cart_snapshot_done");
     const cartCommandDetection = await this.cartCommandIntentService.detect({
@@ -416,7 +423,7 @@ export class RagChatService {
         memoryResolution,
         await this.answerCartCommand(
           cartCommandDetection,
-          memoryResolution.contextMemory?.lastRecommendedProductIds ?? [],
+          recentProductIds,
           cartSnapshot,
           {
             question,
@@ -463,8 +470,6 @@ export class RagChatService {
       );
     }
 
-    const recentProductIds =
-      memoryResolution.contextMemory?.lastRecommendedProductIds ?? [];
     const comparisonRecentProductsPrefetch =
       this.prefetchRecentComparisonProducts({
         question,
@@ -495,8 +500,10 @@ export class RagChatService {
           requestId: input.requestId,
           abortSignal: input.abortSignal,
           timing: input.timing,
+          recentProductIds,
         },
         comparisonRecentProductsPrefetch,
+        options,
       );
 
       return this.withContextMemory(
@@ -1155,11 +1162,13 @@ export class RagChatService {
       | "question"
       | "shortHistory"
       | "filters"
+      | "recentProductIds"
       | "requestId"
       | "abortSignal"
       | "timing"
     >,
     recentProductsPrefetch?: ComparisonRecentProductsPrefetch,
+    options: RagAnswerExecutionOptions = {},
   ): Promise<RagChatResult> {
     if (intent.needsClarification && intent.clarificationQuestion?.trim()) {
       return createComparisonClarificationResult({
@@ -1189,8 +1198,7 @@ export class RagChatService {
           shortHistory: request.shortHistory,
           contextMemory: memoryResolution.contextMemory,
           filters: request.filters,
-          recentProductIds:
-            memoryResolution.contextMemory?.lastRecommendedProductIds ?? [],
+          recentProductIds: request.recentProductIds,
           candidateCount: targetResolution.candidateCount,
           requestId: request.requestId,
           abortSignal: request.abortSignal,
@@ -1213,6 +1221,13 @@ export class RagChatService {
       candidateCount: targetResolution.contexts.length,
       returnedProductIds: recommendedProductIds,
     };
+    const comparisonProductContexts = contexts.map(
+      toComparisonGenerationProductContext,
+    );
+    await this.writeComparisonPresetDelta({
+      request,
+      options,
+    });
 
     try {
       request.timing?.mark("comparison_generation_started");
@@ -1221,7 +1236,7 @@ export class RagChatService {
         shortHistory: request.shortHistory,
         contextMemory: memoryResolution.contextMemory,
         userPriority: intent.userPriority,
-        products: contexts.map(toComparisonGenerationProductContext),
+        products: comparisonProductContexts,
         generatedAt: this.now(),
         requestId: request.requestId,
         abortSignal: request.abortSignal,
@@ -1238,18 +1253,42 @@ export class RagChatService {
     } catch (error) {
       rethrowIfAborted(request.abortSignal, error);
       request.timing?.mark("comparison_generation_done");
-      return {
-        answer: error instanceof ComparisonGenerationOutputError
-          ? createMinimalRagFallbackAnswer("LLM_INVALID_OUTPUT")
-          : createMinimalRagFallbackAnswer("LLM_ERROR"),
-        recommendedProductIds,
+      return createComparisonFallbackResult({
+        query: request.question,
+        contexts,
         productCards,
-        fallbackUsed: true,
+        recommendedProductIds,
         fallbackReason: error instanceof ComparisonGenerationOutputError
           ? "LLM_INVALID_OUTPUT"
           : "LLM_ERROR",
         retrieval: baseRetrieval,
-      };
+      });
+    }
+  }
+
+  private async writeComparisonPresetDelta(input: {
+    request: Pick<
+      RagChatRequest,
+      "abortSignal" | "timing"
+    >;
+    options: RagAnswerExecutionOptions;
+  }): Promise<void> {
+    const writer = input.options.streamWriter;
+
+    if (
+      !writer
+      || input.options.messageDeltasWritten
+      || writer.isClosed()
+    ) {
+      return;
+    }
+
+    throwIfAborted(input.request.abortSignal);
+    const wrote = await writer.writeMessageDelta(COMPARISON_PRESET_DELTA);
+
+    if (wrote) {
+      input.options.messageDeltasWritten = true;
+      input.request.timing?.mark("comparison_preset_delta_sent");
     }
   }
 
@@ -1258,7 +1297,7 @@ export class RagChatService {
     memoryResolution: ReturnType<ChatContextMemoryService["resolve"]>,
     request: Pick<
       RagChatRequest,
-      "question" | "filters" | "abortSignal"
+      "question" | "filters" | "recentProductIds" | "abortSignal"
     >,
     recentProductsPrefetch?: ComparisonRecentProductsPrefetch,
   ): Promise<ComparisonTargetResolution> {
@@ -1268,7 +1307,7 @@ export class RagChatService {
       case "recent_recommendations":
         return this.resolveRecentComparisonTargets(
           intent,
-          memoryResolution.contextMemory?.lastRecommendedProductIds ?? [],
+          request.recentProductIds ?? [],
           negativeConstraints,
           request.abortSignal,
           recentProductsPrefetch,
@@ -1290,7 +1329,7 @@ export class RagChatService {
       case "unknown":
         return this.resolveRecentComparisonTargets(
           intent,
-          memoryResolution.contextMemory?.lastRecommendedProductIds ?? [],
+          request.recentProductIds ?? [],
           negativeConstraints,
           request.abortSignal,
           recentProductsPrefetch,
@@ -2170,108 +2209,6 @@ function chunkMessageDelta(answer: string, chunkSize = 100): string[] {
   return chunks;
 }
 
-class StreamingJsonAnswerExtractor {
-  private state: "seeking_answer" | "in_answer" | "done" = "seeking_answer";
-  private buffer = "";
-  private escaped = false;
-  private unicodeEscape = "";
-
-  push(textDelta: string): string {
-    if (this.state === "done") {
-      return "";
-    }
-
-    if (this.state === "seeking_answer") {
-      this.buffer += textDelta;
-      const match = /"answer"\s*:\s*"/u.exec(this.buffer);
-
-      if (!match) {
-        this.buffer = this.buffer.slice(-32);
-        return "";
-      }
-
-      const answerStartIndex = match.index + match[0].length;
-      const remaining = this.buffer.slice(answerStartIndex);
-      this.buffer = "";
-      this.state = "in_answer";
-
-      return this.consumeAnswerText(remaining);
-    }
-
-    return this.consumeAnswerText(textDelta);
-  }
-
-  private consumeAnswerText(text: string): string {
-    let output = "";
-
-    for (const char of text) {
-      if (this.unicodeEscape.length > 0) {
-        this.unicodeEscape += char;
-
-        if (this.unicodeEscape.length === 5) {
-          output += decodeUnicodeEscape(this.unicodeEscape);
-          this.unicodeEscape = "";
-        }
-        continue;
-      }
-
-      if (this.escaped) {
-        if (char === "u") {
-          this.unicodeEscape = "u";
-        } else {
-          output += decodeJsonStringEscape(char);
-        }
-        this.escaped = false;
-        continue;
-      }
-
-      if (char === "\\") {
-        this.escaped = true;
-        continue;
-      }
-
-      if (char === "\"") {
-        this.state = "done";
-        break;
-      }
-
-      output += char;
-    }
-
-    return output;
-  }
-}
-
-function decodeJsonStringEscape(char: string): string {
-  switch (char) {
-    case "\"":
-      return "\"";
-    case "\\":
-      return "\\";
-    case "/":
-      return "/";
-    case "b":
-      return "\b";
-    case "f":
-      return "\f";
-    case "n":
-      return "\n";
-    case "r":
-      return "\r";
-    case "t":
-      return "\t";
-    default:
-      return char;
-  }
-}
-
-function decodeUnicodeEscape(value: string): string {
-  const hex = value.slice(1);
-  const codePoint = Number.parseInt(hex, 16);
-
-  return Number.isFinite(codePoint) ? String.fromCharCode(codePoint) : "";
-}
-
 function createClarificationResult(
   decision: ClarificationDecision,
   fallbackReason: RagChatFallbackReason = "NEEDS_CLARIFICATION",
@@ -2357,6 +2294,17 @@ function uniqueNonEmptyIds(productIds: string[]): string[] {
   }
 
   return uniqueIds;
+}
+
+function resolveRecentProductIds(
+  requestProductIds: string[] | undefined,
+  memoryProductIds: string[] | undefined,
+): string[] {
+  const requestIds = uniqueNonEmptyIds(requestProductIds ?? []);
+
+  return requestIds.length > 0
+    ? requestIds
+    : uniqueNonEmptyIds(memoryProductIds ?? []);
 }
 
 function dedupeProductsById(products: Product[]): Product[] {
@@ -2711,6 +2659,96 @@ function createComparisonSuccessResult(input: {
     },
     comparisonResult,
   };
+}
+
+function createComparisonFallbackResult(input: {
+  query: string;
+  contexts: RetrievedProductContext[];
+  productCards: ReturnType<typeof mapProductToCardDto>[];
+  recommendedProductIds: string[];
+  fallbackReason: Extract<RagChatFallbackReason, "LLM_ERROR" | "LLM_INVALID_OUTPUT">;
+  retrieval: RagChatResult["retrieval"];
+}): RagChatResult {
+  const fallbackAnswer = "对比结论生成不稳定，先展示两款商品的库内基础事实。";
+  const comparisonResult: ChatComparisonResultPayload = {
+    id: createComparisonResultId(input.query, input.recommendedProductIds),
+    title: "基础事实对比",
+    query: input.query,
+    productIds: input.recommendedProductIds,
+    dimensions: createFallbackComparisonDimensions(input.contexts),
+    recommendedProductId: null,
+    conclusion: fallbackAnswer,
+    highlights: [],
+  };
+
+  return {
+    answer: fallbackAnswer,
+    recommendedProductIds: input.recommendedProductIds,
+    productCards: input.productCards,
+    fallbackUsed: true,
+    fallbackReason: input.fallbackReason,
+    retrieval: input.retrieval,
+    comparisonResult,
+  };
+}
+
+function createFallbackComparisonDimensions(
+  contexts: RetrievedProductContext[],
+): ChatComparisonResultPayload["dimensions"] {
+  const products = contexts.slice(0, COMPARISON_PRODUCT_COUNT).map((context) => context.product);
+  const cellsFor = (value: (product: Product) => string) =>
+    products.map((product) => ({
+      productId: product.id,
+      value: value(product),
+    }));
+
+  return [
+    {
+      id: "brand_category",
+      label: "品牌与品类",
+      cells: cellsFor((product) => [
+        product.brand,
+        product.category,
+        product.subCategory,
+      ].filter(Boolean).join(" / ")),
+    },
+    {
+      id: "price",
+      label: "价格",
+      cells: cellsFor(formatProductPriceRange),
+    },
+    {
+      id: "facts",
+      label: "库内事实",
+      cells: cellsFor(formatComparisonFact),
+    },
+  ];
+}
+
+function formatProductPriceRange(product: Product): string {
+  const minPrice = formatCurrencyCents(product.priceMinCents, product.currency);
+  const maxPrice = formatCurrencyCents(product.priceMaxCents, product.currency);
+
+  return product.priceMinCents === product.priceMaxCents
+    ? minPrice
+    : `${minPrice} - ${maxPrice}`;
+}
+
+function formatCurrencyCents(value: number, currency: string): string {
+  const amount = (value / 100).toFixed(Number.isInteger(value / 100) ? 0 : 2);
+
+  return currency === "CNY" ? `¥${amount}` : `${currency} ${amount}`;
+}
+
+function formatComparisonFact(product: Product): string {
+  const fact =
+    product.pros[0]
+    ?? product.recommendWhen[0]
+    ?? product.marketingDescription
+    ?? product.knowledgeText
+    ?? "暂无更多结构化事实。";
+
+  return fact.trim().slice(0, FALLBACK_COMPARISON_FACT_MAX_CHARS);
 }
 
 function createCartCommandResult(input: {

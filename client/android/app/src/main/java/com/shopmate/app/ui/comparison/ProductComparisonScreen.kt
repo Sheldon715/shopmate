@@ -121,7 +121,7 @@ fun ProductComparisonScreen(
                 modifier = Modifier.width(contentWidth),
             )
 
-            if (comparison.products.isNotEmpty()) {
+            if (comparison.highlights.isNotEmpty()) {
                 ComparisonHighlightsSection(
                     highlights = comparison.highlights,
                     products = comparison.products,
@@ -600,6 +600,15 @@ private fun ComparisonHighlightsSection(
     scale: Float,
     modifier: Modifier = Modifier,
 ) {
+    val highlightedProducts = comparisonHighlightDisplayItems(
+        highlights = highlights,
+        products = products,
+    )
+
+    if (highlightedProducts.isEmpty()) {
+        return
+    }
+
     ComparisonSectionCard(
         title = "推荐亮点",
         scale = scale,
@@ -611,13 +620,10 @@ private fun ComparisonHighlightsSection(
                 .fillMaxWidth()
                 .height(IntrinsicSize.Min),
         ) {
-            products.take(COMPARISON_PRODUCT_COUNT).forEachIndexed { index, product ->
+            highlightedProducts.forEach { item ->
                 HighlightBlock(
-                    product = product,
-                    index = index + 1,
-                    highlight = highlights.firstOrNull { highlight ->
-                        highlight.productId == product.id
-                    },
+                    index = item.productIndex,
+                    highlight = item.highlight,
                     scale = scale,
                     modifier = Modifier
                         .weight(1f)
@@ -630,9 +636,8 @@ private fun ComparisonHighlightsSection(
 
 @Composable
 private fun HighlightBlock(
-    product: ProductCardUi,
     index: Int,
-    highlight: ComparisonHighlightUi?,
+    highlight: ComparisonHighlightUi,
     scale: Float,
     modifier: Modifier = Modifier,
 ) {
@@ -663,7 +668,7 @@ private fun HighlightBlock(
                         vertical = 3f.scaledDp(scale),
                     ),
             )
-            highlight?.label?.takeIf { label -> label.isNotBlank() }?.let { label ->
+            highlight.label.takeIf { label -> label.isNotBlank() }?.let { label ->
                 Text(
                     text = label,
                     color = ShopMateGreen,
@@ -677,8 +682,7 @@ private fun HighlightBlock(
         }
 
         Text(
-            text = highlight?.text?.takeIf { text -> text.isNotBlank() }
-                ?: product.recommendationReason,
+            text = highlight.text,
             color = Color(0xFF2D3945),
             fontSize = (13f * scale).sp,
             lineHeight = (20f * scale).sp,
@@ -876,6 +880,32 @@ private fun ComparisonUi.summaryWithHighlight(): String {
 }
 
 private const val COMPARISON_PRODUCT_COUNT = 2
+
+internal data class ComparisonHighlightDisplayItem(
+    val product: ProductCardUi,
+    val productIndex: Int,
+    val highlight: ComparisonHighlightUi,
+)
+
+internal fun comparisonHighlightDisplayItems(
+    highlights: List<ComparisonHighlightUi>,
+    products: List<ProductCardUi>,
+): List<ComparisonHighlightDisplayItem> =
+    products
+        .take(COMPARISON_PRODUCT_COUNT)
+        .mapIndexedNotNull { index, product ->
+            highlights
+                .firstOrNull { highlight ->
+                    highlight.productId == product.id && highlight.text.isNotBlank()
+                }
+                ?.let { highlight ->
+                    ComparisonHighlightDisplayItem(
+                        product = product,
+                        productIndex = index + 1,
+                        highlight = highlight,
+                    )
+                }
+        }
 
 @Preview(
     name = "Product comparison - 389 x 843",

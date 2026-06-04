@@ -64,6 +64,15 @@ describe("parseChatStreamRequestBody", () => {
     });
   });
 
+  it("deduplicates and trims recent product ids", () => {
+    const request = parseChatStreamRequestBody({
+      message: "hello",
+      recentProductIds: [" product_001 ", "product_002", "product_001"],
+    });
+
+    expect(request.recentProductIds).toEqual(["product_001", "product_002"]);
+  });
+
   it("rejects invalid message values", () => {
     expect(() => parseChatStreamRequestBody({ message: "   " })).toThrow(
       ChatStreamRequestError,
@@ -176,6 +185,32 @@ describe("parseChatStreamRequestBody", () => {
         filters: {
           avoidTerms: ["a".repeat(81)],
         },
+      })
+    ).toThrow(ChatStreamRequestError);
+  });
+
+  it("rejects invalid recent product id arrays", () => {
+    expect(() =>
+      parseChatStreamRequestBody({
+        message: "hello",
+        recentProductIds: Array.from(
+          { length: 6 },
+          (_, index) => `product_${index}`,
+        ),
+      })
+    ).toThrow(ChatStreamRequestError);
+
+    expect(() =>
+      parseChatStreamRequestBody({
+        message: "hello",
+        recentProductIds: ["a".repeat(81)],
+      })
+    ).toThrow(ChatStreamRequestError);
+
+    expect(() =>
+      parseChatStreamRequestBody({
+        message: "hello",
+        recentProductIds: ["   "],
       })
     ).toThrow(ChatStreamRequestError);
   });

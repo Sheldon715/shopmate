@@ -70,20 +70,20 @@ export class ComparisonGenerationOutputError extends Error {
   }
 }
 
-const COMPARISON_GENERATION_MAX_COMPLETION_TOKENS = 1200;
-const COMPARISON_GENERATION_TIMEOUT_MS = 60_000;
+const COMPARISON_GENERATION_MAX_COMPLETION_TOKENS = 2000;
+const COMPARISON_GENERATION_TIMEOUT_MS = 45_000;
 const COMPARISON_PRODUCT_COUNT = 2;
 const MAX_DIMENSIONS = 6;
-const MIN_DIMENSIONS = 2;
-const MAX_HIGHLIGHTS = 4;
-const MAX_ANSWER_CHARS = 90;
-const MAX_TITLE_CHARS = 40;
+const MIN_DIMENSIONS = 4;
+const MAX_HIGHLIGHTS = 6;
+const MAX_ANSWER_CHARS = 110;
+const MAX_TITLE_CHARS = 48;
 const MAX_LABEL_CHARS = 32;
-const MAX_CELL_VALUE_CHARS = 90;
-const MAX_CONCLUSION_CHARS = 160;
-const MAX_HIGHLIGHT_TEXT_CHARS = 90;
-const MAX_PRODUCT_FACT_CHARS = 180;
-const MAX_PRODUCT_FACTS = 8;
+const MAX_CELL_VALUE_CHARS = 150;
+const MAX_CONCLUSION_CHARS = 240;
+const MAX_HIGHLIGHT_TEXT_CHARS = 130;
+const MAX_PRODUCT_FACT_CHARS = 190;
+const MAX_PRODUCT_FACTS = 9;
 const MAX_PRODUCT_LIST_ITEMS = 4;
 const MAX_PRODUCT_ATTRIBUTE_KEYS = 6;
 const MAX_PRODUCT_ATTRIBUTE_VALUES = 4;
@@ -100,35 +100,44 @@ export class ComparisonGenerationService {
     input: ComparisonGenerationInput,
   ): Promise<GeneratedComparisonOutput> {
     try {
-      const response = await this.llmClient.generate({
+      const request: LlmGenerateRequest = {
         messages: buildComparisonGenerationPrompt(input),
         temperature: 0,
         maxCompletionTokens: COMPARISON_GENERATION_MAX_COMPLETION_TOKENS,
         timeoutMs: COMPARISON_GENERATION_TIMEOUT_MS,
         requestId: input.requestId,
         abortSignal: input.abortSignal,
-      });
+      };
+      const rawText = await this.generateRawText(request);
 
       const parsed = parseComparisonGenerationOutput(
-        response.text,
+        rawText,
         input.products.map((context) => context.product.id),
       );
 
       return input.userPriority?.trim()
         ? parsed
-        : clearDimensionHighlights(parsed);
+        : clearRecommendationSignals(parsed);
     } catch (error) {
       rethrowIfAborted(input.abortSignal, error);
       throw error;
     }
   }
+
+  private async generateRawText(request: LlmGenerateRequest): Promise<string> {
+    const response = await this.llmClient.generate(request);
+
+    return response.text;
+  }
 }
 
-function clearDimensionHighlights(
+function clearRecommendationSignals(
   output: GeneratedComparisonOutput,
 ): GeneratedComparisonOutput {
   return {
     ...output,
+    recommendedProductId: null,
+    highlights: [],
     dimensions: output.dimensions.map((dimension) => ({
       ...dimension,
       cells: dimension.cells.map((cell) => ({
@@ -148,14 +157,18 @@ function buildComparisonGenerationPrompt(
       content: [
         "你是 ShopMate 的两款商品对比生成器。",
         "只能基于输入 facts 生成；不得编造库外商品、价格、库存、优惠、功效或成分。",
-        "输出紧凑 JSON object，不要 markdown 或解释文字。",
-        "answer <=90 中文字符；title <=40；conclusion <=160。",
+        "输出 JSON object，不要 markdown 或解释文字。",
+        "answer <=110 中文字符；title <=48；conclusion <=240。",
         "comparison.products 必须刚好 2 个，product_id 只能来自 allowlistProductIds。",
-        "dimensions 生成 2-5 行，每行 cells 覆盖两款商品；每个 cell <=90 字。",
-        "维度、单元格、高亮和结论必须围绕用户问题，不能套固定品类模板。",
+        "dimensions 必须生成 4-6 行，少于 4 行会被判无效；每行 cells 覆盖两款商品。",
+        "每个 cell 需要写具体差异事实和适用判断，<=150 字，不要只写短标签。",
+        "优先覆盖用户问题相关维度，再补充价格、核心功效/参数、适用场景、限制/注意点等有事实支撑的维度。",
+        "维度、单元格、高亮和结论必须围绕用户问题，不能套固定品类模板，不能只写短标签。",
         "每行最多一个 highlight=true；只有用户有明确优先需求且事实明显支持时才高亮。",
+        "如果 userPriority 为 null 或空：recommended_product_id 必须为 null，highlights 必须为 []，cells 不要输出 highlight 字段。",
+        "不要输出 false、null 之外的可选字段，不要输出解释、markdown 或额外 key。",
         "recommended_product_id 没有明确优势时为 null。",
-        "highlights 是产品亮点，不代表更优；每款至多一条。",
+        "当 userPriority 不为空时，highlights 写 2-4 条有事实依据的产品亮点，不代表更优；每款可有 1-2 条，text 需要说明事实依据。",
       ].join("\n"),
     },
     {
@@ -164,7 +177,7 @@ function buildComparisonGenerationPrompt(
         message: input.question,
         shortHistory: normalizeComparisonHistory(input.shortHistory ?? []),
         contextMemory: summarizeContextMemory(input.contextMemory),
-        userPriority: input.userPriority,
+        userPriority: input.userPriority?.trim() || null,
         allowlistProductIds: input.products.map((context) => context.product.id),
         products: input.products.map(summarizeProductContext),
         schema: {
@@ -177,8 +190,11 @@ function buildComparisonGenerationPrompt(
                 display_label: "string",
               },
             ],
-            dimensions: [
-              {
+            dimensions: {
+              type: "array",
+              minItems: 4,
+              maxItems: 6,
+              items: {
                 id: "string",
                 label: "string",
                 cells: [
@@ -189,7 +205,7 @@ function buildComparisonGenerationPrompt(
                   },
                 ],
               },
-            ],
+            },
             recommended_product_id: "string from allowlistProductIds or null",
             conclusion: "string",
             highlights: [
@@ -210,7 +226,16 @@ export function parseComparisonGenerationOutput(
   rawText: string,
   allowlistProductIds: string[],
 ): GeneratedComparisonOutput {
-  const payload = parseJsonObject(stripCodeFence(rawText));
+  let payload: Record<string, unknown>;
+
+  try {
+    payload = parseJsonObject(stripCodeFence(rawText));
+  } catch {
+    throw new ComparisonGenerationOutputError(
+      "comparison generation output must be a valid JSON object.",
+    );
+  }
+
   const comparison = payload.comparison;
 
   if (!comparison || typeof comparison !== "object" || Array.isArray(comparison)) {

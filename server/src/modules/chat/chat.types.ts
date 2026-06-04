@@ -103,6 +103,7 @@ export interface RagChatRequest {
   conversationId?: string;
   question: string;
   shortHistory?: ChatHistoryMessage[];
+  recentProductIds?: string[];
   filters?: VectorSearchFilters;
   topK?: number;
   maxRecommendedProducts?: number;

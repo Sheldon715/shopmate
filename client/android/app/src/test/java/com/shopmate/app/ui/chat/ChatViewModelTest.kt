@@ -350,6 +350,87 @@ class ChatViewModelTest {
     }
 
     @Test
+    fun comparisonPresetDeltaKeepsAssistantStreamingUntilDone() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("对比一下前两个")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        repository.events.emit(
+            ChatStreamEvent.MessageDelta(
+                text = "我先帮你核对这两款商品的关键信息。",
+                index = 0,
+            ),
+        )
+        advanceUntilIdle()
+
+        var state = viewModel.uiState.value
+        assertTrue(state.isSending)
+        assertTrue(state.messages.last().isStreaming)
+        assertEquals("我先帮你核对这两款商品的关键信息。", state.messages.last().text)
+
+        repository.events.emit(
+            ChatStreamEvent.ProductCards(
+                listOf(
+                    productDto(id = "product_001", name = "通勤耳机"),
+                    productDto(id = "product_002", name = "降噪耳机"),
+                ),
+            ),
+        )
+        repository.events.emit(
+            ChatStreamEvent.ComparisonResult(
+                ChatComparisonResultDto(
+                    id = "comparison-preset-streaming",
+                    title = "耳机对比",
+                    query = "对比一下前两个",
+                    productIds = listOf("product_001", "product_002"),
+                    dimensions = listOf(
+                        ChatComparisonDimensionDto(
+                            id = "commute",
+                            label = "通勤",
+                            cells = listOf(
+                                ChatComparisonCellDto(
+                                    productId = "product_001",
+                                    value = "更轻便。",
+                                ),
+                                ChatComparisonCellDto(
+                                    productId = "product_002",
+                                    value = "降噪更强。",
+                                ),
+                            ),
+                        ),
+                    ),
+                    recommendedProductId = null,
+                    conclusion = "按通勤轻便和降噪需求选择。",
+                    highlights = emptyList(),
+                ),
+            ),
+        )
+        advanceUntilIdle()
+
+        state = viewModel.uiState.value
+        assertTrue(state.isSending)
+        assertTrue(state.messages.last().isStreaming)
+        assertEquals("comparison-preset-streaming", state.comparisonActions.single().comparisonId)
+
+        repository.events.emit(
+            ChatStreamEvent.Done(
+                recommendedProductIds = listOf("product_001", "product_002"),
+                fallbackUsed = false,
+                fallbackReason = null,
+                retrieval = ChatRetrievalDto(candidateCount = 2),
+            ),
+        )
+        advanceUntilIdle()
+
+        state = viewModel.uiState.value
+        assertFalse(state.isSending)
+        assertFalse(state.messages.last().isStreaming)
+    }
+
+    @Test
     fun comparisonResultWithThreeProductsIsIgnored() = runTest {
         val repository = FakeChatRepository()
         val viewModel = ChatViewModel(repository)
@@ -471,11 +552,11 @@ class ChatViewModelTest {
     }
 
     @Test
-    fun comparisonFollowUpKeepsExistingProductCardsAtOriginalAnchor() = runTest {
+    fun comparisonFollowUpKeepsExistingProductCardsAtOriginalAnchorAndSendsVisibleProductIds() = runTest {
         val repository = FakeChatRepository()
         val viewModel = ChatViewModel(repository)
 
-        viewModel.onComposerTextChange("推荐两款OPPO手机")
+        viewModel.onComposerTextChange("推荐三款OPPO手机")
         viewModel.sendMessage()
         advanceUntilIdle()
         repository.events.emit(
@@ -483,31 +564,41 @@ class ChatViewModelTest {
                 listOf(
                     productDto(id = "product_001", name = "OPPO 手机 1"),
                     productDto(id = "product_002", name = "OPPO 手机 2"),
+                    productDto(id = "product_003", name = "OPPO 手机 3"),
                 ),
             ),
         )
         repository.events.emit(
             ChatStreamEvent.Done(
-                recommendedProductIds = listOf("product_001", "product_002"),
+                recommendedProductIds = listOf("product_001", "product_002", "product_003"),
                 fallbackUsed = false,
                 fallbackReason = null,
-                retrieval = ChatRetrievalDto(candidateCount = 2),
+                retrieval = ChatRetrievalDto(candidateCount = 3),
             ),
         )
         advanceUntilIdle()
         val originalCardAnchorMessageId = viewModel.uiState.value.productCardsAnchorMessageId
+        assertEquals(
+            listOf("product_001", "product_002", "product_003"),
+            viewModel.uiState.value.productCards.map { product -> product.id },
+        )
 
-        viewModel.onComposerTextChange("对比一下前两个")
+        viewModel.onComposerTextChange("对比一下第二个和第三个")
         viewModel.sendMessage()
         advanceUntilIdle()
         val comparisonAssistantId = viewModel.uiState.value.messages.last().id
+        assertEquals(emptyList(), repository.recentProductIdCalls.first())
+        assertEquals(
+            listOf("product_001", "product_002", "product_003"),
+            repository.recentProductIdCalls[1],
+        )
 
         repository.events.emit(ChatStreamEvent.MessageDelta("我做了对比。", 0))
         repository.events.emit(
             ChatStreamEvent.ProductCards(
                 listOf(
-                    productDto(id = "product_001", name = "OPPO 手机 1"),
                     productDto(id = "product_002", name = "OPPO 手机 2"),
+                    productDto(id = "product_003", name = "OPPO 手机 3"),
                 ),
             ),
         )
@@ -516,20 +607,20 @@ class ChatViewModelTest {
                 ChatComparisonResultDto(
                     id = "comparison-phone-1",
                     title = "OPPO 手机对比",
-                    query = "对比一下前两个",
-                    productIds = listOf("product_001", "product_002"),
+                    query = "对比一下第二个和第三个",
+                    productIds = listOf("product_002", "product_003"),
                     dimensions = listOf(
                         ChatComparisonDimensionDto(
                             id = "price",
                             label = "价格",
                             cells = listOf(
                                 ChatComparisonCellDto(
-                                    productId = "product_001",
+                                    productId = "product_002",
                                     value = "价格更低。",
                                     highlight = true,
                                 ),
                                 ChatComparisonCellDto(
-                                    productId = "product_002",
+                                    productId = "product_003",
                                     value = "定位更旗舰。",
                                 ),
                             ),
@@ -543,7 +634,7 @@ class ChatViewModelTest {
         )
         repository.events.emit(
             ChatStreamEvent.Done(
-                recommendedProductIds = listOf("product_001", "product_002"),
+                recommendedProductIds = listOf("product_002", "product_003"),
                 fallbackUsed = false,
                 fallbackReason = null,
                 retrieval = ChatRetrievalDto(candidateCount = 2),
@@ -556,6 +647,10 @@ class ChatViewModelTest {
         assertNotEquals(comparisonAssistantId, state.productCardsAnchorMessageId)
         assertEquals(comparisonAssistantId, state.comparisonActions.single().anchorMessageId)
         assertEquals("comparison-phone-1", state.comparisonResults.single().id)
+        assertEquals(
+            listOf("product_002", "product_003"),
+            state.comparisonResults.single().products.map { product -> product.id },
+        )
     }
 
     @Test
@@ -1125,6 +1220,7 @@ class ChatViewModelTest {
                     message: String,
                     conversationId: String,
                     history: List<ChatMessageUi>,
+                    recentProductIds: List<String>,
                 ): Flow<ChatStreamEvent> = flow {
                     throw IllegalStateException("offline")
                 }
@@ -1149,6 +1245,7 @@ class ChatViewModelTest {
                     message: String,
                     conversationId: String,
                     history: List<ChatMessageUi>,
+                    recentProductIds: List<String>,
                 ): Flow<ChatStreamEvent> = emptyFlow()
             },
         )
@@ -1645,15 +1742,18 @@ class ChatViewModelTest {
         var streamCalls = 0
         val conversationIds = mutableListOf<String>()
         val histories = mutableListOf<List<ChatMessageUi>>()
+        val recentProductIdCalls = mutableListOf<List<String>>()
 
         override fun streamChat(
             message: String,
             conversationId: String,
             history: List<ChatMessageUi>,
+            recentProductIds: List<String>,
         ): Flow<ChatStreamEvent> {
             streamCalls += 1
             conversationIds += conversationId
             histories += history
+            recentProductIdCalls += recentProductIds
             return events
         }
     }

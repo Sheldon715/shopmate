@@ -8,7 +8,7 @@ import {
 } from "./comparison-generation.service";
 
 describe("parseComparisonGenerationOutput", () => {
-  it("uses an extended timeout for structured comparison generation", async () => {
+  it("uses a bounded timeout and token budget for structured comparison generation", async () => {
     let request: LlmGenerateRequest | undefined;
     const service = new ComparisonGenerationService({
       llmClient: {
@@ -56,8 +56,8 @@ describe("parseComparisonGenerationOutput", () => {
       generatedAt: new Date("2026-05-31T00:00:00.000Z"),
     });
 
-    expect(request?.timeoutMs).toBe(60_000);
-    expect(request?.maxCompletionTokens).toBe(1200);
+    expect(request?.timeoutMs).toBe(45_000);
+    expect(request?.maxCompletionTokens).toBe(2000);
   });
 
   it("sends compact comparison facts instead of full product knowledge payloads", async () => {
@@ -130,6 +130,7 @@ describe("parseComparisonGenerationOutput", () => {
 
     const userPayload = JSON.parse(request?.messages[1]?.content ?? "{}") as {
       shortHistory?: unknown[];
+      userPriority?: unknown;
       products?: Array<Record<string, unknown>>;
     };
     const promptText = request?.messages.map((message) => message.content).join("\n")
@@ -137,14 +138,20 @@ describe("parseComparisonGenerationOutput", () => {
 
     expect(promptText).not.toContain("FULL_KNOWLEDGE_TEXT_SHOULD_NOT_BE_SENT");
     expect(userPayload.shortHistory).toHaveLength(2);
+    expect(userPayload.userPriority).toBeNull();
     expect(userPayload.products?.[0]).toMatchObject({
       product_id: "product_001",
       facts: expect.arrayContaining([expect.stringContaining("轻薄通勤事实")]),
     });
+    const facts = userPayload.products?.[0]?.facts as string[] | undefined;
+
+    expect(facts).toBeDefined();
+    expect(facts?.length).toBeLessThanOrEqual(9);
+    expect(facts?.every((fact) => Array.from(fact).length <= 190)).toBe(true);
     expect(Object.keys(userPayload.products?.[0]?.attrs ?? {})).toHaveLength(6);
   });
 
-  it("clears dimension highlights when the user has no explicit priority", async () => {
+  it("clears recommendation signals when the user has no explicit priority", async () => {
     const service = new ComparisonGenerationService({
       llmClient: {
         generate: async () => ({
@@ -173,9 +180,15 @@ describe("parseComparisonGenerationOutput", () => {
                   ],
                 },
               ),
-              recommended_product_id: null,
+              recommended_product_id: "product_001",
               conclusion: "两款各有侧重。",
-              highlights: [],
+              highlights: [
+                {
+                  product_id: "product_001",
+                  label: "通勤肤感",
+                  text: "更轻薄。",
+                },
+              ],
             },
           }),
           model: "mock",
@@ -196,6 +209,8 @@ describe("parseComparisonGenerationOutput", () => {
     });
 
     expect(result.dimensions[0]?.cells.some((cell) => cell.highlight)).toBe(false);
+    expect(result.recommendedProductId).toBeNull();
+    expect(result.highlights).toEqual([]);
   });
 
   it("parses a valid comparison result and normalizes invalid recommendation ids", () => {
@@ -251,6 +266,12 @@ describe("parseComparisonGenerationOutput", () => {
     ]);
   });
 
+  it("wraps malformed JSON as comparison invalid output", () => {
+    expect(() =>
+      parseComparisonGenerationOutput("{ nope", ["product_001", "product_002"])
+    ).toThrow(ComparisonGenerationOutputError);
+  });
+
   it("rejects dimensions that do not cover every comparison product", () => {
     expect(() =>
       parseComparisonGenerationOutput(
@@ -284,7 +305,7 @@ describe("parseComparisonGenerationOutput", () => {
     ).toThrow(ComparisonGenerationOutputError);
   });
 
-  it("accepts two complete dimensions for concise comparison output", () => {
+  it("accepts four complete dimensions for quality comparison output", () => {
     const result = parseComparisonGenerationOutput(
       JSON.stringify({
         answer: "我做了对比。",
@@ -311,6 +332,22 @@ describe("parseComparisonGenerationOutput", () => {
                 { product_id: "product_002", value: "价格更高。" },
               ],
             },
+            {
+              id: "usage",
+              label: "适用场景",
+              cells: [
+                { product_id: "product_001", value: "适合日常通勤。" },
+                { product_id: "product_002", value: "适合长时间户外。" },
+              ],
+            },
+            {
+              id: "limits",
+              label: "注意点",
+              cells: [
+                { product_id: "product_001", value: "户外长时间使用需要补涂。" },
+                { product_id: "product_002", value: "肤感可能更有存在感。" },
+              ],
+            },
           ],
           recommended_product_id: null,
           conclusion: "两款都有清晰差异，可按肤感和预算选择。",
@@ -320,10 +357,10 @@ describe("parseComparisonGenerationOutput", () => {
       ["product_001", "product_002"],
     );
 
-    expect(result.dimensions).toHaveLength(2);
+    expect(result.dimensions).toHaveLength(4);
   });
 
-  it("rejects comparison output with fewer than two complete dimensions", () => {
+  it("rejects comparison output with fewer than four complete dimensions", () => {
     expect(() =>
       parseComparisonGenerationOutput(
         JSON.stringify({
@@ -513,6 +550,14 @@ function createValidComparisonDimensions(
       cells: [
         { product_id: "product_001", value: "适合日常通勤。" },
         { product_id: "product_002", value: "适合长时间户外。" },
+      ],
+    },
+    {
+      id: "limits",
+      label: "注意点",
+      cells: [
+        { product_id: "product_001", value: "长时间户外需要补涂。" },
+        { product_id: "product_002", value: "肤感可能更有存在感。" },
       ],
     },
   ];

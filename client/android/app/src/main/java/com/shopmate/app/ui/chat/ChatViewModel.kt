@@ -376,6 +376,7 @@ class ChatViewModel(
         preservingExistingProductCardsForCurrentStream = false
         latestStreamProductCards = emptyList()
         preStreamProductCards = _uiState.value.productCards
+        val recentProductIds = preStreamProductCards.map { product -> product.id }
         voicePendingMessageId = null
         val conversationId = currentSessionId ?: nextSessionId().also { id ->
             currentSessionId = id
@@ -432,7 +433,12 @@ class ChatViewModel(
         }
 
         streamJob = viewModelScope.launch {
-            chatRepository.streamChat(message, conversationId, history)
+            chatRepository.streamChat(
+                message = message,
+                conversationId = conversationId,
+                history = history,
+                recentProductIds = recentProductIds,
+            )
                 .catch { error ->
                     applyFailure(error)
                 }

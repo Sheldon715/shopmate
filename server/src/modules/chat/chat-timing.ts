@@ -9,6 +9,7 @@ export type ChatTimingMarkName =
   | "comparison_intent_done"
   | "comparison_targets_started"
   | "comparison_targets_done"
+  | "comparison_preset_delta_sent"
   | "comparison_generation_started"
   | "comparison_generation_done"
   | "clarification_intent_done"
