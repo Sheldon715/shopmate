@@ -169,7 +169,8 @@ function createSystemPrompt(): string {
     "品牌文字只能作为 detected_brand_text 弱信号；最终品牌事实以后续商品库为准。",
     "如果图片不是商品主体图、商品不可识别、置信度低，confidence 必须为 low，search_query 返回空字符串。",
     "如果图片包含人脸、证件、地址、订单、二维码、支付码、条形码或隐私风险，is_product_search=false，confidence=low，并要求用户换商品主体图。",
-    "detected_category 只能在这些类目中选择：美妆护肤、数码电子、服饰运动、食品生活、家居日用、宠物用品、母婴用品、学生宿舍用品；无法判断时返回 null。",
+    "detected_category 只能在这些商品库真实类目中选择：美妆护肤、数码电子、服饰运动、食品饮料、家用电器、母婴用品、办公学习；无法判断时返回 null。",
+    "不要输出旧类目或同义类目：食品生活应归为食品饮料，家居日用/小家电应归为家用电器，学生宿舍用品/办公外设应归为办公学习。",
     "只返回 JSON 对象，字段必须完全符合 schema，不要 Markdown，不要解释。",
     '{"is_product_search":true,"detected_category":null,"detected_brand_text":null,"visual_attributes":[],"colors":[],"materials":[],"use_case":null,"constraints":[],"search_query":"","confidence":"low","clarification_question":null}',
   ].join("\n");

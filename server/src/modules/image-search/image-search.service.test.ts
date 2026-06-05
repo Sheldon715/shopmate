@@ -295,6 +295,49 @@ describe("normalizeVisualIntent", () => {
     ).toBeNull();
   });
 
+  it("maps legacy or visual-category aliases to current catalog categories", () => {
+    expect(
+      normalizeVisualIntent({
+        ...baseIntent(),
+        detected_category: "家居日用",
+      }).detected_category,
+    ).toBe("家用电器");
+    expect(
+      normalizeVisualIntent({
+        ...baseIntent(),
+        detected_category: "食品生活",
+      }).detected_category,
+    ).toBe("食品饮料");
+    expect(
+      normalizeVisualIntent({
+        ...baseIntent(),
+        detected_category: "学生宿舍用品",
+      }).detected_category,
+    ).toBe("办公学习");
+  });
+
+  it("uses normalized catalog category aliases for filters", async () => {
+    const service = new ImageSearchService({
+      config,
+      visualIntentClient: clientReturning({
+        ...baseIntent(),
+        detected_category: "小家电",
+        search_query: "白色米家家用加湿器",
+      }),
+    });
+
+    await expect(
+      service.interpret({ image: pngInput() }),
+    ).resolves.toMatchObject({
+      visualIntent: {
+        detected_category: "家用电器",
+      },
+      filters: {
+        category: "家用电器",
+      },
+    });
+  });
+
   it("keeps detected brand text only inside visualIntent", async () => {
     const service = new ImageSearchService({
       config,

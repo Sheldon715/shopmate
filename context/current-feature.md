@@ -1,4 +1,4 @@
-# Current Feature: Android 图片找货上传入口
+# Current Feature: 图片找货评估闭环
 
 ## 状态
 
@@ -6,48 +6,49 @@ Complete
 
 ## 目标
 
-- 在 Android 聊天输入区新增单图附件入口，同时保留现有文字和语音输入能力。
-- 用户可通过 Photo Picker 选择商品图、查看预览、删除或重新选择，并补充文字说明。
-- 发送含图片请求时先调用后端 `POST /api/image-search/interpret`，成功后复用现有 Chat SSE 展示流式导购回复和商品卡片。
-- interpret 失败、低置信或后端未配置时保留用户输入和图片，不进入 Chat SSE，并展示可重试的稳定错误状态。
-- 上传前完成图片压缩、重新编码、MIME 校验和 EXIF 去除，Android 不保存 provider key，也不做本地商品事实判断。
+- 建立图片找货 V1 小样本评估闭环，用固定 cases 检查 VLM 视觉理解、Chat/RAG 召回、隐私安全和延迟表现。
+- 新增可复用的图片找货评估 case 定义，覆盖商品图、非商品图、隐私/支付类图片、品牌弱信号和低置信图片。
+- 记录每次评估的 `visualIntent`、`chatMessage`、filters、Chat SSE 返回商品 id、人工评分、失败分类和阶段耗时。
+- 输出评估结果与报告，明确区分 VLM 问题、Chat/RAG 问题、Android 上传问题、商品库问题和隐私问题。
+- 只在评估证明“视觉相似召回不足”是主要失败来源时，再决定是否进入 `image-search-vector-index-spec.md`。
 
 ## 待办清单
 
-- [x] 梳理现有 `ChatComposer`、`ChatViewModel`、Chat SSE repository 和 ASR multipart 上传模式，确认图片入口不会替换语音 / 文字切换。
-- [x] 新增图片附件 UI state，支持选择、预览、删除、重新选择、上传中、解释中、搜索中、失败和重试状态。
-- [x] 接入 Android Photo Picker 单图选择，并避免默认申请宽泛 storage permission。
-- [x] 新增图片处理工具，对 JPEG / PNG / WebP 做格式校验、尺寸压缩、重新编码、EXIF 去除和安全文件名处理。
-- [x] 新增 `ImageSearchApiClient` / `ImageSearchRepository` / DTO，按 multipart 字段 `image`、可选 `message`、可选 `conversationId` 调用后端解释接口。
-- [x] 在 `ChatViewModel` 中实现 `selectImage(uri)`、`clearSelectedImage()`、`retryImageSearch()` 与含图发送分支。
-- [x] interpret 成功且返回 `chatMessage` 时复用现有 Chat SSE，并把 filters 传给 Chat repository；成功但无 `chatMessage` 或低置信时显示澄清 / 提示，不调用 Chat SSE。
-- [x] 确保用户气泡只展示用户原始文字和图片预览，不展示后端生成的内部 `chatMessage`。
-- [x] 处理错误映射：不支持格式、图片过大、provider disabled、低置信和网络错误均保留输入并允许重试。
-- [x] 补充 Android 单测：无图片旧流程不变、附件状态、删除回普通模式、interpret 成功 / 失败 / 低置信分支、filters 透传、multipart 字段和图片处理工具。
-- [x] 运行 `cd client/android && .\gradlew.bat testDebugUnitTest`。
-- [x] 运行 `cd client/android && .\gradlew.bat build`。
-- [x] Demo / 真实图片 smoke 边界已记录：本次 build 使用显式 HTTPS base URL property 通过，未单独跑真实 provider 图片识别 smoke。
+- [x] 新增 `data/processed/rag/image-evaluation-cases.json`，至少包含 6 个 V1 image-search cases，并覆盖推荐 spec 中的核心图片类型。
+- [x] 为 cases 增加结构校验，检查 `caseId` 唯一、图片引用低敏、期望行为 / 类目 / mustNot 字段完整。
+- [x] 设计并落地 `data/processed/rag/image-evaluation-results.jsonl` 的单条结果结构，包含 `imageSearchMode`、`visualIntent`、filters、returnedProductIds 或 refusal reason、timing、humanScores 和 issues。
+- [x] 增加结果校验，禁止 base64、真实用户图片路径、provider key 或其他敏感内容进入结果文件。
+- [x] 约束失败分类枚举：`visual_misread`、`category_mismatch`、`constraint_lost`、`catalog_miss`、`hallucinated_product`、`price_or_stock_error`、`privacy_leak`、`low_confidence_missing`、`latency_too_high`。
+- [x] 新增 `docs/image-search-evaluation-report.md`，记录评估方法、cases、运行结果摘要、问题归因和是否启动 V2 的判断。
+- [x] 按 spec 运行必要验证；若只新增 JSON / docs，至少执行 `cd server && npm.cmd test`；若新增脚本，同时执行 `cd server && npm.cmd run build` 和 `cd server && npm.cmd test`。
+- [x] 在报告中明确真实 provider 批量评估是否已运行；未配置 provider 时记录原因，不假装完成 live smoke。
 
 ## 备注
 
-- Spec 来源：`context/feature/android-image-search-upload-spec.md`。
-- 范围边界：V1 只做相册单图，不做拍照、多图、连续识别、本地 OCR、端侧商品判断或长期保存用户图片。
-- 业务边界：Android 不持有 provider key，不根据文件名 / OCR / 关键词触发购物车动作；商品事实、cartAction、comparison 和推荐结果继续由后端 validated gates 决定。
-- UI 边界：附件按钮应作为独立入口存在，不替换现有语音 / 键盘切换；预览中不得展示完整 Uri、文件路径、原始文件名、base64、图片 bytes 或 provider 原始错误。
-- 上传约束：客户端目标压缩到 4 MB 内，后端上限 5 MB；支持 `image/jpeg`、`image/png`、`image/webp`，长边建议 1280-1600 px，JPEG quality 80-85。
-- 验证计划：优先用 Android 单测覆盖状态机、multipart、图片处理和 Chat SSE 分支；再跑 Android build。真实 provider smoke 依赖后端 image model 配置，未配置时需如实记录。
-- 实现记录（2026-06-05）：新增 `client/android/app/src/main/java/com/shopmate/app/data/image/`，包含图片解释 DTO、OkHttp multipart client、repository、MIME / magic bytes preflight 和 ContentResolver 图片压缩重编码处理器；上传固定使用 `shopmate-image-search.jpg`，不携带原始文件名。
-- 实现记录（2026-06-05）：`ChatComposer` 在输入胶囊右侧增加图片附件图标和预览条，保留语音 / 文字切换与独立发送按钮；`ChatViewModel` 增加 selected image 状态、失败重试、低置信拦截和 interpret 成功后 Chat SSE 复用。
-- UI 调整（2026-06-05）：图片入口已从输入框外部圆形按钮移入“发消息”输入框右侧，不再显示额外外层圆圈。
-- Review 修复（2026-06-05）：失败 / 低置信图片解释仍保留 UI 气泡和重试状态，但用户消息会标记为不进入后续 Chat SSE history；`ChatViewModel` 调用前过滤，`DefaultChatRepository` 序列化请求时再次兜底过滤。
-- 验证结果（2026-06-05）：`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.data.image.*" --tests "com.shopmate.app.ui.chat.ChatViewModelTest"` 通过。
-- 验证结果（2026-06-05）：`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 通过。
-- 验证结果（2026-06-05）：`cd client/android; .\gradlew.bat --no-daemon -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/ -PSHOPMATE_RELEASE_API_BASE_URL=https://shopmate-api.example.com/ build` 通过。
-- 验证结果（2026-06-05，Review 修复）：`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.ui.chat.ChatViewModelTest" --tests "com.shopmate.app.data.chat.DefaultChatRepositoryTest"` 通过。
-- 验证结果（2026-06-05，Review 修复）：`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 通过。
-- 验证结果（2026-06-05，Complete）：`cd client/android; .\gradlew.bat --no-daemon --console=plain -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/ -PSHOPMATE_RELEASE_API_BASE_URL=https://shopmate-api.example.com/ build` 通过。
-- 验证结果（2026-06-05）：`git diff --check` 通过；仅显示 Windows CRLF 提示，无 whitespace error。
-- 未跑项（2026-06-05）：未进行真实相册图片到 live vision provider 的 smoke，因为当前验证未配置真实图片识别模型 / 后端环境。
+- Spec 来源：`context/feature/image-search-evaluation-spec.md`。
+- 范围边界：本 feature 不实现新的图片找货能力、不做 Gradio 图片评测 UI、不做 image embedding、不提交真实用户图片或图片 base64、不跑大批量 provider 压测。
+- V1 行为边界：图片理解后的推荐仍是“按图片识别到的类目 / 属性 / 用户补充约束，在 ShopMate 商品库内推荐”，不是承诺视觉相似检索一定最优。
+- 评分以人工判断为主，LLM 或脚本只能辅助结构化记录；最终结论需要从评估结果中归因，而不是自动打分替代人工判断。
+- V2 启动条件：多个 case 证明 VLM 能正确识别商品，但文本 RAG 经常返回语义相关却外观不相似的库内商品；provider 配置、Android 上传、Chat filters 或现有 RAG bug 导致的失败不能作为启动 image embedding 的证据。
+- 实现记录（2026-06-05）：新增 8 条 `image-evaluation-cases.json`，覆盖耳机、防晒、服饰、小家电、非商品、订单/二维码、品牌弱信号和模糊商品图。
+- 实现记录（2026-06-05）：新增 `image-evaluation-results.jsonl` bootstrap 结果结构，当前全部为 `runStatus: "not_run"`，只用于固定低敏字段，不代表真实 provider 评估结果。
+- 实现记录（2026-06-05）：新增 `ImageSearchEvaluation` 类型、schema validator、`image-search:evaluation:validate` 脚本和 Vitest 覆盖，校验 case 唯一性、低敏图片引用、结果字段、失败分类枚举、base64 / 路径 / provider key 泄露风险。
+- 实现记录（2026-06-05）：新增 `docs/image-search-evaluation-report.md`，记录 V1 评估方法、case 覆盖、结果字段、V2 启动条件和未跑真实 provider 的原因。
+- 验证结果（2026-06-05）：`cd server; npm.cmd run image-search:evaluation:validate` 通过。
+- 验证结果（2026-06-05）：`cd server; npm.cmd test -- src/modules/image-search/image-search-evaluation.validation.test.ts` 通过。
+- 验证结果（2026-06-05）：`cd server; npm.cmd test` 通过，48 个测试文件、366 个测试通过。
+- 验证结果（2026-06-05）：`cd server; npm.cmd run build` 通过。
+- 真实 provider 运行记录（2026-06-05）：新增 `image-search:evaluation:run`，读取 8 条 case，调用真实 `ImageSearchService`，有 `chatMessage` 时通过本地 Express app 调用 `POST /api/chat/stream`，并写回 `data/processed/rag/image-evaluation-results.jsonl`。
+- 真实 provider 结果（2026-06-05）：8 条结果均为 `runStatus: "needs_review"`，人工评分仍为空；耳机、防晒、服饰和品牌弱信号 case 返回库内商品，非商品 / 二维码 / 模糊图进入低置信澄清或拒绝。
+- 真实 provider 结果（2026-06-05）：`image_home_appliance` 识别为 `家居日用`，但商品库小家电实际为 `家用电器`，Chat SSE 返回 `NO_CANDIDATES`；这属于类目映射 / prompt / filter 对齐问题，不能作为启动 V2 image embedding 的证据。
+- 真实 provider 验证（2026-06-05）：`cd server; npm.cmd run image-search:evaluation:run -- --limit=1 --output ..\data\processed\rag\image-evaluation-results-live-smoke.jsonl` 通过，随后全量 `cd server; npm.cmd run image-search:evaluation:run` 通过并写入正式结果。
+- 真实 provider 验证（2026-06-05）：全量运行后 `cd server; npm.cmd run image-search:evaluation:validate` 通过；`cd server; npm.cmd test` 通过，48 个测试文件、366 个测试通过；`cd server; npm.cmd run build` 通过。
+- V1.1 修复（2026-06-05）：图片找货 prompt 的允许类目已对齐当前商品库真实类目：`美妆护肤`、`数码电子`、`服饰运动`、`食品饮料`、`家用电器`、`母婴用品`、`办公学习`。
+- V1.1 修复（2026-06-05）：后端 `normalizeVisualIntent` 增加旧类目 / 视觉同义词映射，`食品生活 -> 食品饮料`，`家居日用 / 小家电 -> 家用电器`，`学生宿舍用品 / 办公外设 -> 办公学习`。
+- V1.1 结果（2026-06-05）：重跑真实 provider 后，`image_home_appliance` 已从 `家居日用 + NO_CANDIDATES` 恢复为 `家用电器 + p_home_air_004`；当前仍不建议启动 V2 image embedding。
+- V1.1 验证（2026-06-05）：`cd server; npm.cmd run image-search:evaluation:validate` 通过；`cd server; npm.cmd test` 通过，48 个测试文件、368 个测试通过；`cd server; npm.cmd run build` 通过。
+- Review 修复（2026-06-05）：`needs_review` 结果现在也强制包含 `returnedProductIds` 或 `refusalReason`，避免已跑真实 provider 但既无商品也无拒绝原因的记录漏进 JSONL。
+- Review 验证（2026-06-05）：修复后复跑 `cd server; npm.cmd run image-search:evaluation:validate`、`cd server; npm.cmd test`、`cd server; npm.cmd run build`，均通过。
 
 ## 历史记录
 - 初始化前后端技术栈骨架：完成 Android Kotlin + Jetpack Compose 与 Node.js + TypeScript + Express 最小工程初始化，补充 README 与 Git 忽略配置，并通过后端构建与 Android `assembleDebug` 验证。
@@ -123,3 +124,4 @@ Complete
 - 代码扫描 Quick Wins（四）：完成 provider 错误脱敏、query rewrite timeout 取消、Product API offset 上限、research skill 同步、Android 聊天 LazyColumn 渲染和语音输入无障碍补强，并抽出 query rewrite race helper 收口 `RagChatService` 职责；通过后端 test / build、Android testDebugUnitTest 和带 demo HTTPS property 的 Android build 验证。
 - 图片找货后端解释接口：新增 `POST /api/image-search/interpret` multipart 后端入口、Busboy 图片校验、OpenAI-compatible 视觉意图 provider wrapper、`VisualIntent` 规范化和业务动作安全门；通过后端目标测试、全量 test、build 和 staged diff check 验证，真实 provider live smoke 因未配置 vision model 未跑。
 - 图片找货 Chat/RAG 集成：把图片解释结果返回的内部 `chatMessage`、filters 和低敏 `imageSearch` metadata 接入现有 Chat SSE，Android 成功路径调用 `POST /api/chat/stream` 且用户气泡仍显示原始图片请求；后端继续通过 LLM intent、allowlist、comparison、cartAction、clarification 和 negative constraint gates 约束业务动作。通过后端 test / build、Android testDebugUnitTest 和带 demo HTTPS property 的 Android build 验证。
+- Android 图片找货上传入口：在聊天输入区接入 Photo Picker 单图附件、输入框内图片入口、预览删除和重试状态，新增 Android 图片压缩重编码与 multipart interpret client；成功复用 Chat SSE，失败 / 低置信保留输入且不进入后续 history。通过 Android `testDebugUnitTest` 和带 HTTPS base URL 的 `build` 验证，真实 provider smoke 未跑。

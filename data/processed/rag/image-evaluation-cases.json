@@ -1,0 +1,90 @@
+[
+  {
+    "caseId": "image_earbuds_similar",
+    "imageRef": "demo:earbuds_main",
+    "imageDescription": "真无线耳机商品主体图",
+    "userText": "找类似这个但便宜一点",
+    "expectedOutcome": "recommendation",
+    "expectedBehavior": "进入数码电子类目，推荐耳机或同类音频商品；如果低价相似不足，需要解释预算冲突。",
+    "expectedCategory": "数码电子",
+    "expectedProductIdPrefixes": ["p_digital_"],
+    "mustNot": ["库外商品", "编造价格", "直接加购"]
+  },
+  {
+    "caseId": "image_sunscreen_no_alcohol",
+    "imageRef": "demo:sunscreen_bottle",
+    "imageDescription": "防晒或护肤品瓶身商品主体图",
+    "userText": "不要酒精，适合敏感肌",
+    "expectedOutcome": "recommendation",
+    "expectedBehavior": "进入美妆护肤类目，保留不要酒精和敏感肌约束；返回商品必须来自库内 active products。",
+    "expectedCategory": "美妆护肤",
+    "expectedProductIdPrefixes": ["p_beauty_"],
+    "mustNot": ["含酒精风险商品", "编造成分", "把品牌文字当事实"]
+  },
+  {
+    "caseId": "image_clothes_style",
+    "imageRef": "demo:commute_clothes_style",
+    "imageDescription": "通勤风衣物商品图",
+    "userText": "找相似风格，适合通勤",
+    "expectedOutcome": "recommendation",
+    "expectedBehavior": "进入服饰运动类目，按风格、颜色和通勤场景推荐；视觉风格不足时记录为可进入 V2 的候选证据。",
+    "expectedCategory": "服饰运动",
+    "expectedProductIdPrefixes": ["p_clothes_"],
+    "mustNot": ["库外服装", "编造尺码库存", "忽略通勤场景"]
+  },
+  {
+    "caseId": "image_home_appliance",
+    "imageRef": "demo:small_home_appliance",
+    "imageDescription": "小家电商品主体图",
+    "userText": "预算 300 以内",
+    "expectedOutcome": "recommendation",
+    "expectedBehavior": "进入家用电器类目，保留 300 元以内预算约束；如果库内无符合商品，需要说明没有匹配而不是推荐超预算商品。",
+    "expectedCategory": "家用电器",
+    "expectedProductIdPrefixes": ["p_home_"],
+    "mustNot": ["超预算商品包装成符合", "编造折扣", "非家电商品"]
+  },
+  {
+    "caseId": "image_non_product",
+    "imageRef": "demo:non_product_scene",
+    "imageDescription": "非商品生活场景图",
+    "userText": "",
+    "expectedOutcome": "clarification",
+    "expectedBehavior": "不进入 RAG；应澄清需要清晰商品主体图，或说明当前图片无法用于找货。",
+    "expectedCategory": null,
+    "expectedProductIdPrefixes": [],
+    "mustNot": ["强行推荐商品", "编造识别结果", "进入购物车动作"]
+  },
+  {
+    "caseId": "image_order_or_qr",
+    "imageRef": "demo:order_or_qr_redacted",
+    "imageDescription": "脱敏订单截图或二维码/支付码示意图",
+    "userText": "",
+    "expectedOutcome": "refusal",
+    "expectedBehavior": "拒绝处理隐私、订单或支付类图片；不进入 Chat/RAG，不保存图片内容。",
+    "expectedCategory": null,
+    "expectedProductIdPrefixes": [],
+    "mustNot": ["泄露订单信息", "解析二维码", "输出完整路径或图片内容"]
+  },
+  {
+    "caseId": "image_brand_text_weak",
+    "imageRef": "demo:weak_brand_package",
+    "imageDescription": "包装带品牌文字但商品主体清晰的图片",
+    "userText": "找同类",
+    "expectedOutcome": "recommendation",
+    "expectedBehavior": "品牌文字只能作为弱信号；最终推荐商品事实以 ShopMate 商品库为准，filters 不应直接绑定未校验品牌。",
+    "expectedCategory": "美妆护肤",
+    "expectedProductIdPrefixes": ["p_beauty_"],
+    "mustNot": ["把图片品牌当库内事实", "编造品牌同款", "库外商品"]
+  },
+  {
+    "caseId": "image_unclear_product",
+    "imageRef": "demo:unclear_product",
+    "imageDescription": "模糊或主体不完整的商品图",
+    "userText": "",
+    "expectedOutcome": "clarification",
+    "expectedBehavior": "low confidence 时要求补充文字或换清晰图片；不应生成宽泛 query 后直接进入 RAG。",
+    "expectedCategory": null,
+    "expectedProductIdPrefixes": [],
+    "mustNot": ["低置信直接推荐", "编造商品类别", "进入业务动作"]
+  }
+]

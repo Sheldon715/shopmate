@@ -76,6 +76,11 @@ describe("OpenAiVisualIntentClient", () => {
     };
     expect(requestBody.model).toBe("vision-model");
     const userMessage = requestBody.messages?.[1];
+    const systemMessage = requestBody.messages?.[0];
+    expect(systemMessage?.content).toContain(
+      "美妆护肤、数码电子、服饰运动、食品饮料、家用电器、母婴用品、办公学习",
+    );
+    expect(systemMessage?.content).toContain("家居日用/小家电应归为家用电器");
     expect(userMessage?.content).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

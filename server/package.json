@@ -17,7 +17,9 @@
     "rag:documents": "tsx src/scripts/build-rag-documents.ts",
     "rag:index": "tsx src/scripts/index-product-vectors.ts",
     "rag:search": "tsx src/scripts/search-product-vectors.ts",
-    "rag:evaluate": "tsx src/scripts/evaluate-rag.ts"
+    "rag:evaluate": "tsx src/scripts/evaluate-rag.ts",
+    "image-search:evaluation:validate": "tsx src/scripts/validate-image-search-evaluation.ts",
+    "image-search:evaluation:run": "tsx src/scripts/run-image-search-evaluation.ts"
   },
   "keywords": [],
   "author": "",
