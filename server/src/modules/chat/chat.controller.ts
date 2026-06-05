@@ -323,5 +323,29 @@ function isResponseClosed(response: Response): boolean {
 }
 
 function logUnexpectedError(error: unknown): void {
-  console.error("Chat stream error:", error);
+  console.error("Chat stream error:", toSafeLogError(error));
+}
+
+function toSafeLogError(error: unknown): Record<string, unknown> {
+  if (!(error instanceof Error)) {
+    return { message: String(error) };
+  }
+
+  const record = error as Error & {
+    code?: unknown;
+    statusCode?: unknown;
+    providerRequestId?: unknown;
+  };
+
+  return {
+    name: error.name,
+    message: error.message,
+    ...(typeof record.code === "string" ? { code: record.code } : {}),
+    ...(typeof record.statusCode === "number"
+      ? { statusCode: record.statusCode }
+      : {}),
+    ...(typeof record.providerRequestId === "string"
+      ? { providerRequestId: record.providerRequestId }
+      : {}),
+  };
 }

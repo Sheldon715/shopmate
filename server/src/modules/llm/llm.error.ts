@@ -46,11 +46,14 @@ export function isRetryableHttpStatus(statusCode: number): boolean {
 export function mapHttpStatusToLlmError(
   statusCode: number,
   statusText: string,
-  bodyText?: string,
+  _bodyText?: string,
   providerRequestId?: string,
 ): LlmError {
-  const detail = bodyText ? `: ${bodyText}` : "";
-  const message = `LLM provider request failed with HTTP ${statusCode} ${statusText}${detail}`;
+  const requestIdDetail = providerRequestId
+    ? ` (providerRequestId=${providerRequestId})`
+    : "";
+  const message =
+    `LLM provider request failed with HTTP ${statusCode} ${statusText}${requestIdDetail}`;
   const retryable = isRetryableHttpStatus(statusCode);
 
   if (statusCode === 401 || statusCode === 403) {

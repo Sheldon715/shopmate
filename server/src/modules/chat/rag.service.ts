@@ -80,6 +80,10 @@ import {
   type QueryRewriteResult,
 } from "./query-rewrite.service";
 import {
+  raceQueryRewriteWithTimeout,
+  type QueryRewriteRaceResult,
+} from "./query-rewrite-race";
+import {
   createCacheHitResult,
   type PopularQueryCacheReadInput,
 } from "./popular-query-cache.service";
@@ -264,7 +268,6 @@ const DEFAULT_MAX_SNIPPETS_PER_PRODUCT = 2;
 const DEFAULT_NEGATIVE_CONSTRAINT_TOP_K = 20;
 const RAG_LLM_MAX_COMPLETION_TOKENS = 320;
 const QUERY_REWRITE_VERSION = "query-rewrite-v1";
-const QUERY_REWRITE_FIRST_TOKEN_TIMEOUT_MS = 900;
 const MAX_CHAT_ANSWER_CHARS = 72;
 const CART_ACTIVE_PRODUCT_LOOKUP_LIMIT = 8;
 const COMPARISON_ACTIVE_PRODUCT_LOOKUP_LIMIT = 4;
@@ -743,7 +746,8 @@ export class RagChatService {
     void originalSearchTask.catch(() => {
       // Late aborts are handled when the selected retrieval path is awaited.
     });
-    const rewriteOutcomeTask = this.raceQueryRewriteWithTimeout({
+    const rewriteOutcomeTask = raceQueryRewriteWithTimeout({
+      queryRewriteService: this.queryRewriteService,
       question: input.question,
       request: input.request,
       memoryResolution: input.memoryResolution,
@@ -775,7 +779,7 @@ export class RagChatService {
       | RetrievalSearchErrorResult
       | undefined;
     let rewriteOutcome:
-      | Awaited<ReturnType<RagChatService["raceQueryRewriteWithTimeout"]>>
+      | QueryRewriteRaceResult
       | undefined;
 
     if (firstDone.kind === "original") {
@@ -947,62 +951,6 @@ export class RagChatService {
         error,
       };
     }
-  }
-
-  private async raceQueryRewriteWithTimeout(input: {
-    question: string;
-    request: RagChatRequest;
-    memoryResolution: ReturnType<ChatContextMemoryService["resolve"]>;
-    negativeConstraints: readonly NegativeConstraint[];
-    baseQuery: string;
-  }): Promise<
-    | { kind: "rewrite"; status: "done"; queryRewrite: QueryRewriteResult }
-    | { kind: "rewrite"; status: "error"; error: unknown }
-    | { kind: "rewrite"; status: "timeout" }
-  > {
-    input.request.timing?.mark("query_rewrite_started");
-    let rewriteSettled = false;
-    const rewriteTask = this.queryRewriteService.rewrite({
-      question: input.question,
-      baseRetrievalQuery: input.memoryResolution.retrievalQuery,
-      shortHistory: input.request.shortHistory,
-      contextMemory: input.memoryResolution.contextMemory,
-      filters: input.memoryResolution.filters,
-      negativeConstraints: [...input.negativeConstraints],
-      requestId: input.request.requestId,
-      abortSignal: input.request.abortSignal,
-    })
-      .then((queryRewrite) => {
-        rewriteSettled = true;
-        input.request.timing?.mark("query_rewrite_done");
-        return {
-          kind: "rewrite" as const,
-          status: "done" as const,
-          queryRewrite,
-        };
-      })
-      .catch((error) => {
-        rewriteSettled = true;
-        input.request.timing?.mark("query_rewrite_done");
-        return {
-          kind: "rewrite" as const,
-          status: "error" as const,
-          error,
-        };
-      });
-    const timeoutTask = delay(QUERY_REWRITE_FIRST_TOKEN_TIMEOUT_MS)
-      .then(() => {
-        if (!rewriteSettled) {
-          input.request.timing?.mark("query_rewrite_timeout");
-        }
-
-        return {
-          kind: "rewrite" as const,
-          status: "timeout" as const,
-        };
-      });
-
-    return Promise.race([rewriteTask, timeoutTask]);
   }
 
   private toRetrievalPipelineResult(
@@ -2955,10 +2903,4 @@ function resolveVectorSearchTopK(
     requestedTopK ?? 0,
     DEFAULT_NEGATIVE_CONSTRAINT_TOP_K,
   );
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
 }

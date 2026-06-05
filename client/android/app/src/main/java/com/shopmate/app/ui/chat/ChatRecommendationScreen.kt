@@ -6,7 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
@@ -15,14 +15,17 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -95,7 +98,16 @@ fun ChatRecommendationScreen(
         val bottomScrimTop = composerTop - 28f.s()
         val scrollBottomPadding = (maxHeight - bottomScrimTop) + 18f.s()
 
-        val scrollState = rememberScrollState()
+        val listState = rememberLazyListState()
+        val shouldAutoScroll by remember {
+            derivedStateOf {
+                val layoutInfo = listState.layoutInfo
+                val lastVisibleIndex = layoutInfo.visibleItemsInfo.lastOrNull()?.index
+
+                lastVisibleIndex == null ||
+                    lastVisibleIndex >= layoutInfo.totalItemsCount - 3
+            }
+        }
 
         LaunchedEffect(
             state.messages.size,
@@ -105,29 +117,32 @@ fun ChatRecommendationScreen(
             state.comparisonResults.size,
             state.errorMessage,
         ) {
-            withFrameNanos { }
-            scrollState.animateScrollTo(scrollState.maxValue)
+            if (shouldAutoScroll) {
+                withFrameNanos { }
+                val targetIndex = listState.layoutInfo.totalItemsCount - 1
+
+                if (targetIndex >= 0) {
+                    listState.animateScrollToItem(targetIndex)
+                }
+            }
         }
 
-        Box(
+        ChatStreamList(
+            listState = listState,
+            state = state,
+            scale = scale,
+            contentTop = contentTop,
+            bottomPadding = scrollBottomPadding,
+            onRetry = onRetry,
+            onNewChatClick = onNewChatClick,
+            onCartClick = onCartClick,
+            onProductClick = onProductClick,
+            onAddCartClick = onAddCartClick,
+            onComparisonClick = onComparisonClick,
             modifier = Modifier
                 .fillMaxSize()
-                .clipToBounds()
-                .verticalScroll(scrollState),
-        ) {
-            ChatStreamColumnContent(
-                state = state,
-                scale = scale,
-                contentTop = contentTop,
-                bottomPadding = scrollBottomPadding,
-                onRetry = onRetry,
-                onNewChatClick = onNewChatClick,
-                onCartClick = onCartClick,
-                onProductClick = onProductClick,
-                onAddCartClick = onAddCartClick,
-                onComparisonClick = onComparisonClick,
-            )
-        }
+                .clipToBounds(),
+        )
 
         Box(
             modifier = Modifier
@@ -219,7 +234,8 @@ fun ChatRecommendationScreen(
 }
 
 @Composable
-private fun ChatStreamColumnContent(
+private fun ChatStreamList(
+    listState: androidx.compose.foundation.lazy.LazyListState,
     state: ChatUiState,
     scale: Float,
     contentTop: Dp,
@@ -230,58 +246,100 @@ private fun ChatStreamColumnContent(
     onProductClick: (String) -> Unit,
     onAddCartClick: (String) -> Unit,
     onComparisonClick: (String) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     fun Float.s(): Dp = scaledDp(scale)
+    val messageIds = remember(state.messages) {
+        state.messages.map { message -> message.id }.toSet()
+    }
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = contentTop + 14f.s(), bottom = bottomPadding),
+    LazyColumn(
+        state = listState,
+        modifier = modifier,
+        contentPadding = PaddingValues(
+            top = contentTop + 14f.s(),
+            bottom = bottomPadding,
+        ),
         verticalArrangement = Arrangement.spacedBy(10f.s()),
     ) {
         if (state.messages.isEmpty() && state.productCards.isEmpty() && state.errorMessage == null) {
-            ChatMessageBubble(
-                text = "说说你想买什么，我会从商品库里帮你筛选合适选择。",
-                fromUser = false,
-                textScale = scale,
-                modifier = Modifier
-                    .padding(start = 16f.s(), end = 18f.s())
-                    .align(Alignment.Start)
-                    .widthIn(max = 285f.s()),
-            )
-            return@Column
+            item(key = "empty-message") {
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    ChatMessageBubble(
+                        text = "说说你想买什么，我会从商品库里帮你筛选合适选择。",
+                        fromUser = false,
+                        textScale = scale,
+                        modifier = Modifier
+                            .padding(start = 16f.s(), end = 18f.s())
+                            .align(Alignment.CenterStart)
+                            .widthIn(max = 285f.s()),
+                    )
+                }
+            }
+            return@LazyColumn
         }
 
-        val messageIds = state.messages.map { message -> message.id }.toSet()
+        items(
+            items = state.messages,
+            key = { message -> "message-${message.id}" },
+        ) { message ->
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10f.s()),
+            ) {
+                ChatMessageItem(
+                    message = message,
+                    scale = scale,
+                    modifier = Modifier.align(
+                        if (message.fromUser) Alignment.End else Alignment.Start,
+                    ),
+                )
 
-        state.messages.forEach { message ->
-            ChatMessageItem(
-                message = message,
-                scale = scale,
-                modifier = Modifier.align(
-                    if (message.fromUser) Alignment.End else Alignment.Start,
-                ),
-            )
+                if (message.shouldShowStreamingContinuationIndicator()) {
+                    ChatTypingIndicatorBubble(
+                        textScale = scale,
+                        modifier = Modifier
+                            .align(Alignment.Start)
+                            .padding(start = 16f.s())
+                            .size(width = 66f.s(), height = 34f.s()),
+                    )
+                }
 
-            if (message.shouldShowStreamingContinuationIndicator()) {
-                ChatTypingIndicatorBubble(
-                    textScale = scale,
-                    modifier = Modifier
-                        .align(Alignment.Start)
-                        .padding(start = 16f.s())
-                        .size(width = 66f.s(), height = 34f.s()),
+                ComparisonEntryList(
+                    actions = state.comparisonActions.filter { action ->
+                        action.anchorMessageId == message.id
+                    },
+                    scale = scale,
+                    onComparisonClick = onComparisonClick,
+                )
+
+                if (message.id == state.productCardsAnchorMessageId) {
+                    ProductCardList(
+                        products = state.productCards,
+                        scale = scale,
+                        onProductClick = onProductClick,
+                        onAddCartClick = onAddCartClick,
+                    )
+                }
+            }
+        }
+
+        val unanchoredActions = state.comparisonActions.filter { action ->
+            action.anchorMessageId !in messageIds
+        }
+
+        if (unanchoredActions.isNotEmpty()) {
+            item(key = "unanchored-comparisons") {
+                ComparisonEntryList(
+                    actions = unanchoredActions,
+                    scale = scale,
+                    onComparisonClick = onComparisonClick,
                 )
             }
+        }
 
-            ComparisonEntryList(
-                actions = state.comparisonActions.filter { action ->
-                    action.anchorMessageId == message.id
-                },
-                scale = scale,
-                onComparisonClick = onComparisonClick,
-            )
-
-            if (message.id == state.productCardsAnchorMessageId) {
+        if (state.productCardsAnchorMessageId == null) {
+            item(key = "unanchored-product-cards") {
                 ProductCardList(
                     products = state.productCards,
                     scale = scale,
@@ -291,40 +349,27 @@ private fun ChatStreamColumnContent(
             }
         }
 
-        ComparisonEntryList(
-            actions = state.comparisonActions.filter { action ->
-                action.anchorMessageId !in messageIds
-            },
-            scale = scale,
-            onComparisonClick = onComparisonClick,
-        )
-
-        if (state.productCardsAnchorMessageId == null) {
-            ProductCardList(
-                products = state.productCards,
-                scale = scale,
-                onProductClick = onProductClick,
-                onAddCartClick = onAddCartClick,
-            )
-        }
-
         state.errorMessage?.let { errorMessage ->
-            ShopMateStatusMessage(
-                title = "导购暂时无法回复",
-                message = errorMessage,
-                actionText = if (state.canRetry) "重试" else "重新输入",
-                onActionClick = if (state.canRetry) onRetry else onNewChatClick,
-                scale = scale,
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .size(width = 352.667f.s(), height = 246f.s()),
-            )
+            item(key = "error-message") {
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    ShopMateStatusMessage(
+                        title = "导购暂时无法回复",
+                        message = errorMessage,
+                        actionText = if (state.canRetry) "重试" else "重新输入",
+                        onActionClick = if (state.canRetry) onRetry else onNewChatClick,
+                        scale = scale,
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .size(width = 352.667f.s(), height = 246f.s()),
+                    )
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun ColumnScope.ComparisonEntryList(
+private fun ComparisonEntryList(
     actions: List<ChatComparisonActionUi>,
     scale: Float,
     onComparisonClick: (String) -> Unit,
@@ -334,7 +379,6 @@ private fun ColumnScope.ComparisonEntryList(
     actions.forEach { action ->
         Column(
             modifier = Modifier
-                .align(Alignment.CenterHorizontally)
                 .padding(horizontal = 18f.s())
                 .fillMaxWidth()
                 .background(
@@ -408,7 +452,7 @@ private fun ChatMessageItem(
 }
 
 @Composable
-private fun ColumnScope.ProductCardList(
+private fun ProductCardList(
     products: List<ProductCardUi>,
     scale: Float,
     onProductClick: (String) -> Unit,
@@ -416,20 +460,25 @@ private fun ColumnScope.ProductCardList(
 ) {
     fun Float.s(): Dp = scaledDp(scale)
 
-    products.forEach { product ->
-        ProductCard(
-            product = product,
-            enabled = true,
-            onClick = {
-                onProductClick(product.id)
-            },
-            onAddCartClick = {
-                onAddCartClick(product.id)
-            },
-            modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-                .size(width = 360.667f.s(), height = 179.104f.s()),
-        )
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(10f.s()),
+    ) {
+        products.forEach { product ->
+            ProductCard(
+                product = product,
+                enabled = true,
+                onClick = {
+                    onProductClick(product.id)
+                },
+                onAddCartClick = {
+                    onAddCartClick(product.id)
+                },
+                modifier = Modifier
+                    .size(width = 360.667f.s(), height = 179.104f.s()),
+            )
+        }
     }
 }
 

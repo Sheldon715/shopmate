@@ -109,6 +109,27 @@ describe("OpenAiCompatibleChatClient", () => {
     expect(badRequestFetch).toHaveBeenCalledTimes(1);
   });
 
+  it("does not expose provider error response bodies in error messages", async () => {
+    const fetchImpl = vi.fn(async () =>
+      textResponse("secret prompt fragment from provider", 400),
+    );
+    let error: unknown;
+
+    try {
+      await createClient({ fetchImpl }).generate(request());
+    } catch (caughtError) {
+      error = caughtError;
+    }
+
+    expect(error).toMatchObject({
+      code: "LLM_BAD_REQUEST",
+      statusCode: 400,
+    });
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).not.toContain("secret prompt fragment");
+    expect((error as Error).message).toContain("HTTP 400");
+  });
+
   it("retries rate limits and provider unavailable errors", async () => {
     const rateLimitedFetch = vi
       .fn()

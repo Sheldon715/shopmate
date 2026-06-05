@@ -32,6 +32,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -268,6 +273,20 @@ private fun VoiceInputSurface(
         is VoiceInputUiState.PermissionDenied -> "需要麦克风权限"
         is VoiceInputUiState.Error -> "按住说话"
     }
+    val accessibilityState = when (voiceInputState) {
+        VoiceInputUiState.Idle -> "未开始"
+        VoiceInputUiState.Listening -> "正在聆听"
+        VoiceInputUiState.Transcribing -> "正在识别"
+        is VoiceInputUiState.TranscriptReady -> "识别完成，正在发送"
+        is VoiceInputUiState.PermissionDenied -> "麦克风权限被拒绝"
+        is VoiceInputUiState.Error -> "语音输入出错"
+    }
+    val accessibilityActionLabel = when {
+        !enabled -> "语音输入不可用"
+        isTranscribing -> "正在识别"
+        isListening -> "结束语音输入"
+        else -> "开始语音输入"
+    }
     val backgroundColor = when {
         voiceInputState is VoiceInputUiState.PermissionDenied -> Color(0xFFFFF5F3)
         else -> Color.White
@@ -298,6 +317,24 @@ private fun VoiceInputSurface(
                     color = borderColor,
                     shape = ShopMatePillShape
                 )
+                .semantics(mergeDescendants = true) {
+                    role = Role.Button
+                    contentDescription = "语音输入"
+                    stateDescription = accessibilityState
+                    onClick(label = accessibilityActionLabel) {
+                        if (!enabled || isTranscribing) {
+                            false
+                        } else if (isListening || pressStarted) {
+                            pressStarted = false
+                            onPressEnd()
+                            true
+                        } else {
+                            pressStarted = true
+                            onPressStart()
+                            true
+                        }
+                    }
+                }
                 .pointerInteropFilter { event ->
                     if (!enabled) {
                         if (pressStarted) {

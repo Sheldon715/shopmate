@@ -167,15 +167,13 @@ export class HttpEmbeddingClient implements EmbeddingClient {
         });
 
         if (!response.ok) {
-          const text = await response.text();
-
           if (response.status < 500 && response.status !== 429) {
             throw new EmbeddingError(
-              `Embedding request failed with HTTP ${response.status}: ${text}`,
+              `Embedding request failed with HTTP ${response.status}.`,
             );
           }
 
-          throw new Error(`HTTP ${response.status}: ${text}`);
+          throw new Error(`HTTP ${response.status}`);
         }
 
         const payload = await response.json() as RawEmbeddingResponse;

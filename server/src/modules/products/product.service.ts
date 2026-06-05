@@ -13,6 +13,7 @@ import type {
 
 export const PRODUCT_QUERY_DEFAULT_LIMIT = 20;
 export const PRODUCT_QUERY_MAX_LIMIT = 50;
+export const PRODUCT_QUERY_MAX_OFFSET = 1000;
 
 export class ProductQueryError extends Error {
   readonly code = "INVALID_PRODUCT_QUERY";
@@ -90,6 +91,12 @@ export function parseProductListQuery(
   if (limit < 1 || limit > PRODUCT_QUERY_MAX_LIMIT) {
     throw new ProductQueryError(
       `limit 必须在 1 到 ${PRODUCT_QUERY_MAX_LIMIT} 之间`,
+    );
+  }
+
+  if (offset > PRODUCT_QUERY_MAX_OFFSET) {
+    throw new ProductQueryError(
+      `offset 不能大于 ${PRODUCT_QUERY_MAX_OFFSET}`,
     );
   }
 

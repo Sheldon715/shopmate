@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   PRODUCT_QUERY_DEFAULT_LIMIT,
+  PRODUCT_QUERY_MAX_OFFSET,
   ProductQueryError,
   parseProductIdParam,
   parseProductListQuery,
@@ -21,6 +22,12 @@ describe("parseProductListQuery", () => {
     expect(() => parseProductListQuery({ limit: "51" })).toThrow(
       ProductQueryError,
     );
+  });
+
+  it("rejects offsets above the allowed range", () => {
+    expect(() =>
+      parseProductListQuery({ offset: String(PRODUCT_QUERY_MAX_OFFSET + 1) })
+    ).toThrow(ProductQueryError);
   });
 
   it("rejects non-integer price params", () => {

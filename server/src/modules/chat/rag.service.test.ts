@@ -826,6 +826,8 @@ describe("RagChatService", () => {
       const originalSearchStarted = new Promise<void>((resolve) => {
         resolveOriginalSearch = resolve;
       });
+      let rewriteAbortSignal: AbortSignal | undefined;
+      let rewriteAbortObserved = false;
       const service = new RagChatService(withNoCartIntent({
         vectorSearch: {
           search: async (input) => {
@@ -843,9 +845,18 @@ describe("RagChatService", () => {
           }),
         },
         queryRewriteService: {
-          rewrite: async () => new Promise(() => {
-            // Simulate a provider call that never resolves in time.
-          }),
+          rewrite: async (input) => {
+            rewriteAbortSignal = input.abortSignal;
+
+            return new Promise<never>((_, reject) => {
+              input.abortSignal?.addEventListener("abort", () => {
+                rewriteAbortObserved = true;
+                reject(
+                  input.abortSignal?.reason ?? new Error("rewrite aborted"),
+                );
+              });
+            });
+          },
         },
         llmClient: new MockLlmClient({
           response: createLlmResponse(JSON.stringify({
@@ -861,6 +872,8 @@ describe("RagChatService", () => {
       await vi.advanceTimersByTimeAsync(901);
       const result = await answerPromise;
 
+      expect(rewriteAbortSignal?.aborted).toBe(true);
+      expect(rewriteAbortObserved).toBe(true);
       expect(vectorCalls.map((call) => call.query)).toEqual(["recommend one"]);
       expect(result.retrieval).toMatchObject({
         query: "recommend one",

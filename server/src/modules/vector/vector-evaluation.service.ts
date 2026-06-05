@@ -486,14 +486,16 @@ function uniqueProductIds(hits: VectorSearchHit[]): string[] {
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
-    const cause = "cause" in error ? error.cause : undefined;
-
-    if (cause !== undefined) {
-      return `${error.message}: ${getErrorMessage(cause)}`;
-    }
-
-    return error.message;
+    return truncateErrorMessage(error.message);
   }
 
-  return String(error);
+  return truncateErrorMessage(String(error));
+}
+
+function truncateErrorMessage(message: string): string {
+  const normalized = message.replace(/\s+/gu, " ").trim();
+
+  return normalized.length <= 240
+    ? normalized
+    : `${normalized.slice(0, 237)}...`;
 }
