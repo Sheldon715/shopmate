@@ -18,8 +18,11 @@
     "rag:index": "tsx src/scripts/index-product-vectors.ts",
     "rag:search": "tsx src/scripts/search-product-vectors.ts",
     "rag:evaluate": "tsx src/scripts/evaluate-rag.ts",
+    "rag:image-documents": "tsx src/scripts/build-image-documents.ts",
+    "rag:image-index": "tsx src/scripts/index-image-documents.ts",
     "image-search:evaluation:validate": "tsx src/scripts/validate-image-search-evaluation.ts",
-    "image-search:evaluation:run": "tsx src/scripts/run-image-search-evaluation.ts"
+    "image-search:evaluation:run": "tsx src/scripts/run-image-search-evaluation.ts",
+    "image-search:vector-evaluation:run": "tsx src/scripts/run-image-vector-search-evaluation.ts"
   },
   "keywords": [],
   "author": "",

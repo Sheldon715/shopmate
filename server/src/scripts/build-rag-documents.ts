@@ -24,7 +24,7 @@ import {
   writeJsonlFile,
 } from "../utils/json-files";
 
-type RagSource = "postgres" | "processed";
+export type RagSource = "postgres" | "processed";
 
 interface BuildRagDocumentsOptions {
   source: RagSource;
@@ -32,7 +32,7 @@ interface BuildRagDocumentsOptions {
   limit?: number;
 }
 
-interface ProductBatchInfo {
+export interface ProductBatchInfo {
   ingestBatchId: string;
   sourceDataset?: string;
   sourceVersion?: string;
@@ -98,7 +98,7 @@ function parseArgs(argv: string[]): BuildRagDocumentsOptions {
   return options;
 }
 
-function parseSource(value: string): RagSource {
+export function parseSource(value: string): RagSource {
   if (value === "postgres" || value === "processed") {
     return value;
   }
@@ -116,7 +116,7 @@ async function readOptionalCatalogManifest(
   return readJsonFile<CatalogManifest>(filePath);
 }
 
-function mapNormalizedProductToProduct(product: NormalizedProduct): Product {
+export function mapNormalizedProductToProduct(product: NormalizedProduct): Product {
   const input = mapNormalizedProductToUpsertInput(product);
   const mappedProduct = input.product;
   const skus: ProductSku[] = input.skus.map((sku, index) => ({
@@ -170,7 +170,7 @@ function mapNormalizedProductToProduct(product: NormalizedProduct): Product {
   };
 }
 
-async function readProductsFromPostgres(): Promise<Product[]> {
+export async function readProductsFromPostgres(): Promise<Product[]> {
   const pool = createDatabasePool({ allowExitOnIdle: true });
 
   try {
@@ -180,7 +180,7 @@ async function readProductsFromPostgres(): Promise<Product[]> {
   }
 }
 
-async function readProductsFromProcessed(
+export async function readProductsFromProcessed(
   processedDataDir: string,
 ): Promise<Product[]> {
   const paths = getCatalogPaths(processedDataDir);
@@ -199,11 +199,11 @@ async function readProductsFromProcessed(
     .map((product) => mapNormalizedProductToProduct(product));
 }
 
-function applyLimit(products: Product[], limit?: number): Product[] {
+export function applyLimit(products: Product[], limit?: number): Product[] {
   return limit === undefined ? products : products.slice(0, limit);
 }
 
-function getProductBatchInfo(
+export function getProductBatchInfo(
   products: Product[],
   fallback?: CatalogManifest,
 ): ProductBatchInfo {

@@ -1,6 +1,7 @@
 package com.shopmate.app
 
 import android.Manifest
+import android.app.AlertDialog
 import android.content.ContentResolver
 import android.graphics.Color
 import android.net.Uri
@@ -25,6 +26,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewModelScope
 import com.shopmate.app.data.mock.MockShopMateData
@@ -43,6 +45,7 @@ import com.shopmate.app.ui.product.ProductDetailViewModel
 import com.shopmate.app.ui.theme.ShopMateTheme
 import com.shopmate.app.ui.voice.AndroidSpeechVoiceInputController
 import com.shopmate.app.ui.voice.CloudAsrVoiceInputController
+import java.io.File
 
 class MainActivity : ComponentActivity() {
     private val appContainer by lazy { ShopMateAppContainer(applicationContext) }
@@ -165,10 +168,57 @@ class MainActivity : ComponentActivity() {
                         sizeBytes = imageAttachmentSizeBytes(contentResolver, uri),
                     )
                 }
-                val pickImage: () -> Unit = {
+                var pendingCameraImageUri by remember { mutableStateOf<Uri?>(null) }
+                val cameraCaptureLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.TakePicture(),
+                ) { captured ->
+                    val uri = pendingCameraImageUri
+                    pendingCameraImageUri = null
+
+                    if (captured && uri != null) {
+                        chatViewModel.selectImage(
+                            uriString = uri.toString(),
+                            mimeType = contentResolver.getType(uri) ?: "image/jpeg",
+                            sizeBytes = imageAttachmentSizeBytes(contentResolver, uri),
+                        )
+                    }
+                }
+                val pickImageFromGallery: () -> Unit = {
                     cancelVoiceInput()
                     imagePickerLauncher.launch(
                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    )
+                }
+                val captureImage: () -> Unit = {
+                    cancelVoiceInput()
+                    val uri = runCatching { createCameraImageUri() }
+                        .onFailure {
+                            Toast.makeText(
+                                this@MainActivity,
+                                "无法启动拍照，请稍后重试",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                        .getOrNull()
+
+                    if (uri != null) {
+                        pendingCameraImageUri = uri
+                        runCatching { cameraCaptureLauncher.launch(uri) }
+                            .onFailure {
+                                pendingCameraImageUri = null
+                                Toast.makeText(
+                                    this@MainActivity,
+                                    "无法打开相机，请从相册选择图片",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                    }
+                }
+                val pickImage: () -> Unit = {
+                    cancelVoiceInput()
+                    showImageSourceDialog(
+                        onCamera = captureImage,
+                        onGallery = pickImageFromGallery,
                     )
                 }
                 LaunchedEffect(chatViewModel) {
@@ -458,3 +508,33 @@ private fun imageAttachmentSizeBytes(
             null
         }
     }
+
+private fun MainActivity.createCameraImageUri(): Uri {
+    val imageDirectory = File(cacheDir, CAMERA_IMAGE_CACHE_DIR).apply {
+        mkdirs()
+    }
+    val imageFile = File.createTempFile("shopmate-image-search-", ".jpg", imageDirectory)
+
+    return FileProvider.getUriForFile(
+        this,
+        "${BuildConfig.APPLICATION_ID}.fileprovider",
+        imageFile,
+    )
+}
+
+private fun MainActivity.showImageSourceDialog(
+    onCamera: () -> Unit,
+    onGallery: () -> Unit,
+) {
+    AlertDialog.Builder(this)
+        .setItems(arrayOf("拍照找货", "从相册选择")) { dialog, selectedIndex ->
+            when (selectedIndex) {
+                0 -> onCamera()
+                else -> onGallery()
+            }
+            dialog.dismiss()
+        }
+        .show()
+}
+
+private const val CAMERA_IMAGE_CACHE_DIR = "image-search-camera"

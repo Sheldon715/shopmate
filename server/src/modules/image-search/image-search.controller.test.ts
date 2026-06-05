@@ -3,6 +3,7 @@ import type { IncomingHttpHeaders } from "node:http";
 import type { Request, Response } from "express";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createImageSearchInterpretController } from "./image-search.controller";
+import { createImageVectorSearchController } from "./image-vector-search.controller";
 import { ImageSearchError } from "./image-search.types";
 import type { ImageSearchInterpretResult } from "./image-search.types";
 
@@ -166,6 +167,43 @@ describe("createImageSearchInterpretController", () => {
       error: {
         code: "IMAGE_CONFIG_MISSING",
         message: "图片识别服务暂时不可用，请稍后重试。",
+      },
+    });
+  });
+});
+
+describe("createImageVectorSearchController", () => {
+  beforeEach(() => {
+    process.env.IMAGE_SEARCH_MAX_IMAGE_BYTES = "4096";
+  });
+
+  it("validates image bytes before calling image vector search", async () => {
+    const search = vi.fn(async () => ({
+      mode: "image_vector" as const,
+      hits: [],
+      droppedProductIds: [],
+    }));
+    const controller = createImageVectorSearchController({ search });
+    const response = createMockResponse();
+
+    await controller(
+      createMultipartRequest({
+        image: {
+          fieldName: "image",
+          content: Buffer.from("%PDF"),
+          mimeType: "image/jpeg",
+        },
+      }),
+      response,
+    );
+
+    expect(search).not.toHaveBeenCalled();
+    expect(response.statusCode).toBe(415);
+    expect(response.body).toEqual({
+      success: false,
+      error: {
+        code: "IMAGE_UNSUPPORTED_MEDIA_TYPE",
+        message: "暂不支持该图片格式。",
       },
     });
   });

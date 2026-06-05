@@ -33,6 +33,16 @@ export interface ServerEnv {
   embeddingBatchSize: number;
   embeddingTimeoutMs: number;
   embeddingMaxRetries: number;
+  imageEmbeddingProvider: string;
+  imageEmbeddingBaseUrl?: string;
+  imageEmbeddingApiKey?: string;
+  imageEmbeddingModel: string;
+  imageEmbeddingDimensions: number;
+  imageEmbeddingBatchSize: number;
+  imageEmbeddingTimeoutMs: number;
+  imageEmbeddingMaxRetries: number;
+  imageVectorCollection: string;
+  imageVectorTopK: number;
   ragTopK: number;
   llm: LlmConfig;
 }
@@ -220,6 +230,34 @@ export function getEnv(): ServerEnv {
     embeddingBatchSize: readPositiveInteger("EMBEDDING_BATCH_SIZE", 64),
     embeddingTimeoutMs: readPositiveInteger("EMBEDDING_TIMEOUT_MS", 30000),
     embeddingMaxRetries: readPositiveInteger("EMBEDDING_MAX_RETRIES", 3),
+    imageEmbeddingProvider:
+      process.env.IMAGE_EMBEDDING_PROVIDER ?? "disabled",
+    imageEmbeddingBaseUrl: readOptionalString("IMAGE_EMBEDDING_BASE_URL"),
+    imageEmbeddingApiKey: readOptionalString("IMAGE_EMBEDDING_API_KEY"),
+    imageEmbeddingModel:
+      process.env.IMAGE_EMBEDDING_MODEL
+      ?? process.env.EMBEDDING_MODEL
+      ?? "doubao-embedding-vision-250615",
+    imageEmbeddingDimensions: readPositiveInteger(
+      "IMAGE_EMBEDDING_DIMENSIONS",
+      readPositiveInteger("EMBEDDING_DIMENSIONS", 2048),
+    ),
+    imageEmbeddingBatchSize: readPositiveInteger(
+      "IMAGE_EMBEDDING_BATCH_SIZE",
+      16,
+    ),
+    imageEmbeddingTimeoutMs: readPositiveInteger(
+      "IMAGE_EMBEDDING_TIMEOUT_MS",
+      30000,
+    ),
+    imageEmbeddingMaxRetries: readPositiveInteger(
+      "IMAGE_EMBEDDING_MAX_RETRIES",
+      3,
+    ),
+    imageVectorCollection:
+      process.env.IMAGE_VECTOR_COLLECTION
+      ?? "shopmate_product_image_documents",
+    imageVectorTopK: readPositiveInteger("IMAGE_VECTOR_TOP_K", 12),
     ragTopK: readPositiveInteger("RAG_TOP_K", 12),
     llm: loadLlmConfig(process.env),
   };

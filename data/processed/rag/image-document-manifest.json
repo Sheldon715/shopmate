@@ -1,0 +1,15 @@
+{
+  "source": "postgres",
+  "ingest_batch_id": "catalog_20260605_011315708_14055cdc",
+  "product_count": 175,
+  "document_count": 175,
+  "skipped_missing_image_count": 0,
+  "generated_at": "2026-06-05T11:57:13.977Z",
+  "output_path": "rag/image-documents.jsonl",
+  "document_types": [
+    "image_main"
+  ],
+  "source_dataset": "ecommerce_agent_dataset_v3",
+  "source_version": "v3",
+  "data_version": "v1"
+}
