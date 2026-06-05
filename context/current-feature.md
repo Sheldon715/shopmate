@@ -1,4 +1,4 @@
-# Current Feature: Comparison Target Consistency and Performance
+# Current Feature: 图片找货后端解释接口
 
 ## 状态
 
@@ -6,78 +6,39 @@ Complete
 
 ## 目标
 
-- 修复最近商品序号对比的目标错位问题，确保“前两个”“第一个和第三个”按 Android 当前可见商品卡顺序解析。
-- 保持 LLM comparison intent 权威，Android 只回传当前可见商品 id 作为指代上下文，不直接决定对比行为。
-- 对比目标不足、越界、超过两款、下架或歧义时走 LLM 澄清，不猜商品、不回落普通推荐。
-- 对比 generation 失败或超时时返回安全基础事实对比，不再只显示“这次没有生成可靠推荐说明。”
-- 优化最近商品读取和对比 generation 慢路径，保留 comparison timing 方便继续定位瓶颈。
-- 对比 generation 慢路径期间在 LLM comparison intent 确认且目标可执行后立刻流出预设短提示，Android 继续显示 loading 气泡直到 `comparison_result` 返回。
+- 新增后端 `POST /api/image-search/interpret` multipart 接口，接收 `image` 文件和可选 `message`、`conversationId`。
+- 通过可 mock 的 `VisualIntentClient` 调用 vision-capable model，只把图片理解成结构化 `visualIntent`。
+- 将有效视觉意图转换为内部 `chatMessage` 和可选 Chat filters，后续仍交给现有 Chat SSE / RAG / PostgreSQL 链路处理。
+- 对图片格式、大小、空文件、magic bytes、低置信、非商品图和隐私风险图返回稳定结果。
+- 保持图片找货 V1 边界清晰：不生成最终导购回复、不执行 cartAction / comparison、不改 Qdrant 或新增 image vector index。
 
 ## 待办清单
 
-- [x] 新增 `recentProductIds` Chat SSE request 字段，完成后端解析、trim、dedupe、数量和长度限制。
-- [x] Android `ChatViewModel` 发送消息时捕获当前商品卡 id 顺序，并通过 repository / request DTO 回传后端。
-- [x] 后端 comparison intent、prefetch、target resolution 使用同一组 recent ids，优先 request 可见卡片顺序，回退 context memory。
-- [x] 补齐显式序号解析：前两个、第一个和第三个、第 1 个和第 3 个、第二个和第三个，越界时澄清。
-- [x] 为 comparison generation error / invalid / timeout 增加安全基础事实 `comparison_result` fallback，保持 `fallbackUsed=true`。
-- [x] 压缩 comparison generation facts / timeout，并确认 timing 包含 comparison 关键阶段。
-- [x] 补充后端单元测试：request 解析、request recent ids 优先、越界澄清、generation fallback、现有 comparison 回归。
-- [x] 补充 Android 单元测试：repository 发送 `recentProductIds`、comparison follow-up 使用当前商品卡顺序且锚点不漂移。
-- [x] 运行 `cd server; npm.cmd test`。
-- [x] 运行 `cd server; npm.cmd run build`。
-- [x] 运行 `cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest`。
-- [x] 运行 `cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/`。
-- [x] 后端 comparison generation 在 SSE streaming 模式下从同一次 LLM JSON 输出提前抽取 `answer` 并写入 `message_delta`。
-- [x] 保持过渡回答由 LLM 生成，不新增固定“正在对比中”模板，不新增 SSE event。
-- [x] 确认 Android 现有 streaming/loading 气泡在 `comparison_result` 前持续显示，必要时补单测。
-- [x] 运行相关后端 / Android 目标测试。
-- [x] 第二版实现：轻量等待语与正式 comparison JSON 并行，等待语失败或超时时静默跳过，不再从正式 JSON `answer` 抽取首句提示。
-- [x] 第三版实现：轻量等待语先占用一个极短前置窗口，抢不到就跳过，再启动正式 comparison JSON，避免等待态和正式结果同到。
-- [x] 放宽正式 comparison JSON 的维度、facts 和 token 预算，让结果保持 3-5 个有信息量的维度。
-- [x] 补充后端测试覆盖等待语成功、失败和超窗跳过。
-- [x] 运行 `cd server; npm.cmd test -- rag.service.test.ts comparison-generation.service.test.ts`。
-- [x] 运行 `cd server; npm.cmd run build`。
-- [x] 第四版实现：等待语窗口调长到真实模型可命中，不再因为 1s 超时几乎永远不显示。
-- [x] 第四版实现：正式 comparison JSON 改为质量优先，要求 4-6 个维度、更完整 cell / conclusion / highlights。
-- [x] 更新后端测试覆盖新等待窗口与更高详情预算。
-- [x] 运行 `cd server; npm.cmd test -- rag.service.test.ts comparison-generation.service.test.ts`。
-- [x] 运行 `cd server; npm.cmd run build`。
-- [x] 跑真实 LLM comparison streaming smoke，确认等待语、`comparison_result` 和详情维度。
-- [x] 第五版实现：移除独立轻量等待语 LLM 调用，改为 comparison intent + target resolution 通过后立即写预设 `message_delta`。
-- [x] 第五版实现：Android 在已有 assistant 文本且仍 streaming 时继续显示 loading 气泡，直到 `comparison_result` / `done`。
-- [x] 更新后端 / Android 测试覆盖预设句顺序和 loading 气泡状态。
-- [x] 运行目标测试与后端 build。
-- [x] 修复对比详情“推荐亮点”误用商品卡 fallback 推荐理由的问题。
-- [x] 后端强制无明确偏好时清空 `recommendedProductId` 和 `highlights`，避免模型越界输出推荐信号。
-- [x] 补充并运行后端 / Android 目标测试。
+- [x] 新增 `server/src/modules/image-search/` 模块类型、配置、multipart 校验、provider wrapper、service、controller 和 routes。
+- [x] 在后端挂载 `POST /api/image-search/interpret`，并固定 multipart 字段名、响应格式和错误码。
+- [x] 实现 JPEG / PNG / WebP MIME、文件大小、空文件和 magic bytes 校验，拒绝 SVG、HEIC、PDF、ZIP 等非目标格式。
+- [x] 实现 `VisualIntent` schema 解析和规范化，限制字段长度、数组数量、已知类目映射和低置信处理。
+- [x] 在 provider disabled、timeout、无效输出、低置信、非商品图和隐私风险路径返回稳定错误或澄清状态。
+- [x] 从中高置信商品图生成 `chatMessage` 和可选 filters，并确保品牌文字只作为弱信号，不变成强制商品事实。
+- [x] 补充 `.env.example` 的图片识别占位配置，不写入真实 provider key。
+- [x] 补充后端单测和 controller 集成测试，覆盖成功、校验失败、provider 异常、schema 解析和安全边界。
+- [x] 运行 `cd server && npm.cmd test` 与 `cd server && npm.cmd run build`，未配置真实 provider 时记录 live smoke 未跑。
 
 ## 备注
 
-- Spec 来源：`context/feature/comparison-target-consistency-performance-spec.md`。
-- 触发原因：截图显示“对比前两个”没有生成 `comparison_result`，以及“第一个和第三个”可能比较到用户当前屏幕之外的商品。
-- 行为边界：LLM comparison intent 仍是权威；`recentProductIds` 只是当前可见商品卡顺序上下文，后端必须回查 active 商品并做 allowlist 校验。
-- Contract 边界：不新增 SSE event；新增 request 字段必须可选，旧客户端不传时继续使用 context memory。
-- Fallback 边界：安全基础事实对比只能展示库内事实，不生成推荐高亮、购买建议或模型式结论。
-- 性能边界：本 feature 优化 comparison 专用慢路径，不重新定义普通 RAG 首 token 或 Android 打字机体验。
-- 体验边界：用户最新要求改为 LLM comparison intent 仍负责是否进入对比；一旦目标可执行，代码可以发送固定短提示作为等待反馈，但不能绕过 intent、target resolution、active 商品回查或 allowlist 校验。
-- 验证计划：以后端目标测试覆盖 target resolution 和 fallback；以 Android 单测覆盖请求上下文和锚点；最后跑后端 test / build 与 Android test / build。
-- 收口记录（2026-06-04）：后端补齐 `recentProductIds` request 解析测试、request visible ids 优先测试、越界澄清测试和 generation fallback 测试；comparison generation 保持每商品最多 5 条 facts / 120 字，但将预算修正为 35s timeout、1600 completion tokens，避免真实模型输出被截断。
-- 修复记录（2026-06-04）：comparison generation 返回截断或 malformed JSON 时统一归类为 `LLM_INVALID_OUTPUT`，并返回安全基础事实 `comparison_result`，避免落到普通 `LLM_ERROR` 推荐失败文案。
-- 根因记录（2026-06-04）：真实模型诊断显示 LLM 未整体故障；“对比前两个”在 960 completion tokens 下 `finishReason=length`，JSON 被截断，导致持续进入基础事实 fallback。修复方向是恢复正常结构化对比优先，基础事实只做保底。
-- Smoke 记录（2026-06-04）：编译后服务 mock 截断 JSON 路径返回 `fallbackReason=LLM_INVALID_OUTPUT`、`hasComparisonResult=true`，基础维度为 `brand_category` / `price` / `facts`；修复后真实 LLM + `RagChatService.answer("对比前两个")` 返回 `fallbackUsed=false`、`hasComparisonResult=true`、3 个正常对比维度。
-- 验证结果（2026-06-04）：`cd server; npm.cmd test` 通过（42 files / 327 tests），`cd server; npm.cmd run build` 通过，`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 通过，`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过。
-- 体验修复记录（2026-06-04）：comparison generation 的同一次 LLM JSON 流式输出会先抽取 `answer` 写入 `message_delta`；Android 保持 assistant `isStreaming=true` 和 `isSending=true` 到 `done`，所以过渡回答显示后仍继续等待 `comparison_result`。
-- 验证结果（2026-06-04）：`cd server; npm.cmd test -- rag.service.test.ts comparison-generation.service.test.ts` 通过（2 files / 75 tests），`cd server; npm.cmd run build` 通过，`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.ui.chat.ChatViewModelTest"` 通过。
-- 二版修复记录（2026-06-04）：上一版仍依赖正式 comparison JSON 的 `answer` 字段作为首句提示，真实 smoke 会被完整 JSON 生成速度拖慢；本轮改为独立轻量 LLM 等待语与正式结构化对比并行，等待语只在正式结果完成前抢首个 `message_delta`，失败、空输出或超时会静默跳过，正式 `comparison_result` 继续按原流程返回。
-- 验证结果（2026-06-04）：`cd server; npm.cmd test -- rag.service.test.ts comparison-generation.service.test.ts` 通过（2 files / 76 tests），`cd server; npm.cmd run build` 通过，`cd server; npm.cmd test` 通过（42 files / 329 tests）；本轮只改后端 comparison 生成 / 编排与后端测试，未重新运行 Android 检查。
-- 三版修复记录（2026-06-04）：已将等待语从“与正式 JSON 并行竞速”调整为“正式 JSON 前的极短前置窗口”；若等待语 1s 内成功，先写一条 `message_delta`，若失败、空输出或超窗则跳过并立即进入正式 `comparison_result` 生成。
-- 三版验证结果（2026-06-04）：`cd server; npm.cmd test -- rag.service.test.ts comparison-generation.service.test.ts` 通过（2 files / 77 tests），`cd server; npm.cmd run build` 通过；本轮只改后端 comparison 生成 / 编排与后端测试，未重新运行 Android 检查。
-- 四版调整记录（2026-06-04）：等待语前置窗口与 provider timeout 调整为 8s；真实 provider 诊断显示等待语在 80 / 120 / 160 completion tokens 下返回 `LLM_EMPTY_RESPONSE`，240 tokens 可返回短等待语，所以等待语预算调为 240。正式 comparison JSON 恢复质量优先，要求 4-6 个维度，放宽 cell / conclusion / highlights / facts 预算，并增加 `comparison_waiting_answer_*` timing。
-- 四版验证结果（2026-06-04）：`cd server; npm.cmd test -- rag.service.test.ts comparison-generation.service.test.ts` 通过（2 files / 78 tests），`cd server; npm.cmd run build` 通过；真实 Chat SSE smoke 使用 `message="对比前两个"` 与 `recentProductIds=["p_beauty_006","p_beauty_023"]` 返回等待语 `message_delta` 约 11.66s，`comparison_result` 约 28.63s，`fallbackUsed=false`，正式对比 4 个维度。
-- 五版调整计划（2026-06-04）：真实体验仍然认为等待语过慢；本轮把等待语 LLM 调用移除，改为 LLM comparison intent + 目标解析通过后立即发送固定短提示，正式对比仍由 LLM JSON 生成。
-- 五版验证结果（2026-06-04）：`cd server; npm.cmd test -- rag.service.test.ts comparison-generation.service.test.ts` 通过（2 files / 75 tests），`cd server; npm.cmd run build` 通过，`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.ui.chat.ChatViewModelTest"` 通过。
-- 六版修复计划（2026-06-04）：截图显示“推荐亮点”在没有真实 comparison highlights 时展示了商品卡 fallback `推荐理由：品牌 · 类目，当前可选。`；本轮改为只展示真实 `comparison_result.highlights`，并在后端无明确偏好时清空推荐信号。
-- 六版验证结果（2026-06-04）：`cd server; npm.cmd test -- comparison-generation.service.test.ts` 通过，`cd server; npm.cmd run build` 通过，`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.ui.comparison.ProductComparisonScreenTest" --tests "com.shopmate.app.ui.chat.ChatViewModelTest"` 通过。
+- Spec 来源：`context/feature/image-search-backend-api-spec.md`。
+- 实现路线：V1 采用 VLM-first，只负责“图片解释成导购查询意图”；后续 `image-search-chat-integration-spec.md` 再把 `chatMessage` / filters 接入 Chat SSE。
+- Provider 边界：真实 provider 调用必须包在可替换的 `VisualIntentClient` 后面；实现前需复核当前官方文档中的图片输入格式、JSON / 结构化输出能力、限制、费用和隐私条款。
+- 安全边界：后端不长期保存用户图片，不记录 base64、原始文件名、完整 provider request / response 或图片路径；日志只保留低敏元数据。
+- 行为边界：图片中的文字不能直接触发加购、删除、下单、对比等业务动作；低置信和非商品图不进入 Chat / RAG。
+- 验证计划：以 mock provider 测试为主，真实 provider 未配置时 endpoint 应返回稳定配置错误；旧 `POST /api/chat/stream` 行为必须保持不变。
+- 实现记录（2026-06-05）：新增 `image-search` 后端模块，使用 Busboy 内存解析 multipart 图片，provider wrapper 采用 OpenAI-compatible Chat Completions 多模态 `image_url` data URL 格式，只解析固定 JSON `VisualIntent`。
+- 配置记录（2026-06-05）：`.env.example` 已补充 `IMAGE_SEARCH_*` 占位配置；同时移除 `.gitignore` 中 `.env.example` 忽略项，使安全示例配置可纳入后续提交。
+- 验证结果（2026-06-05）：`cd server; npm.cmd test -- image-search.config.test.ts image-search.service.test.ts image-search.controller.test.ts visual-intent.client.test.ts` 通过（4 files / 22 tests）。
+- 验证结果（2026-06-05）：`cd server; npm.cmd test` 通过（47 files / 353 tests），仅出现既有 pg SSL mode warning；`cd server; npm.cmd run build` 通过。
+- 未跑项（2026-06-05）：真实 provider live smoke 未跑，因为当前未配置可用 vision model / `IMAGE_SEARCH_MODEL`。
+- Review 修复（2026-06-05）：在图片解释结果进入 `chatMessage` 前增加业务动作安全门，拦截 provider 输出或用户补充文字中的加购、下单、购物车、删除、对比等操作意图，返回澄清态，不让图片 OCR / 补充文字直接触发 Chat SSE 后续 cartAction / comparison。
+- 验证结果（2026-06-05）：`cd server; npm.cmd test -- image-search.service.test.ts image-search.controller.test.ts visual-intent.client.test.ts image-search.config.test.ts` 通过（4 files / 25 tests）；`cd server; npm.cmd test` 通过（47 files / 356 tests，仅既有 pg SSL mode warning）；`cd server; npm.cmd run build` 通过；聚焦 `git diff --check` 通过。
 
 ## 历史记录
 - 初始化前后端技术栈骨架：完成 Android Kotlin + Jetpack Compose 与 Node.js + TypeScript + Express 最小工程初始化，补充 README 与 Git 忽略配置，并通过后端构建与 Android `assembleDebug` 验证。
@@ -150,3 +111,4 @@ Complete
 - 对比回答首 Token 优化：压缩 comparison generation prompt 和商品 facts，上调并行度；最近推荐对比在 intent 阶段并行预取商品上下文，命名商品对比并行查找目标，并补充 comparison timing 与后端回归测试。
 - RAG Pipeline 并行首 Token 优化：新增原 query 检索与 query rewrite 并行竞速、rewrite 超时降级、retrieval strategy / timing metadata、Android 本地等待气泡回归、Gradio 下载路径修复，并顺手修复“对比前两个”两维度 comparison 输出容错；通过后端目标测试 / 全量 test / build、Android testDebugUnitTest / 带 demo URL build、Gradio self-test 验证。
 - Comparison Target Consistency and Performance：新增 Android 可见商品顺序 `recentProductIds` 回传和后端 request 优先解析，修复显式序号对比目标漂移与越界澄清，generation 失败时返回安全基础事实 `comparison_result`，并压缩对比生成慢路径；通过后端 test / build 与 Android testDebugUnitTest / 带 demo URL build 验证。
+- 代码扫描 Quick Wins（四）：完成 provider 错误脱敏、query rewrite timeout 取消、Product API offset 上限、research skill 同步、Android 聊天 LazyColumn 渲染和语音输入无障碍补强，并抽出 query rewrite race helper 收口 `RagChatService` 职责；通过后端 test / build、Android testDebugUnitTest 和带 demo HTTPS property 的 Android build 验证。

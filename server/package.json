@@ -25,11 +25,13 @@
   "type": "commonjs",
   "dependencies": {
     "@qdrant/js-client-rest": "^1.18.0",
+    "busboy": "^1.6.0",
     "dotenv": "^17.4.2",
     "express": "^5.1.0",
     "pg": "^8.21.0"
   },
   "devDependencies": {
+    "@types/busboy": "^1.5.4",
     "@types/express": "^5.0.6",
     "@types/node": "^25.9.1",
     "@types/pg": "^8.20.0",
