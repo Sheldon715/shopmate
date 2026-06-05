@@ -1,9 +1,12 @@
 package com.shopmate.app
 
 import android.Manifest
+import android.content.ContentResolver
 import android.graphics.Color
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.OpenableColumns
 import android.content.pm.PackageManager
 import android.view.View
 import android.view.WindowInsets
@@ -11,6 +14,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
@@ -41,7 +45,7 @@ import com.shopmate.app.ui.voice.AndroidSpeechVoiceInputController
 import com.shopmate.app.ui.voice.CloudAsrVoiceInputController
 
 class MainActivity : ComponentActivity() {
-    private val appContainer by lazy { ShopMateAppContainer() }
+    private val appContainer by lazy { ShopMateAppContainer(applicationContext) }
 
     @Suppress("DEPRECATION")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -151,6 +155,22 @@ class MainActivity : ComponentActivity() {
                     voiceController.cancel()
                     chatViewModel.cancelVoiceInput()
                 }
+                val imagePickerLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.PickVisualMedia(),
+                ) { uri ->
+                    uri ?: return@rememberLauncherForActivityResult
+                    chatViewModel.selectImage(
+                        uriString = uri.toString(),
+                        mimeType = contentResolver.getType(uri),
+                        sizeBytes = imageAttachmentSizeBytes(contentResolver, uri),
+                    )
+                }
+                val pickImage: () -> Unit = {
+                    cancelVoiceInput()
+                    imagePickerLauncher.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    )
+                }
                 LaunchedEffect(chatViewModel) {
                     chatViewModel.sideEffects.collect { effect ->
                         when (effect) {
@@ -190,7 +210,11 @@ class MainActivity : ComponentActivity() {
                 }
                 val sendHomeChatMessage: () -> Unit = {
                     val currentChatState = chatViewModel.uiState.value
-                    if (currentChatState.composerText.isNotBlank() && !currentChatState.isSending) {
+                    if (
+                        (currentChatState.composerText.isNotBlank() ||
+                            currentChatState.selectedImage != null) &&
+                        !currentChatState.isSending
+                    ) {
                         chatViewModel.sendMessage()
                         currentScreen = ShopMateScreen.ChatRecommendation
                     }
@@ -233,11 +257,15 @@ class MainActivity : ComponentActivity() {
                         isSending = chatUiState.isSending,
                         historyConversations = historyConversations,
                         voiceInputState = chatUiState.voiceInput,
+                        selectedImage = chatUiState.selectedImage,
                         onComposerTextChange = chatViewModel::onComposerTextChange,
                         onSend = sendHomeChatMessage,
                         onVoicePressStart = startVoiceInput,
                         onVoicePressEnd = finishVoiceInput,
                         onVoiceCancel = cancelVoiceInput,
+                        onImagePickClick = pickImage,
+                        onImageRemoveClick = chatViewModel::clearSelectedImage,
+                        onImageRetryClick = chatViewModel::retryImageSearch,
                         onCartClick = openCart,
                         onNewChatClick = startNewChat,
                         onHistoryClick = openHistoryConversation,
@@ -253,6 +281,9 @@ class MainActivity : ComponentActivity() {
                         onVoicePressStart = startVoiceInput,
                         onVoicePressEnd = finishVoiceInput,
                         onVoiceCancel = cancelVoiceInput,
+                        onImagePickClick = pickImage,
+                        onImageRemoveClick = chatViewModel::clearSelectedImage,
+                        onImageRetryClick = chatViewModel::retryImageSearch,
                         onRetry = chatViewModel::retryLastMessage,
                         onNewChatClick = startNewChat,
                         onCartClick = openCart,
@@ -413,4 +444,17 @@ private fun restoreScreenFromRouteParts(parts: List<String>): ShopMateScreen =
                 .let(::restoreCartPrevious)
         )
         else -> ShopMateScreen.Onboarding
+    }
+
+private fun imageAttachmentSizeBytes(
+    contentResolver: ContentResolver,
+    uri: Uri,
+): Long? =
+    contentResolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)?.use { cursor ->
+        val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+        if (sizeIndex >= 0 && cursor.moveToFirst() && !cursor.isNull(sizeIndex)) {
+            cursor.getLong(sizeIndex).takeIf { size -> size > 0 }
+        } else {
+            null
+        }
     }

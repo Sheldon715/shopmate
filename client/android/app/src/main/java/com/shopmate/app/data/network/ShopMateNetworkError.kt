@@ -20,6 +20,9 @@ sealed class ShopMateNetworkError(message: String, cause: Throwable? = null) :
     class AsrResponseParseFailed(cause: Throwable) :
         ShopMateNetworkError("Failed to parse ASR response.", cause)
 
+    class ImageSearchResponseParseFailed(cause: Throwable) :
+        ShopMateNetworkError("Failed to parse image search response.", cause)
+
     class StreamConnectionFailed(cause: Throwable? = null) :
         ShopMateNetworkError("Chat stream connection failed.", cause)
 
@@ -31,6 +34,9 @@ sealed class ShopMateNetworkError(message: String, cause: Throwable? = null) :
 
     class AsrConnectionFailed(cause: Throwable? = null) :
         ShopMateNetworkError("ASR request failed.", cause)
+
+    class ImageSearchConnectionFailed(cause: Throwable? = null) :
+        ShopMateNetworkError("Image search request failed.", cause)
 
     class HttpNonSuccess(val statusCode: Int) :
         ShopMateNetworkError("Chat stream request failed with HTTP $statusCode.")

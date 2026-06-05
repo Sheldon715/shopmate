@@ -11,7 +11,26 @@ data class ChatMessageUi(
     val fromUser: Boolean,
     val isStreaming: Boolean = false,
     val isVoiceTranscribing: Boolean = false,
+    val imageAttachment: ChatImageAttachmentUi? = null,
+    val excludeFromChatHistory: Boolean = false,
 )
+
+data class ChatImageAttachmentUi(
+    val uriString: String,
+    val previewLabel: String = "已选择图片",
+    val mimeType: String? = null,
+    val sizeBytes: Long? = null,
+    val status: ChatImageAttachmentStatus = ChatImageAttachmentStatus.Selected,
+    val errorMessage: String? = null,
+)
+
+enum class ChatImageAttachmentStatus {
+    Selected,
+    Uploading,
+    Interpreting,
+    Searching,
+    Failed,
+}
 
 data class ChatComparisonActionUi(
     val comparisonId: String,
@@ -32,6 +51,7 @@ data class ChatUiState(
     val errorMessage: String? = null,
     val canRetry: Boolean = false,
     val voiceInput: VoiceInputUiState = VoiceInputUiState.Idle,
+    val selectedImage: ChatImageAttachmentUi? = null,
 )
 
 sealed interface ChatSideEffect {

@@ -1,4 +1,4 @@
-# Current Feature: 图片找货后端解释接口
+# Current Feature: Android 图片找货上传入口
 
 ## 状态
 
@@ -6,39 +6,48 @@ Complete
 
 ## 目标
 
-- 新增后端 `POST /api/image-search/interpret` multipart 接口，接收 `image` 文件和可选 `message`、`conversationId`。
-- 通过可 mock 的 `VisualIntentClient` 调用 vision-capable model，只把图片理解成结构化 `visualIntent`。
-- 将有效视觉意图转换为内部 `chatMessage` 和可选 Chat filters，后续仍交给现有 Chat SSE / RAG / PostgreSQL 链路处理。
-- 对图片格式、大小、空文件、magic bytes、低置信、非商品图和隐私风险图返回稳定结果。
-- 保持图片找货 V1 边界清晰：不生成最终导购回复、不执行 cartAction / comparison、不改 Qdrant 或新增 image vector index。
+- 在 Android 聊天输入区新增单图附件入口，同时保留现有文字和语音输入能力。
+- 用户可通过 Photo Picker 选择商品图、查看预览、删除或重新选择，并补充文字说明。
+- 发送含图片请求时先调用后端 `POST /api/image-search/interpret`，成功后复用现有 Chat SSE 展示流式导购回复和商品卡片。
+- interpret 失败、低置信或后端未配置时保留用户输入和图片，不进入 Chat SSE，并展示可重试的稳定错误状态。
+- 上传前完成图片压缩、重新编码、MIME 校验和 EXIF 去除，Android 不保存 provider key，也不做本地商品事实判断。
 
 ## 待办清单
 
-- [x] 新增 `server/src/modules/image-search/` 模块类型、配置、multipart 校验、provider wrapper、service、controller 和 routes。
-- [x] 在后端挂载 `POST /api/image-search/interpret`，并固定 multipart 字段名、响应格式和错误码。
-- [x] 实现 JPEG / PNG / WebP MIME、文件大小、空文件和 magic bytes 校验，拒绝 SVG、HEIC、PDF、ZIP 等非目标格式。
-- [x] 实现 `VisualIntent` schema 解析和规范化，限制字段长度、数组数量、已知类目映射和低置信处理。
-- [x] 在 provider disabled、timeout、无效输出、低置信、非商品图和隐私风险路径返回稳定错误或澄清状态。
-- [x] 从中高置信商品图生成 `chatMessage` 和可选 filters，并确保品牌文字只作为弱信号，不变成强制商品事实。
-- [x] 补充 `.env.example` 的图片识别占位配置，不写入真实 provider key。
-- [x] 补充后端单测和 controller 集成测试，覆盖成功、校验失败、provider 异常、schema 解析和安全边界。
-- [x] 运行 `cd server && npm.cmd test` 与 `cd server && npm.cmd run build`，未配置真实 provider 时记录 live smoke 未跑。
+- [x] 梳理现有 `ChatComposer`、`ChatViewModel`、Chat SSE repository 和 ASR multipart 上传模式，确认图片入口不会替换语音 / 文字切换。
+- [x] 新增图片附件 UI state，支持选择、预览、删除、重新选择、上传中、解释中、搜索中、失败和重试状态。
+- [x] 接入 Android Photo Picker 单图选择，并避免默认申请宽泛 storage permission。
+- [x] 新增图片处理工具，对 JPEG / PNG / WebP 做格式校验、尺寸压缩、重新编码、EXIF 去除和安全文件名处理。
+- [x] 新增 `ImageSearchApiClient` / `ImageSearchRepository` / DTO，按 multipart 字段 `image`、可选 `message`、可选 `conversationId` 调用后端解释接口。
+- [x] 在 `ChatViewModel` 中实现 `selectImage(uri)`、`clearSelectedImage()`、`retryImageSearch()` 与含图发送分支。
+- [x] interpret 成功且返回 `chatMessage` 时复用现有 Chat SSE，并把 filters 传给 Chat repository；成功但无 `chatMessage` 或低置信时显示澄清 / 提示，不调用 Chat SSE。
+- [x] 确保用户气泡只展示用户原始文字和图片预览，不展示后端生成的内部 `chatMessage`。
+- [x] 处理错误映射：不支持格式、图片过大、provider disabled、低置信和网络错误均保留输入并允许重试。
+- [x] 补充 Android 单测：无图片旧流程不变、附件状态、删除回普通模式、interpret 成功 / 失败 / 低置信分支、filters 透传、multipart 字段和图片处理工具。
+- [x] 运行 `cd client/android && .\gradlew.bat testDebugUnitTest`。
+- [x] 运行 `cd client/android && .\gradlew.bat build`。
+- [x] Demo / 真实图片 smoke 边界已记录：本次 build 使用显式 HTTPS base URL property 通过，未单独跑真实 provider 图片识别 smoke。
 
 ## 备注
 
-- Spec 来源：`context/feature/image-search-backend-api-spec.md`。
-- 实现路线：V1 采用 VLM-first，只负责“图片解释成导购查询意图”；后续 `image-search-chat-integration-spec.md` 再把 `chatMessage` / filters 接入 Chat SSE。
-- Provider 边界：真实 provider 调用必须包在可替换的 `VisualIntentClient` 后面；实现前需复核当前官方文档中的图片输入格式、JSON / 结构化输出能力、限制、费用和隐私条款。
-- 安全边界：后端不长期保存用户图片，不记录 base64、原始文件名、完整 provider request / response 或图片路径；日志只保留低敏元数据。
-- 行为边界：图片中的文字不能直接触发加购、删除、下单、对比等业务动作；低置信和非商品图不进入 Chat / RAG。
-- 验证计划：以 mock provider 测试为主，真实 provider 未配置时 endpoint 应返回稳定配置错误；旧 `POST /api/chat/stream` 行为必须保持不变。
-- 实现记录（2026-06-05）：新增 `image-search` 后端模块，使用 Busboy 内存解析 multipart 图片，provider wrapper 采用 OpenAI-compatible Chat Completions 多模态 `image_url` data URL 格式，只解析固定 JSON `VisualIntent`。
-- 配置记录（2026-06-05）：`.env.example` 已补充 `IMAGE_SEARCH_*` 占位配置；同时移除 `.gitignore` 中 `.env.example` 忽略项，使安全示例配置可纳入后续提交。
-- 验证结果（2026-06-05）：`cd server; npm.cmd test -- image-search.config.test.ts image-search.service.test.ts image-search.controller.test.ts visual-intent.client.test.ts` 通过（4 files / 22 tests）。
-- 验证结果（2026-06-05）：`cd server; npm.cmd test` 通过（47 files / 353 tests），仅出现既有 pg SSL mode warning；`cd server; npm.cmd run build` 通过。
-- 未跑项（2026-06-05）：真实 provider live smoke 未跑，因为当前未配置可用 vision model / `IMAGE_SEARCH_MODEL`。
-- Review 修复（2026-06-05）：在图片解释结果进入 `chatMessage` 前增加业务动作安全门，拦截 provider 输出或用户补充文字中的加购、下单、购物车、删除、对比等操作意图，返回澄清态，不让图片 OCR / 补充文字直接触发 Chat SSE 后续 cartAction / comparison。
-- 验证结果（2026-06-05）：`cd server; npm.cmd test -- image-search.service.test.ts image-search.controller.test.ts visual-intent.client.test.ts image-search.config.test.ts` 通过（4 files / 25 tests）；`cd server; npm.cmd test` 通过（47 files / 356 tests，仅既有 pg SSL mode warning）；`cd server; npm.cmd run build` 通过；聚焦 `git diff --check` 通过。
+- Spec 来源：`context/feature/android-image-search-upload-spec.md`。
+- 范围边界：V1 只做相册单图，不做拍照、多图、连续识别、本地 OCR、端侧商品判断或长期保存用户图片。
+- 业务边界：Android 不持有 provider key，不根据文件名 / OCR / 关键词触发购物车动作；商品事实、cartAction、comparison 和推荐结果继续由后端 validated gates 决定。
+- UI 边界：附件按钮应作为独立入口存在，不替换现有语音 / 键盘切换；预览中不得展示完整 Uri、文件路径、原始文件名、base64、图片 bytes 或 provider 原始错误。
+- 上传约束：客户端目标压缩到 4 MB 内，后端上限 5 MB；支持 `image/jpeg`、`image/png`、`image/webp`，长边建议 1280-1600 px，JPEG quality 80-85。
+- 验证计划：优先用 Android 单测覆盖状态机、multipart、图片处理和 Chat SSE 分支；再跑 Android build。真实 provider smoke 依赖后端 image model 配置，未配置时需如实记录。
+- 实现记录（2026-06-05）：新增 `client/android/app/src/main/java/com/shopmate/app/data/image/`，包含图片解释 DTO、OkHttp multipart client、repository、MIME / magic bytes preflight 和 ContentResolver 图片压缩重编码处理器；上传固定使用 `shopmate-image-search.jpg`，不携带原始文件名。
+- 实现记录（2026-06-05）：`ChatComposer` 在输入胶囊右侧增加图片附件图标和预览条，保留语音 / 文字切换与独立发送按钮；`ChatViewModel` 增加 selected image 状态、失败重试、低置信拦截和 interpret 成功后 Chat SSE 复用。
+- UI 调整（2026-06-05）：图片入口已从输入框外部圆形按钮移入“发消息”输入框右侧，不再显示额外外层圆圈。
+- Review 修复（2026-06-05）：失败 / 低置信图片解释仍保留 UI 气泡和重试状态，但用户消息会标记为不进入后续 Chat SSE history；`ChatViewModel` 调用前过滤，`DefaultChatRepository` 序列化请求时再次兜底过滤。
+- 验证结果（2026-06-05）：`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.data.image.*" --tests "com.shopmate.app.ui.chat.ChatViewModelTest"` 通过。
+- 验证结果（2026-06-05）：`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 通过。
+- 验证结果（2026-06-05）：`cd client/android; .\gradlew.bat --no-daemon -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/ -PSHOPMATE_RELEASE_API_BASE_URL=https://shopmate-api.example.com/ build` 通过。
+- 验证结果（2026-06-05，Review 修复）：`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.ui.chat.ChatViewModelTest" --tests "com.shopmate.app.data.chat.DefaultChatRepositoryTest"` 通过。
+- 验证结果（2026-06-05，Review 修复）：`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 通过。
+- 验证结果（2026-06-05，Complete）：`cd client/android; .\gradlew.bat --no-daemon --console=plain -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/ -PSHOPMATE_RELEASE_API_BASE_URL=https://shopmate-api.example.com/ build` 通过。
+- 验证结果（2026-06-05）：`git diff --check` 通过；仅显示 Windows CRLF 提示，无 whitespace error。
+- 未跑项（2026-06-05）：未进行真实相册图片到 live vision provider 的 smoke，因为当前验证未配置真实图片识别模型 / 后端环境。
 
 ## 历史记录
 - 初始化前后端技术栈骨架：完成 Android Kotlin + Jetpack Compose 与 Node.js + TypeScript + Express 最小工程初始化，补充 README 与 Git 忽略配置，并通过后端构建与 Android `assembleDebug` 验证。
@@ -112,3 +121,5 @@ Complete
 - RAG Pipeline 并行首 Token 优化：新增原 query 检索与 query rewrite 并行竞速、rewrite 超时降级、retrieval strategy / timing metadata、Android 本地等待气泡回归、Gradio 下载路径修复，并顺手修复“对比前两个”两维度 comparison 输出容错；通过后端目标测试 / 全量 test / build、Android testDebugUnitTest / 带 demo URL build、Gradio self-test 验证。
 - Comparison Target Consistency and Performance：新增 Android 可见商品顺序 `recentProductIds` 回传和后端 request 优先解析，修复显式序号对比目标漂移与越界澄清，generation 失败时返回安全基础事实 `comparison_result`，并压缩对比生成慢路径；通过后端 test / build 与 Android testDebugUnitTest / 带 demo URL build 验证。
 - 代码扫描 Quick Wins（四）：完成 provider 错误脱敏、query rewrite timeout 取消、Product API offset 上限、research skill 同步、Android 聊天 LazyColumn 渲染和语音输入无障碍补强，并抽出 query rewrite race helper 收口 `RagChatService` 职责；通过后端 test / build、Android testDebugUnitTest 和带 demo HTTPS property 的 Android build 验证。
+- 图片找货后端解释接口：新增 `POST /api/image-search/interpret` multipart 后端入口、Busboy 图片校验、OpenAI-compatible 视觉意图 provider wrapper、`VisualIntent` 规范化和业务动作安全门；通过后端目标测试、全量 test、build 和 staged diff check 验证，真实 provider live smoke 因未配置 vision model 未跑。
+- 图片找货 Chat/RAG 集成：把图片解释结果返回的内部 `chatMessage`、filters 和低敏 `imageSearch` metadata 接入现有 Chat SSE，Android 成功路径调用 `POST /api/chat/stream` 且用户气泡仍显示原始图片请求；后端继续通过 LLM intent、allowlist、comparison、cartAction、clarification 和 negative constraint gates 约束业务动作。通过后端 test / build、Android testDebugUnitTest 和带 demo HTTPS property 的 Android build 验证。

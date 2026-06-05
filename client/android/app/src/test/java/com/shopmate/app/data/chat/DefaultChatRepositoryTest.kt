@@ -20,6 +20,12 @@ class DefaultChatRepositoryTest {
                 ChatMessageUi(id = "2", text = "one", fromUser = false),
                 ChatMessageUi(id = "3", text = "two", fromUser = true),
                 ChatMessageUi(id = "4", text = "three", fromUser = false),
+                ChatMessageUi(
+                    id = "failed-image",
+                    text = "failed image request",
+                    fromUser = true,
+                    excludeFromChatHistory = true,
+                ),
                 ChatMessageUi(id = "5", text = "four", fromUser = true),
                 ChatMessageUi(id = "6", text = "", fromUser = false),
             ),

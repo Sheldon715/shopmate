@@ -7,6 +7,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,6 +30,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
@@ -42,7 +44,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImage
 import com.shopmate.app.R
+import com.shopmate.app.ui.chat.ChatImageAttachmentStatus
+import com.shopmate.app.ui.chat.ChatImageAttachmentUi
 import com.shopmate.app.ui.chat.VoiceInputUiState
 import com.shopmate.app.ui.theme.ShopMateGreen
 import com.shopmate.app.ui.theme.ShopMateLightGreen
@@ -58,7 +63,11 @@ fun ChatComposer(
     onVoicePressEnd: () -> Unit,
     modifier: Modifier = Modifier,
     shadowElevation: Dp = 10.dp,
-    sendEnabled: Boolean = value.isNotBlank(),
+    imageAttachment: ChatImageAttachmentUi? = null,
+    onImagePickClick: () -> Unit = {},
+    onImageRemoveClick: () -> Unit = {},
+    onImageRetryClick: () -> Unit = {},
+    sendEnabled: Boolean = value.isNotBlank() || imageAttachment != null,
     voiceInputState: VoiceInputUiState = VoiceInputUiState.Idle,
     voiceEnabled: Boolean = true,
     onVoiceCancel: () -> Unit = {},
@@ -74,6 +83,13 @@ fun ChatComposer(
         inputMode = inputMode,
         voiceInputState = voiceInputState,
         voiceEnabled = voiceEnabled,
+        imageAttachment = imageAttachment,
+        onImagePickClick = {
+            inputMode = ComposerInputMode.Text
+            onImagePickClick()
+        },
+        onImageRemoveClick = onImageRemoveClick,
+        onImageRetryClick = onImageRetryClick,
         onInputModeChange = { mode ->
             inputMode = mode
         },
@@ -94,69 +110,99 @@ private fun ChatComposerContent(
     inputMode: ComposerInputMode,
     voiceInputState: VoiceInputUiState,
     voiceEnabled: Boolean,
+    imageAttachment: ChatImageAttachmentUi? = null,
+    onImagePickClick: () -> Unit = {},
+    onImageRemoveClick: () -> Unit = {},
+    onImageRetryClick: () -> Unit = {},
     onInputModeChange: (ComposerInputMode) -> Unit,
     onVoiceCancel: () -> Unit,
     modifier: Modifier = Modifier,
     shadowElevation: Dp = 10.dp,
     sendEnabled: Boolean = value.isNotBlank()
 ) {
-    val effectiveInputMode = when (voiceInputState) {
-        VoiceInputUiState.Idle -> inputMode
-        else -> ComposerInputMode.Voice
+    val effectiveInputMode = if (imageAttachment != null) {
+        ComposerInputMode.Text
+    } else {
+        when (voiceInputState) {
+            VoiceInputUiState.Idle -> inputMode
+            else -> ComposerInputMode.Voice
+        }
     }
 
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(ComposerHeight),
-        verticalAlignment = Alignment.CenterVertically
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.Bottom,
     ) {
-        InputModeToggleButton(
-            inputMode = effectiveInputMode,
-            shadowElevation = shadowElevation,
-            onClick = {
-                if (effectiveInputMode == ComposerInputMode.Text) {
-                    onInputModeChange(ComposerInputMode.Voice)
-                } else {
-                    onVoiceCancel()
-                    onInputModeChange(ComposerInputMode.Text)
+        imageAttachment?.let { attachment ->
+            ComposerImagePreview(
+                attachment = attachment,
+                onRemoveClick = onImageRemoveClick,
+                onRetryClick = onImageRetryClick,
+                shadowElevation = shadowElevation,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(ComposerHeight),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            InputModeToggleButton(
+                inputMode = effectiveInputMode,
+                shadowElevation = shadowElevation,
+                onClick = {
+                    if (effectiveInputMode == ComposerInputMode.Text) {
+                        onInputModeChange(ComposerInputMode.Voice)
+                    } else {
+                        onVoiceCancel()
+                        onInputModeChange(ComposerInputMode.Text)
+                    }
                 }
-            }
-        )
+            )
 
-        Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(8.dp))
 
-        when (effectiveInputMode) {
-            ComposerInputMode.Text -> {
-                TextInputSurface(
-                    value = value,
-                    onValueChange = onValueChange,
+            when (effectiveInputMode) {
+                ComposerInputMode.Text -> {
+                    TextInputSurface(
+                        value = value,
+                        onValueChange = onValueChange,
+                        imagePickEnabled = voiceInputState == VoiceInputUiState.Idle &&
+                            !sendEnabledStatusBusy(imageAttachment),
+                        onImagePickClick = onImagePickClick,
+                        shadowElevation = shadowElevation,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(ComposerHeight)
+                    )
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    SendButton(
+                        enabled = sendEnabled,
+                        shadowElevation = shadowElevation,
+                        onClick = onSend
+                    )
+                }
+
+                ComposerInputMode.Voice -> VoiceInputSurface(
+                    voiceInputState = voiceInputState,
+                    enabled = voiceEnabled,
+                    onPressStart = onVoicePressStart,
+                    onPressEnd = onVoicePressEnd,
+                    onPressCancel = onVoiceCancel,
                     shadowElevation = shadowElevation,
                     modifier = Modifier
                         .weight(1f)
                         .height(ComposerHeight)
                 )
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                SendButton(
-                    enabled = sendEnabled,
-                    shadowElevation = shadowElevation,
-                    onClick = onSend
-                )
             }
-
-            ComposerInputMode.Voice -> VoiceInputSurface(
-                voiceInputState = voiceInputState,
-                enabled = voiceEnabled,
-                onPressStart = onVoicePressStart,
-                onPressEnd = onVoicePressEnd,
-                onPressCancel = onVoiceCancel,
-                shadowElevation = shadowElevation,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(ComposerHeight)
-            )
         }
     }
 }
@@ -201,9 +247,115 @@ private fun InputModeToggleButton(
 }
 
 @Composable
+private fun ComposerImagePreview(
+    attachment: ChatImageAttachmentUi,
+    onRemoveClick: () -> Unit,
+    onRetryClick: () -> Unit,
+    shadowElevation: Dp,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .then(pillShadowModifier(shadowElevation))
+            .clip(ComposerPreviewShape)
+            .background(Color.White, ComposerPreviewShape)
+            .border(1.dp, Color(0xFFEDF2F1), ComposerPreviewShape)
+            .padding(start = 8.dp, top = 6.dp, end = 8.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AsyncImage(
+            model = attachment.uriString,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .size(40.dp)
+                .clip(ComposerPreviewImageShape)
+                .background(Color(0xFFF3F7F5), ComposerPreviewImageShape),
+        )
+
+        Spacer(modifier = Modifier.width(10.dp))
+
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(
+                text = attachment.previewLabel,
+                color = Color(0xFF394852),
+                fontSize = 12.sp,
+                lineHeight = 15.sp,
+                letterSpacing = 0.sp,
+                maxLines = 1,
+            )
+            Text(
+                text = attachment.previewStatusText(),
+                color = if (attachment.status == ChatImageAttachmentStatus.Failed) {
+                    Color(0xFFB84A3A)
+                } else {
+                    Color(0xFF7A8791)
+                },
+                fontSize = 10.5.sp,
+                lineHeight = 13.sp,
+                letterSpacing = 0.sp,
+                maxLines = 1,
+            )
+        }
+
+        if (attachment.status == ChatImageAttachmentStatus.Failed) {
+            Text(
+                text = "重试",
+                color = ShopMateGreen,
+                fontSize = 12.sp,
+                lineHeight = 15.sp,
+                letterSpacing = 0.sp,
+                modifier = Modifier
+                    .padding(horizontal = 8.dp)
+                    .clickable(role = Role.Button, onClick = onRetryClick),
+            )
+        }
+
+        Image(
+            painter = painterResource(id = R.drawable.ic_cart_delete),
+            contentDescription = "移除图片",
+            modifier = Modifier
+                .size(22.dp)
+                .clip(ShopMatePillShape)
+                .clickable(role = Role.Button, onClick = onRemoveClick)
+                .padding(4.dp),
+            alpha = 0.72f,
+        )
+    }
+}
+
+private fun sendEnabledStatusBusy(attachment: ChatImageAttachmentUi?): Boolean =
+    attachment?.status in setOf(
+        ChatImageAttachmentStatus.Uploading,
+        ChatImageAttachmentStatus.Interpreting,
+        ChatImageAttachmentStatus.Searching,
+    )
+
+private fun ChatImageAttachmentUi.previewStatusText(): String =
+    when (status) {
+        ChatImageAttachmentStatus.Selected -> sizeBytes?.let(::formatImageSize) ?: "准备上传"
+        ChatImageAttachmentStatus.Uploading -> "正在上传图片"
+        ChatImageAttachmentStatus.Interpreting -> "正在识别商品"
+        ChatImageAttachmentStatus.Searching -> "正在找相似商品"
+        ChatImageAttachmentStatus.Failed -> errorMessage ?: "图片找货失败"
+    }
+
+private fun formatImageSize(sizeBytes: Long): String =
+    if (sizeBytes >= 1024 * 1024) {
+        "%.1f MB".format(sizeBytes / (1024f * 1024f))
+    } else {
+        "${(sizeBytes / 1024).coerceAtLeast(1)} KB"
+    }
+
+@Composable
 private fun TextInputSurface(
     value: String,
     onValueChange: (String) -> Unit,
+    imagePickEnabled: Boolean,
+    onImagePickClick: () -> Unit,
     shadowElevation: Dp,
     modifier: Modifier = Modifier
 ) {
@@ -219,7 +371,7 @@ private fun TextInputSurface(
                 color = Color(0xFFEDF2F1),
                 shape = ShopMatePillShape
             )
-            .padding(start = 16.dp, top = 5.dp, end = 16.dp, bottom = 5.dp),
+            .padding(start = 16.dp, top = 5.dp, end = 10.dp, bottom = 5.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         BasicTextField(
@@ -249,6 +401,38 @@ private fun TextInputSurface(
                     innerTextField()
                 }
             }
+        )
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        InlineImagePickButton(
+            enabled = imagePickEnabled,
+            onClick = onImagePickClick,
+        )
+    }
+}
+
+@Composable
+private fun InlineImagePickButton(
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .size(28.dp)
+            .clip(ShopMatePillShape)
+            .clickable(
+                enabled = enabled,
+                role = Role.Button,
+                onClick = onClick,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.ic_image),
+            contentDescription = "选择图片",
+            modifier = Modifier.size(18.dp),
+            alpha = if (enabled) 0.82f else 0.35f,
         )
     }
 }
@@ -467,6 +651,8 @@ private enum class ComposerInputMode {
 private val ComposerHeight = 44.dp
 private val ComposerToggleSize = 38.dp
 private val ComposerToggleIconSize = 16.dp
+private val ComposerPreviewShape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp)
+private val ComposerPreviewImageShape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
 
 private val VoiceWaveHeights = listOf(
     18, 24, 18, 10, 6, 6, 8, 8, 9, 8, 8, 10, 14, 20, 22, 22, 20, 18,

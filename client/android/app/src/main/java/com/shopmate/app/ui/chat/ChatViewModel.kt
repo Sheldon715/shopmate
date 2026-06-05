@@ -9,6 +9,10 @@ import com.shopmate.app.data.chat.ChatStreamFiltersDto
 import com.shopmate.app.data.chat.ChatStreamEvent
 import com.shopmate.app.data.chat.toComparisonUi
 import com.shopmate.app.data.chat.toProductCardUiList
+import com.shopmate.app.data.image.ImageSearchAttachmentInput
+import com.shopmate.app.data.image.ImageSearchException
+import com.shopmate.app.data.image.ImageSearchInterpretResult
+import com.shopmate.app.data.image.ImageSearchRepository
 import com.shopmate.app.data.network.ShopMateImageUrlResolver
 import com.shopmate.app.ui.model.HistoryConversationUi
 import com.shopmate.app.ui.model.ProductCardUi
@@ -26,6 +30,7 @@ import kotlinx.coroutines.launch
 
 class ChatViewModel(
     private val chatRepository: ChatRepository,
+    private val imageSearchRepository: ImageSearchRepository? = null,
     private val imageUrlResolver: ShopMateImageUrlResolver? = null,
     private val typewriterTickerFactory: () -> TypewriterTicker = { CoroutineTypewriterTicker() },
 ) : ViewModel() {
@@ -35,6 +40,7 @@ class ChatViewModel(
     val sideEffects: SharedFlow<ChatSideEffect> = _sideEffects.asSharedFlow()
 
     private var streamJob: Job? = null
+    private var imageSearchJob: Job? = null
     private var lastStreamRequest: ChatStreamStartInput? = null
     private var messageSequence = 0
     private var sessionSequence = 0
@@ -44,6 +50,7 @@ class ChatViewModel(
     private var latestStreamProductCards: List<ProductCardUi> = emptyList()
     private var preStreamProductCards: List<ProductCardUi> = emptyList()
     private var voicePendingMessageId: String? = null
+    private var imageSearchPendingUserMessageId: String? = null
     private var assistantTextRevealer: AssistantTextRevealer? = null
     private val sessionSnapshots = mutableMapOf<String, ChatSessionSnapshot>()
 
@@ -59,6 +66,11 @@ class ChatViewModel(
 
     fun sendMessage() {
         val state = _uiState.value
+        if (state.selectedImage != null) {
+            sendSelectedImageMessage()
+            return
+        }
+
         val message = state.composerText.trim()
         if (message.isBlank() || state.isSending) {
             return
@@ -69,6 +81,257 @@ class ChatViewModel(
             history = state.messages,
             clearComposer = true,
         )
+    }
+
+    fun selectImage(
+        uriString: String,
+        mimeType: String? = null,
+        sizeBytes: Long? = null,
+    ) {
+        val normalizedUri = uriString.trim()
+        if (normalizedUri.isBlank() || _uiState.value.isSending) {
+            return
+        }
+
+        imageSearchPendingUserMessageId = null
+        _uiState.update { state ->
+            state.copy(
+                selectedImage = ChatImageAttachmentUi(
+                    uriString = normalizedUri,
+                    mimeType = mimeType?.trim()?.takeIf { value -> value.isNotBlank() },
+                    sizeBytes = sizeBytes?.takeIf { value -> value > 0 },
+                ),
+                errorMessage = null,
+                canRetry = false,
+                voiceInput = VoiceInputUiState.Idle,
+            )
+        }
+    }
+
+    fun clearSelectedImage() {
+        imageSearchPendingUserMessageId = null
+        _uiState.update { state ->
+            state.copy(
+                selectedImage = null,
+                errorMessage = null,
+                canRetry = false,
+            )
+        }
+    }
+
+    fun retryImageSearch() {
+        sendSelectedImageMessage()
+    }
+
+    private fun sendSelectedImageMessage() {
+        val state = _uiState.value
+        val attachment = state.selectedImage ?: return
+        if (state.isSending) {
+            return
+        }
+
+        val repository = imageSearchRepository
+        if (repository == null) {
+            applyImageInterpretFailure(
+                userMessageId = imageSearchPendingUserMessageId,
+                error = ImageSearchException(
+                    code = "IMAGE_SEARCH_PROVIDER_DISABLED",
+                    displayMessage = "当前图片找货入口未初始化，请稍后再试。",
+                    retryable = false,
+                ),
+            )
+            return
+        }
+
+        val userText = state.composerText.trim()
+        val visibleMessage = userText.ifBlank { IMAGE_SEARCH_DEFAULT_USER_MESSAGE }
+        val conversationId = currentSessionId ?: nextSessionId().also { id ->
+            currentSessionId = id
+        }
+        val userMessageId = imageSearchPendingUserMessageId
+            ?: nextMessageId(USER_MESSAGE_PREFIX).also { id ->
+                imageSearchPendingUserMessageId = id
+            }
+        val interpretingAttachment = attachment.copy(
+            status = ChatImageAttachmentStatus.Interpreting,
+            errorMessage = null,
+        )
+        val userMessage = ChatMessageUi(
+            id = userMessageId,
+            text = visibleMessage,
+            fromUser = true,
+            imageAttachment = interpretingAttachment,
+        )
+
+        _uiState.update { currentState ->
+            val messagesWithoutPending = currentState.messages
+                .filterNot { message -> message.id == userMessageId }
+            val (sessionId, historyConversations) = ensureCurrentSessionHistory(
+                state = currentState,
+                sessionId = conversationId,
+                userMessage = userMessage,
+            )
+            val nextMessages = messagesWithoutPending + userMessage
+            sessionSnapshots[sessionId] = ChatSessionSnapshot(
+                messages = nextMessages,
+                productCards = currentState.productCards,
+                productCardsAnchorMessageId = currentState.productCardsAnchorMessageId,
+                comparisonResults = currentState.comparisonResults,
+                comparisonActions = currentState.comparisonActions,
+                lastStreamRequest = null,
+            )
+
+            currentState.copy(
+                messages = nextMessages,
+                historyConversations = historyConversations,
+                selectedImage = interpretingAttachment,
+                isSending = true,
+                errorMessage = null,
+                canRetry = false,
+                voiceInput = VoiceInputUiState.Idle,
+            )
+        }
+
+        imageSearchJob = viewModelScope.launch {
+            val result = repository.interpret(
+                image = ImageSearchAttachmentInput(
+                    uriString = attachment.uriString,
+                    mimeType = attachment.mimeType,
+                    sizeBytes = attachment.sizeBytes,
+                ),
+                message = userText,
+                conversationId = conversationId,
+            )
+
+            result.fold(
+                onSuccess = { interpretResult ->
+                    applyImageInterpretSuccess(
+                        userMessageId = userMessageId,
+                        userVisibleMessage = visibleMessage,
+                        conversationId = conversationId,
+                        interpretResult = interpretResult,
+                    )
+                },
+                onFailure = { error ->
+                    applyImageInterpretFailure(userMessageId, error)
+                },
+            )
+        }
+    }
+
+    private fun applyImageInterpretSuccess(
+        userMessageId: String,
+        userVisibleMessage: String,
+        conversationId: String,
+        interpretResult: ImageSearchInterpretResult,
+    ) {
+        imageSearchJob = null
+        val internalMessage = interpretResult.chatMessage?.trim().orEmpty()
+        if (internalMessage.isBlank()) {
+            val message = interpretResult.visualIntent.clarificationQuestion
+                ?.trim()
+                ?.takeIf { value -> value.isNotBlank() }
+                ?: IMAGE_SEARCH_NEEDS_CLEARER_INPUT_TEXT
+            updateImageMessageAttachment(
+                userMessageId = userMessageId,
+                status = ChatImageAttachmentStatus.Failed,
+                errorMessage = message,
+                excludeFromChatHistory = true,
+            )
+            _uiState.update { state ->
+                state.copy(
+                    selectedImage = state.selectedImage?.copy(
+                        status = ChatImageAttachmentStatus.Failed,
+                        errorMessage = message,
+                    ),
+                    isSending = false,
+                    errorMessage = message,
+                    canRetry = false,
+                )
+            }
+            return
+        }
+
+        val searchingAttachment = _uiState.value.selectedImage?.copy(
+            status = ChatImageAttachmentStatus.Searching,
+            errorMessage = null,
+        )
+        updateImageMessageAttachment(
+            userMessageId = userMessageId,
+            status = ChatImageAttachmentStatus.Searching,
+            errorMessage = null,
+            excludeFromChatHistory = false,
+        )
+        val history = _uiState.value.messages.takeWhile { message -> message.id != userMessageId }
+
+        imageSearchPendingUserMessageId = null
+        startStream(
+            message = internalMessage,
+            history = history,
+            clearComposer = true,
+            userMessageId = userMessageId,
+            userVisibleMessage = userVisibleMessage,
+            filters = interpretResult.filters,
+            imageSearch = interpretResult.imageSearchMetadata,
+            userImageAttachment = searchingAttachment,
+            clearSelectedImage = true,
+            conversationIdOverride = conversationId,
+        )
+    }
+
+    private fun applyImageInterpretFailure(
+        userMessageId: String?,
+        error: Throwable,
+    ) {
+        imageSearchJob = null
+        val imageError = error as? ImageSearchException
+        val displayMessage = imageError?.displayMessage
+            ?: "图片找货失败，请检查网络后再试。"
+        if (userMessageId != null) {
+            updateImageMessageAttachment(
+                userMessageId = userMessageId,
+                status = ChatImageAttachmentStatus.Failed,
+                errorMessage = displayMessage,
+                excludeFromChatHistory = true,
+            )
+        }
+        _uiState.update { state ->
+            state.copy(
+                selectedImage = state.selectedImage?.copy(
+                    status = ChatImageAttachmentStatus.Failed,
+                    errorMessage = displayMessage,
+                ),
+                isSending = false,
+                errorMessage = displayMessage,
+                canRetry = imageError?.retryable ?: true,
+            )
+        }
+    }
+
+    private fun updateImageMessageAttachment(
+        userMessageId: String,
+        status: ChatImageAttachmentStatus,
+        errorMessage: String?,
+        excludeFromChatHistory: Boolean? = null,
+    ) {
+        _uiState.update { state ->
+            state.copy(
+                messages = state.messages.map { message ->
+                    if (message.id == userMessageId) {
+                        message.copy(
+                            imageAttachment = message.imageAttachment?.copy(
+                                status = status,
+                                errorMessage = errorMessage,
+                            ),
+                            excludeFromChatHistory = excludeFromChatHistory
+                                ?: message.excludeFromChatHistory,
+                        )
+                    } else {
+                        message
+                    }
+                },
+            )
+        }
     }
 
     fun sendImageSearchResult(
@@ -198,6 +461,11 @@ class ChatViewModel(
     }
 
     fun retryLastMessage() {
+        if (_uiState.value.selectedImage?.status == ChatImageAttachmentStatus.Failed) {
+            retryImageSearch()
+            return
+        }
+
         val request = lastStreamRequest ?: return
         val state = _uiState.value
         if (state.isSending) {
@@ -217,6 +485,7 @@ class ChatViewModel(
             userVisibleMessage = request.userVisibleMessage,
             filters = request.filters,
             imageSearch = request.imageSearch,
+            userImageAttachment = request.userImageAttachment,
         )
     }
 
@@ -233,7 +502,10 @@ class ChatViewModel(
         val state = _uiState.value
         val historyConversations = saveCurrentSession(state)
         cancelActiveStreamState()
+        imageSearchJob?.cancel()
+        imageSearchJob = null
         voicePendingMessageId = null
+        imageSearchPendingUserMessageId = null
         lastStreamRequest = null
         currentSessionId = null
         _uiState.value = ChatUiState(historyConversations = historyConversations)
@@ -248,6 +520,9 @@ class ChatViewModel(
         val snapshot = sessionSnapshots[conversationId] ?: return false
 
         cancelActiveStreamState()
+        imageSearchJob?.cancel()
+        imageSearchJob = null
+        imageSearchPendingUserMessageId = null
         currentSessionId = conversationId
         lastStreamRequest = snapshot.lastStreamRequest
             ?: snapshot.messages.lastOrNull { message -> message.fromUser }?.text
@@ -270,6 +545,7 @@ class ChatViewModel(
                 errorMessage = null,
                 canRetry = false,
                 voiceInput = VoiceInputUiState.Idle,
+                selectedImage = null,
             )
         }
         return true
@@ -304,7 +580,10 @@ class ChatViewModel(
         val wasCurrentSession = currentSessionId == conversationId
         if (wasCurrentSession) {
             cancelActiveStreamState()
+            imageSearchJob?.cancel()
+            imageSearchJob = null
             voicePendingMessageId = null
+            imageSearchPendingUserMessageId = null
             currentSessionId = null
             lastStreamRequest = null
         }
@@ -417,6 +696,7 @@ class ChatViewModel(
         val userVisibleMessage: String,
         val filters: ChatStreamFiltersDto? = null,
         val imageSearch: ChatImageSearchMetadataDto? = null,
+        val userImageAttachment: ChatImageAttachmentUi? = null,
     )
 
     private fun startStream(
@@ -427,6 +707,9 @@ class ChatViewModel(
         userVisibleMessage: String = message,
         filters: ChatStreamFiltersDto? = null,
         imageSearch: ChatImageSearchMetadataDto? = null,
+        userImageAttachment: ChatImageAttachmentUi? = null,
+        clearSelectedImage: Boolean = false,
+        conversationIdOverride: String? = null,
     ) {
         cancelActiveStreamState()
         val internalMessage = message.trim()
@@ -439,6 +722,7 @@ class ChatViewModel(
             userVisibleMessage = visibleMessage,
             filters = filters,
             imageSearch = imageSearch,
+            userImageAttachment = userImageAttachment,
         )
         lastStreamRequest = streamRequest
         preservingProductCardsForCurrentStream = false
@@ -447,14 +731,16 @@ class ChatViewModel(
         preStreamProductCards = _uiState.value.productCards
         val recentProductIds = preStreamProductCards.map { product -> product.id }
         voicePendingMessageId = null
-        val conversationId = currentSessionId ?: nextSessionId().also { id ->
+        val conversationId = conversationIdOverride ?: currentSessionId ?: nextSessionId().also { id ->
             currentSessionId = id
         }
+        currentSessionId = conversationId
 
         val userMessage = ChatMessageUi(
             id = userMessageId ?: nextMessageId(USER_MESSAGE_PREFIX),
             text = visibleMessage,
             fromUser = true,
+            imageAttachment = userImageAttachment,
         )
         val assistantMessage = ChatMessageUi(
             id = nextMessageId(ASSISTANT_MESSAGE_PREFIX),
@@ -499,14 +785,18 @@ class ChatViewModel(
                 errorMessage = null,
                 canRetry = false,
                 voiceInput = VoiceInputUiState.Idle,
+                selectedImage = if (clearSelectedImage) null else state.selectedImage,
             )
         }
 
         streamJob = viewModelScope.launch {
+            val chatHistory = history.filterNot { chatMessage ->
+                chatMessage.excludeFromChatHistory
+            }
             chatRepository.streamChat(
                 message = internalMessage,
                 conversationId = conversationId,
-                history = history,
+                history = chatHistory,
                 recentProductIds = recentProductIds,
                 filters = filters,
                 imageSearch = imageSearch,

@@ -65,6 +65,9 @@ fun ChatRecommendationScreen(
     onVoicePressStart: () -> Unit,
     onVoicePressEnd: () -> Unit,
     onVoiceCancel: () -> Unit,
+    onImagePickClick: () -> Unit,
+    onImageRemoveClick: () -> Unit,
+    onImageRetryClick: () -> Unit,
     onRetry: () -> Unit,
     onNewChatClick: () -> Unit,
     onCartClick: () -> Unit,
@@ -91,7 +94,7 @@ fun ChatRecommendationScreen(
 
         val headerTop = 36f.s()
         val contentTop = 80f.s()
-        val composerHeight = 44f.s()
+        val composerHeight = if (state.selectedImage != null) 104f.s() else 44f.s()
         val composerBottom = 18f.s()
         val composerTop = maxHeight - composerHeight - composerBottom
         val topScrimHeight = 84f.s()
@@ -116,6 +119,7 @@ fun ChatRecommendationScreen(
             state.comparisonActions.size,
             state.comparisonResults.size,
             state.errorMessage,
+            state.selectedImage?.status,
         ) {
             if (shouldAutoScroll) {
                 withFrameNanos { }
@@ -200,10 +204,15 @@ fun ChatRecommendationScreen(
             onVoicePressStart = onVoicePressStart,
             onVoicePressEnd = onVoicePressEnd,
             onVoiceCancel = onVoiceCancel,
+            onImagePickClick = onImagePickClick,
+            onImageRemoveClick = onImageRemoveClick,
+            onImageRetryClick = onImageRetryClick,
             voiceInputState = state.voiceInput,
             voiceEnabled = !state.isSending,
             shadowElevation = 0.dp,
-            sendEnabled = state.composerText.isNotBlank() && !state.isSending,
+            imageAttachment = state.selectedImage,
+            sendEnabled = (state.composerText.isNotBlank() || state.selectedImage != null) &&
+                !state.isSending,
             modifier = Modifier
                 .offset(x = 18f.s(), y = composerTop)
                 .imePadding()
@@ -438,11 +447,12 @@ private fun ChatMessageItem(
         )
     } else {
         ChatMessageBubble(
-            text = message.displayText(),
-            fromUser = message.fromUser,
-            textScale = scale,
-            modifier = modifier
-                .padding(
+                        text = message.displayText(),
+                        fromUser = message.fromUser,
+                        textScale = scale,
+                        imageAttachment = message.imageAttachment,
+                        modifier = modifier
+                            .padding(
                     start = if (message.fromUser) 72f.s() else 16f.s(),
                     end = if (message.fromUser) 16f.s() else 18f.s(),
                 )
@@ -511,6 +521,9 @@ private fun ChatRecommendationScreenTargetPreview() {
             onVoicePressStart = {},
             onVoicePressEnd = {},
             onVoiceCancel = {},
+            onImagePickClick = {},
+            onImageRemoveClick = {},
+            onImageRetryClick = {},
             onRetry = {},
             onNewChatClick = {},
             onCartClick = {},
@@ -538,6 +551,9 @@ private fun ChatRecommendationScreenCompactPreview() {
             onVoicePressStart = {},
             onVoicePressEnd = {},
             onVoiceCancel = {},
+            onImagePickClick = {},
+            onImageRemoveClick = {},
+            onImageRetryClick = {},
             onRetry = {},
             onNewChatClick = {},
             onCartClick = {},
@@ -565,6 +581,9 @@ private fun ChatRecommendationScreenEmptyCompactPreview() {
             onVoicePressStart = {},
             onVoicePressEnd = {},
             onVoiceCancel = {},
+            onImagePickClick = {},
+            onImageRemoveClick = {},
+            onImageRetryClick = {},
             onRetry = {},
             onNewChatClick = {},
             onCartClick = {},

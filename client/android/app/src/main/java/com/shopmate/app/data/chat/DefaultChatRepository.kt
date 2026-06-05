@@ -19,7 +19,9 @@ class DefaultChatRepository(
                 conversationId = conversationId,
                 message = message.trim(),
                 history = history
-                    .filter { chatMessage -> chatMessage.text.isNotBlank() }
+                    .filter { chatMessage ->
+                        chatMessage.text.isNotBlank() && !chatMessage.excludeFromChatHistory
+                    }
                     .map { chatMessage ->
                         ChatHistoryMessageDto(
                             role = if (chatMessage.fromUser) USER_ROLE else ASSISTANT_ROLE,

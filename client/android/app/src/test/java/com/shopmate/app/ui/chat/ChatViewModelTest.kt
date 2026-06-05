@@ -12,6 +12,11 @@ import com.shopmate.app.data.chat.ChatImageSearchMetadataDto
 import com.shopmate.app.data.chat.ChatRetrievalDto
 import com.shopmate.app.data.chat.ChatStreamFiltersDto
 import com.shopmate.app.data.chat.ChatStreamEvent
+import com.shopmate.app.data.image.ImageSearchAttachmentInput
+import com.shopmate.app.data.image.ImageSearchException
+import com.shopmate.app.data.image.ImageSearchInterpretResult
+import com.shopmate.app.data.image.ImageSearchRepository
+import com.shopmate.app.data.image.VisualIntentDto
 import com.shopmate.app.data.chat.PriceRangeCentsDto
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -138,6 +143,170 @@ class ChatViewModelTest {
             "图片识别结果还不够明确，请换一张更清晰的商品图或补充文字。",
             viewModel.uiState.value.errorMessage,
         )
+    }
+
+    @Test
+    fun selectedImageSendsInterpretThenStartsChatStreamWithInternalMessage() = runTest {
+        val repository = FakeChatRepository()
+        val imageSearchRepository = FakeImageSearchRepository(
+            result = Result.success(
+                imageSearchInterpretResult(
+                    chatMessage = "图片找货：黑色真无线蓝牙耳机，找便宜一点",
+                    filters = ChatStreamFiltersDto(category = "数码电子"),
+                    imageSearch = ChatImageSearchMetadataDto(
+                        mode = "vlm_first",
+                        confidence = "medium",
+                        visualQuery = "黑色真无线蓝牙耳机",
+                        detectedCategory = "数码电子",
+                    ),
+                ),
+            ),
+        )
+        val viewModel = ChatViewModel(
+            chatRepository = repository,
+            imageSearchRepository = imageSearchRepository,
+        )
+
+        viewModel.selectImage(
+            uriString = "content://shopmate/image/1",
+            mimeType = "image/jpeg",
+            sizeBytes = 2048,
+        )
+        viewModel.onComposerTextChange("找便宜一点")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(null, state.selectedImage)
+        assertEquals("", state.composerText)
+        assertEquals("找便宜一点", state.messages.first().text)
+        assertEquals("content://shopmate/image/1", state.messages.first().imageAttachment?.uriString)
+        assertEquals(ChatImageAttachmentStatus.Searching, state.messages.first().imageAttachment?.status)
+        assertEquals("", state.messages.last().text)
+        assertEquals("图片找货：黑色真无线蓝牙耳机，找便宜一点", repository.messages.single())
+        assertEquals("找便宜一点", imageSearchRepository.messages.single())
+        assertEquals(repository.conversationIds.single(), imageSearchRepository.conversationIds.single())
+        assertEquals(ChatStreamFiltersDto(category = "数码电子"), repository.filtersCalls.single())
+        assertEquals("黑色真无线蓝牙耳机", repository.imageSearchCalls.single()?.visualQuery)
+    }
+
+    @Test
+    fun selectedImageCanSendWithoutTextUsingDefaultVisibleMessage() = runTest {
+        val repository = FakeChatRepository()
+        val imageSearchRepository = FakeImageSearchRepository(
+            result = Result.success(
+                imageSearchInterpretResult(chatMessage = "图片找货：白色跑鞋"),
+            ),
+        )
+        val viewModel = ChatViewModel(
+            chatRepository = repository,
+            imageSearchRepository = imageSearchRepository,
+        )
+
+        viewModel.selectImage(uriString = "content://shopmate/image/1")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        assertEquals("用图片找相似商品", viewModel.uiState.value.messages.first().text)
+        assertEquals("", imageSearchRepository.messages.single())
+        assertEquals("图片找货：白色跑鞋", repository.messages.single())
+    }
+
+    @Test
+    fun imageInterpretFailureKeepsAttachmentAndDoesNotCallChatStream() = runTest {
+        val repository = FakeChatRepository()
+        val imageSearchRepository = FakeImageSearchRepository(
+            result = Result.failure(
+                ImageSearchException(
+                    code = "IMAGE_CONFIG_MISSING",
+                    displayMessage = "当前后端未配置图片识别模型，请稍后再试。",
+                    retryable = true,
+                ),
+            ),
+        )
+        val viewModel = ChatViewModel(
+            chatRepository = repository,
+            imageSearchRepository = imageSearchRepository,
+        )
+
+        viewModel.selectImage(uriString = "content://shopmate/image/1", mimeType = "image/png")
+        viewModel.onComposerTextChange("找类似")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(0, repository.streamCalls)
+        assertEquals("找类似", state.composerText)
+        assertEquals(ChatImageAttachmentStatus.Failed, state.selectedImage?.status)
+        assertEquals(ChatImageAttachmentStatus.Failed, state.messages.first().imageAttachment?.status)
+        assertTrue(state.messages.first().excludeFromChatHistory)
+        assertEquals("当前后端未配置图片识别模型，请稍后再试。", state.errorMessage)
+        assertTrue(state.canRetry)
+    }
+
+    @Test
+    fun lowConfidenceImageInterpretDoesNotCallChatStream() = runTest {
+        val repository = FakeChatRepository()
+        val imageSearchRepository = FakeImageSearchRepository(
+            result = Result.success(
+                imageSearchInterpretResult(
+                    chatMessage = null,
+                    visualIntent = visualIntentDto(
+                        searchQuery = "",
+                        confidence = "low",
+                        clarificationQuestion = "请换一张更清晰的商品主体图。",
+                    ),
+                ),
+            ),
+        )
+        val viewModel = ChatViewModel(
+            chatRepository = repository,
+            imageSearchRepository = imageSearchRepository,
+        )
+
+        viewModel.selectImage(uriString = "content://shopmate/image/1", mimeType = "image/webp")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(0, repository.streamCalls)
+        assertEquals(ChatImageAttachmentStatus.Failed, state.selectedImage?.status)
+        assertTrue(state.messages.first().excludeFromChatHistory)
+        assertEquals("请换一张更清晰的商品主体图。", state.errorMessage)
+        assertFalse(state.canRetry)
+    }
+
+    @Test
+    fun failedImageRequestIsExcludedFromLaterTextChatHistory() = runTest {
+        val repository = FakeChatRepository()
+        val imageSearchRepository = FakeImageSearchRepository(
+            result = Result.failure(
+                ImageSearchException(
+                    code = "IMAGE_CONFIG_MISSING",
+                    displayMessage = "当前后端未配置图片识别模型，请稍后再试。",
+                    retryable = true,
+                ),
+            ),
+        )
+        val viewModel = ChatViewModel(
+            chatRepository = repository,
+            imageSearchRepository = imageSearchRepository,
+        )
+
+        viewModel.selectImage(uriString = "content://shopmate/image/1", mimeType = "image/png")
+        viewModel.onComposerTextChange("找类似")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        viewModel.clearSelectedImage()
+        viewModel.onComposerTextChange("推荐耳机")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        assertEquals(1, repository.streamCalls)
+        assertEquals("推荐耳机", repository.messages.single())
+        assertEquals(emptyList(), repository.histories.single())
+        assertTrue(viewModel.uiState.value.messages.first().excludeFromChatHistory)
     }
 
     @Test
@@ -1856,6 +2025,57 @@ class ChatViewModelTest {
             return events
         }
     }
+
+    private class FakeImageSearchRepository(
+        private val result: Result<ImageSearchInterpretResult>,
+    ) : ImageSearchRepository {
+        val images = mutableListOf<ImageSearchAttachmentInput>()
+        val messages = mutableListOf<String?>()
+        val conversationIds = mutableListOf<String?>()
+
+        override suspend fun interpret(
+            image: ImageSearchAttachmentInput,
+            message: String?,
+            conversationId: String?,
+        ): Result<ImageSearchInterpretResult> {
+            images += image
+            messages += message
+            conversationIds += conversationId
+            return result
+        }
+    }
+
+    private fun imageSearchInterpretResult(
+        chatMessage: String?,
+        filters: ChatStreamFiltersDto? = null,
+        imageSearch: ChatImageSearchMetadataDto? = null,
+        visualIntent: VisualIntentDto = visualIntentDto(),
+    ): ImageSearchInterpretResult =
+        ImageSearchInterpretResult(
+            visualIntent = visualIntent,
+            chatMessage = chatMessage,
+            filters = filters,
+            imageSearchMetadata = imageSearch,
+        )
+
+    private fun visualIntentDto(
+        searchQuery: String = "黑色真无线蓝牙耳机",
+        confidence: String = "medium",
+        clarificationQuestion: String? = null,
+    ): VisualIntentDto =
+        VisualIntentDto(
+            isProductSearch = searchQuery.isNotBlank(),
+            detectedCategory = "数码电子",
+            detectedBrandText = null,
+            visualAttributes = listOf("真无线"),
+            colors = listOf("黑色"),
+            materials = emptyList(),
+            useCase = "通勤",
+            constraints = emptyList(),
+            searchQuery = searchQuery,
+            confidence = confidence,
+            clarificationQuestion = clarificationQuestion,
+        )
 
     private fun productDto(
         id: String = "product_001",

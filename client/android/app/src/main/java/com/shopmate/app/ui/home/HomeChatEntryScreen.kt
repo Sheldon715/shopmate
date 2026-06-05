@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.shopmate.app.R
 import com.shopmate.app.data.mock.MockShopMateData
+import com.shopmate.app.ui.chat.ChatImageAttachmentUi
 import com.shopmate.app.ui.chat.VoiceInputUiState
 import com.shopmate.app.ui.components.ChatComposer
 import com.shopmate.app.ui.components.ShopMateFigmaFrameWidth
@@ -59,11 +60,15 @@ fun HomeChatEntryScreen(
     isSending: Boolean = false,
     historyConversations: List<HistoryConversationUi> = MockShopMateData.historyConversations,
     voiceInputState: VoiceInputUiState = VoiceInputUiState.Idle,
+    selectedImage: ChatImageAttachmentUi? = null,
     onComposerTextChange: (String) -> Unit = {},
     onSend: () -> Unit = {},
     onVoicePressStart: () -> Unit = {},
     onVoicePressEnd: () -> Unit = {},
     onVoiceCancel: () -> Unit = {},
+    onImagePickClick: () -> Unit = {},
+    onImageRemoveClick: () -> Unit = {},
+    onImageRetryClick: () -> Unit = {},
     onMenuClick: () -> Unit = {},
     onCartClick: () -> Unit = {},
     onNewChatClick: () -> Unit = {},
@@ -84,7 +89,7 @@ fun HomeChatEntryScreen(
 
         fun Float.s(): Dp = scaledDp(scale)
 
-        val composerHeight = 44f.s()
+        val composerHeight = if (selectedImage != null) 104f.s() else 44f.s()
         val composerBottom = 18f.s()
         val composerTop = maxHeight - composerHeight - composerBottom
         val promptPanelHeight = 327f.s()
@@ -136,9 +141,13 @@ fun HomeChatEntryScreen(
             onVoicePressStart = onVoicePressStart,
             onVoicePressEnd = onVoicePressEnd,
             onVoiceCancel = onVoiceCancel,
+            onImagePickClick = onImagePickClick,
+            onImageRemoveClick = onImageRemoveClick,
+            onImageRetryClick = onImageRetryClick,
             voiceInputState = voiceInputState,
             voiceEnabled = !isSending,
-            sendEnabled = composerText.isNotBlank() && !isSending,
+            imageAttachment = selectedImage,
+            sendEnabled = (composerText.isNotBlank() || selectedImage != null) && !isSending,
             modifier = Modifier
                 .offset(x = 18f.s(), y = composerTop)
                 .imePadding()
