@@ -55,6 +55,13 @@ export interface ChatComparisonResultPayload {
   }>;
 }
 
+export interface ChatImageSearchMetadata {
+  mode: "vlm_first";
+  confidence: "high" | "medium" | "low";
+  visualQuery: string;
+  detectedCategory?: string | null;
+}
+
 export interface ChatDonePayload {
   recommendedProductIds: string[];
   fallbackUsed: boolean;
@@ -72,6 +79,7 @@ export interface ChatDonePayload {
     queryRewriteTimedOut?: boolean;
     candidateCount: number;
     returnedProductIds: string[];
+    imageSearch?: ChatImageSearchMetadata;
     timing?: ChatTimingEntry[];
   };
   contextMemory?: ChatContextMemorySummary;
@@ -105,6 +113,7 @@ export interface RagChatRequest {
   shortHistory?: ChatHistoryMessage[];
   recentProductIds?: string[];
   filters?: VectorSearchFilters;
+  imageSearch?: ChatImageSearchMetadata;
   topK?: number;
   maxRecommendedProducts?: number;
   requestId?: string;
@@ -147,6 +156,7 @@ export interface RagChatResult {
     queryRewriteTimedOut?: boolean;
     candidateCount: number;
     returnedProductIds: string[];
+    imageSearch?: ChatImageSearchMetadata;
     timing?: ChatTimingEntry[];
   };
   contextMemory?: ChatContextMemorySummary;

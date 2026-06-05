@@ -76,6 +76,45 @@ class ChatStreamClientTest {
             assertTrue(body.contains(""""message":"推荐耳机""""))
             assertTrue(body.contains(""""content":"four""""))
             assertTrue(!body.contains(""""content":"oldest""""))
+            assertTrue(!body.contains(""""filters""""))
+            assertTrue(!body.contains(""""imageSearch""""))
+        }
+    }
+
+    @Test
+    fun streamChatPostsFiltersAndImageSearchMetadata() {
+        runBlocking {
+            server.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .addHeader("Content-Type", "text/event-stream")
+                    .setBody(successStreamBody),
+            )
+            val client = OkHttpChatStreamClient(
+                apiConfig = ShopMateApiConfig(server.url("/").toString()),
+            )
+
+            withTimeout(5_000) {
+                client.streamChat(
+                    ChatStreamRequestDto(
+                        message = "图片找货：黑色真无线蓝牙耳机",
+                        filters = ChatStreamFiltersDto(category = "数码电子"),
+                        imageSearch = ChatImageSearchMetadataDto(
+                            mode = "vlm_first",
+                            confidence = "medium",
+                            visualQuery = "黑色真无线蓝牙耳机",
+                            detectedCategory = "数码电子",
+                        ),
+                    ),
+                ).toList()
+            }
+
+            val body = server.takeRequest().body.readUtf8()
+            assertTrue(body.contains(""""filters":{"category":"数码电子"}"""))
+            assertTrue(body.contains(""""imageSearch":{"mode":"vlm_first""""))
+            assertTrue(body.contains(""""confidence":"medium""""))
+            assertTrue(body.contains(""""visualQuery":"黑色真无线蓝牙耳机""""))
+            assertTrue(body.contains(""""detectedCategory":"数码电子""""))
         }
     }
 

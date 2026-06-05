@@ -29,6 +29,7 @@ import type {
   ChatComparisonResultPayload,
   ChatDonePayload,
   ChatHistoryMessage,
+  ChatImageSearchMetadata,
   RagChatFallbackReason,
   RagChatRequest,
   RagChatResult,
@@ -371,7 +372,10 @@ export class RagChatService {
   }
 
   async answer(input: RagChatRequest): Promise<RagChatResult> {
-    return this.answerInternal(input);
+    return withImageSearchMetadata(
+      input.imageSearch,
+      await this.answerInternal(input),
+    );
   }
 
   async answerStream(
@@ -379,7 +383,10 @@ export class RagChatService {
     writer: ChatStreamWriter,
   ): Promise<void> {
     const options: RagAnswerExecutionOptions = { streamWriter: writer };
-    const result = await this.answerInternal(input, options);
+    const result = withImageSearchMetadata(
+      input.imageSearch,
+      await this.answerInternal(input, options),
+    );
 
     await writeRagResultToStream(writer, result, {
       skipMessageDeltas: options.messageDeltasWritten === true,
@@ -2139,6 +2146,23 @@ function createDonePayload(result: RagChatResult): ChatDonePayload {
     retrieval: result.retrieval,
     contextMemory: result.contextMemory,
     cartAction: result.cartAction,
+  };
+}
+
+function withImageSearchMetadata(
+  imageSearch: ChatImageSearchMetadata | undefined,
+  result: RagChatResult,
+): RagChatResult {
+  if (!imageSearch) {
+    return result;
+  }
+
+  return {
+    ...result,
+    retrieval: {
+      ...result.retrieval,
+      imageSearch,
+    },
   };
 }
 

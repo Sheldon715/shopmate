@@ -9,6 +9,7 @@ data class ChatStreamRequestDto(
     val history: List<ChatHistoryMessageDto> = emptyList(),
     val recentProductIds: List<String> = emptyList(),
     val filters: ChatStreamFiltersDto? = null,
+    val imageSearch: ChatImageSearchMetadataDto? = null,
     val topK: Int? = null,
     val maxRecommendedProducts: Int? = null,
 )
@@ -29,4 +30,12 @@ data class ChatStreamFiltersDto(
     val availableOnly: Boolean? = null,
     val tagsAny: List<String>? = null,
     val avoidTerms: List<String>? = null,
+)
+
+@Serializable
+data class ChatImageSearchMetadataDto(
+    val mode: String,
+    val confidence: String,
+    val visualQuery: String,
+    val detectedCategory: String? = null,
 )

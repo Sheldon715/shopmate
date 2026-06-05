@@ -3,7 +3,9 @@ package com.shopmate.app.ui.chat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.shopmate.app.data.chat.ChatCartActionDto
+import com.shopmate.app.data.chat.ChatImageSearchMetadataDto
 import com.shopmate.app.data.chat.ChatRepository
+import com.shopmate.app.data.chat.ChatStreamFiltersDto
 import com.shopmate.app.data.chat.ChatStreamEvent
 import com.shopmate.app.data.chat.toComparisonUi
 import com.shopmate.app.data.chat.toProductCardUiList
@@ -33,7 +35,7 @@ class ChatViewModel(
     val sideEffects: SharedFlow<ChatSideEffect> = _sideEffects.asSharedFlow()
 
     private var streamJob: Job? = null
-    private var lastSentMessage: String? = null
+    private var lastStreamRequest: ChatStreamStartInput? = null
     private var messageSequence = 0
     private var sessionSequence = 0
     private var currentSessionId: String? = null
@@ -66,6 +68,38 @@ class ChatViewModel(
             message = message,
             history = state.messages,
             clearComposer = true,
+        )
+    }
+
+    fun sendImageSearchResult(
+        userVisibleText: String,
+        chatMessage: String?,
+        filters: ChatStreamFiltersDto? = null,
+        imageSearch: ChatImageSearchMetadataDto? = null,
+    ) {
+        val state = _uiState.value
+        val internalMessage = chatMessage?.trim().orEmpty()
+        if (state.isSending) {
+            return
+        }
+        if (internalMessage.isBlank()) {
+            _uiState.update { currentState ->
+                currentState.copy(
+                    errorMessage = IMAGE_SEARCH_NEEDS_CLEARER_INPUT_TEXT,
+                    canRetry = false,
+                )
+            }
+            return
+        }
+
+        startStream(
+            message = internalMessage,
+            history = state.messages,
+            clearComposer = false,
+            userVisibleMessage = userVisibleText.trim()
+                .ifBlank { IMAGE_SEARCH_DEFAULT_USER_MESSAGE },
+            filters = filters,
+            imageSearch = imageSearch,
         )
     }
 
@@ -164,7 +198,7 @@ class ChatViewModel(
     }
 
     fun retryLastMessage() {
-        val message = lastSentMessage ?: return
+        val request = lastStreamRequest ?: return
         val state = _uiState.value
         if (state.isSending) {
             return
@@ -172,12 +206,17 @@ class ChatViewModel(
 
         val history = state.messages
             .dropLastWhile { chatMessage -> !chatMessage.fromUser }
-            .dropLastWhile { chatMessage -> chatMessage.fromUser && chatMessage.text == message }
+            .dropLastWhile { chatMessage ->
+                chatMessage.fromUser && chatMessage.text == request.userVisibleMessage
+            }
 
         startStream(
-            message = message,
+            message = request.internalMessage,
             history = history,
             clearComposer = false,
+            userVisibleMessage = request.userVisibleMessage,
+            filters = request.filters,
+            imageSearch = request.imageSearch,
         )
     }
 
@@ -195,7 +234,7 @@ class ChatViewModel(
         val historyConversations = saveCurrentSession(state)
         cancelActiveStreamState()
         voicePendingMessageId = null
-        lastSentMessage = null
+        lastStreamRequest = null
         currentSessionId = null
         _uiState.value = ChatUiState(historyConversations = historyConversations)
     }
@@ -210,7 +249,14 @@ class ChatViewModel(
 
         cancelActiveStreamState()
         currentSessionId = conversationId
-        lastSentMessage = snapshot.messages.lastOrNull { message -> message.fromUser }?.text
+        lastStreamRequest = snapshot.lastStreamRequest
+            ?: snapshot.messages.lastOrNull { message -> message.fromUser }?.text
+                ?.let { message ->
+                    ChatStreamStartInput(
+                        internalMessage = message,
+                        userVisibleMessage = message,
+                    )
+                }
 
         _uiState.update { state ->
             state.copy(
@@ -260,7 +306,7 @@ class ChatViewModel(
             cancelActiveStreamState()
             voicePendingMessageId = null
             currentSessionId = null
-            lastSentMessage = null
+            lastStreamRequest = null
         }
 
         _uiState.update { state ->
@@ -307,6 +353,7 @@ class ChatViewModel(
             productCardsAnchorMessageId = state.productCardsAnchorMessageId,
             comparisonResults = state.comparisonResults,
             comparisonActions = state.comparisonActions,
+            lastStreamRequest = lastStreamRequest,
         )
         sessionSnapshots[sessionId] = snapshot
 
@@ -362,6 +409,14 @@ class ChatViewModel(
         val productCardsAnchorMessageId: String?,
         val comparisonResults: List<com.shopmate.app.ui.model.ComparisonUi>,
         val comparisonActions: List<ChatComparisonActionUi>,
+        val lastStreamRequest: ChatStreamStartInput? = null,
+    )
+
+    private data class ChatStreamStartInput(
+        val internalMessage: String,
+        val userVisibleMessage: String,
+        val filters: ChatStreamFiltersDto? = null,
+        val imageSearch: ChatImageSearchMetadataDto? = null,
     )
 
     private fun startStream(
@@ -369,9 +424,23 @@ class ChatViewModel(
         history: List<ChatMessageUi>,
         clearComposer: Boolean,
         userMessageId: String? = null,
+        userVisibleMessage: String = message,
+        filters: ChatStreamFiltersDto? = null,
+        imageSearch: ChatImageSearchMetadataDto? = null,
     ) {
         cancelActiveStreamState()
-        lastSentMessage = message
+        val internalMessage = message.trim()
+        val visibleMessage = userVisibleMessage.trim().ifBlank { internalMessage }
+        if (internalMessage.isBlank()) {
+            return
+        }
+        val streamRequest = ChatStreamStartInput(
+            internalMessage = internalMessage,
+            userVisibleMessage = visibleMessage,
+            filters = filters,
+            imageSearch = imageSearch,
+        )
+        lastStreamRequest = streamRequest
         preservingProductCardsForCurrentStream = false
         preservingExistingProductCardsForCurrentStream = false
         latestStreamProductCards = emptyList()
@@ -384,7 +453,7 @@ class ChatViewModel(
 
         val userMessage = ChatMessageUi(
             id = userMessageId ?: nextMessageId(USER_MESSAGE_PREFIX),
-            text = message,
+            text = visibleMessage,
             fromUser = true,
         )
         val assistantMessage = ChatMessageUi(
@@ -398,9 +467,9 @@ class ChatViewModel(
             ticker = typewriterTickerFactory(),
             onVisibleTextChanged = ::updateStreamingAssistantText,
         )
-        val shouldKeepProductCards = shouldKeepProductCardsForMessage(message)
+        val shouldKeepProductCards = shouldKeepProductCardsForMessage(visibleMessage)
         preservingProductCardsForCurrentStream = shouldKeepProductCards
-        preservingExistingProductCardsForCurrentStream = isComparisonFollowUpMessage(message)
+        preservingExistingProductCardsForCurrentStream = isComparisonFollowUpMessage(visibleMessage)
 
         _uiState.update { state ->
             val (sessionId, historyConversations) = ensureCurrentSessionHistory(
@@ -415,6 +484,7 @@ class ChatViewModel(
                 productCardsAnchorMessageId = state.productCardsAnchorMessageId,
                 comparisonResults = state.comparisonResults,
                 comparisonActions = state.comparisonActions,
+                lastStreamRequest = streamRequest,
             )
 
             state.copy(
@@ -434,10 +504,12 @@ class ChatViewModel(
 
         streamJob = viewModelScope.launch {
             chatRepository.streamChat(
-                message = message,
+                message = internalMessage,
                 conversationId = conversationId,
                 history = history,
                 recentProductIds = recentProductIds,
+                filters = filters,
+                imageSearch = imageSearch,
             )
                 .catch { error ->
                     applyFailure(error)
@@ -663,6 +735,9 @@ class ChatViewModel(
         private const val ASSISTANT_MESSAGE_PREFIX = "assistant"
         private const val MAX_HISTORY_TITLE_LENGTH = 24
         private const val VOICE_TRANSCRIBING_TEXT = "正在识别..."
+        private const val IMAGE_SEARCH_DEFAULT_USER_MESSAGE = "用图片找相似商品"
+        private const val IMAGE_SEARCH_NEEDS_CLEARER_INPUT_TEXT =
+            "图片识别结果还不够明确，请换一张更清晰的商品图或补充文字。"
     }
 }
 

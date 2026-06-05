@@ -23,6 +23,12 @@ describe("parseChatStreamRequestBody", () => {
         tagsAny: [" wireless ", "commute"],
         avoidTerms: ["heavy"],
       },
+      imageSearch: {
+        mode: "vlm_first",
+        confidence: "medium",
+        visualQuery: " 黑色真无线蓝牙耳机 ",
+        detectedCategory: " 数码电子 ",
+      },
       topK: 8,
       maxRecommendedProducts: 3,
     });
@@ -44,8 +50,33 @@ describe("parseChatStreamRequestBody", () => {
         tagsAny: ["wireless", "commute"],
         avoidTerms: ["heavy"],
       },
+      imageSearch: {
+        mode: "vlm_first",
+        confidence: "medium",
+        visualQuery: "黑色真无线蓝牙耳机",
+        detectedCategory: "数码电子",
+      },
       topK: 8,
       maxRecommendedProducts: 3,
+    });
+  });
+
+  it("accepts image search metadata with a null detected category", () => {
+    const request = parseChatStreamRequestBody({
+      message: "图片找货：黑色耳机",
+      imageSearch: {
+        mode: "vlm_first",
+        confidence: "high",
+        visualQuery: "黑色耳机",
+        detectedCategory: null,
+      },
+    });
+
+    expect(request.imageSearch).toEqual({
+      mode: "vlm_first",
+      confidence: "high",
+      visualQuery: "黑色耳机",
+      detectedCategory: null,
     });
   });
 
@@ -211,6 +242,38 @@ describe("parseChatStreamRequestBody", () => {
       parseChatStreamRequestBody({
         message: "hello",
         recentProductIds: ["   "],
+      })
+    ).toThrow(ChatStreamRequestError);
+  });
+
+  it("rejects invalid image search metadata", () => {
+    expect(() =>
+      parseChatStreamRequestBody({
+        message: "hello",
+        imageSearch: { mode: "raw_provider_response" },
+      })
+    ).toThrow(ChatStreamRequestError);
+
+    expect(() =>
+      parseChatStreamRequestBody({
+        message: "hello",
+        imageSearch: {
+          mode: "vlm_first",
+          confidence: "medium",
+          visualQuery: "hello",
+          providerResponse: { unsafe: true },
+        },
+      })
+    ).toThrow(ChatStreamRequestError);
+
+    expect(() =>
+      parseChatStreamRequestBody({
+        message: "hello",
+        imageSearch: {
+          mode: "vlm_first",
+          confidence: "medium",
+          visualQuery: "",
+        },
       })
     ).toThrow(ChatStreamRequestError);
   });

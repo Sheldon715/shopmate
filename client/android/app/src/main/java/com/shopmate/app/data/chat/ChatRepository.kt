@@ -9,5 +9,7 @@ interface ChatRepository {
         conversationId: String,
         history: List<ChatMessageUi>,
         recentProductIds: List<String> = emptyList(),
+        filters: ChatStreamFiltersDto? = null,
+        imageSearch: ChatImageSearchMetadataDto? = null,
     ): Flow<ChatStreamEvent>
 }

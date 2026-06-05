@@ -186,6 +186,82 @@ describe("RagChatService", () => {
     });
   });
 
+  it("adds image search metadata to retrieval output without changing recommendations", async () => {
+    const service = createServiceWithProducts({
+      llmText: JSON.stringify({
+        answer: "Use product 1.",
+        recommended_product_ids: ["product_001"],
+      }),
+    });
+
+    const result = await service.answer({
+      question: "图片找货：黑色真无线蓝牙耳机",
+      filters: { category: "数码电子" },
+      imageSearch: {
+        mode: "vlm_first",
+        confidence: "medium",
+        visualQuery: "黑色真无线蓝牙耳机",
+        detectedCategory: "数码电子",
+      },
+    });
+
+    expect(result.recommendedProductIds).toEqual(["product_001"]);
+    expect(result.retrieval.imageSearch).toEqual({
+      mode: "vlm_first",
+      confidence: "medium",
+      visualQuery: "黑色真无线蓝牙耳机",
+      detectedCategory: "数码电子",
+    });
+  });
+
+  it("streams image search metadata in done retrieval without adding SSE events", async () => {
+    const service = new RagChatService(withNoCartIntent({
+      vectorSearch: createVectorSearch([createHit("product_001")]),
+      productReader: createProductReader(),
+      llmClient: new MockLlmClient({
+        response: createLlmResponse(
+          JSON.stringify({
+            answer: "Use product 1.",
+            recommended_product_ids: ["product_001"],
+          }),
+        ),
+      }),
+    }));
+    const { events, writer } = createCollectingStreamWriter();
+
+    await service.answerStream(
+      {
+        question: "图片找货：黑色真无线蓝牙耳机",
+        imageSearch: {
+          mode: "vlm_first",
+          confidence: "high",
+          visualQuery: "黑色真无线蓝牙耳机",
+          detectedCategory: null,
+        },
+      },
+      writer,
+    );
+
+    expect(events.map((event) => event.eventName)).toEqual([
+      "message_delta",
+      "product_cards",
+      "done",
+    ]);
+    expect(events[2]).toMatchObject({
+      eventName: "done",
+      payload: {
+        retrieval: {
+          imageSearch: {
+            mode: "vlm_first",
+            confidence: "high",
+            visualQuery: "黑色真无线蓝牙耳机",
+            detectedCategory: null,
+          },
+        },
+      },
+    });
+  });
+
   it("drops LLM product ids outside the retrieved allowlist", async () => {
     const service = createServiceWithProducts({
       llmText: JSON.stringify({

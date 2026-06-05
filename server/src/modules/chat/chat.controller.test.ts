@@ -28,6 +28,12 @@ describe("createChatStreamController", () => {
       message: " recommend one ",
       history: [{ role: "user", content: " light please " }],
       filters: { category: "Electronics" },
+      imageSearch: {
+        mode: "vlm_first",
+        confidence: "medium",
+        visualQuery: "black wireless earbuds",
+        detectedCategory: "Electronics",
+      },
       topK: 8,
       maxRecommendedProducts: 2,
     }, { "x-request-id": "request_123" });
@@ -43,6 +49,12 @@ describe("createChatStreamController", () => {
       conversationId: "local-chat-session-1",
       shortHistory: [{ role: "user", content: "light please" }],
       filters: { category: "Electronics" },
+      imageSearch: {
+        mode: "vlm_first",
+        confidence: "medium",
+        visualQuery: "black wireless earbuds",
+        detectedCategory: "Electronics",
+      },
       topK: 8,
       maxRecommendedProducts: 2,
       requestId: "request_123",

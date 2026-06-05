@@ -8,7 +8,9 @@ import com.shopmate.app.data.chat.ChatComparisonResultDto
 import com.shopmate.app.data.chat.ChatProductCardDto
 import com.shopmate.app.data.chat.ChatRepository
 import com.shopmate.app.data.chat.ChatClarificationDto
+import com.shopmate.app.data.chat.ChatImageSearchMetadataDto
 import com.shopmate.app.data.chat.ChatRetrievalDto
+import com.shopmate.app.data.chat.ChatStreamFiltersDto
 import com.shopmate.app.data.chat.ChatStreamEvent
 import com.shopmate.app.data.chat.PriceRangeCentsDto
 import kotlin.test.assertEquals
@@ -89,6 +91,91 @@ class ChatViewModelTest {
             assertEquals("", state.messages[1].text)
             assertTrue(state.messages[1].isStreaming)
         }
+    }
+
+    @Test
+    fun sendImageSearchResultUsesInternalChatMessageButShowsOriginalUserText() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+        val filters = ChatStreamFiltersDto(category = "数码电子")
+        val imageSearch = ChatImageSearchMetadataDto(
+            mode = "vlm_first",
+            confidence = "medium",
+            visualQuery = "黑色真无线蓝牙耳机",
+            detectedCategory = "数码电子",
+        )
+
+        viewModel.sendImageSearchResult(
+            userVisibleText = "用这张图找便宜一点的耳机",
+            chatMessage = " 图片找货：黑色真无线蓝牙耳机，找类似但便宜一点 ",
+            filters = filters,
+            imageSearch = imageSearch,
+        )
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals("用这张图找便宜一点的耳机", state.messages[0].text)
+        assertEquals("", state.messages[1].text)
+        assertEquals("图片找货：黑色真无线蓝牙耳机，找类似但便宜一点", repository.messages.single())
+        assertEquals(filters, repository.filtersCalls.single())
+        assertEquals(imageSearch, repository.imageSearchCalls.single())
+    }
+
+    @Test
+    fun sendImageSearchResultWithoutChatMessageDoesNotCallChatStream() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.sendImageSearchResult(
+            userVisibleText = "用这张图找货",
+            chatMessage = null,
+        )
+        advanceUntilIdle()
+
+        assertEquals(0, repository.streamCalls)
+        assertEquals(emptyList(), viewModel.uiState.value.messages)
+        assertEquals(
+            "图片识别结果还不够明确，请换一张更清晰的商品图或补充文字。",
+            viewModel.uiState.value.errorMessage,
+        )
+    }
+
+    @Test
+    fun restoredImageSearchHistoryRetryKeepsInternalRequestMetadata() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+        val filters = ChatStreamFiltersDto(category = "数码电子")
+        val imageSearch = ChatImageSearchMetadataDto(
+            mode = "vlm_first",
+            confidence = "medium",
+            visualQuery = "黑色真无线蓝牙耳机",
+            detectedCategory = "数码电子",
+        )
+        val internalMessage = "图片找货：黑色真无线蓝牙耳机，找类似但便宜一点"
+        val visibleMessage = "用这张图找便宜一点的耳机"
+
+        viewModel.sendImageSearchResult(
+            userVisibleText = visibleMessage,
+            chatMessage = internalMessage,
+            filters = filters,
+            imageSearch = imageSearch,
+        )
+        advanceUntilIdle()
+
+        viewModel.startNewChat()
+        val historyId = viewModel.uiState.value.historyConversations.single().id
+
+        assertTrue(viewModel.openHistoryConversation(historyId))
+        viewModel.retryLastMessage()
+        advanceUntilIdle()
+
+        assertEquals(listOf(internalMessage, internalMessage), repository.messages)
+        assertEquals(listOf<ChatStreamFiltersDto?>(filters, filters), repository.filtersCalls)
+        assertEquals(
+            listOf<ChatImageSearchMetadataDto?>(imageSearch, imageSearch),
+            repository.imageSearchCalls,
+        )
+        assertEquals(visibleMessage, viewModel.uiState.value.messages.first().text)
     }
 
     @Test
@@ -1221,6 +1308,8 @@ class ChatViewModelTest {
                     conversationId: String,
                     history: List<ChatMessageUi>,
                     recentProductIds: List<String>,
+                    filters: ChatStreamFiltersDto?,
+                    imageSearch: ChatImageSearchMetadataDto?,
                 ): Flow<ChatStreamEvent> = flow {
                     throw IllegalStateException("offline")
                 }
@@ -1246,6 +1335,8 @@ class ChatViewModelTest {
                     conversationId: String,
                     history: List<ChatMessageUi>,
                     recentProductIds: List<String>,
+                    filters: ChatStreamFiltersDto?,
+                    imageSearch: ChatImageSearchMetadataDto?,
                 ): Flow<ChatStreamEvent> = emptyFlow()
             },
         )
@@ -1740,20 +1831,28 @@ class ChatViewModelTest {
     private class FakeChatRepository : ChatRepository {
         val events = MutableSharedFlow<ChatStreamEvent>()
         var streamCalls = 0
+        val messages = mutableListOf<String>()
         val conversationIds = mutableListOf<String>()
         val histories = mutableListOf<List<ChatMessageUi>>()
         val recentProductIdCalls = mutableListOf<List<String>>()
+        val filtersCalls = mutableListOf<ChatStreamFiltersDto?>()
+        val imageSearchCalls = mutableListOf<ChatImageSearchMetadataDto?>()
 
         override fun streamChat(
             message: String,
             conversationId: String,
             history: List<ChatMessageUi>,
             recentProductIds: List<String>,
+            filters: ChatStreamFiltersDto?,
+            imageSearch: ChatImageSearchMetadataDto?,
         ): Flow<ChatStreamEvent> {
             streamCalls += 1
+            messages += message
             conversationIds += conversationId
             histories += history
             recentProductIdCalls += recentProductIds
+            filtersCalls += filters
+            imageSearchCalls += imageSearch
             return events
         }
     }

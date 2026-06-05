@@ -102,6 +102,35 @@ class ChatStreamEventParserTest {
     }
 
     @Test
+    fun parsesDoneWithImageSearchMetadataAsOptionalUnknownRetrievalField() {
+        val event = parseChatStreamEvent(
+            "done",
+            """
+                {
+                  "recommendedProductIds": ["product_001"],
+                  "fallbackUsed": false,
+                  "retrieval": {
+                    "candidateCount": 3,
+                    "returnedProductIds": ["product_001"],
+                    "imageSearch": {
+                      "mode": "vlm_first",
+                      "confidence": "medium",
+                      "visualQuery": "黑色真无线蓝牙耳机",
+                      "detectedCategory": "数码电子"
+                    }
+                  }
+                }
+            """.trimIndent(),
+        )
+
+        val done = assertIs<ChatStreamEvent.Done>(event)
+        assertEquals(listOf("product_001"), done.recommendedProductIds)
+        assertEquals(false, done.fallbackUsed)
+        assertEquals(3, done.retrieval.candidateCount)
+        assertEquals(listOf("product_001"), done.retrieval.returnedProductIds)
+    }
+
+    @Test
     fun parsesDoneCartAction() {
         val event = parseChatStreamEvent(
             "done",

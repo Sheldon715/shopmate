@@ -1,4 +1,8 @@
-import type { RagChatRequest, ChatHistoryMessage } from "./chat.types";
+import type {
+  ChatHistoryMessage,
+  ChatImageSearchMetadata,
+  RagChatRequest,
+} from "./chat.types";
 import type { VectorSearchFilters } from "../vector/vector-search.types";
 
 export const CHAT_STREAM_REQUEST_ERROR_CODE = "INVALID_CHAT_REQUEST";
@@ -16,6 +20,8 @@ const FILTER_ARRAY_MAX_ITEMS = 12;
 const FILTER_ARRAY_ITEM_MAX_LENGTH = 80;
 const RECENT_PRODUCT_IDS_MAX_ITEMS = 5;
 const PRODUCT_ID_MAX_LENGTH = 80;
+const IMAGE_SEARCH_VISUAL_QUERY_MAX_LENGTH = 300;
+const IMAGE_SEARCH_DETECTED_CATEGORY_MAX_LENGTH = 120;
 
 const FILTER_FIELDS = [
   "category",
@@ -29,6 +35,15 @@ const FILTER_FIELDS = [
 ] as const;
 
 type FilterField = typeof FILTER_FIELDS[number];
+
+const IMAGE_SEARCH_FIELDS = [
+  "mode",
+  "confidence",
+  "visualQuery",
+  "detectedCategory",
+] as const;
+
+type ImageSearchField = typeof IMAGE_SEARCH_FIELDS[number];
 
 export class ChatStreamRequestError extends Error {
   readonly code = CHAT_STREAM_REQUEST_ERROR_CODE;
@@ -55,6 +70,7 @@ export function parseChatStreamRequestBody(body: unknown): RagChatRequest {
       PRODUCT_ID_MAX_LENGTH,
     ),
     filters: readFilters(body.filters),
+    imageSearch: readImageSearch(body.imageSearch),
     topK: readOptionalInteger(body.topK, "topK", TOP_K_MIN, TOP_K_MAX),
     maxRecommendedProducts: readOptionalInteger(
       body.maxRecommendedProducts,
@@ -63,6 +79,55 @@ export function parseChatStreamRequestBody(body: unknown): RagChatRequest {
       MAX_RECOMMENDED_PRODUCTS_MAX,
     ),
   };
+}
+
+function readImageSearch(
+  value: unknown,
+): ChatImageSearchMetadata | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (!isRecord(value)) {
+    throw new ChatStreamRequestError("imageSearch must be an object");
+  }
+
+  for (const key of Object.keys(value)) {
+    if (!isImageSearchField(key)) {
+      throw new ChatStreamRequestError(`imageSearch.${key} is not supported`);
+    }
+  }
+
+  if (value.mode !== "vlm_first") {
+    throw new ChatStreamRequestError("imageSearch.mode must be vlm_first");
+  }
+
+  if (!isImageSearchConfidence(value.confidence)) {
+    throw new ChatStreamRequestError(
+      "imageSearch.confidence must be high, medium, or low",
+    );
+  }
+
+  const imageSearch: ChatImageSearchMetadata = {
+    mode: "vlm_first",
+    confidence: value.confidence,
+    visualQuery: readRequiredString(
+      value.visualQuery,
+      "imageSearch.visualQuery",
+      IMAGE_SEARCH_VISUAL_QUERY_MAX_LENGTH,
+    ),
+  };
+  const detectedCategory = readOptionalNullableStringWithMax(
+    value.detectedCategory,
+    "imageSearch.detectedCategory",
+    IMAGE_SEARCH_DETECTED_CATEGORY_MAX_LENGTH,
+  );
+
+  if (detectedCategory !== undefined) {
+    imageSearch.detectedCategory = detectedCategory;
+  }
+
+  return imageSearch;
 }
 
 function readConversationId(value: unknown): string | undefined {
@@ -219,6 +284,38 @@ function readOptionalString(
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
+function readOptionalStringWithMax(
+  value: unknown,
+  fieldName: string,
+  maxLength: number,
+): string | undefined {
+  const text = readOptionalString(value, fieldName);
+
+  if (text === undefined) {
+    return undefined;
+  }
+
+  if (Array.from(text).length > maxLength) {
+    throw new ChatStreamRequestError(
+      `${fieldName} cannot be longer than ${maxLength} characters`,
+    );
+  }
+
+  return text;
+}
+
+function readOptionalNullableStringWithMax(
+  value: unknown,
+  fieldName: string,
+  maxLength: number,
+): string | null | undefined {
+  if (value === null) {
+    return null;
+  }
+
+  return readOptionalStringWithMax(value, fieldName, maxLength);
+}
+
 function readOptionalStringArray(
   value: unknown,
   fieldName: string,
@@ -309,4 +406,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isFilterField(value: string): value is FilterField {
   return (FILTER_FIELDS as readonly string[]).includes(value);
+}
+
+function isImageSearchField(value: string): value is ImageSearchField {
+  return (IMAGE_SEARCH_FIELDS as readonly string[]).includes(value);
+}
+
+function isImageSearchConfidence(
+  value: unknown,
+): value is ChatImageSearchMetadata["confidence"] {
+  return value === "high" || value === "medium" || value === "low";
 }

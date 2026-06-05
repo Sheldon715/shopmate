@@ -11,6 +11,8 @@ class DefaultChatRepository(
         conversationId: String,
         history: List<ChatMessageUi>,
         recentProductIds: List<String>,
+        filters: ChatStreamFiltersDto?,
+        imageSearch: ChatImageSearchMetadataDto?,
     ): Flow<ChatStreamEvent> =
         chatStreamClient.streamChat(
             ChatStreamRequestDto(
@@ -30,6 +32,8 @@ class DefaultChatRepository(
                     .map(String::trim)
                     .filter(String::isNotBlank)
                     .distinct(),
+                filters = filters?.normalizedOrNull(),
+                imageSearch = imageSearch?.normalizedOrNull(),
             ),
         )
 
@@ -39,3 +43,53 @@ class DefaultChatRepository(
         private const val MAX_HISTORY_MESSAGES = 4
     }
 }
+
+private fun ChatStreamFiltersDto.normalizedOrNull(): ChatStreamFiltersDto? {
+    val normalizedTagsAny = tagsAny.normalizedStringListOrNull()
+    val normalizedAvoidTerms = avoidTerms.normalizedStringListOrNull()
+    val normalized = copy(
+        category = category.normalizedStringOrNull(),
+        subCategory = subCategory.normalizedStringOrNull(),
+        brand = brand.normalizedStringOrNull(),
+        tagsAny = normalizedTagsAny,
+        avoidTerms = normalizedAvoidTerms,
+    )
+
+    return if (
+        normalized.category == null &&
+        normalized.subCategory == null &&
+        normalized.brand == null &&
+        normalized.minPriceCents == null &&
+        normalized.maxPriceCents == null &&
+        normalized.availableOnly == null &&
+        normalized.tagsAny == null &&
+        normalized.avoidTerms == null
+    ) {
+        null
+    } else {
+        normalized
+    }
+}
+
+private fun ChatImageSearchMetadataDto.normalizedOrNull(): ChatImageSearchMetadataDto? {
+    val normalizedMode = mode.trim()
+    val normalizedConfidence = confidence.trim()
+    val normalizedVisualQuery = visualQuery.normalizedStringOrNull() ?: return null
+
+    return copy(
+        mode = normalizedMode,
+        confidence = normalizedConfidence,
+        visualQuery = normalizedVisualQuery,
+        detectedCategory = detectedCategory.normalizedStringOrNull(),
+    )
+}
+
+private fun String?.normalizedStringOrNull(): String? =
+    this?.trim()?.takeIf(String::isNotBlank)
+
+private fun List<String>?.normalizedStringListOrNull(): List<String>? =
+    this
+        ?.map(String::trim)
+        ?.filter(String::isNotBlank)
+        ?.distinct()
+        ?.takeIf { items -> items.isNotEmpty() }
