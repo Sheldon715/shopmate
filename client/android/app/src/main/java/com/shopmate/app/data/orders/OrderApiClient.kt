@@ -22,7 +22,7 @@ interface OrderApiClient {
     ): OrderApiResponseDto<MockCheckoutDraftResponseDto>
 
     suspend fun confirmMockCheckout(
-        conversationId: String,
+        request: MockCheckoutConfirmRequestDto,
     ): OrderApiResponseDto<MockCheckoutConfirmResponseDto>
 
     suspend fun cancelMockCheckout(
@@ -48,11 +48,11 @@ class OkHttpOrderApiClient(
         )
 
     override suspend fun confirmMockCheckout(
-        conversationId: String,
+        request: MockCheckoutConfirmRequestDto,
     ): OrderApiResponseDto<MockCheckoutConfirmResponseDto> =
         executeOrderRequest(
             request = mockCheckoutRequestBuilder("confirm")
-                .post(createMockCheckoutBody(conversationId))
+                .post(createMockCheckoutConfirmBody(request))
                 .build(),
             serializer = mockCheckoutConfirmResponseSerializer,
         )
@@ -83,6 +83,9 @@ class OkHttpOrderApiClient(
     private fun createMockCheckoutBody(conversationId: String) =
         json.encodeToString(MockCheckoutRequestDto(conversationId = conversationId))
             .toJsonRequestBody()
+
+    private fun createMockCheckoutConfirmBody(request: MockCheckoutConfirmRequestDto) =
+        json.encodeToString(request).toJsonRequestBody()
 
     private suspend fun <T> executeOrderRequest(
         request: Request,

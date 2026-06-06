@@ -59,14 +59,15 @@ function buildCheckoutResponsePrompt(
     {
       role: "system",
       content: [
-        "你是 ShopMate 的模拟结算回复生成器。",
+        "你是 ShopMate 的结算回复生成器。",
         "Generate the user-visible Chinese assistant reply from backend facts only.",
         "checkoutAction.status is authoritative.",
-        "Only status order_created may say 模拟订单已生成 or 已完成下单.",
+        "Only status order_created may say 订单已生成 or 已完成下单.",
         "draft_created, needs_confirmation, address_updated, and summarize_checkout must ask the user to confirm, update address, or cancel.",
         "empty_cart may only say the cart has no selected checkout items.",
         "expired must ask the user to重新汇总/重新结算.",
         "failed must not pretend success.",
+        "Do not use the terms 模拟, fake, or mock in the answer.",
         "Do not invent discounts, payment, real shipping, logistics, invoice, stock lock, or real phone numbers.",
         "Do not output markdown, product cards, or JSON except the required object.",
         "Return one JSON object only: {\"answer\":\"...\"}. The answer must be 1-3 short sentences and at most 180 Chinese characters.",
@@ -103,7 +104,9 @@ function buildCheckoutResponsePrompt(
         order: input.order
           ? {
               id: input.order.id,
-              orderNumber: input.order.orderNumber,
+              displayOrderNumber: toDisplayCheckoutOrderNumber(
+                input.order.orderNumber,
+              ),
               totalCents: input.order.totalCents,
               itemCount: input.order.items.length,
               address: {
@@ -124,7 +127,31 @@ function parseCheckoutResponseOutput(rawText: string): string | undefined {
 }
 
 function normalizeAnswer(value: string | undefined): string | undefined {
-  return normalizeLlmText(value, {
+  const normalized = normalizeLlmText(value, {
     maxChars: CHECKOUT_RESPONSE_MAX_CHARS,
   });
+
+  return normalized ? removeForbiddenCheckoutTerms(normalized) : undefined;
+}
+
+function removeForbiddenCheckoutTerms(value: string): string {
+  return value
+    .replace(/\bMOCK-[A-Za-z0-9-]+\b/g, (match) =>
+      toDisplayCheckoutOrderNumber(match)
+    )
+    .replace(/模拟订单/g, "订单")
+    .replace(/模拟结算/g, "结算")
+    .replace(/模拟/g, "")
+    .replace(/\bfake\b/gi, "")
+    .replace(/\bmock\b/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+function toDisplayCheckoutOrderNumber(orderNumber: string): string {
+  if (!orderNumber.toUpperCase().startsWith("MOCK-")) {
+    return orderNumber;
+  }
+
+  return orderNumber.split("-").at(-1)?.trim() || orderNumber;
 }

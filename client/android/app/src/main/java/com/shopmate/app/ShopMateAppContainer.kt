@@ -30,6 +30,8 @@ import com.shopmate.app.data.products.OkHttpProductApiClient
 import com.shopmate.app.data.products.ProductApiClient
 import com.shopmate.app.data.products.ProductRepository
 import com.shopmate.app.ui.cart.CartViewModelFactory
+import com.shopmate.app.ui.checkout.CheckoutDraftUi
+import com.shopmate.app.ui.checkout.CheckoutViewModelFactory
 import com.shopmate.app.ui.chat.ChatViewModelFactory
 import com.shopmate.app.ui.product.ProductDetailViewModelFactory
 
@@ -93,7 +95,7 @@ class ShopMateAppContainer(
     }
 
     val orderRepository: OrderRepository by lazy {
-        DefaultOrderRepository(orderApiClient)
+        DefaultOrderRepository(orderApiClient, imageUrlResolver)
     }
 
     fun chatViewModelFactory(): ChatViewModelFactory =
@@ -104,4 +106,7 @@ class ShopMateAppContainer(
 
     fun cartViewModelFactory(): CartViewModelFactory =
         CartViewModelFactory(cartRepository, orderRepository)
+
+    fun checkoutViewModelFactory(draft: CheckoutDraftUi): CheckoutViewModelFactory =
+        CheckoutViewModelFactory(draft, orderRepository)
 }

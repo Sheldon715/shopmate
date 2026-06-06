@@ -16,7 +16,10 @@ import {
 } from "./order.repository";
 import { mapOrderToDto } from "./order.mapper";
 import type {
+  CheckoutDeliveryOption,
+  CheckoutPaymentOption,
   CheckoutSummary,
+  CheckoutShippingInput,
   MockShippingAddress,
   PendingCheckoutDraft,
   PendingCheckoutItem,
@@ -30,6 +33,25 @@ import type {
 
 export const DEFAULT_CHECKOUT_TTL_MS = 15 * 60 * 1000;
 export const DEFAULT_CHECKOUT_CONVERSATION_ID = "cart-button-checkout";
+export const DEFAULT_CHECKOUT_DELIVERY_OPTIONS: CheckoutDeliveryOption[] = [
+  {
+    type: "standard",
+    label: "标准配送",
+    feeCents: 0,
+    etaText: "预计 2-4 天送达",
+  },
+  {
+    type: "express",
+    label: "加急配送",
+    feeCents: 1200,
+    etaText: "预计明天送达",
+  },
+];
+export const DEFAULT_CHECKOUT_PAYMENT_OPTIONS: CheckoutPaymentOption[] = [
+  { type: "wechat", label: "微信支付" },
+  { type: "alipay", label: "支付宝" },
+  { type: "bank_card", label: "银行卡" },
+];
 
 export class CheckoutRequestError extends Error {
   readonly code = "INVALID_CHECKOUT_REQUEST";
@@ -98,6 +120,12 @@ export interface OrderServiceDependencies {
   findOrderById(orderId: string): Promise<OrderRecord | null>;
 }
 
+export interface ConfirmPendingCheckoutInput {
+  shipping?: CheckoutShippingInput;
+  deliveryMethodType?: string;
+  paymentMethodType?: string;
+}
+
 export class OrderService {
   constructor(
     private readonly dependencies: OrderServiceDependencies =
@@ -130,6 +158,8 @@ export class OrderService {
       address: input.address ?? createDefaultMockShippingAddress(),
       items,
       summary: createCheckoutSummary(items),
+      deliveryOptions: DEFAULT_CHECKOUT_DELIVERY_OPTIONS,
+      paymentOptions: DEFAULT_CHECKOUT_PAYMENT_OPTIONS,
       expiresAt: new Date(now.getTime() + DEFAULT_CHECKOUT_TTL_MS).toISOString(),
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),
@@ -149,7 +179,7 @@ export class OrderService {
       ...draft,
       address: {
         ...draft.address,
-        label: "本次模拟地址",
+        label: "本次收货信息",
         fullAddress,
       },
       updatedAt: now,
@@ -159,6 +189,7 @@ export class OrderService {
   async confirmPendingCheckout(
     draft: PendingCheckoutDraft,
     source: OrderSource = "chat_agent",
+    input: ConfirmPendingCheckoutInput = {},
   ): Promise<OrderRecord> {
     if (new Date(draft.expiresAt).getTime() <= this.dependencies.now().getTime()) {
       throw new CheckoutExpiredError();
@@ -188,6 +219,18 @@ export class OrderService {
 
     const now = this.dependencies.now();
     const orderId = this.dependencies.createId();
+    const deliveryMethod = resolveDeliveryMethod(
+      draft,
+      input.deliveryMethodType,
+    );
+    const paymentMethod = resolvePaymentMethod(
+      draft,
+      input.paymentMethodType,
+    );
+    const shippingAddress = input.shipping
+      ? normalizeShippingInput(input.shipping)
+      : draft.address;
+    const totalCents = draft.summary.subtotalCents + deliveryMethod.feeCents;
     const orderInput: CreateOrderInput = {
       id: orderId,
       orderNumber: this.dependencies.createOrderNumber(now),
@@ -195,9 +238,11 @@ export class OrderService {
       status: "mock_created",
       currency: draft.summary.currency,
       subtotalCents: draft.summary.subtotalCents,
-      shippingFeeCents: draft.summary.shippingFeeCents,
-      totalCents: draft.summary.totalCents,
-      shippingAddress: draft.address,
+      shippingFeeCents: deliveryMethod.feeCents,
+      totalCents,
+      shippingAddress,
+      deliveryMethod,
+      paymentMethod,
       source,
       items: draft.items.map((item) => ({
         ...item,
@@ -229,28 +274,44 @@ export class OrderService {
 
 export function createDefaultMockShippingAddress(): MockShippingAddress {
   return {
-    label: "默认模拟地址",
-    recipient: "ShopMate Demo 用户",
+    label: "默认地址",
+    recipient: "ShopMate 用户",
     phoneMasked: "138****0000",
-    fullAddress: "ShopMate Demo 收货点",
+    fullAddress: "ShopMate 收货点",
   };
 }
 
 export function parseMockCheckoutBody(body: unknown): {
   conversationId?: string;
 } {
-  if (body === undefined || body === null) {
-    return {};
-  }
-
-  if (typeof body !== "object" || Array.isArray(body)) {
-    throw new CheckoutRequestError("请求体必须是 JSON object");
-  }
-
-  const record = body as Record<string, unknown>;
+  const record = parseOptionalObjectBody(body);
 
   return {
     conversationId: normalizeOptionalText(record.conversationId),
+  };
+}
+
+export function parseMockCheckoutConfirmBody(body: unknown): {
+  conversationId?: string;
+  draftId: string;
+  shipping: CheckoutShippingInput;
+  deliveryMethodType: string;
+  paymentMethodType: string;
+} {
+  const record = parseOptionalObjectBody(body);
+
+  return {
+    conversationId: normalizeOptionalText(record.conversationId),
+    draftId: normalizeRequiredText(record.draftId, "draftId"),
+    shipping: parseShippingInput(record.shipping),
+    deliveryMethodType: normalizeRequiredText(
+      record.deliveryMethodType,
+      "deliveryMethodType",
+    ),
+    paymentMethodType: normalizeRequiredText(
+      record.paymentMethodType,
+      "paymentMethodType",
+    ),
   };
 }
 
@@ -346,6 +407,79 @@ function assertDraftMatchesCurrentCart(
   }
 }
 
+function resolveDeliveryMethod(
+  draft: PendingCheckoutDraft,
+  deliveryMethodType: string | undefined,
+): {
+  type: string;
+  label: string;
+  feeCents: number;
+} {
+  const type = deliveryMethodType ?? DEFAULT_CHECKOUT_DELIVERY_OPTIONS[0]?.type;
+  const option = draft.deliveryOptions.find((candidate) => candidate.type === type)
+    ?? DEFAULT_CHECKOUT_DELIVERY_OPTIONS.find((candidate) => candidate.type === type);
+
+  if (!option) {
+    throw new CheckoutRequestError("deliveryMethodType 不可用");
+  }
+
+  return {
+    type: option.type,
+    label: option.label,
+    feeCents: option.feeCents,
+  };
+}
+
+function resolvePaymentMethod(
+  draft: PendingCheckoutDraft,
+  paymentMethodType: string | undefined,
+): {
+  type: string;
+  label: string;
+  status: "not_charged";
+} {
+  const type = paymentMethodType ?? DEFAULT_CHECKOUT_PAYMENT_OPTIONS[0]?.type;
+  const option = draft.paymentOptions.find((candidate) => candidate.type === type)
+    ?? DEFAULT_CHECKOUT_PAYMENT_OPTIONS.find((candidate) => candidate.type === type);
+
+  if (!option) {
+    throw new CheckoutRequestError("paymentMethodType 不可用");
+  }
+
+  return {
+    type: option.type,
+    label: option.label,
+    status: "not_charged",
+  };
+}
+
+function parseShippingInput(value: unknown): CheckoutShippingInput {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new CheckoutRequestError("shipping 必须是 JSON object");
+  }
+
+  const record = value as Record<string, unknown>;
+
+  return {
+    recipient: normalizeRequiredText(record.recipient, "shipping.recipient"),
+    phone: normalizeRequiredText(record.phone, "shipping.phone"),
+    fullAddress: normalizeRequiredText(record.fullAddress, "shipping.fullAddress"),
+  };
+}
+
+function normalizeShippingInput(input: CheckoutShippingInput): MockShippingAddress {
+  const recipient = normalizeRequiredText(input.recipient, "shipping.recipient");
+  const phone = normalizePhone(input.phone);
+  const fullAddress = normalizeRequiredText(input.fullAddress, "shipping.fullAddress");
+
+  return {
+    label: "订单收货信息",
+    recipient,
+    phoneMasked: maskPhone(phone),
+    fullAddress,
+  };
+}
+
 function createMockOrderNumber(now: Date): string {
   const timestamp = [
     now.getFullYear(),
@@ -358,6 +492,18 @@ function createMockOrderNumber(now: Date): string {
   const suffix = randomUUID().replace(/-/g, "").slice(0, 6).toUpperCase();
 
   return `MOCK-${timestamp}-${suffix}`;
+}
+
+function parseOptionalObjectBody(body: unknown): Record<string, unknown> {
+  if (body === undefined || body === null) {
+    return {};
+  }
+
+  if (typeof body !== "object" || Array.isArray(body)) {
+    throw new CheckoutRequestError("请求体必须是 JSON object");
+  }
+
+  return body as Record<string, unknown>;
 }
 
 function normalizeRequiredText(value: unknown, fieldName: string): string {
@@ -374,6 +520,16 @@ function normalizeRequiredText(value: unknown, fieldName: string): string {
   return trimmed;
 }
 
+function normalizePhone(value: unknown): string {
+  const phone = normalizeRequiredText(value, "shipping.phone");
+
+  if (!/^[0-9]{7,15}$/.test(phone)) {
+    throw new CheckoutRequestError("shipping.phone 格式不正确");
+  }
+
+  return phone;
+}
+
 function normalizeOptionalText(value: unknown): string | undefined {
   if (typeof value !== "string") {
     return undefined;
@@ -382,4 +538,12 @@ function normalizeOptionalText(value: unknown): string | undefined {
   const trimmed = value.trim();
 
   return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function maskPhone(phone: string): string {
+  if (phone.length <= 7) {
+    return `${phone.slice(0, 3)}****`;
+  }
+
+  return `${phone.slice(0, 3)}****${phone.slice(-4)}`;
 }

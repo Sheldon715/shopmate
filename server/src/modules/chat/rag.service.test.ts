@@ -1328,7 +1328,7 @@ describe("RagChatService", () => {
         execute: async (input) => {
           commandInput = input;
           return {
-            answer: "我先汇总已勾选商品，请确认是否生成模拟订单。",
+            answer: "我先汇总已勾选商品，请确认是否生成订单。",
             recommendedProductIds: [],
             productCards: [],
             fallbackUsed: false,

@@ -32,6 +32,8 @@ import androidx.lifecycle.viewModelScope
 import com.shopmate.app.data.mock.MockShopMateData
 import com.shopmate.app.ui.cart.CartScreen
 import com.shopmate.app.ui.cart.CartViewModel
+import com.shopmate.app.ui.checkout.CheckoutScreen
+import com.shopmate.app.ui.checkout.CheckoutViewModel
 import com.shopmate.app.ui.chat.ChatRecommendationScreen
 import com.shopmate.app.ui.chat.ChatSideEffect
 import com.shopmate.app.ui.chat.ChatViewModel
@@ -245,6 +247,16 @@ class MainActivity : ComponentActivity() {
                         cartViewModel.consumeOperationMessage(message.id)
                     }
                 }
+                LaunchedEffect(cartUiState.checkoutDraft?.id, currentScreen) {
+                    val draft = cartUiState.checkoutDraft
+                    val screen = currentScreen
+
+                    if (draft != null && screen is ShopMateScreen.Cart) {
+                        currentScreen = ShopMateScreen.Checkout(
+                            previousScreen = restoreCartPrevious(screen.previousScreen)
+                        )
+                    }
+                }
                 val historyConversations =
                     chatUiState.historyConversations + MockShopMateData.historyConversations
                 val editableHistoryIds = chatViewModel.editableHistoryConversationIds()
@@ -420,8 +432,6 @@ class MainActivity : ComponentActivity() {
                             )
                         },
                         onCheckoutClick = showCheckoutPending,
-                        onCheckoutConfirm = cartViewModel::confirmCheckout,
-                        onCheckoutDismiss = cartViewModel::dismissCheckout,
                         onRetry = cartViewModel::retry,
                         onToggleSelected = { item ->
                             cartViewModel.updateSelected(item.id, !item.selected)
@@ -434,6 +444,76 @@ class MainActivity : ComponentActivity() {
                         },
                         onToggleAll = cartViewModel::selectAll
                     )
+
+                    is ShopMateScreen.Checkout -> {
+                        val checkoutScreen = currentScreen as ShopMateScreen.Checkout
+                        val draft = cartUiState.checkoutDraft
+
+                        if (draft == null) {
+                            LaunchedEffect(checkoutScreen.previousScreen) {
+                                currentScreen = ShopMateScreen.Cart(
+                                    previousScreen = checkoutScreen.previousScreen
+                                )
+                            }
+                        } else {
+                            val checkoutViewModel: CheckoutViewModel = viewModel(
+                                key = "checkout-${draft.id}",
+                                factory = appContainer.checkoutViewModelFactory(draft)
+                            )
+                            val checkoutState by checkoutViewModel.uiState.collectAsState()
+                            val orderResult = checkoutState.orderResult
+
+                            LaunchedEffect(orderResult?.orderId) {
+                                if (orderResult != null) {
+                                    cartViewModel.refresh()
+                                }
+                            }
+
+                            CheckoutScreen(
+                                state = checkoutState,
+                                onBackClick = {
+                                    if (!checkoutState.isSubmitting) {
+                                        cartViewModel.dismissCheckout()
+                                        currentScreen = ShopMateScreen.Cart(
+                                            previousScreen = checkoutScreen.previousScreen
+                                        )
+                                    }
+                                },
+                                onRecipientChange = checkoutViewModel::onRecipientChange,
+                                onPhoneChange = checkoutViewModel::onPhoneChange,
+                                onAddressChange = checkoutViewModel::onAddressChange,
+                                onAddressEditClick = checkoutViewModel::openAddressEditor,
+                                onAddressBookClick = checkoutViewModel::openAddressBook,
+                                onAddressPanelBack = checkoutViewModel::closeAddressPanel,
+                                onAddressAddClick = checkoutViewModel::addAddress,
+                                onSavedAddressClick = checkoutViewModel::selectSavedAddress,
+                                onSavedAddressEditClick = checkoutViewModel::editAddress,
+                                onAddressFormRecipientChange =
+                                    checkoutViewModel::onAddressFormRecipientChange,
+                                onAddressFormPhoneChange =
+                                    checkoutViewModel::onAddressFormPhoneChange,
+                                onAddressFormFullAddressChange =
+                                    checkoutViewModel::onAddressFormFullAddressChange,
+                                onAddressFormRegionChange =
+                                    checkoutViewModel::onAddressFormRegionChange,
+                                onAddressTagClick = checkoutViewModel::selectAddressTag,
+                                onAddressSaveClick = checkoutViewModel::saveAddressForm,
+                                onDeliveryMethodClick = checkoutViewModel::selectDeliveryMethod,
+                                onPaymentMethodClick = checkoutViewModel::selectPaymentMethod,
+                                onSubmitClick = checkoutViewModel::submitOrder,
+                                onReturnToCart = {
+                                    cartViewModel.clearCheckoutDraftAfterOrder()
+                                    currentScreen = ShopMateScreen.Cart(
+                                        previousScreen = checkoutScreen.previousScreen
+                                    )
+                                },
+                                onReturnToChat = {
+                                    cartViewModel.clearCheckoutDraftAfterOrder()
+                                    currentScreen = checkoutScreen.previousScreen
+                                },
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -450,6 +530,7 @@ private sealed class ShopMateScreen {
         val previousScreen: ShopMateScreen = ChatRecommendation,
     ) : ShopMateScreen()
     data class Cart(val previousScreen: ShopMateScreen) : ShopMateScreen()
+    data class Checkout(val previousScreen: ShopMateScreen) : ShopMateScreen()
 }
 
 private val ShopMateScreenSaver: Saver<ShopMateScreen, List<String>> = Saver(
@@ -461,6 +542,7 @@ private fun restoreCartPrevious(previousScreen: ShopMateScreen): ShopMateScreen 
     when (previousScreen) {
         ShopMateScreen.Onboarding -> ShopMateScreen.HomeChatEntry
         is ShopMateScreen.Cart -> ShopMateScreen.HomeChatEntry
+        is ShopMateScreen.Checkout -> ShopMateScreen.HomeChatEntry
         else -> previousScreen
     }
 
@@ -468,6 +550,7 @@ private fun restoreProductDetailPrevious(previousScreen: ShopMateScreen): ShopMa
     when (previousScreen) {
         ShopMateScreen.Onboarding -> ShopMateScreen.HomeChatEntry
         is ShopMateScreen.Cart -> ShopMateScreen.ChatRecommendation
+        is ShopMateScreen.Checkout -> ShopMateScreen.ChatRecommendation
         is ShopMateScreen.ProductDetail -> ShopMateScreen.ChatRecommendation
         else -> previousScreen
     }
@@ -481,6 +564,7 @@ private fun ShopMateScreen.toRouteParts(): List<String> =
         is ShopMateScreen.ProductDetail -> listOf("product-detail", productId) +
             previousScreen.toRouteParts().take(2)
         is ShopMateScreen.Cart -> listOf("cart") + previousScreen.toRouteParts().take(2)
+        is ShopMateScreen.Checkout -> listOf("checkout") + previousScreen.toRouteParts().take(2)
     }
 
 private fun restoreScreenFromRouteParts(parts: List<String>): ShopMateScreen =
@@ -496,6 +580,10 @@ private fun restoreScreenFromRouteParts(parts: List<String>): ShopMateScreen =
                 .let(::restoreProductDetailPrevious),
         )
         "cart" -> ShopMateScreen.Cart(
+            previousScreen = restoreScreenFromRouteParts(parts.drop(1))
+                .let(::restoreCartPrevious)
+        )
+        "checkout" -> ShopMateScreen.Checkout(
             previousScreen = restoreScreenFromRouteParts(parts.drop(1))
                 .let(::restoreCartPrevious)
         )
@@ -545,14 +633,22 @@ private fun MainActivity.showImageSourceDialog(
 
 private fun ChatSideEffect.ShowMockOrderResult.toToastText(): String {
     val orderText = orderNumber?.takeIf { value -> value.isNotBlank() }
+        ?.toDisplayCheckoutOrderNumber()
         ?.let { value -> "订单 $value" }
-        ?: "模拟订单"
+        ?: "订单"
     val totalText = totalCents?.takeIf { value -> value >= 0 }
         ?.let { value -> "，合计 ${value.toPriceText()}" }
         .orEmpty()
 
     return "$orderText 已生成$totalText"
 }
+
+private fun String.toDisplayCheckoutOrderNumber(): String =
+    if (startsWith("MOCK-", ignoreCase = true)) {
+        substringAfterLast("-").takeIf { value -> value.isNotBlank() } ?: this
+    } else {
+        this
+    }
 
 private fun Int.toPriceText(): String {
     val whole = this / 100

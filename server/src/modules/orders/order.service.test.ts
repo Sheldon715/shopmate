@@ -6,6 +6,7 @@ import {
   CheckoutEmptyCartError,
   CheckoutExpiredError,
   CheckoutProductUnavailableError,
+  CheckoutRequestError,
   OrderService,
   type OrderServiceDependencies,
 } from "./order.service";
@@ -40,6 +41,15 @@ describe("OrderService", () => {
       address: {
         phoneMasked: "138****0000",
       },
+      deliveryOptions: [
+        expect.objectContaining({ type: "standard", feeCents: 0 }),
+        expect.objectContaining({ type: "express", feeCents: 1200 }),
+      ],
+      paymentOptions: [
+        expect.objectContaining({ type: "wechat" }),
+        expect.objectContaining({ type: "alipay" }),
+        expect.objectContaining({ type: "bank_card" }),
+      ],
     });
     expect(draft.items).toEqual([
       expect.objectContaining({
@@ -88,8 +98,18 @@ describe("OrderService", () => {
       totalCents: 19900,
       source: "chat_agent",
       shippingAddress: {
-        recipient: "ShopMate Demo 用户",
+        recipient: "ShopMate 用户",
         phoneMasked: "138****0000",
+      },
+      deliveryMethod: {
+        type: "standard",
+        label: "标准配送",
+        feeCents: 0,
+      },
+      paymentMethod: {
+        type: "wechat",
+        label: "微信支付",
+        status: "not_charged",
       },
       items: [
         expect.objectContaining({
@@ -111,6 +131,75 @@ describe("OrderService", () => {
       totalCents: 19900,
       items: [{ productId: "product_001" }],
     });
+  });
+
+  it("confirms with edited shipping, selected delivery, and payment snapshots", async () => {
+    const harness = createOrderHarness();
+    const service = new OrderService(harness.dependencies, "demo-user");
+    const draft = await service.createPendingCheckout({
+      conversationId: "checkout-demo-1",
+    });
+
+    const order = await service.confirmPendingCheckout(draft, "cart_button", {
+      shipping: {
+        recipient: "张三",
+        phone: "13800000000",
+        fullAddress: "ShopMate 演示公寓",
+      },
+      deliveryMethodType: "express",
+      paymentMethodType: "alipay",
+    });
+
+    expect(harness.persistCalls[0]?.input).toMatchObject({
+      source: "cart_button",
+      shippingFeeCents: 1200,
+      totalCents: 21100,
+      shippingAddress: {
+        label: "订单收货信息",
+        recipient: "张三",
+        phoneMasked: "138****0000",
+        fullAddress: "ShopMate 演示公寓",
+      },
+      deliveryMethod: {
+        type: "express",
+        label: "加急配送",
+        feeCents: 1200,
+      },
+      paymentMethod: {
+        type: "alipay",
+        label: "支付宝",
+        status: "not_charged",
+      },
+    });
+    expect(order.totalCents).toBe(21100);
+  });
+
+  it("rejects invalid checkout snapshots before persisting order", async () => {
+    const harness = createOrderHarness();
+    const service = new OrderService(harness.dependencies, "demo-user");
+    const draft = await service.createPendingCheckout();
+
+    await expect(service.confirmPendingCheckout(draft, "cart_button", {
+      shipping: {
+        recipient: "张三",
+        phone: "not-a-phone",
+        fullAddress: "ShopMate 演示公寓",
+      },
+      deliveryMethodType: "standard",
+      paymentMethodType: "wechat",
+    })).rejects.toBeInstanceOf(CheckoutRequestError);
+    expect(harness.persistCalls).toHaveLength(0);
+
+    await expect(service.confirmPendingCheckout(draft, "cart_button", {
+      shipping: {
+        recipient: "张三",
+        phone: "13800000000",
+        fullAddress: "ShopMate 演示公寓",
+      },
+      deliveryMethodType: "standard",
+      paymentMethodType: "unknown_payment",
+    })).rejects.toBeInstanceOf(CheckoutRequestError);
+    expect(harness.persistCalls).toHaveLength(0);
   });
 
   it("rejects stale draft when cart item selection or quantity changed", async () => {
@@ -226,9 +315,12 @@ function createOrderRecord(input: CreateOrderInput): OrderRecord {
     subtotalCents: input.subtotalCents,
     shippingFeeCents: input.shippingFeeCents,
     totalCents: input.totalCents,
+    shippingLabel: input.shippingAddress.label,
     shippingName: input.shippingAddress.recipient,
     shippingPhoneMasked: input.shippingAddress.phoneMasked,
     shippingAddress: input.shippingAddress.fullAddress,
+    deliveryMethod: input.deliveryMethod,
+    paymentMethod: input.paymentMethod,
     source: input.source,
     createdAt,
     items: input.items.map((item) => ({

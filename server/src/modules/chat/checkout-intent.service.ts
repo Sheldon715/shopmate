@@ -102,7 +102,7 @@ function buildCheckoutIntentPrompt(
     {
       role: "system",
       content: [
-        "你是 ShopMate 的模拟结算意图分类器。",
+        "你是 ShopMate 的结算意图分类器。",
         "只判断当前用户是否明确要启动、确认、修改地址、取消或重新汇总 pending checkout。",
         "不生成用户可见回复，不输出订单号、金额或商品事实。",
         "Return one JSON object only.",
@@ -110,7 +110,7 @@ function buildCheckoutIntentPrompt(
         "第一版 target_scope 只能是 selected_cart_items。",
         "推荐下单前要买什么、下单流程是什么、推荐适合买的商品，不是执行 checkout。",
         "确认、可以、没问题只有在 pendingCheckout.status 为 found 时才可能是 confirm_checkout。",
-        "confirm_checkout 必须表示用户明确同意创建模拟订单。",
+        "confirm_checkout 必须表示用户明确同意创建订单。",
         "修改地址只更新 pending draft，不等于确认下单。",
         "取消下单应为 cancel_checkout，不改变购物车。",
         "模型不确定时 action unknown 或 confidence low，后端不会创建订单。",

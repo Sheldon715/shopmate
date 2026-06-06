@@ -1439,7 +1439,7 @@ class ChatViewModelTest {
         }
         repository.events.emit(
             ChatStreamEvent.MessageDelta(
-                text = "模拟订单已生成，订单号 MOCK-20260606000000-TEST。",
+                text = "订单已生成，订单号 TEST。",
                 index = 0,
             ),
         )
@@ -1488,7 +1488,7 @@ class ChatViewModelTest {
         }
         repository.events.emit(
             ChatStreamEvent.MessageDelta(
-                text = "我先汇总已勾选商品，请确认是否生成模拟订单。",
+                text = "我先汇总已勾选商品，请确认是否生成订单。",
                 index = 0,
             ),
         )

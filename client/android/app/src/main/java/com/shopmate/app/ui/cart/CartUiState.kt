@@ -1,5 +1,6 @@
 package com.shopmate.app.ui.cart
 
+import com.shopmate.app.ui.checkout.CheckoutDraftUi
 import com.shopmate.app.ui.model.CartItemUi
 
 data class CartUiState(
@@ -12,9 +13,8 @@ data class CartUiState(
     val operationInFlightItemId: String? = null,
     val isSelectAllInFlight: Boolean = false,
     val operationMessage: CartOperationMessage? = null,
-    val checkoutDraft: CartCheckoutDraftUi? = null,
+    val checkoutDraft: CheckoutDraftUi? = null,
     val isCheckoutDraftLoading: Boolean = false,
-    val isCheckoutConfirming: Boolean = false,
     val checkoutErrorMessage: String? = null,
 )
 
@@ -34,26 +34,4 @@ data class CartSummaryUi(
 data class CartContentUi(
     val items: List<CartItemUi>,
     val summary: CartSummaryUi,
-)
-
-data class CartCheckoutDraftUi(
-    val id: String,
-    val selectedCount: Int,
-    val totalText: String,
-    val totalCents: Int,
-    val address: CartCheckoutAddressUi,
-)
-
-data class CartCheckoutAddressUi(
-    val label: String,
-    val recipient: String,
-    val phoneMasked: String,
-    val fullAddress: String,
-)
-
-data class CartCheckoutResultUi(
-    val orderId: String,
-    val orderNumber: String,
-    val totalText: String,
-    val totalCents: Int,
 )

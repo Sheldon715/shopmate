@@ -33,12 +33,18 @@ export async function createOrder(
         subtotal_cents,
         shipping_fee_cents,
         total_cents,
+        shipping_label,
         shipping_name,
         shipping_phone_masked,
         shipping_address,
+        delivery_method_type,
+        delivery_method_label,
+        payment_method_type,
+        payment_method_label,
+        payment_status,
         source
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
       RETURNING *
     `,
     [
@@ -50,9 +56,15 @@ export async function createOrder(
       input.subtotalCents,
       input.shippingFeeCents,
       input.totalCents,
+      input.shippingAddress.label,
       input.shippingAddress.recipient,
       input.shippingAddress.phoneMasked,
       input.shippingAddress.fullAddress,
+      input.deliveryMethod.type,
+      input.deliveryMethod.label,
+      input.paymentMethod.type,
+      input.paymentMethod.label,
+      input.paymentMethod.status,
       input.source,
     ],
   );

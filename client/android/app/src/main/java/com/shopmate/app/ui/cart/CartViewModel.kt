@@ -94,7 +94,6 @@ class CartViewModel(
         val state = _uiState.value
         if (
             state.isCheckoutDraftLoading ||
-            state.isCheckoutConfirming ||
             state.operationInFlightItemId != null ||
             state.summary.selectedCount <= 0
         ) {
@@ -138,12 +137,7 @@ class CartViewModel(
     }
 
     fun dismissCheckout() {
-        val state = _uiState.value
-        if (state.isCheckoutConfirming) {
-            return
-        }
-
-        val shouldCancelDraft = state.checkoutDraft != null
+        val shouldCancelDraft = _uiState.value.checkoutDraft != null
         checkoutJob?.cancel()
         _uiState.update { current ->
             current.copy(
@@ -160,52 +154,13 @@ class CartViewModel(
         }
     }
 
-    fun confirmCheckout() {
-        val state = _uiState.value
-        if (
-            state.checkoutDraft == null ||
-            state.isCheckoutConfirming ||
-            state.isCheckoutDraftLoading
-        ) {
-            return
-        }
-
+    fun clearCheckoutDraftAfterOrder() {
         checkoutJob?.cancel()
         _uiState.update { current ->
             current.copy(
-                isCheckoutConfirming = true,
+                checkoutDraft = null,
+                isCheckoutDraftLoading = false,
                 checkoutErrorMessage = null,
-                errorMessage = null,
-                canRetry = false,
-            )
-        }
-        checkoutJob = viewModelScope.launch {
-            orderRepository.confirmMockCheckout().fold(
-                onSuccess = { result ->
-                    val refreshedCart = cartRepository.getCart()
-                    _uiState.update { current ->
-                        current
-                            .applyCartContentResult(refreshedCart)
-                            .copy(
-                                checkoutDraft = null,
-                                isCheckoutConfirming = false,
-                                isCheckoutDraftLoading = false,
-                                checkoutErrorMessage = null,
-                                operationMessage = "模拟订单 ${result.orderNumber} 已生成，合计 ${result.totalText}"
-                                    .toOperationMessage(),
-                            )
-                    }
-                },
-                onFailure = { error ->
-                    val message = error.toCheckoutDisplayMessage()
-                    _uiState.update { current ->
-                        current.copy(
-                            isCheckoutConfirming = false,
-                            checkoutErrorMessage = message,
-                            operationMessage = message.toOperationMessage(),
-                        )
-                    }
-                },
             )
         }
     }
@@ -358,8 +313,8 @@ private fun Throwable.toCheckoutDisplayMessage(): String =
         OrderOperationError.Expired -> "待确认订单已过期，请重新结算。"
         OrderOperationError.CartChanged -> "购物车商品已变化，请刷新后再试。"
         OrderOperationError.ProductUnavailable -> "部分商品当前不可结算。"
-        OrderOperationError.InvalidRequest -> "模拟结算请求无效，请重新结算。"
-        OrderOperationError.ParseFailure -> "模拟订单数据格式异常。"
+        OrderOperationError.InvalidRequest -> "结算请求无效，请重新结算。"
+        OrderOperationError.ParseFailure -> "订单数据格式异常。"
         is OrderOperationError.NetworkFailure -> "无法连接订单服务，请确认后端正在运行。"
-        else -> "暂时无法创建模拟订单。"
+        else -> "暂时无法创建订单。"
     }

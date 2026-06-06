@@ -48,6 +48,36 @@ export interface PendingCheckoutItem {
   imagePath: string | null;
 }
 
+export interface CheckoutDeliveryOption {
+  type: string;
+  label: string;
+  feeCents: number;
+  etaText: string;
+}
+
+export interface CheckoutPaymentOption {
+  type: string;
+  label: string;
+}
+
+export interface CheckoutShippingInput {
+  recipient: string;
+  phone: string;
+  fullAddress: string;
+}
+
+export interface CheckoutDeliverySnapshot {
+  type: string;
+  label: string;
+  feeCents: number;
+}
+
+export interface CheckoutPaymentSnapshot {
+  type: string;
+  label: string;
+  status: "not_charged";
+}
+
 export interface PendingCheckoutDraft {
   id: string;
   conversationId: string;
@@ -56,6 +86,8 @@ export interface PendingCheckoutDraft {
   address: MockShippingAddress;
   items: PendingCheckoutItem[];
   summary: CheckoutSummary;
+  deliveryOptions: CheckoutDeliveryOption[];
+  paymentOptions: CheckoutPaymentOption[];
   expiresAt: string;
   createdAt: string;
   updatedAt: string;

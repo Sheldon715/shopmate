@@ -27,7 +27,7 @@ describe("CheckoutCommandService", () => {
     });
 
     expect(result).toMatchObject({
-      answer: "请确认模拟订单。",
+      answer: "请确认本次订单。",
       productCards: [],
       checkoutAction: {
         type: "start_checkout",
@@ -76,7 +76,7 @@ describe("CheckoutCommandService", () => {
       status: "address_updated",
       draftId: "draft_1",
       address: {
-        label: "本次模拟地址",
+        label: "本次收货信息",
         fullAddress: "UNSW 学生宿舍",
       },
       cartRefreshRequired: false,
@@ -221,7 +221,7 @@ function createCommandHarness(): {
   const checkoutResponseService = new CheckoutResponseService({
     llmClient: new MockLlmClient({
       response: createLlmResponse(JSON.stringify({
-        answer: "请确认模拟订单。",
+        answer: "请确认本次订单。",
       })),
     }),
   });
@@ -261,9 +261,12 @@ function createOrderRecord(input: CreateOrderInput): OrderRecord {
     subtotalCents: input.subtotalCents,
     shippingFeeCents: input.shippingFeeCents,
     totalCents: input.totalCents,
+    shippingLabel: input.shippingAddress.label,
     shippingName: input.shippingAddress.recipient,
     shippingPhoneMasked: input.shippingAddress.phoneMasked,
     shippingAddress: input.shippingAddress.fullAddress,
+    deliveryMethod: input.deliveryMethod,
+    paymentMethod: input.paymentMethod,
     source: input.source,
     createdAt,
     items: input.items.map((item) => ({

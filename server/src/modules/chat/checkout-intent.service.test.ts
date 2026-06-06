@@ -52,7 +52,7 @@ describe("CheckoutIntentService", () => {
     });
 
     expect(llmRequest?.messages.map((message) => message.content).join("\n"))
-      .toContain("模拟结算意图分类器");
+      .toContain("结算意图分类器");
     expect(llmRequest?.maxCompletionTokens).toBe(512);
     expect(llmRequest?.messages[1]?.content).not.toContain("通勤蓝牙耳机");
     expect(result).toMatchObject({
@@ -128,10 +128,10 @@ function createDraft(): PendingCheckoutDraft {
     userKey: "demo-user",
     status: "pending",
     address: {
-      label: "默认模拟地址",
-      recipient: "ShopMate Demo 用户",
+      label: "默认地址",
+      recipient: "ShopMate 用户",
       phoneMasked: "138****0000",
-      fullAddress: "ShopMate Demo 收货点",
+      fullAddress: "ShopMate 收货点",
     },
     items: [],
     summary: {
@@ -142,6 +142,16 @@ function createDraft(): PendingCheckoutDraft {
       totalCents: 0,
       currency: "CNY",
     },
+    deliveryOptions: [{
+      type: "standard",
+      label: "标准配送",
+      feeCents: 0,
+      etaText: "预计 2-4 天送达",
+    }],
+    paymentOptions: [{
+      type: "wechat",
+      label: "微信支付",
+    }],
     expiresAt: "2026-06-06T00:15:00.000Z",
     createdAt: "2026-06-06T00:00:00.000Z",
     updatedAt: "2026-06-06T00:00:00.000Z",

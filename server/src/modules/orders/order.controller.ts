@@ -13,6 +13,7 @@ import {
   DEFAULT_CHECKOUT_CONVERSATION_ID,
   OrderService,
   parseMockCheckoutBody,
+  parseMockCheckoutConfirmBody,
   parseOrderIdParam,
 } from "./order.service";
 
@@ -65,7 +66,7 @@ export async function confirmMockCheckoutController(
   response: Response,
 ): Promise<void> {
   try {
-    const input = parseMockCheckoutBody(request.body);
+    const input = parseMockCheckoutConfirmBody(request.body);
     const conversationId = input.conversationId ?? DEFAULT_CHECKOUT_CONVERSATION_ID;
     const lookup = pendingCheckoutStore.get({
       conversationId,
@@ -77,12 +78,21 @@ export async function confirmMockCheckoutController(
     }
 
     if (lookup.status !== "found") {
-      throw new CheckoutRequestError("没有待确认的模拟订单");
+      throw new CheckoutRequestError("没有待确认的订单");
+    }
+
+    if (lookup.draft.id !== input.draftId) {
+      throw new CheckoutRequestError("draftId 与当前待确认订单不匹配");
     }
 
     const order = await orderService.confirmPendingCheckout(
       lookup.draft,
       "cart_button",
+      {
+        shipping: input.shipping,
+        deliveryMethodType: input.deliveryMethodType,
+        paymentMethodType: input.paymentMethodType,
+      },
     );
     pendingCheckoutStore.clear({
       conversationId,
@@ -100,7 +110,7 @@ export async function confirmMockCheckoutController(
         orderNumber: orderDto.orderNumber,
         selectedCount: lookup.draft.summary.selectedCount,
         totalCents: orderDto.totalCents,
-        address: lookup.draft.address,
+        address: orderDto.shippingAddress,
         cartRefreshRequired: true,
       },
     }));
@@ -166,7 +176,7 @@ function handleOrderError(error: unknown, response: Response): void {
   }
 
   console.error("Order API error:", toSafeOrderLogError(error));
-  response.status(500).json(fail("INTERNAL_ERROR", "服务端暂时无法处理模拟订单"));
+  response.status(500).json(fail("INTERNAL_ERROR", "服务端暂时无法处理订单"));
 }
 
 function toSafeOrderLogError(error: unknown): Record<string, unknown> {

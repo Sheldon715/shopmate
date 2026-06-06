@@ -5,6 +5,14 @@ import com.shopmate.app.data.cart.CartOperationError
 import com.shopmate.app.data.cart.CartRepository
 import com.shopmate.app.data.orders.OrderOperationError
 import com.shopmate.app.data.orders.OrderRepository
+import com.shopmate.app.ui.checkout.CheckoutAddressUi
+import com.shopmate.app.ui.checkout.CheckoutDeliveryMethodUi
+import com.shopmate.app.ui.checkout.CheckoutDraftUi
+import com.shopmate.app.ui.checkout.CheckoutItemUi
+import com.shopmate.app.ui.checkout.CheckoutOrderResultUi
+import com.shopmate.app.ui.checkout.CheckoutPaymentMethodUi
+import com.shopmate.app.ui.checkout.CheckoutShippingInputUi
+import com.shopmate.app.ui.checkout.CheckoutSummaryUi
 import com.shopmate.app.ui.model.CartItemUi
 import com.shopmate.app.ui.model.ProductCardUi
 import kotlin.test.assertEquals
@@ -123,7 +131,7 @@ class CartViewModelTest {
     }
 
     @Test
-    fun startCheckoutCreatesDraftAndShowsCheckoutSheet() = runTest {
+    fun startCheckoutCreatesDraftForCheckoutScreen() = runTest {
         val cartRepository = FakeCartRepository(Result.success(cartContent()))
         val orderRepository = FakeOrderRepository()
         val viewModel = CartViewModel(cartRepository, orderRepository)
@@ -136,12 +144,12 @@ class CartViewModelTest {
         assertEquals(1, orderRepository.createCalls)
         assertFalse(state.isCheckoutDraftLoading)
         assertEquals("draft-1", state.checkoutDraft?.id)
-        assertEquals("¥398", state.checkoutDraft?.totalText)
-        assertEquals("ShopMate Demo 收货点", state.checkoutDraft?.address?.fullAddress)
+        assertEquals("¥398", state.checkoutDraft?.summary?.totalText)
+        assertEquals("ShopMate 收货点", state.checkoutDraft?.address?.fullAddress)
     }
 
     @Test
-    fun confirmCheckoutCreatesOrderRefreshesCartAndClearsDraft() = runTest {
+    fun dismissCheckoutCancelsDraftAndClearsState() = runTest {
         val cartRepository = FakeCartRepository(Result.success(cartContent()))
         val orderRepository = FakeOrderRepository()
         val viewModel = CartViewModel(cartRepository, orderRepository)
@@ -149,35 +157,28 @@ class CartViewModelTest {
 
         viewModel.startCheckout()
         advanceUntilIdle()
-        cartRepository.result = Result.success(emptyCartContent())
-
-        viewModel.confirmCheckout()
+        viewModel.dismissCheckout()
         advanceUntilIdle()
 
         val state = viewModel.uiState.value
-        assertEquals(1, orderRepository.confirmCalls)
+        assertEquals(1, orderRepository.cancelCalls)
         assertEquals(null, state.checkoutDraft)
-        assertFalse(state.isCheckoutConfirming)
-        assertEquals(0, state.items.size)
-        assertEquals("模拟订单 MOCK-1 已生成，合计 ¥398", state.operationMessage?.text)
     }
 
     @Test
-    fun confirmCheckoutFailureKeepsDraftAndShowsCheckoutError() = runTest {
+    fun startCheckoutFailureShowsCheckoutError() = runTest {
         val cartRepository = FakeCartRepository(Result.success(cartContent()))
         val orderRepository = FakeOrderRepository(
-            confirmResult = Result.failure(OrderOperationError.CartChanged),
+            createResult = Result.failure(OrderOperationError.CartChanged),
         )
         val viewModel = CartViewModel(cartRepository, orderRepository)
         advanceUntilIdle()
 
         viewModel.startCheckout()
         advanceUntilIdle()
-        viewModel.confirmCheckout()
-        advanceUntilIdle()
 
         val state = viewModel.uiState.value
-        assertEquals("draft-1", state.checkoutDraft?.id)
+        assertEquals(null, state.checkoutDraft)
         assertEquals("购物车商品已变化，请刷新后再试。", state.checkoutErrorMessage)
         assertEquals("购物车商品已变化，请刷新后再试。", state.operationMessage?.text)
     }
@@ -214,20 +215,25 @@ class CartViewModelTest {
     }
 
     private class FakeOrderRepository(
-        private val createResult: Result<CartCheckoutDraftUi> = Result.success(checkoutDraft()),
-        private val confirmResult: Result<CartCheckoutResultUi> = Result.success(checkoutResult()),
+        private val createResult: Result<CheckoutDraftUi> = Result.success(checkoutDraft()),
+        private val confirmResult: Result<CheckoutOrderResultUi> = Result.success(checkoutResult()),
         private val cancelResult: Result<Unit> = Result.success(Unit),
     ) : OrderRepository {
         var createCalls = 0
         var confirmCalls = 0
         var cancelCalls = 0
 
-        override suspend fun createMockCheckout(): Result<CartCheckoutDraftUi> {
+        override suspend fun createMockCheckout(): Result<CheckoutDraftUi> {
             createCalls += 1
             return createResult
         }
 
-        override suspend fun confirmMockCheckout(): Result<CartCheckoutResultUi> {
+        override suspend fun confirmMockCheckout(
+            draftId: String,
+            shipping: CheckoutShippingInputUi,
+            deliveryMethodType: String,
+            paymentMethodType: String,
+        ): Result<CheckoutOrderResultUi> {
             confirmCalls += 1
             return confirmResult
         }
@@ -272,24 +278,64 @@ class CartViewModelTest {
         )
 
     private companion object {
-        fun checkoutDraft(): CartCheckoutDraftUi =
-            CartCheckoutDraftUi(
+        fun checkoutDraft(): CheckoutDraftUi =
+            CheckoutDraftUi(
                 id = "draft-1",
-                selectedCount = 2,
-                totalText = "¥398",
-                totalCents = 39800,
-                address = CartCheckoutAddressUi(
-                    label = "默认模拟地址",
-                    recipient = "ShopMate Demo 用户",
-                    phoneMasked = "138****0000",
-                    fullAddress = "ShopMate Demo 收货点",
+                conversationId = "cart-button-checkout",
+                items = listOf(
+                    CheckoutItemUi(
+                        cartItemId = "cart-item-1",
+                        productId = "product_001",
+                        productName = "通勤蓝牙耳机",
+                        brand = "示例品牌",
+                        category = "数码电子",
+                        unitPriceText = "¥199",
+                        unitPriceCents = 19900,
+                        quantity = 2,
+                        subtotalText = "¥398",
+                        subtotalCents = 39800,
+                        imageUrl = null,
+                    )
                 ),
+                summary = CheckoutSummaryUi(
+                    itemCount = 1,
+                    selectedCount = 2,
+                    subtotalText = "¥398",
+                    subtotalCents = 39800,
+                    shippingFeeText = "¥0",
+                    shippingFeeCents = 0,
+                    totalText = "¥398",
+                    totalCents = 39800,
+                ),
+                address = CheckoutAddressUi(
+                    label = "默认地址",
+                    recipient = "ShopMate 用户",
+                    phoneMasked = "138****0000",
+                    fullAddress = "ShopMate 收货点",
+                ),
+                deliveryOptions = listOf(
+                    CheckoutDeliveryMethodUi(
+                        type = "standard",
+                        label = "标准配送",
+                        feeText = "¥0",
+                        feeCents = 0,
+                        etaText = "预计 2-4 天送达",
+                    )
+                ),
+                paymentOptions = listOf(
+                    CheckoutPaymentMethodUi(
+                        type = "wechat",
+                        label = "微信支付",
+                    )
+                ),
+                expiresAt = "2026-06-06T00:15:00.000Z",
             )
 
-        fun checkoutResult(): CartCheckoutResultUi =
-            CartCheckoutResultUi(
+        fun checkoutResult(): CheckoutOrderResultUi =
+            CheckoutOrderResultUi(
                 orderId = "order-1",
                 orderNumber = "MOCK-1",
+                displayOrderNumber = "1",
                 totalText = "¥398",
                 totalCents = 39800,
             )

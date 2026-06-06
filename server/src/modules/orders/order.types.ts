@@ -1,4 +1,9 @@
-import type { MockShippingAddress, PendingCheckoutItem } from "./checkout.types";
+import type {
+  CheckoutDeliverySnapshot,
+  CheckoutPaymentSnapshot,
+  MockShippingAddress,
+  PendingCheckoutItem,
+} from "./checkout.types";
 
 export type OrderStatus = "mock_created" | "cancelled";
 export type OrderSource = "chat_agent" | "cart_button";
@@ -12,9 +17,15 @@ export interface OrderRow {
   subtotal_cents: number;
   shipping_fee_cents: number;
   total_cents: number;
+  shipping_label: string;
   shipping_name: string;
   shipping_phone_masked: string;
   shipping_address: string;
+  delivery_method_type: string;
+  delivery_method_label: string;
+  payment_method_type: string;
+  payment_method_label: string;
+  payment_status: "not_charged";
   source: OrderSource;
   created_at: Date;
 }
@@ -56,9 +67,12 @@ export interface OrderRecord {
   subtotalCents: number;
   shippingFeeCents: number;
   totalCents: number;
+  shippingLabel: string;
   shippingName: string;
   shippingPhoneMasked: string;
   shippingAddress: string;
+  deliveryMethod: CheckoutDeliverySnapshot;
+  paymentMethod: CheckoutPaymentSnapshot;
   source: OrderSource;
   createdAt: Date;
   items: OrderItemRecord[];
@@ -74,6 +88,8 @@ export interface CreateOrderInput {
   shippingFeeCents: number;
   totalCents: number;
   shippingAddress: MockShippingAddress;
+  deliveryMethod: CheckoutDeliverySnapshot;
+  paymentMethod: CheckoutPaymentSnapshot;
   source: OrderSource;
   items: Array<PendingCheckoutItem & { id: string; orderId: string }>;
 }
@@ -99,6 +115,8 @@ export interface OrderDto {
   shippingFeeCents: number;
   totalCents: number;
   shippingAddress: MockShippingAddress;
+  deliveryMethod: CheckoutDeliverySnapshot;
+  paymentMethod: CheckoutPaymentSnapshot;
   source: OrderSource;
   createdAt: string;
   items: OrderItemDto[];

@@ -75,10 +75,10 @@ function createDraft(input: {
     userKey: "demo-user",
     status: "pending",
     address: {
-      label: "默认模拟地址",
-      recipient: "ShopMate Demo 用户",
+      label: "默认地址",
+      recipient: "ShopMate 用户",
       phoneMasked: "138****0000",
-      fullAddress: "ShopMate Demo 收货点",
+      fullAddress: "ShopMate 收货点",
     },
     items: [{
       cartItemId: "item_001",
@@ -99,6 +99,16 @@ function createDraft(input: {
       totalCents,
       currency: "CNY",
     },
+    deliveryOptions: [{
+      type: "standard",
+      label: "标准配送",
+      feeCents: 0,
+      etaText: "预计 2-4 天送达",
+    }],
+    paymentOptions: [{
+      type: "wechat",
+      label: "微信支付",
+    }],
     expiresAt: input.expiresAt ?? "2026-06-06T00:15:00.000Z",
     createdAt: "2026-06-06T00:00:00.000Z",
     updatedAt: "2026-06-06T00:00:00.000Z",
