@@ -1,6 +1,7 @@
 export type CheckoutIntentAction =
   | "start_checkout"
   | "confirm_checkout"
+  | "update_checkout"
   | "update_address"
   | "cancel_checkout"
   | "summarize_checkout"
@@ -14,6 +15,7 @@ export type CheckoutActionStatus =
   | "draft_created"
   | "needs_confirmation"
   | "address_updated"
+  | "draft_updated"
   | "order_created"
   | "cancelled"
   | "empty_cart"
@@ -66,6 +68,24 @@ export interface CheckoutShippingInput {
   fullAddress: string;
 }
 
+export interface CheckoutShippingPatchInput {
+  recipient?: string;
+  phone?: string;
+  fullAddress?: string;
+}
+
+export interface CheckoutPatchInput {
+  shipping?: CheckoutShippingPatchInput;
+  deliveryMethodType?: string;
+  paymentMethodType?: string;
+}
+
+export type CheckoutChangedField =
+  | "shipping"
+  | "delivery_method"
+  | "payment_method"
+  | "summary";
+
 export interface CheckoutDeliverySnapshot {
   type: string;
   label: string;
@@ -86,11 +106,26 @@ export interface PendingCheckoutDraft {
   address: MockShippingAddress;
   items: PendingCheckoutItem[];
   summary: CheckoutSummary;
+  selectedDeliveryMethod: CheckoutDeliverySnapshot;
+  selectedPaymentMethod: CheckoutPaymentSnapshot;
   deliveryOptions: CheckoutDeliveryOption[];
   paymentOptions: CheckoutPaymentOption[];
   expiresAt: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface CheckoutDraftSnapshot {
+  id: string;
+  status: "pending";
+  address: MockShippingAddress;
+  items: PendingCheckoutItem[];
+  summary: CheckoutSummary;
+  selectedDeliveryMethod: CheckoutDeliverySnapshot;
+  selectedPaymentMethod: CheckoutPaymentSnapshot;
+  deliveryOptions: CheckoutDeliveryOption[];
+  paymentOptions: CheckoutPaymentOption[];
+  expiresAt: string;
 }
 
 export type CheckoutIntentDetection =
@@ -99,6 +134,7 @@ export type CheckoutIntentDetection =
       isCheckoutIntent: true;
       action: CheckoutIntentAction;
       addressText?: string;
+      checkoutPatch?: CheckoutPatchInput;
       targetScope: "selected_cart_items";
       confidence: CheckoutIntentConfidence;
       needsConfirmation: boolean;
@@ -115,4 +151,6 @@ export interface CheckoutActionResult {
   totalCents?: number;
   address?: MockShippingAddress;
   cartRefreshRequired?: boolean;
+  draft?: CheckoutDraftSnapshot;
+  changedFields?: CheckoutChangedField[];
 }

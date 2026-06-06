@@ -5,14 +5,18 @@ import {
   CheckoutEmptyCartError,
   CheckoutExpiredError,
   CheckoutProductUnavailableError,
+  CheckoutRequestError,
   OrderService,
 } from "../orders/order.service";
 import type {
   CheckoutActionResult,
   CheckoutActionType,
+  CheckoutChangedField,
   CheckoutIntentDetection,
+  CheckoutPatchInput,
   PendingCheckoutDraft,
 } from "../orders/checkout.types";
+import { mapPendingCheckoutDraftToSnapshot } from "../orders/order.mapper";
 import type { OrderRecord } from "../orders/order.types";
 import type { RagChatRequest, RagChatResult } from "./chat.types";
 import { CheckoutResponseService } from "./checkout-response.service";
@@ -64,20 +68,21 @@ export class CheckoutCommandService {
       || input.intent.action === "unknown"
       || input.intent.needsConfirmation
     ) {
+      const type = toCheckoutActionType(input.intent.action);
+
       return this.createResult(input, {
-        checkoutAction: {
-          type: toCheckoutActionType(input.intent.action),
-          status: "needs_confirmation",
-          selectedCount: input.pendingCheckout.status === "found"
-            ? input.pendingCheckout.draft.summary.selectedCount
-            : input.cartSnapshot?.summary.selectedCount,
-          totalCents: input.pendingCheckout.status === "found"
-            ? input.pendingCheckout.draft.summary.totalCents
-            : input.cartSnapshot?.summary.selectedTotalCents,
-          address: input.pendingCheckout.status === "found"
-            ? input.pendingCheckout.draft.address
-            : undefined,
-        },
+        checkoutAction: input.pendingCheckout.status === "found"
+          ? checkoutActionFromDraft(
+            type,
+            "needs_confirmation",
+            input.pendingCheckout.draft,
+          )
+          : {
+            type,
+            status: "needs_confirmation",
+            selectedCount: input.cartSnapshot?.summary.selectedCount,
+            totalCents: input.cartSnapshot?.summary.selectedTotalCents,
+          },
         draft: input.pendingCheckout.status === "found"
           ? input.pendingCheckout.draft
           : undefined,
@@ -89,8 +94,10 @@ export class CheckoutCommandService {
         return this.startCheckout(input);
       case "summarize_checkout":
         return this.summarizeCheckout(input);
+      case "update_checkout":
+        return this.updateCheckout(input, "update_checkout");
       case "update_address":
-        return this.updateAddress(input);
+        return this.updateCheckout(input, "update_address");
       case "cancel_checkout":
         return this.cancelCheckout(input);
       case "confirm_checkout":
@@ -150,15 +157,16 @@ export class CheckoutCommandService {
     return this.startCheckout(input);
   }
 
-  private async updateAddress(
+  private async updateCheckout(
     input: CheckoutCommandExecuteInput,
+    actionType: Extract<CheckoutActionType, "update_checkout" | "update_address">,
   ): Promise<RagChatResult> {
     const lookup = input.pendingCheckout;
 
     if (lookup.status === "expired") {
       return this.createResult(input, {
         checkoutAction: checkoutActionFromDraft(
-          "update_address",
+          actionType,
           "expired",
           lookup.draft,
         ),
@@ -169,16 +177,18 @@ export class CheckoutCommandService {
     if (lookup.status !== "found") {
       return this.createResult(input, {
         checkoutAction: {
-          type: "update_address",
+          type: actionType,
           status: "failed",
         },
       });
     }
 
-    if (!input.intent.addressText?.trim()) {
+    const patch = checkoutPatchFromIntent(input.intent);
+
+    if (!patch) {
       return this.createResult(input, {
         checkoutAction: checkoutActionFromDraft(
-          "update_address",
+          actionType,
           "needs_confirmation",
           lookup.draft,
         ),
@@ -187,22 +197,27 @@ export class CheckoutCommandService {
     }
 
     try {
-      const draft = this.orderService.updateDraftAddress(
+      const updateResult = this.orderService.updatePendingCheckoutDraft(
         lookup.draft,
-        input.intent.addressText,
+        patch,
       );
-      this.pendingCheckoutStore.save(draft);
+      this.pendingCheckoutStore.save(updateResult.draft);
+      const status = updateResult.changedFields.length === 1
+          && updateResult.changedFields[0] === "shipping"
+        ? "address_updated"
+        : "draft_updated";
 
       return this.createResult(input, {
         checkoutAction: checkoutActionFromDraft(
-          "update_address",
-          "address_updated",
-          draft,
+          actionType,
+          status,
+          updateResult.draft,
+          updateResult.changedFields,
         ),
-        draft,
+        draft: updateResult.draft,
       });
     } catch (error) {
-      return this.createFailureResult(input, "update_address", error, lookup.draft);
+      return this.createFailureResult(input, actionType, error, lookup.draft);
     }
   }
 
@@ -328,6 +343,15 @@ export class CheckoutCommandService {
       });
     }
 
+    if (error instanceof CheckoutRequestError) {
+      return this.createResult(input, {
+        checkoutAction: draft
+          ? checkoutActionFromDraft(type, "failed", draft)
+          : { type, status: "failed" },
+        draft,
+      });
+    }
+
     return this.createResult(input, {
       checkoutAction: draft
         ? checkoutActionFromDraft(type, "failed", draft)
@@ -373,6 +397,7 @@ function checkoutActionFromDraft(
   type: CheckoutActionType,
   status: CheckoutActionResult["status"],
   draft: PendingCheckoutDraft,
+  changedFields?: CheckoutChangedField[],
 ): CheckoutActionResult {
   return {
     type,
@@ -382,15 +407,46 @@ function checkoutActionFromDraft(
     totalCents: draft.summary.totalCents,
     address: draft.address,
     cartRefreshRequired: false,
+    draft: mapPendingCheckoutDraftToSnapshot(draft),
+    changedFields,
   };
 }
 
 function toCheckoutActionType(action: string): CheckoutActionType {
   return action === "start_checkout"
       || action === "confirm_checkout"
+      || action === "update_checkout"
       || action === "update_address"
       || action === "cancel_checkout"
       || action === "summarize_checkout"
     ? action
     : "summarize_checkout";
+}
+
+function checkoutPatchFromIntent(
+  intent: Extract<CheckoutIntentDetection, { isCheckoutIntent: true }>,
+): CheckoutPatchInput | undefined {
+  const patch = intent.checkoutPatch;
+
+  if (
+    patch?.shipping
+    || patch?.deliveryMethodType
+    || patch?.paymentMethodType
+  ) {
+    return {
+      shipping: patch.shipping,
+      deliveryMethodType: patch.deliveryMethodType,
+      paymentMethodType: patch.paymentMethodType,
+    };
+  }
+
+  if (intent.addressText?.trim()) {
+    return {
+      shipping: {
+        fullAddress: intent.addressText,
+      },
+    };
+  }
+
+  return undefined;
 }

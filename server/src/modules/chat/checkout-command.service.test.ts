@@ -92,6 +92,83 @@ describe("CheckoutCommandService", () => {
     expect(harness.persistCalls).toHaveLength(0);
   });
 
+  it("updates checkout draft with structured shipping, delivery, and payment patch", async () => {
+    const harness = createCommandHarness();
+    await harness.service.execute({
+      question: "帮我结算购物车",
+      conversationId: "checkout-demo-1",
+      cartSnapshot: createCartDto([createCartItem()]),
+      intent: createIntent("start_checkout"),
+      pendingCheckout: { status: "missing" },
+    });
+    const pending = harness.service.getPendingCheckout({
+      conversationId: "checkout-demo-1",
+    });
+
+    const result = await harness.service.execute({
+      question: "收货人改成张三，电话 13800000000，配送选加急，支付用支付宝",
+      conversationId: "checkout-demo-1",
+      cartSnapshot: createCartDto([createCartItem()]),
+      intent: createIntent("update_checkout", {
+        checkoutPatch: {
+          shipping: {
+            recipient: "张三",
+            phone: "13800000000",
+          },
+          deliveryMethodType: "express",
+          paymentMethodType: "alipay",
+        },
+      }),
+      pendingCheckout: pending,
+    });
+
+    expect(result.checkoutAction).toMatchObject({
+      type: "update_checkout",
+      status: "draft_updated",
+      draftId: "draft_1",
+      selectedCount: 1,
+      totalCents: 21100,
+      address: {
+        label: "本次收货信息",
+        recipient: "张三",
+        phoneMasked: "138****0000",
+      },
+      changedFields: [
+        "shipping",
+        "delivery_method",
+        "summary",
+        "payment_method",
+      ],
+      draft: {
+        id: "draft_1",
+        selectedDeliveryMethod: {
+          type: "express",
+          feeCents: 1200,
+        },
+        selectedPaymentMethod: {
+          type: "alipay",
+          status: "not_charged",
+        },
+        summary: {
+          shippingFeeCents: 1200,
+          totalCents: 21100,
+        },
+      },
+      cartRefreshRequired: false,
+    });
+    expect(harness.service.getPendingCheckout({
+      conversationId: "checkout-demo-1",
+    })).toMatchObject({
+      status: "found",
+      draft: {
+        selectedDeliveryMethod: { type: "express" },
+        selectedPaymentMethod: { type: "alipay" },
+        summary: { totalCents: 21100 },
+      },
+    });
+    expect(harness.persistCalls).toHaveLength(0);
+  });
+
   it("confirms an existing draft into an order and clears pending checkout", async () => {
     const harness = createCommandHarness();
     await harness.service.execute({

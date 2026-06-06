@@ -63,7 +63,7 @@ function buildCheckoutResponsePrompt(
         "Generate the user-visible Chinese assistant reply from backend facts only.",
         "checkoutAction.status is authoritative.",
         "Only status order_created may say 订单已生成 or 已完成下单.",
-        "draft_created, needs_confirmation, address_updated, and summarize_checkout must ask the user to confirm, update address, or cancel.",
+        "draft_created, needs_confirmation, address_updated, draft_updated, and summarize_checkout must ask the user to confirm, update checkout details, or cancel.",
         "empty_cart may only say the cart has no selected checkout items.",
         "expired must ask the user to重新汇总/重新结算.",
         "failed must not pretend success.",
@@ -81,8 +81,10 @@ function buildCheckoutResponsePrompt(
           action: input.intent.action,
           confidence: input.intent.confidence,
           addressText: input.intent.addressText,
+          checkoutPatch: input.intent.checkoutPatch,
         },
         checkoutAction: input.checkoutAction,
+        changedFields: input.checkoutAction.changedFields,
         cartSummary: input.cartSnapshot?.summary,
         draft: input.draft
           ? {
@@ -98,6 +100,10 @@ function buildCheckoutResponsePrompt(
               })),
               summary: input.draft.summary,
               address: input.draft.address,
+              selectedDeliveryMethod: input.draft.selectedDeliveryMethod,
+              selectedPaymentMethod: input.draft.selectedPaymentMethod,
+              deliveryOptions: input.draft.deliveryOptions,
+              paymentOptions: input.draft.paymentOptions,
               expiresAt: input.draft.expiresAt,
             }
           : undefined,

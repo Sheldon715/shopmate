@@ -1,4 +1,4 @@
-# Current Feature: Mock Checkout Agent Flow
+# Current Feature: AI Checkout Backend Patch Contract
 
 ## 状态
 
@@ -6,49 +6,38 @@ Complete
 
 ## 目标
 
-- 通过聊天触发模拟结算流程，先读取当前已勾选购物车商品并生成待确认 checkout draft，不直接创建订单。
-- 支持 pending checkout 状态下确认下单、修改本次模拟收货地址、取消下单和重新汇总订单信息。
-- 用户明确确认后，由后端基于 draft 和当前商品事实创建 mock order / order_items 快照，并更新购物车状态。
-- 保持 LLM 负责 checkout intent 与用户可见回复，后端负责购物车事实、金额计算、地址快照、订单事务和安全校验。
-- 扩展 Chat SSE 与 Android contract，让客户端收到 checkout / order side effect 后刷新购物车并展示订单结果。
-- 覆盖模型失败、目标不明、draft 过期、空购物车 / 未勾选商品、商品不可用等不创建订单的安全路径。
+- 将聊天侧 AI 下单从单一地址更新升级为结构化 checkout draft patch contract。
+- 新增推荐 action `update_checkout`，同时兼容旧 `update_address` / `addressText` 输出。
+- 支持通过对话更新收货人、手机号、详细地址、配送方式和支付方式。
+- 后端对 shipping / delivery / payment patch 做校验和 allowlist 约束，金额、配送费和支付状态仍以后端 draft / order 为准。
+- `done.checkoutAction` 保持兼容，并返回完整 draft snapshot 供 Android 后续订单草稿卡片渲染。
+- 确认前不创建订单，确认后才创建 order / order_items 快照并触发购物车刷新。
 
 ## 待办清单
 
-- [x] 后端新增订单数据表 migration，包含 `orders` 与 `order_items`，保存商品、价格、数量、地址和总价快照。
-- [x] 后端新增订单模块，完成 mock order 创建、订单项快照、事务处理、订单查询和已结算购物车项清理或取消勾选。
-- [x] 新增 `PendingCheckoutStore`，支持 create / get / update address / clear / TTL 过期，以及同一 conversation / userKey 覆盖旧 draft。
-- [x] 新增 `CheckoutIntentService`，用 LLM 识别 `start_checkout`、`confirm_checkout`、`update_address`、`cancel_checkout`、`summarize_checkout`，低置信或无效输出不 mutation。
-- [x] 新增 `CheckoutCommandService`，在 cart management 后、普通 RAG 前处理 checkout intent，并严格校验 selected cart items、draft 状态、商品可售性和金额来源。
-- [x] 新增 `CheckoutResponseService`，让用户可见中文回复基于后端提供的 checkout / draft / order facts 生成，模型失败时只返回最小结构化状态。
-- [x] 扩展 Chat SSE `done.checkoutAction` contract，覆盖 draft 创建、地址更新、订单创建、取消、空购物车、过期和失败状态。
-- [x] Android 扩展 Chat SSE parser / contract / ViewModel，解析 `checkoutAction`，订单创建成功时刷新购物车并展示模拟订单结果。
-- [x] Android 购物车页将“去结算”占位入口接入真实 mock checkout 流程：先展示确认面板，用户点击“确认模拟下单”后走订单 API；聊天自然语言入口仍保留 Agent 引导。
-- [x] 补充后端单元 / 集成测试，覆盖 checkout intent、pending store、order service、Chat SSE checkout 分支和失败不创建订单路径。
-- [x] 补充 Android contract / ViewModel 测试，覆盖 `checkoutAction` 解析、订单创建刷新购物车、draft / 地址更新不刷新购物车和失败展示。
-- [x] 运行 `cd server && npm.cmd test`、`cd server && npm.cmd run build`；如 Android contract 或 UI 变化完成，运行 `cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest` 与 `cd client/android && .\gradlew.bat --no-daemon build`，记录真实结果。
+- [x] 扫描现有 checkout intent、command、response、pending draft store、orders service / mapper / controller 和相关测试，确认当前 contract 与数据结构。
+- [x] 扩展 `CheckoutIntentService` 的 action / schema / prompt 解析，支持 `checkoutPatch`、`update_checkout`、旧 `update_address` 兼容和低置信 fallback。
+- [x] 扩展 checkout / order 类型，新增 `CheckoutPatchInput`、`CheckoutDraftSnapshot`、`CheckoutChangedField` 和 `draft_updated` 等稳定 contract。
+- [x] 在 `CheckoutCommandService` 中新增 `updateCheckout` 路径，兼容旧地址更新，并保证没有 pending draft 时不 mutation。
+- [x] 在 `OrderService` 中实现 pending draft patch 更新、shipping 校验、delivery / payment allowlist 校验、配送费和 total 重新计算。
+- [x] 增加 draft snapshot mapper，避免直接泄露内部 pending store 类型。
+- [x] 更新 `CheckoutResponseService` prompt，让 LLM 基于 `changedFields` 和 draft snapshot 生成用户可见回复，并避免“mock / fake / 模拟”等 UI 词。
+- [x] 补齐后端测试：intent patch、command draft update、order draft 校验、Chat SSE `done.checkoutAction` snapshot 和旧字段兼容。
+- [x] 运行 `cd server; npm.cmd test` 和 `cd server; npm.cmd run build`，记录真实结果。
 
 ## 备注
 
-- Spec 来源：`context/feature/mock-checkout-spec.md`，对应挑战阶段第 30 项 `mock-checkout-spec.md`。
-- 前置能力：真实购物车 API、聊天自然语言加购 / 购物车 CRUD、Chat SSE `done.cartAction` side effect、Android 购物车刷新链路需保持稳定。
-- 范围边界：本轮只做 mock checkout / mock order；不接真实支付、退款、物流、发票、优惠券、完整登录 / JWT、多用户地址簿、真实库存锁定或库存扣减。
-- 行为边界：没有 LLM checkout intent、不存在有效 pending draft、draft 过期、购物车为空 / 无 selected items、商品不可用或模型输出无效时，都不能创建订单。
-- 数据边界：订单金额、商品名称、价格、数量和地址以后端事实与 checkout draft 为准，不能信任客户端传来的总价；订单项必须保存商品快照。
-- 文案边界：不能在代码中硬编码用户可见导购确认话术；assistant 回复由 LLM 基于结构化 checkout facts 生成，`checkoutAction` 仅作为结构化 side effect。
-- 安全边界：demo 地址只作为 mock shipping address，不写真实手机号；日志避免输出敏感 provider error，如后续接真实地址信息需脱敏。
-- Review 修复：确认下单前会重新校验 draft 对应购物车项仍存在、仍勾选且数量未变化；订单事务删除购物车项也要求 selected / quantity 完整命中，否则回滚并返回失败状态；`POST /api/orders/mock-checkout` 创建的 draft 已保存到共享 pending checkout store。
-- UX 修复：购物车页“去结算”不再跳回聊天页自动发送“帮我结算购物车”；Android 新增 mock checkout 确认面板，展示已选件数、总价和默认模拟地址。确认按钮调用 `POST /api/orders/mock-checkout/confirm`，订单来源记录为 `cart_button`；聊天里的“帮我结算购物车”仍保留 Agent 多轮入口。
-- 验证结果：
-  - `cd server; npm.cmd test -- src/modules/orders/order.service.test.ts src/modules/chat/checkout-command.service.test.ts` 通过，2 个测试文件 / 10 个测试。
-  - `cd server; npm.cmd test` 通过，54 个测试文件 / 398 个测试。
-  - `cd server; npm.cmd run build` 通过。
-  - `cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.ui.cart.CartViewModelTest" --rerun-tasks` 通过。
-  - `cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 通过。
-  - `cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过。
-  - `git diff --check` 通过；仅出现 Windows 换行提示。
-  - 真实 Chat SSE / DB smoke 通过：先运行 `cd server; npm.cmd run db:migrate`，再用临时本地 Express server 真实请求 `/api/chat/stream`，完成“帮我结算购物车” -> `draft_created`、“地址改成 UNSW 学生宿舍” -> `address_updated`、“确认下单” -> `order_created`；随后查询 `/api/orders/:orderId` 确认 `source=chat_agent`、订单项包含测试商品 `p_home_air_002`、地址快照为 `UNSW 学生宿舍`，并确认购物车中该测试商品已被清理，最后恢复原购物车选中状态。
-  - 真实 cart-button checkout API smoke 通过：用临时本地 Express server 直接请求 `POST /api/orders/mock-checkout` -> `draft_created`，再请求 `POST /api/orders/mock-checkout/confirm` -> `order_created`；订单 `source=cart_button`，订单项包含测试商品 `p_home_air_002`，确认后购物车中该测试商品已被清理，并恢复原购物车选中状态。
+- Spec 来源：`context/feature/ai-checkout-backend-patch-contract-spec.md`。
+- 范围：本轮只做后端 contract 和 LLM intent / command / order draft patch，不新增 Android 聊天订单卡片，不新增独立 `checkout_action` SSE event。
+- 业务边界：LLM 只负责识别 checkout intent 和结构化 patch；商品、价格、配送费、支付状态、订单创建和购物车刷新都必须由后端校验后的业务逻辑决定。
+- 兼容要求：保留旧 `done.checkoutAction` 字段、旧 `update_address` action 和旧 `addressText` fallback；如果结构化 patch 与 `addressText` 同时存在，优先使用结构化 patch。
+- 安全要求：没有 checkout intent 不进入 command；没有 pending draft 不允许确认直接创建订单；没有用户明确确认不创建 order；手机号保存和日志输出必须脱敏。
+- 验证重点：`CheckoutIntentService`、`CheckoutCommandService`、`OrderService`、Chat SSE contract，以及 `checkoutAction.draft` 是否包含 address、items、summary、selected delivery / payment、options 和 expiresAt。
+- 实现记录：`PendingCheckoutDraft` 新增 selected delivery / payment，`CheckoutActionResult` 保留旧顶层字段并新增 `draft` snapshot 和 `changedFields`；聊天侧 `update_checkout` 与旧 `update_address` 共用后端 patch 校验路径。
+- Review 修复：修复 LLM 只输出部分 `checkout_patch.shipping` 字段时 undefined own-key 被误当成待更新字段的问题；parser 只返回有值字段，OrderService 忽略 undefined patch 字段但继续拒绝空字符串。
+- 验证结果：`cd server; npm.cmd test -- --run src/modules/orders/order.service.test.ts src/modules/chat/checkout-command.service.test.ts src/modules/chat/checkout-intent.service.test.ts src/modules/chat/rag.service.test.ts` 通过，4 个 test files、88 个 tests。
+- 验证结果：`cd server; npm.cmd test` 通过，55 个 test files、406 个 tests。
+- 验证结果：`cd server; npm.cmd run build` 通过。
 
 ## 历史记录
 - 初始化前后端技术栈骨架：完成 Android Kotlin + Jetpack Compose 与 Node.js + TypeScript + Express 最小工程初始化，补充 README 与 Git 忽略配置，并通过后端构建与 Android `assembleDebug` 验证。
@@ -127,3 +116,5 @@ Complete
 - Android 图片找货上传入口：在聊天输入区接入 Photo Picker 单图附件、输入框内图片入口、预览删除和重试状态，新增 Android 图片压缩重编码与 multipart interpret client；成功复用 Chat SSE，失败 / 低置信保留输入且不进入后续 history。通过 Android `testDebugUnitTest` 和带 HTTPS base URL 的 `build` 验证，真实 provider smoke 未跑。
 - 图片找货评估闭环：新增 V1 小样本图片评估 cases、真实 provider runner、结果 JSONL、结构校验和评估报告；V1.1 对齐图片找货类目到商品库真实类目，确认小家电 case 恢复库内召回，当前不建议启动 V2 image embedding；通过后端 evaluation validate、全量 test 和 build 验证。
 - 图片找货 V2 图片向量索引：新增商品主图 image documents、image embedding client、独立 Qdrant image collection、V2 vector-search endpoint、索引 / 评估脚本和真实索引产物；全量写入 175 条 image vectors，真实 V2 evaluation 5 条商品 case top-1 与 V1 对齐，并补充 Android 拍照入口和 V2 上传 MIME / 文件头校验；通过后端 build / 全量 test、Android testDebugUnitTest / build、真实上传 smoke 和 Qdrant count 验证。
+- Mock Checkout Agent Flow：新增 mock order / order_items、pending checkout、LLM checkout intent / response、Chat SSE `checkoutAction`、Android checkout contract 和购物车确认面板；聊天入口支持多轮地址修改 / 确认下单，购物车按钮走独立确认面板并记录 `source=cart_button`。通过后端全量 test / build、Android testDebugUnitTest / 带 demo HTTPS URL build、真实 Chat SSE smoke 和真实 cart-button checkout API smoke 验证。
+- Android Checkout Detail Page：新增独立确认订单页、地址编辑 / 本地地址簿、配送 / 支付选择、金额明细和提交成功页；后端扩展 checkout draft / confirm contract，保存 shipping / delivery / payment 快照并保持商品金额以后端 draft 为准。通过后端 test / build、Android testDebugUnitTest 和带 demo HTTPS URL 的 Android build 验证。

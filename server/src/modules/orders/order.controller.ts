@@ -2,7 +2,10 @@ import type { Request, Response } from "express";
 import { fail, ok } from "../../types/api-response";
 import { DEMO_CART_USER_KEY } from "../cart/cart.service";
 import { PendingCheckoutStore } from "../chat/pending-checkout.store";
-import { mapOrderToDto } from "./order.mapper";
+import {
+  mapOrderToDto,
+  mapPendingCheckoutDraftToSnapshot,
+} from "./order.mapper";
 import {
   CheckoutCartChangedError,
   CheckoutEmptyCartError,
@@ -54,6 +57,7 @@ export async function createMockCheckoutController(
         totalCents: draft.summary.totalCents,
         address: draft.address,
         cartRefreshRequired: false,
+        draft: mapPendingCheckoutDraftToSnapshot(draft),
       },
     }));
   } catch (error) {

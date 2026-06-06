@@ -1,4 +1,8 @@
 import type {
+  CheckoutDraftSnapshot,
+  PendingCheckoutDraft,
+} from "./checkout.types";
+import type {
   OrderDto,
   OrderItemDto,
   OrderItemRecord,
@@ -6,6 +10,23 @@ import type {
   OrderRecord,
   OrderRow,
 } from "./order.types";
+
+export function mapPendingCheckoutDraftToSnapshot(
+  draft: PendingCheckoutDraft,
+): CheckoutDraftSnapshot {
+  return {
+    id: draft.id,
+    status: draft.status,
+    address: draft.address,
+    items: draft.items.map((item) => ({ ...item })),
+    summary: draft.summary,
+    selectedDeliveryMethod: draft.selectedDeliveryMethod,
+    selectedPaymentMethod: draft.selectedPaymentMethod,
+    deliveryOptions: draft.deliveryOptions.map((option) => ({ ...option })),
+    paymentOptions: draft.paymentOptions.map((option) => ({ ...option })),
+    expiresAt: draft.expiresAt,
+  };
+}
 
 export function mapOrderItemRowToRecord(row: OrderItemRow): OrderItemRecord {
   return {

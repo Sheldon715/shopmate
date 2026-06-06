@@ -16,8 +16,12 @@ import {
 } from "./order.repository";
 import { mapOrderToDto } from "./order.mapper";
 import type {
+  CheckoutChangedField,
   CheckoutDeliveryOption,
+  CheckoutDeliverySnapshot,
+  CheckoutPatchInput,
   CheckoutPaymentOption,
+  CheckoutPaymentSnapshot,
   CheckoutSummary,
   CheckoutShippingInput,
   MockShippingAddress,
@@ -126,6 +130,11 @@ export interface ConfirmPendingCheckoutInput {
   paymentMethodType?: string;
 }
 
+export interface UpdatePendingCheckoutDraftResult {
+  draft: PendingCheckoutDraft;
+  changedFields: CheckoutChangedField[];
+}
+
 export class OrderService {
   constructor(
     private readonly dependencies: OrderServiceDependencies =
@@ -150,6 +159,12 @@ export class OrderService {
 
     const now = this.dependencies.now();
     const items = selectedItems.map(mapCartItemToPendingCheckoutItem);
+    const selectedDeliveryMethod = mapDeliveryOptionToSnapshot(
+      DEFAULT_CHECKOUT_DELIVERY_OPTIONS[0],
+    );
+    const selectedPaymentMethod = mapPaymentOptionToSnapshot(
+      DEFAULT_CHECKOUT_PAYMENT_OPTIONS[0],
+    );
     const draft: PendingCheckoutDraft = {
       id: this.dependencies.createId(),
       conversationId,
@@ -157,7 +172,9 @@ export class OrderService {
       status: "pending",
       address: input.address ?? createDefaultMockShippingAddress(),
       items,
-      summary: createCheckoutSummary(items),
+      summary: createCheckoutSummary(items, selectedDeliveryMethod.feeCents),
+      selectedDeliveryMethod,
+      selectedPaymentMethod,
       deliveryOptions: DEFAULT_CHECKOUT_DELIVERY_OPTIONS,
       paymentOptions: DEFAULT_CHECKOUT_PAYMENT_OPTIONS,
       expiresAt: new Date(now.getTime() + DEFAULT_CHECKOUT_TTL_MS).toISOString(),
@@ -172,17 +189,68 @@ export class OrderService {
     draft: PendingCheckoutDraft,
     addressText: string,
   ): PendingCheckoutDraft {
-    const fullAddress = normalizeRequiredText(addressText, "addressText");
+    return this.updatePendingCheckoutDraft(draft, {
+      shipping: { fullAddress: addressText },
+    }).draft;
+  }
+
+  updatePendingCheckoutDraft(
+    draft: PendingCheckoutDraft,
+    patch: CheckoutPatchInput,
+  ): UpdatePendingCheckoutDraftResult {
+    if (new Date(draft.expiresAt).getTime() <= this.dependencies.now().getTime()) {
+      throw new CheckoutExpiredError();
+    }
+
     const now = this.dependencies.now().toISOString();
+    const changedFields: CheckoutChangedField[] = [];
+    let address = draft.address;
+    let selectedDeliveryMethod = draft.selectedDeliveryMethod;
+    let selectedPaymentMethod = draft.selectedPaymentMethod;
+    let summary = draft.summary;
+
+    if (patch.shipping) {
+      address = applyShippingPatch(draft.address, patch.shipping);
+      changedFields.push("shipping");
+    }
+
+    const deliveryMethodType = normalizeOptionalText(patch.deliveryMethodType);
+
+    if (deliveryMethodType) {
+      const nextDeliveryMethod = resolveDeliveryMethod(draft, deliveryMethodType);
+      const shippingFeeChanged =
+        nextDeliveryMethod.feeCents !== selectedDeliveryMethod.feeCents;
+
+      selectedDeliveryMethod = nextDeliveryMethod;
+      summary = createCheckoutSummary(draft.items, selectedDeliveryMethod.feeCents);
+      changedFields.push("delivery_method");
+
+      if (shippingFeeChanged) {
+        changedFields.push("summary");
+      }
+    }
+
+    const paymentMethodType = normalizeOptionalText(patch.paymentMethodType);
+
+    if (paymentMethodType) {
+      selectedPaymentMethod = resolvePaymentMethod(draft, paymentMethodType);
+      changedFields.push("payment_method");
+    }
+
+    if (changedFields.length === 0) {
+      throw new CheckoutRequestError("checkoutPatch 至少需要一个可更新字段");
+    }
 
     return {
-      ...draft,
-      address: {
-        ...draft.address,
-        label: "本次收货信息",
-        fullAddress,
+      draft: {
+        ...draft,
+        address,
+        selectedDeliveryMethod,
+        selectedPaymentMethod,
+        summary,
+        updatedAt: now,
       },
-      updatedAt: now,
+      changedFields: dedupeChangedFields(changedFields),
     };
   }
 
@@ -219,14 +287,12 @@ export class OrderService {
 
     const now = this.dependencies.now();
     const orderId = this.dependencies.createId();
-    const deliveryMethod = resolveDeliveryMethod(
-      draft,
-      input.deliveryMethodType,
-    );
-    const paymentMethod = resolvePaymentMethod(
-      draft,
-      input.paymentMethodType,
-    );
+    const deliveryMethod = input.deliveryMethodType
+      ? resolveDeliveryMethod(draft, input.deliveryMethodType)
+      : draft.selectedDeliveryMethod;
+    const paymentMethod = input.paymentMethodType
+      ? resolvePaymentMethod(draft, input.paymentMethodType)
+      : draft.selectedPaymentMethod;
     const shippingAddress = input.shipping
       ? normalizeShippingInput(input.shipping)
       : draft.address;
@@ -371,10 +437,12 @@ function mapCartItemToPendingCheckoutItem(item: CartItemDto): PendingCheckoutIte
   };
 }
 
-function createCheckoutSummary(items: PendingCheckoutItem[]): CheckoutSummary {
+function createCheckoutSummary(
+  items: PendingCheckoutItem[],
+  shippingFeeCents = 0,
+): CheckoutSummary {
   const selectedCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const subtotalCents = items.reduce((sum, item) => sum + item.subtotalCents, 0);
-  const shippingFeeCents = 0;
 
   return {
     itemCount: items.length,
@@ -410,11 +478,7 @@ function assertDraftMatchesCurrentCart(
 function resolveDeliveryMethod(
   draft: PendingCheckoutDraft,
   deliveryMethodType: string | undefined,
-): {
-  type: string;
-  label: string;
-  feeCents: number;
-} {
+): CheckoutDeliverySnapshot {
   const type = deliveryMethodType ?? DEFAULT_CHECKOUT_DELIVERY_OPTIONS[0]?.type;
   const option = draft.deliveryOptions.find((candidate) => candidate.type === type)
     ?? DEFAULT_CHECKOUT_DELIVERY_OPTIONS.find((candidate) => candidate.type === type);
@@ -423,21 +487,13 @@ function resolveDeliveryMethod(
     throw new CheckoutRequestError("deliveryMethodType 不可用");
   }
 
-  return {
-    type: option.type,
-    label: option.label,
-    feeCents: option.feeCents,
-  };
+  return mapDeliveryOptionToSnapshot(option);
 }
 
 function resolvePaymentMethod(
   draft: PendingCheckoutDraft,
   paymentMethodType: string | undefined,
-): {
-  type: string;
-  label: string;
-  status: "not_charged";
-} {
+): CheckoutPaymentSnapshot {
   const type = paymentMethodType ?? DEFAULT_CHECKOUT_PAYMENT_OPTIONS[0]?.type;
   const option = draft.paymentOptions.find((candidate) => candidate.type === type)
     ?? DEFAULT_CHECKOUT_PAYMENT_OPTIONS.find((candidate) => candidate.type === type);
@@ -446,11 +502,7 @@ function resolvePaymentMethod(
     throw new CheckoutRequestError("paymentMethodType 不可用");
   }
 
-  return {
-    type: option.type,
-    label: option.label,
-    status: "not_charged",
-  };
+  return mapPaymentOptionToSnapshot(option);
 }
 
 function parseShippingInput(value: unknown): CheckoutShippingInput {
@@ -478,6 +530,80 @@ function normalizeShippingInput(input: CheckoutShippingInput): MockShippingAddre
     phoneMasked: maskPhone(phone),
     fullAddress,
   };
+}
+
+function applyShippingPatch(
+  current: MockShippingAddress,
+  patch: NonNullable<CheckoutPatchInput["shipping"]>,
+): MockShippingAddress {
+  let next = current;
+
+  if (patch.recipient !== undefined) {
+    next = {
+      ...next,
+      label: "本次收货信息",
+      recipient: normalizeRequiredText(patch.recipient, "checkoutPatch.shipping.recipient"),
+    };
+  }
+
+  if (patch.phone !== undefined) {
+    next = {
+      ...next,
+      label: "本次收货信息",
+      phoneMasked: maskPhone(normalizePhone(patch.phone)),
+    };
+  }
+
+  if (patch.fullAddress !== undefined) {
+    next = {
+      ...next,
+      label: "本次收货信息",
+      fullAddress: normalizeRequiredText(
+        patch.fullAddress,
+        "checkoutPatch.shipping.fullAddress",
+      ),
+    };
+  }
+
+  if (next === current) {
+    throw new CheckoutRequestError("checkoutPatch.shipping 至少需要一个可更新字段");
+  }
+
+  return next;
+}
+
+function mapDeliveryOptionToSnapshot(
+  option: CheckoutDeliveryOption | undefined,
+): CheckoutDeliverySnapshot {
+  if (!option) {
+    throw new CheckoutRequestError("deliveryMethodType 不可用");
+  }
+
+  return {
+    type: option.type,
+    label: option.label,
+    feeCents: option.feeCents,
+  };
+}
+
+function mapPaymentOptionToSnapshot(
+  option: CheckoutPaymentOption | undefined,
+): CheckoutPaymentSnapshot {
+  if (!option) {
+    throw new CheckoutRequestError("paymentMethodType 不可用");
+  }
+
+  return {
+    type: option.type,
+    label: option.label,
+    status: "not_charged",
+  };
+}
+
+function dedupeChangedFields(
+  fields: CheckoutChangedField[],
+): CheckoutChangedField[] {
+  return [...new Set(fields)];
 }
 
 function createMockOrderNumber(now: Date): string {

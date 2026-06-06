@@ -5,6 +5,7 @@ import type {
   CheckoutIntentAction,
   CheckoutIntentConfidence,
   CheckoutIntentDetection,
+  CheckoutPatchInput,
 } from "../orders/checkout.types";
 import type { PendingCheckoutLookup } from "./pending-checkout.store";
 import { parseJsonObject, stripCodeFence } from "./llm-output-utils";
@@ -26,6 +27,7 @@ interface ParsedCheckoutIntent {
   isCheckoutIntent: boolean;
   action?: CheckoutIntentAction;
   addressText?: string;
+  checkoutPatch?: CheckoutPatchInput;
   confidence?: CheckoutIntentConfidence;
   needsConfirmation?: boolean;
   clarificationQuestion?: string | null;
@@ -35,7 +37,7 @@ const CHECKOUT_INTENT_MAX_COMPLETION_TOKENS = 512;
 const CHECKOUT_CUE_PATTERN =
   /(结算|下单|订单|确认下单|就买这些|买这些|提交订单|收货地址|地址改|改地址|取消下单|重新汇总|汇总订单)/u;
 const PENDING_ONLY_CUE_PATTERN =
-  /^(确认|可以|好的|没问题|取消|先取消|不要了|地址|收货)/u;
+  /(确认|可以|好的|没问题|取消|先取消|不要了|地址|收货|收货人|电话|手机号|配送|快递|加急|标准|支付|支付宝|微信|银行卡)/u;
 
 export class CheckoutIntentService {
   constructor(private readonly options: CheckoutIntentServiceOptions) {}
@@ -65,6 +67,7 @@ export class CheckoutIntentService {
         isCheckoutIntent: true,
         action: intent.action ?? "unknown",
         addressText: intent.addressText,
+        checkoutPatch: intent.checkoutPatch,
         targetScope: "selected_cart_items",
         confidence: intent.confidence ?? "medium",
         needsConfirmation: intent.needsConfirmation ?? false,
@@ -103,15 +106,17 @@ function buildCheckoutIntentPrompt(
       role: "system",
       content: [
         "你是 ShopMate 的结算意图分类器。",
-        "只判断当前用户是否明确要启动、确认、修改地址、取消或重新汇总 pending checkout。",
+        "只判断当前用户是否明确要启动、确认、修改 pending checkout、取消或重新汇总 pending checkout。",
         "不生成用户可见回复，不输出订单号、金额或商品事实。",
         "Return one JSON object only.",
-        "Schema: {\"is_checkout_intent\":boolean,\"action\":\"start_checkout|confirm_checkout|update_address|cancel_checkout|summarize_checkout|unknown\",\"address_text\":string|null,\"target_scope\":\"selected_cart_items\",\"confidence\":\"high|medium|low\",\"needs_confirmation\":boolean,\"clarification_question\":string|null}.",
+        "Schema: {\"is_checkout_intent\":boolean,\"action\":\"start_checkout|summarize_checkout|update_checkout|update_address|cancel_checkout|confirm_checkout|unknown\",\"address_text\":string|null,\"checkout_patch\":{\"shipping\":{\"recipient\":string|null,\"phone\":string|null,\"full_address\":string|null},\"delivery_method_type\":string|null,\"payment_method_type\":string|null}|null,\"target_scope\":\"selected_cart_items\",\"confidence\":\"high|medium|low\",\"needs_confirmation\":boolean,\"clarification_question\":string|null}.",
         "第一版 target_scope 只能是 selected_cart_items。",
         "推荐下单前要买什么、下单流程是什么、推荐适合买的商品，不是执行 checkout。",
         "确认、可以、没问题只有在 pendingCheckout.status 为 found 时才可能是 confirm_checkout。",
         "confirm_checkout 必须表示用户明确同意创建订单。",
-        "修改地址只更新 pending draft，不等于确认下单。",
+        "update_checkout 用于更新收货人、手机号、详细地址、配送方式或支付方式，不等于确认下单。",
+        "旧 action update_address 只在模型只能表达整段地址时使用，并把 address_text 放入 checkout_patch.shipping.full_address。",
+        "delivery_method_type 和 payment_method_type 必须来自 pendingCheckout 里的 options type；不确定时保持 null 或 needs_confirmation true。",
         "取消下单应为 cancel_checkout，不改变购物车。",
         "模型不确定时 action unknown 或 confidence low，后端不会创建订单。",
       ].join("\n"),
@@ -146,7 +151,19 @@ function summarizePendingCheckout(
     draftId: lookup.draft.id,
     selectedCount: lookup.draft.summary.selectedCount,
     totalCents: lookup.draft.summary.totalCents,
-    address: lookup.draft.address.fullAddress,
+    address: lookup.draft.address,
+    selectedDeliveryMethod: lookup.draft.selectedDeliveryMethod,
+    selectedPaymentMethod: lookup.draft.selectedPaymentMethod,
+    deliveryOptions: lookup.draft.deliveryOptions.map((option) => ({
+      type: option.type,
+      label: option.label,
+      feeCents: option.feeCents,
+      etaText: option.etaText,
+    })),
+    paymentOptions: lookup.draft.paymentOptions.map((option) => ({
+      type: option.type,
+      label: option.label,
+    })),
     expiresAt: lookup.draft.expiresAt,
   };
 }
@@ -167,6 +184,7 @@ function parseCheckoutIntentOutput(rawText: string): ParsedCheckoutIntent {
     isCheckoutIntent: true,
     action: parseAction(payload.action),
     addressText: parseNullableString(payload.address_text) ?? undefined,
+    checkoutPatch: parseCheckoutPatch(payload.checkout_patch),
     confidence: parseConfidence(payload.confidence),
     needsConfirmation: parseBoolean(payload.needs_confirmation),
     clarificationQuestion: parseNullableString(payload.clarification_question),
@@ -176,12 +194,93 @@ function parseCheckoutIntentOutput(rawText: string): ParsedCheckoutIntent {
 function parseAction(value: unknown): CheckoutIntentAction | undefined {
   return value === "start_checkout"
     || value === "confirm_checkout"
+    || value === "update_checkout"
     || value === "update_address"
     || value === "cancel_checkout"
     || value === "summarize_checkout"
     || value === "unknown"
     ? value
     : undefined;
+}
+
+function parseCheckoutPatch(value: unknown): CheckoutPatchInput | undefined {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  const shipping = parseShippingPatch(record.shipping);
+  const deliveryMethodType =
+    parseNullableString(record.delivery_method_type)
+    ?? parseNullableString(record.deliveryMethodType)
+    ?? undefined;
+  const paymentMethodType =
+    parseNullableString(record.payment_method_type)
+    ?? parseNullableString(record.paymentMethodType)
+    ?? undefined;
+  const patch: CheckoutPatchInput = {
+    shipping,
+    deliveryMethodType: normalizeOptionalText(deliveryMethodType),
+    paymentMethodType: normalizeOptionalText(paymentMethodType),
+  };
+
+  if (
+    patch.shipping
+    || patch.deliveryMethodType
+    || patch.paymentMethodType
+  ) {
+    return patch;
+  }
+
+  return undefined;
+}
+
+function parseShippingPatch(
+  value: unknown,
+): CheckoutPatchInput["shipping"] | undefined {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  const recipient =
+    parseNullableString(record.recipient) ?? undefined;
+  const phone =
+    parseNullableString(record.phone) ?? undefined;
+  const fullAddress =
+    parseNullableString(record.full_address)
+    ?? parseNullableString(record.fullAddress)
+    ?? undefined;
+  const shipping: NonNullable<CheckoutPatchInput["shipping"]> = {};
+  const normalizedRecipient = normalizeOptionalText(recipient);
+  const normalizedPhone = normalizeOptionalText(phone);
+  const normalizedFullAddress = normalizeOptionalText(fullAddress);
+
+  if (normalizedRecipient !== undefined) {
+    shipping.recipient = normalizedRecipient;
+  }
+
+  if (normalizedPhone !== undefined) {
+    shipping.phone = normalizedPhone;
+  }
+
+  if (normalizedFullAddress !== undefined) {
+    shipping.fullAddress = normalizedFullAddress;
+  }
+
+  if (Object.keys(shipping).length > 0) {
+    return shipping;
+  }
+
+  return undefined;
 }
 
 function parseConfidence(value: unknown): CheckoutIntentConfidence | undefined {

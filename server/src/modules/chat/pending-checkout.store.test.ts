@@ -99,6 +99,16 @@ function createDraft(input: {
       totalCents,
       currency: "CNY",
     },
+    selectedDeliveryMethod: {
+      type: "standard",
+      label: "标准配送",
+      feeCents: 0,
+    },
+    selectedPaymentMethod: {
+      type: "wechat",
+      label: "微信支付",
+      status: "not_charged",
+    },
     deliveryOptions: [{
       type: "standard",
       label: "标准配送",

@@ -41,6 +41,16 @@ describe("OrderService", () => {
       address: {
         phoneMasked: "138****0000",
       },
+      selectedDeliveryMethod: {
+        type: "standard",
+        label: "标准配送",
+        feeCents: 0,
+      },
+      selectedPaymentMethod: {
+        type: "wechat",
+        label: "微信支付",
+        status: "not_charged",
+      },
       deliveryOptions: [
         expect.objectContaining({ type: "standard", feeCents: 0 }),
         expect.objectContaining({ type: "express", feeCents: 1200 }),
@@ -174,6 +184,96 @@ describe("OrderService", () => {
     expect(order.totalCents).toBe(21100);
   });
 
+  it("updates pending draft shipping, delivery, payment, and summary without persisting order", async () => {
+    const harness = createOrderHarness();
+    const service = new OrderService(harness.dependencies, "demo-user");
+    const draft = await service.createPendingCheckout({
+      conversationId: "checkout-demo-1",
+    });
+
+    const result = service.updatePendingCheckoutDraft(draft, {
+      shipping: {
+        recipient: "张三",
+        phone: "13800000000",
+        fullAddress: "上海市浦东新区测试路 1 号",
+      },
+      deliveryMethodType: "express",
+      paymentMethodType: "alipay",
+    });
+
+    expect(result.changedFields).toEqual([
+      "shipping",
+      "delivery_method",
+      "summary",
+      "payment_method",
+    ]);
+    expect(result.draft).toMatchObject({
+      address: {
+        label: "本次收货信息",
+        recipient: "张三",
+        phoneMasked: "138****0000",
+        fullAddress: "上海市浦东新区测试路 1 号",
+      },
+      selectedDeliveryMethod: {
+        type: "express",
+        label: "加急配送",
+        feeCents: 1200,
+      },
+      selectedPaymentMethod: {
+        type: "alipay",
+        label: "支付宝",
+        status: "not_charged",
+      },
+      summary: {
+        subtotalCents: 19900,
+        shippingFeeCents: 1200,
+        totalCents: 21100,
+      },
+      updatedAt: "2026-06-06T00:00:00.000Z",
+    });
+    expect(harness.persistCalls).toHaveLength(0);
+  });
+
+  it("updates partial shipping patch fields independently", async () => {
+    const harness = createOrderHarness();
+    const service = new OrderService(harness.dependencies, "demo-user");
+    const draft = await service.createPendingCheckout({
+      conversationId: "checkout-demo-1",
+    });
+
+    const addressOnlyResult = service.updatePendingCheckoutDraft(draft, {
+      shipping: {
+        recipient: undefined,
+        phone: undefined,
+        fullAddress: "上海市浦东新区测试路 1 号",
+      },
+    });
+
+    expect(addressOnlyResult.changedFields).toEqual(["shipping"]);
+    expect(addressOnlyResult.draft.address).toMatchObject({
+      recipient: "ShopMate 用户",
+      phoneMasked: "138****0000",
+      fullAddress: "上海市浦东新区测试路 1 号",
+    });
+
+    const phoneOnlyResult = service.updatePendingCheckoutDraft(
+      addressOnlyResult.draft,
+      {
+        shipping: {
+          phone: "13912345678",
+        },
+      },
+    );
+
+    expect(phoneOnlyResult.changedFields).toEqual(["shipping"]);
+    expect(phoneOnlyResult.draft.address).toMatchObject({
+      recipient: "ShopMate 用户",
+      phoneMasked: "139****5678",
+      fullAddress: "上海市浦东新区测试路 1 号",
+    });
+    expect(harness.persistCalls).toHaveLength(0);
+  });
+
   it("rejects invalid checkout snapshots before persisting order", async () => {
     const harness = createOrderHarness();
     const service = new OrderService(harness.dependencies, "demo-user");
@@ -200,6 +300,10 @@ describe("OrderService", () => {
       paymentMethodType: "unknown_payment",
     })).rejects.toBeInstanceOf(CheckoutRequestError);
     expect(harness.persistCalls).toHaveLength(0);
+
+    expect(() => service.updatePendingCheckoutDraft(draft, {
+      deliveryMethodType: "unknown_delivery",
+    })).toThrow(CheckoutRequestError);
   });
 
   it("rejects stale draft when cart item selection or quantity changed", async () => {

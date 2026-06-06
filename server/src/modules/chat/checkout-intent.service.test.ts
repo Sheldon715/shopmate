@@ -94,6 +94,105 @@ describe("CheckoutIntentService", () => {
     });
   });
 
+  it("parses structured checkout patch for pending draft updates", async () => {
+    let llmRequest: LlmGenerateRequest | undefined;
+    const service = new CheckoutIntentService({
+      llmClient: new MockLlmClient({
+        handler: (request) => {
+          llmRequest = request;
+          return createLlmResponse(JSON.stringify({
+            is_checkout_intent: true,
+            action: "update_checkout",
+            address_text: null,
+            checkout_patch: {
+              shipping: {
+                recipient: "张三",
+                phone: "13800000000",
+                full_address: "上海市浦东新区测试路 1 号",
+              },
+              delivery_method_type: "express",
+              payment_method_type: "alipay",
+            },
+            target_scope: "selected_cart_items",
+            confidence: "high",
+            needs_confirmation: false,
+            clarification_question: null,
+          }));
+        },
+      }),
+    });
+
+    const result = await service.detect({
+      question: "收货人改成张三，电话 13800000000，地址改成上海市浦东新区测试路 1 号，配送选加急，支付用支付宝",
+      pendingCheckout: { status: "found", draft: createDraft() },
+    });
+
+    expect(llmRequest?.messages[0]?.content).toContain("checkout_patch");
+    expect(llmRequest?.messages[1]?.content).toContain("\"deliveryOptions\"");
+    expect(llmRequest?.messages[1]?.content).toContain("\"paymentOptions\"");
+    expect(result).toMatchObject({
+      isCheckoutIntent: true,
+      action: "update_checkout",
+      checkoutPatch: {
+        shipping: {
+          recipient: "张三",
+          phone: "13800000000",
+          fullAddress: "上海市浦东新区测试路 1 号",
+        },
+        deliveryMethodType: "express",
+        paymentMethodType: "alipay",
+      },
+      confidence: "high",
+      needsConfirmation: false,
+    });
+  });
+
+  it("omits absent shipping fields when parsing partial checkout patches", async () => {
+    const service = new CheckoutIntentService({
+      llmClient: new MockLlmClient({
+        response: createLlmResponse(JSON.stringify({
+          is_checkout_intent: true,
+          action: "update_checkout",
+          address_text: null,
+          checkout_patch: {
+            shipping: {
+              full_address: "上海市浦东新区测试路 1 号",
+            },
+            delivery_method_type: null,
+            payment_method_type: null,
+          },
+          target_scope: "selected_cart_items",
+          confidence: "high",
+          needs_confirmation: false,
+          clarification_question: null,
+        })),
+      }),
+    });
+
+    const result = await service.detect({
+      question: "地址改成上海市浦东新区测试路 1 号",
+      pendingCheckout: { status: "found", draft: createDraft() },
+    });
+
+    expect(result).toMatchObject({
+      isCheckoutIntent: true,
+      action: "update_checkout",
+      checkoutPatch: {
+        shipping: {
+          fullAddress: "上海市浦东新区测试路 1 号",
+        },
+      },
+    });
+
+    if (!result.isCheckoutIntent) {
+      throw new Error("Expected checkout intent.");
+    }
+
+    const shippingPatch = result.checkoutPatch?.shipping ?? {};
+    expect(Object.hasOwn(shippingPatch, "recipient")).toBe(false);
+    expect(Object.hasOwn(shippingPatch, "phone")).toBe(false);
+  });
+
   it("does not call LLM for ordinary recommendation requests", async () => {
     const service = new CheckoutIntentService({
       llmClient: new MockLlmClient({
@@ -142,15 +241,33 @@ function createDraft(): PendingCheckoutDraft {
       totalCents: 0,
       currency: "CNY",
     },
+    selectedDeliveryMethod: {
+      type: "standard",
+      label: "标准配送",
+      feeCents: 0,
+    },
+    selectedPaymentMethod: {
+      type: "wechat",
+      label: "微信支付",
+      status: "not_charged",
+    },
     deliveryOptions: [{
       type: "standard",
       label: "标准配送",
       feeCents: 0,
       etaText: "预计 2-4 天送达",
+    }, {
+      type: "express",
+      label: "加急配送",
+      feeCents: 1200,
+      etaText: "预计明天送达",
     }],
     paymentOptions: [{
       type: "wechat",
       label: "微信支付",
+    }, {
+      type: "alipay",
+      label: "支付宝",
     }],
     expiresAt: "2026-06-06T00:15:00.000Z",
     createdAt: "2026-06-06T00:00:00.000Z",

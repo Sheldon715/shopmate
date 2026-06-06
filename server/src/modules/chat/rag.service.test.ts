@@ -1342,7 +1342,63 @@ describe("RagChatService", () => {
               draftId: "draft_1",
               selectedCount: 1,
               totalCents: 19900,
+              address: {
+                label: "默认地址",
+                recipient: "ShopMate 用户",
+                phoneMasked: "138****0000",
+                fullAddress: "ShopMate 收货点",
+              },
               cartRefreshRequired: false,
+              draft: {
+                id: "draft_1",
+                status: "pending",
+                address: {
+                  label: "默认地址",
+                  recipient: "ShopMate 用户",
+                  phoneMasked: "138****0000",
+                  fullAddress: "ShopMate 收货点",
+                },
+                items: [{
+                  cartItemId: "item_001",
+                  productId: "product_001",
+                  productName: "Product 1",
+                  brand: "Demo Brand",
+                  category: "数码电子",
+                  unitPriceCents: 19900,
+                  quantity: 1,
+                  subtotalCents: 19900,
+                  imagePath: "/images/product_001.png",
+                }],
+                summary: {
+                  itemCount: 1,
+                  selectedCount: 1,
+                  subtotalCents: 19900,
+                  shippingFeeCents: 0,
+                  totalCents: 19900,
+                  currency: "CNY",
+                },
+                selectedDeliveryMethod: {
+                  type: "standard",
+                  label: "标准配送",
+                  feeCents: 0,
+                },
+                selectedPaymentMethod: {
+                  type: "wechat",
+                  label: "微信支付",
+                  status: "not_charged",
+                },
+                deliveryOptions: [{
+                  type: "standard",
+                  label: "标准配送",
+                  feeCents: 0,
+                  etaText: "预计 2-4 天送达",
+                }],
+                paymentOptions: [{
+                  type: "wechat",
+                  label: "微信支付",
+                }],
+                expiresAt: "2026-06-06T00:15:00.000Z",
+              },
             },
           };
         },
@@ -1381,7 +1437,33 @@ describe("RagChatService", () => {
           draftId: "draft_1",
           selectedCount: 1,
           totalCents: 19900,
+          address: {
+            phoneMasked: "138****0000",
+            fullAddress: "ShopMate 收货点",
+          },
           cartRefreshRequired: false,
+          draft: {
+            id: "draft_1",
+            status: "pending",
+            summary: {
+              selectedCount: 1,
+              totalCents: 19900,
+            },
+            selectedDeliveryMethod: {
+              type: "standard",
+            },
+            selectedPaymentMethod: {
+              type: "wechat",
+              status: "not_charged",
+            },
+            deliveryOptions: [
+              expect.objectContaining({ type: "standard" }),
+            ],
+            paymentOptions: [
+              expect.objectContaining({ type: "wechat" }),
+            ],
+            expiresAt: "2026-06-06T00:15:00.000Z",
+          },
         },
       },
     });
