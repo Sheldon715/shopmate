@@ -1296,6 +1296,97 @@ describe("RagChatService", () => {
     expect(llmRequest?.abortSignal).toBe(abortController.signal);
   });
 
+  it("routes checkout intent before ordinary RAG and streams checkoutAction in done", async () => {
+    const cartSnapshot = createCartDtoWithItems([createCartItem()]);
+    let vectorSearchCalled = false;
+    let commandInput:
+      | Parameters<NonNullable<RagChatServiceOptions["checkoutCommandService"]>["execute"]>[0]
+      | undefined;
+    const service = new RagChatService(withNoCartIntent({
+      vectorSearch: {
+        search: async () => {
+          vectorSearchCalled = true;
+          return [];
+        },
+      },
+      productReader: createProductReader(),
+      cartWriter: {
+        getCart: async () => cartSnapshot,
+        addItem: async () => cartSnapshot,
+      },
+      checkoutIntentService: {
+        detect: async () => ({
+          isCheckoutIntent: true,
+          action: "start_checkout",
+          targetScope: "selected_cart_items",
+          confidence: "high",
+          needsConfirmation: false,
+        }),
+      },
+      checkoutCommandService: {
+        getPendingCheckout: () => ({ status: "missing" }),
+        execute: async (input) => {
+          commandInput = input;
+          return {
+            answer: "我先汇总已勾选商品，请确认是否生成模拟订单。",
+            recommendedProductIds: [],
+            productCards: [],
+            fallbackUsed: false,
+            retrieval: {
+              candidateCount: input.cartSnapshot?.items.length ?? 0,
+              returnedProductIds: [],
+            },
+            checkoutAction: {
+              type: "start_checkout",
+              status: "draft_created",
+              draftId: "draft_1",
+              selectedCount: 1,
+              totalCents: 19900,
+              cartRefreshRequired: false,
+            },
+          };
+        },
+      },
+    }));
+    const { events, writer } = createCollectingStreamWriter();
+
+    await service.answerStream(
+      {
+        conversationId: "checkout-demo-1",
+        question: "帮我结算购物车",
+      },
+      writer,
+    );
+
+    expect(vectorSearchCalled).toBe(false);
+    expect(commandInput).toMatchObject({
+      question: "帮我结算购物车",
+      conversationId: "checkout-demo-1",
+      cartSnapshot: {
+        summary: { selectedTotalCents: 19900 },
+      },
+      pendingCheckout: { status: "missing" },
+    });
+    expect(events.map((event) => event.eventName)).toEqual([
+      "message_delta",
+      "product_cards",
+      "done",
+    ]);
+    expect(events[2]).toMatchObject({
+      eventName: "done",
+      payload: {
+        checkoutAction: {
+          type: "start_checkout",
+          status: "draft_created",
+          draftId: "draft_1",
+          selectedCount: 1,
+          totalCents: 19900,
+          cartRefreshRequired: false,
+        },
+      },
+    });
+  });
+
   it("uses popular query cache after cart and clarification intent checks", async () => {
     let vectorSearchCalled = false;
     let ragLlmCalled = false;
@@ -3525,6 +3616,11 @@ function withNoCartIntent(
       options.cartCommandIntentService
       ?? {
         detect: async () => ({ isCartCommand: false }),
+      },
+    checkoutIntentService:
+      options.checkoutIntentService
+      ?? {
+        detect: async () => ({ isCheckoutIntent: false }),
       },
     negativeConstraintIntentService:
       options.negativeConstraintIntentService

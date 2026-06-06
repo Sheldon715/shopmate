@@ -3,6 +3,7 @@ export type ChatTimingMarkName =
   | "sse_started"
   | "cart_snapshot_done"
   | "cart_intent_done"
+  | "checkout_intent_done"
   | "negative_intent_done"
   | "comparison_prefetch_started"
   | "comparison_prefetch_done"

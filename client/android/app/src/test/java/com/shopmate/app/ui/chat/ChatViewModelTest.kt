@@ -1,6 +1,7 @@
 package com.shopmate.app.ui.chat
 
 import com.shopmate.app.data.chat.ChatCartActionDto
+import com.shopmate.app.data.chat.ChatCheckoutActionDto
 import com.shopmate.app.data.chat.ChatComparisonCellDto
 import com.shopmate.app.data.chat.ChatComparisonDimensionDto
 import com.shopmate.app.data.chat.ChatComparisonHighlightDto
@@ -28,6 +29,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
@@ -38,6 +40,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -1417,6 +1420,116 @@ class ChatViewModelTest {
 
         assertEquals(null, viewModel.uiState.value.errorMessage)
         assertEquals(0, viewModel.sideEffects.replayCache.size)
+    }
+
+    @Test
+    fun orderCreatedCheckoutActionEmitsCartRefreshAndOrderResultSideEffects() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("确认下单")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        val refreshEffect = backgroundScope.async {
+            viewModel.sideEffects.first()
+        }
+        val orderEffect = backgroundScope.async {
+            viewModel.sideEffects.drop(1).first()
+        }
+        repository.events.emit(
+            ChatStreamEvent.MessageDelta(
+                text = "模拟订单已生成，订单号 MOCK-20260606000000-TEST。",
+                index = 0,
+            ),
+        )
+        repository.events.emit(ChatStreamEvent.ProductCards(emptyList()))
+        repository.events.emit(
+            ChatStreamEvent.Done(
+                recommendedProductIds = emptyList(),
+                fallbackUsed = false,
+                fallbackReason = null,
+                retrieval = ChatRetrievalDto(candidateCount = 1),
+                checkoutAction = ChatCheckoutActionDto(
+                    type = "confirm_checkout",
+                    status = "order_created",
+                    draftId = "draft_1",
+                    orderId = "order_1",
+                    orderNumber = "MOCK-20260606000000-TEST",
+                    selectedCount = 2,
+                    totalCents = 39900,
+                    cartRefreshRequired = true,
+                ),
+            ),
+        )
+        advanceUntilIdle()
+
+        val refresh = assertIs<ChatSideEffect.RefreshCart>(refreshEffect.await())
+        val order = assertIs<ChatSideEffect.ShowMockOrderResult>(orderEffect.await())
+        assertEquals("MOCK-20260606000000-TEST", refresh.message)
+        assertEquals("MOCK-20260606000000-TEST", order.orderNumber)
+        assertEquals(39900, order.totalCents)
+        assertEquals(null, viewModel.uiState.value.errorMessage)
+    }
+
+    @Test
+    fun draftCheckoutActionDoesNotEmitCartRefreshSideEffectOrChatError() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("帮我结算购物车")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        val sideEffect = backgroundScope.async {
+            withTimeoutOrNull(100) {
+                viewModel.sideEffects.first()
+            }
+        }
+        repository.events.emit(
+            ChatStreamEvent.MessageDelta(
+                text = "我先汇总已勾选商品，请确认是否生成模拟订单。",
+                index = 0,
+            ),
+        )
+        repository.events.emit(ChatStreamEvent.ProductCards(emptyList()))
+        repository.events.emit(
+            ChatStreamEvent.Done(
+                recommendedProductIds = emptyList(),
+                fallbackUsed = false,
+                fallbackReason = null,
+                retrieval = ChatRetrievalDto(candidateCount = 1),
+                checkoutAction = ChatCheckoutActionDto(
+                    type = "start_checkout",
+                    status = "draft_created",
+                    draftId = "draft_1",
+                    selectedCount = 1,
+                    totalCents = 19900,
+                    cartRefreshRequired = false,
+                ),
+            ),
+        )
+        advanceTimeBy(100)
+        runCurrent()
+
+        assertEquals(null, sideEffect.await())
+        assertEquals(null, viewModel.uiState.value.errorMessage)
+        assertFalse(viewModel.uiState.value.canRetry)
+    }
+
+    @Test
+    fun startMockCheckoutFromCartSendsAgentCheckoutMessage() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        val started = viewModel.startMockCheckoutFromCart()
+        advanceUntilIdle()
+
+        assertTrue(started)
+        assertEquals(1, repository.streamCalls)
+        assertEquals("帮我结算购物车", repository.messages.single())
+        assertEquals("帮我结算购物车", viewModel.uiState.value.messages.first().text)
+        assertTrue(viewModel.uiState.value.isSending)
     }
 
     @Test

@@ -1,0 +1,159 @@
+import { describe, expect, it } from "vitest";
+import { MockLlmClient } from "../llm/mock-llm.client";
+import type { LlmGenerateRequest, LlmGenerateResponse } from "../llm/llm.types";
+import type { PendingCheckoutDraft } from "../orders/checkout.types";
+import { CheckoutIntentService } from "./checkout-intent.service";
+
+describe("CheckoutIntentService", () => {
+  it("uses LLM intent to classify checkout start requests", async () => {
+    let llmRequest: LlmGenerateRequest | undefined;
+    const service = new CheckoutIntentService({
+      llmClient: new MockLlmClient({
+        handler: (request) => {
+          llmRequest = request;
+          return createLlmResponse(JSON.stringify({
+            is_checkout_intent: true,
+            action: "start_checkout",
+            address_text: null,
+            target_scope: "selected_cart_items",
+            confidence: "high",
+            needs_confirmation: false,
+            clarification_question: null,
+          }));
+        },
+      }),
+    });
+
+    const result = await service.detect({
+      question: "帮我结算购物车",
+      cartSnapshot: {
+        items: [{
+          id: "item_001",
+          productId: "product_001",
+          name: "通勤蓝牙耳机",
+          brand: "示例品牌",
+          category: "数码电子",
+          priceCents: 19900,
+          priceText: "¥199",
+          quantity: 1,
+          selected: true,
+          subtotalCents: 19900,
+          available: true,
+          tags: ["通勤"],
+          imagePath: "/images/product_001.png",
+        }],
+        summary: {
+          totalCount: 1,
+          selectedCount: 1,
+          selectedTotalCents: 19900,
+          currency: "CNY",
+        },
+      },
+    });
+
+    expect(llmRequest?.messages.map((message) => message.content).join("\n"))
+      .toContain("模拟结算意图分类器");
+    expect(llmRequest?.maxCompletionTokens).toBe(512);
+    expect(llmRequest?.messages[1]?.content).not.toContain("通勤蓝牙耳机");
+    expect(result).toMatchObject({
+      isCheckoutIntent: true,
+      action: "start_checkout",
+      targetScope: "selected_cart_items",
+      confidence: "high",
+      needsConfirmation: false,
+    });
+  });
+
+  it("allows terse confirmation only when pending checkout exists", async () => {
+    const service = new CheckoutIntentService({
+      llmClient: new MockLlmClient({
+        response: createLlmResponse(JSON.stringify({
+          is_checkout_intent: true,
+          action: "confirm_checkout",
+          address_text: null,
+          target_scope: "selected_cart_items",
+          confidence: "high",
+          needs_confirmation: false,
+          clarification_question: null,
+        })),
+      }),
+    });
+
+    await expect(service.detect({
+      question: "确认",
+      pendingCheckout: { status: "missing" },
+    })).resolves.toEqual({ isCheckoutIntent: false });
+
+    await expect(service.detect({
+      question: "确认",
+      pendingCheckout: { status: "found", draft: createDraft() },
+    })).resolves.toMatchObject({
+      isCheckoutIntent: true,
+      action: "confirm_checkout",
+      confidence: "high",
+    });
+  });
+
+  it("does not call LLM for ordinary recommendation requests", async () => {
+    const service = new CheckoutIntentService({
+      llmClient: new MockLlmClient({
+        handler: () => {
+          throw new Error("checkout intent should not run");
+        },
+      }),
+    });
+
+    await expect(service.detect({
+      question: "推荐一款适合通勤的蓝牙耳机",
+    })).resolves.toEqual({ isCheckoutIntent: false });
+  });
+
+  it("does not treat invalid LLM output as checkout intent", async () => {
+    const service = new CheckoutIntentService({
+      llmClient: new MockLlmClient({
+        response: createLlmResponse("{ nope"),
+      }),
+    });
+
+    await expect(service.detect({
+      question: "确认下单",
+    })).resolves.toEqual({ isCheckoutIntent: false });
+  });
+});
+
+function createDraft(): PendingCheckoutDraft {
+  return {
+    id: "draft_1",
+    conversationId: "checkout-demo-1",
+    userKey: "demo-user",
+    status: "pending",
+    address: {
+      label: "默认模拟地址",
+      recipient: "ShopMate Demo 用户",
+      phoneMasked: "138****0000",
+      fullAddress: "ShopMate Demo 收货点",
+    },
+    items: [],
+    summary: {
+      itemCount: 0,
+      selectedCount: 0,
+      subtotalCents: 0,
+      shippingFeeCents: 0,
+      totalCents: 0,
+      currency: "CNY",
+    },
+    expiresAt: "2026-06-06T00:15:00.000Z",
+    createdAt: "2026-06-06T00:00:00.000Z",
+    updatedAt: "2026-06-06T00:00:00.000Z",
+  };
+}
+
+function createLlmResponse(text: string): LlmGenerateResponse {
+  return {
+    text,
+    model: "mock-llm",
+    provider: "mock",
+    finishReason: "stop",
+    latencyMs: 0,
+  };
+}

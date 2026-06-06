@@ -172,6 +172,7 @@ export class PopularQueryCacheService implements PopularQueryCache {
     return this.isEligibleForRead(input)
       && SAFE_CACHEABLE_FALLBACK_REASONS.has(input.result.fallbackReason)
       && input.result.cartAction === undefined
+      && input.result.checkoutAction === undefined
       && input.result.clarification === undefined
       && input.result.answer.trim().length > 0
       && input.result.recommendedProductIds.every((productId) =>

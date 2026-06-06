@@ -1,0 +1,339 @@
+import { describe, expect, it } from "vitest";
+import type { CartDto, CartItemDto } from "../cart/cart.types";
+import type { Product } from "../products/product.types";
+import {
+  CheckoutCartChangedError,
+  CheckoutEmptyCartError,
+  CheckoutExpiredError,
+  CheckoutProductUnavailableError,
+  OrderService,
+  type OrderServiceDependencies,
+} from "./order.service";
+import type { CheckoutCartItemGuard } from "./order.repository";
+import type { CreateOrderInput, OrderRecord } from "./order.types";
+
+describe("OrderService", () => {
+  it("creates pending checkout from selected cart items only", async () => {
+    const harness = createOrderHarness({
+      cart: createCartDto([
+        createCartItem({ id: "item_001", productId: "product_001", selected: true }),
+        createCartItem({ id: "item_002", productId: "product_002", selected: false }),
+        createCartItem({ id: "item_003", productId: "product_003", available: false }),
+      ]),
+    });
+    const service = new OrderService(harness.dependencies, "demo-user");
+
+    const draft = await service.createPendingCheckout({
+      conversationId: "checkout-demo-1",
+    });
+
+    expect(draft).toMatchObject({
+      id: "draft_1",
+      conversationId: "checkout-demo-1",
+      userKey: "demo-user",
+      summary: {
+        itemCount: 1,
+        selectedCount: 1,
+        subtotalCents: 19900,
+        totalCents: 19900,
+      },
+      address: {
+        phoneMasked: "138****0000",
+      },
+    });
+    expect(draft.items).toEqual([
+      expect.objectContaining({
+        cartItemId: "item_001",
+        productId: "product_001",
+        productName: "通勤蓝牙耳机",
+        unitPriceCents: 19900,
+        subtotalCents: 19900,
+      }),
+    ]);
+    expect(draft.expiresAt).toBe("2026-06-06T00:15:00.000Z");
+  });
+
+  it("does not create pending checkout when no selected item is checkoutable", async () => {
+    const harness = createOrderHarness({
+      cart: createCartDto([
+        createCartItem({ selected: false }),
+        createCartItem({ id: "item_002", available: false }),
+      ]),
+    });
+    const service = new OrderService(harness.dependencies, "demo-user");
+
+    await expect(service.createPendingCheckout())
+      .rejects.toBeInstanceOf(CheckoutEmptyCartError);
+  });
+
+  it("confirms pending checkout with order snapshots and selected cart cleanup", async () => {
+    const harness = createOrderHarness();
+    const service = new OrderService(harness.dependencies, "demo-user");
+    const draft = await service.createPendingCheckout({
+      conversationId: "checkout-demo-1",
+    });
+
+    const order = await service.confirmPendingCheckout(draft, "chat_agent");
+
+    expect(harness.persistCalls).toHaveLength(1);
+    expect(harness.persistCalls[0]?.cartItems).toEqual([
+      { id: "item_001", quantity: 1 },
+    ]);
+    expect(harness.persistCalls[0]?.input).toMatchObject({
+      id: "order_1",
+      orderNumber: "MOCK-20260606000000-TEST",
+      userKey: "demo-user",
+      status: "mock_created",
+      subtotalCents: 19900,
+      totalCents: 19900,
+      source: "chat_agent",
+      shippingAddress: {
+        recipient: "ShopMate Demo 用户",
+        phoneMasked: "138****0000",
+      },
+      items: [
+        expect.objectContaining({
+          id: "order_item_1",
+          orderId: "order_1",
+          productId: "product_001",
+          productName: "通勤蓝牙耳机",
+          brand: "示例品牌",
+          category: "数码电子",
+          unitPriceCents: 19900,
+          quantity: 1,
+          subtotalCents: 19900,
+        }),
+      ],
+    });
+    expect(order).toMatchObject({
+      id: "order_1",
+      orderNumber: "MOCK-20260606000000-TEST",
+      totalCents: 19900,
+      items: [{ productId: "product_001" }],
+    });
+  });
+
+  it("rejects stale draft when cart item selection or quantity changed", async () => {
+    const harness = createOrderHarness();
+    const service = new OrderService(harness.dependencies, "demo-user");
+    const draft = await service.createPendingCheckout({
+      conversationId: "checkout-demo-1",
+    });
+
+    harness.setCart(createCartDto([
+      createCartItem({ selected: false }),
+    ]));
+
+    await expect(service.confirmPendingCheckout(draft))
+      .rejects.toBeInstanceOf(CheckoutCartChangedError);
+    expect(harness.persistCalls).toHaveLength(0);
+
+    harness.setCart(createCartDto([
+      createCartItem({ quantity: 2, subtotalCents: 39800 }),
+    ]));
+
+    await expect(service.confirmPendingCheckout(draft))
+      .rejects.toBeInstanceOf(CheckoutCartChangedError);
+    expect(harness.persistCalls).toHaveLength(0);
+  });
+
+  it("rejects expired draft and unavailable product without persisting order", async () => {
+    const expiredHarness = createOrderHarness();
+    const expiredService = new OrderService(expiredHarness.dependencies, "demo-user");
+    const expiredDraft = await expiredService.createPendingCheckout();
+
+    expiredHarness.setNow(new Date("2026-06-06T00:16:00.000Z"));
+
+    await expect(expiredService.confirmPendingCheckout(expiredDraft))
+      .rejects.toBeInstanceOf(CheckoutExpiredError);
+    expect(expiredHarness.persistCalls).toHaveLength(0);
+
+    const unavailableHarness = createOrderHarness({
+      products: [createProduct({
+        id: "product_001",
+        skus: [{
+          id: "sku_001",
+          productId: "product_001",
+          properties: {},
+          priceCents: 19900,
+          currency: "CNY",
+          available: false,
+          stockLevel: "out_of_stock",
+          sortOrder: 0,
+        }],
+      })],
+    });
+    const unavailableService = new OrderService(
+      unavailableHarness.dependencies,
+      "demo-user",
+    );
+    const unavailableDraft = await unavailableService.createPendingCheckout();
+
+    await expect(unavailableService.confirmPendingCheckout(unavailableDraft))
+      .rejects.toBeInstanceOf(CheckoutProductUnavailableError);
+    expect(unavailableHarness.persistCalls).toHaveLength(0);
+  });
+});
+
+function createOrderHarness(input: {
+  cart?: CartDto;
+  products?: Product[];
+} = {}): {
+  dependencies: OrderServiceDependencies;
+  persistCalls: Array<{ input: CreateOrderInput; cartItems: CheckoutCartItemGuard[] }>;
+  setCart(cart: CartDto): void;
+  setNow(now: Date): void;
+} {
+  let now = new Date("2026-06-06T00:00:00.000Z");
+  const ids = ["draft_1", "order_1", "order_item_1", "order_item_2"];
+  const persistCalls: Array<{ input: CreateOrderInput; cartItems: CheckoutCartItemGuard[] }> = [];
+  let cart = input.cart ?? createCartDto([createCartItem()]);
+  const products = input.products ?? [createProduct({ id: "product_001" })];
+
+  return {
+    dependencies: {
+      now: () => now,
+      createId: () => ids.shift() ?? `generated_${ids.length}`,
+      createOrderNumber: () => "MOCK-20260606000000-TEST",
+      getCart: async () => cart,
+      findActiveProductsByIds: async (productIds) =>
+        products.filter((product) => productIds.includes(product.id)),
+      persistOrder: async (orderInput, cartItems) => {
+        persistCalls.push({ input: orderInput, cartItems });
+        return createOrderRecord(orderInput);
+      },
+      findOrderById: async () => null,
+    },
+    persistCalls,
+    setCart(nextCart: CartDto) {
+      cart = nextCart;
+    },
+    setNow(nextNow: Date) {
+      now = nextNow;
+    },
+  };
+}
+
+function createOrderRecord(input: CreateOrderInput): OrderRecord {
+  const createdAt = new Date("2026-06-06T00:00:01.000Z");
+
+  return {
+    id: input.id,
+    orderNumber: input.orderNumber,
+    userKey: input.userKey,
+    status: input.status,
+    currency: input.currency,
+    subtotalCents: input.subtotalCents,
+    shippingFeeCents: input.shippingFeeCents,
+    totalCents: input.totalCents,
+    shippingName: input.shippingAddress.recipient,
+    shippingPhoneMasked: input.shippingAddress.phoneMasked,
+    shippingAddress: input.shippingAddress.fullAddress,
+    source: input.source,
+    createdAt,
+    items: input.items.map((item) => ({
+      id: item.id,
+      orderId: item.orderId,
+      productId: item.productId,
+      productNameSnapshot: item.productName,
+      brandSnapshot: item.brand,
+      categorySnapshot: item.category,
+      unitPriceCentsSnapshot: item.unitPriceCents,
+      quantity: item.quantity,
+      subtotalCentsSnapshot: item.subtotalCents,
+      imagePathSnapshot: item.imagePath,
+      createdAt,
+    })),
+  };
+}
+
+function createCartDto(items: CartItemDto[]): CartDto {
+  return {
+    items,
+    summary: {
+      totalCount: items.reduce((sum, item) => sum + item.quantity, 0),
+      selectedCount: items
+        .filter((item) => item.selected)
+        .reduce((sum, item) => sum + item.quantity, 0),
+      selectedTotalCents: items
+        .filter((item) => item.selected)
+        .reduce((sum, item) => sum + item.subtotalCents, 0),
+      currency: "CNY",
+    },
+  };
+}
+
+function createCartItem(overrides: Partial<CartItemDto> = {}): CartItemDto {
+  const quantity = overrides.quantity ?? 1;
+  const priceCents = overrides.priceCents ?? 19900;
+
+  return {
+    id: "item_001",
+    productId: "product_001",
+    name: "通勤蓝牙耳机",
+    brand: "示例品牌",
+    category: "数码电子",
+    priceCents,
+    priceText: "¥199",
+    quantity,
+    selected: true,
+    subtotalCents: priceCents * quantity,
+    available: true,
+    tags: ["通勤"],
+    imagePath: "/images/product_001.png",
+    ...overrides,
+  };
+}
+
+function createProduct(overrides: Partial<Product> = {}): Product {
+  const id = overrides.id ?? "product_001";
+
+  return {
+    id,
+    status: "active",
+    name: "通勤蓝牙耳机",
+    brand: "示例品牌",
+    category: "数码电子",
+    subCategory: "真无线耳机",
+    imagePath: `/images/${id}.png`,
+    imageCaption: "Product image",
+    currency: "CNY",
+    basePriceCents: 19900,
+    priceMinCents: 19900,
+    priceMaxCents: 19900,
+    marketingDescription: "适合通勤。",
+    knowledgeText: "通勤蓝牙耳机",
+    ratingAvg: 4.5,
+    categoryPath: ["数码电子", "真无线耳机"],
+    visualTags: ["通勤"],
+    attributes: {},
+    pros: [],
+    cons: [],
+    recommendWhen: [],
+    avoidWhen: [],
+    compareWith: [],
+    reviewSummary: {},
+    contentBlocks: [],
+    officialFaq: [],
+    userReviews: [],
+    normalizedPayload: {},
+    sourceDataset: "test",
+    sourceVersion: "test",
+    sourceType: "test",
+    dataVersion: "test",
+    isDesensitized: true,
+    ingestBatchId: "test",
+    sourcePath: "test",
+    skus: [{
+      id: `${id}-sku-1`,
+      productId: id,
+      properties: {},
+      priceCents: 19900,
+      currency: "CNY",
+      available: true,
+      stockLevel: "in_stock",
+      sortOrder: 0,
+    }],
+    ...overrides,
+  };
+}

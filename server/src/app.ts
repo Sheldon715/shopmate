@@ -8,6 +8,7 @@ import { chatRouter } from "./modules/chat/chat.routes";
 import { healthRouter } from "./modules/health/health.routes";
 import { productImageRouter } from "./modules/images/image.routes";
 import { imageSearchRouter } from "./modules/image-search/image-search.routes";
+import { orderRouter } from "./modules/orders/order.routes";
 import { productRouter } from "./modules/products/product.routes";
 import { fail } from "./types/api-response";
 
@@ -50,6 +51,7 @@ app.use("/api/chat", chatRouter);
 app.use("/api/cart", cartRouter);
 app.use("/api/health", healthRouter);
 app.use("/api/image-search", imageSearchRouter);
+app.use("/api/orders", orderRouter);
 app.use("/api/products", productRouter);
 app.use("/api", apiNotFoundHandler);
 

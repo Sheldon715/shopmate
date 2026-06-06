@@ -199,6 +199,47 @@ class ChatStreamEventParserTest {
     }
 
     @Test
+    fun parsesDoneCheckoutAction() {
+        val event = parseChatStreamEvent(
+            "done",
+            """
+                {
+                  "recommendedProductIds": [],
+                  "fallbackUsed": false,
+                  "retrieval": {
+                    "candidateCount": 1,
+                    "returnedProductIds": []
+                  },
+                  "checkoutAction": {
+                    "type": "confirm_checkout",
+                    "status": "order_created",
+                    "draftId": "draft_1",
+                    "orderId": "order_1",
+                    "orderNumber": "MOCK-20260606000000-TEST",
+                    "selectedCount": 2,
+                    "totalCents": 39900,
+                    "address": {
+                      "label": "本次模拟地址",
+                      "recipient": "ShopMate Demo 用户",
+                      "phoneMasked": "138****0000",
+                      "fullAddress": "UNSW 学生宿舍"
+                    },
+                    "cartRefreshRequired": true
+                  }
+                }
+            """.trimIndent(),
+        )
+
+        val done = assertIs<ChatStreamEvent.Done>(event)
+        assertEquals("confirm_checkout", done.checkoutAction?.type)
+        assertEquals("order_created", done.checkoutAction?.status)
+        assertEquals("MOCK-20260606000000-TEST", done.checkoutAction?.orderNumber)
+        assertEquals(39900, done.checkoutAction?.totalCents)
+        assertEquals("UNSW 学生宿舍", done.checkoutAction?.address?.fullAddress)
+        assertEquals(true, done.checkoutAction?.cartRefreshRequired)
+    }
+
+    @Test
     fun parsesComparisonResult() {
         val event = parseChatStreamEvent(
             "comparison_result",

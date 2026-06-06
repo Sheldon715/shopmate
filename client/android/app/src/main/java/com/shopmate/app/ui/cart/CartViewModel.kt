@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.shopmate.app.data.cart.CartOperationError
 import com.shopmate.app.data.cart.CartRepository
+import com.shopmate.app.data.orders.OrderOperationError
+import com.shopmate.app.data.orders.OrderRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -13,12 +15,14 @@ import kotlinx.coroutines.launch
 
 class CartViewModel(
     private val cartRepository: CartRepository,
+    private val orderRepository: OrderRepository,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(CartUiState(isLoading = true))
     val uiState: StateFlow<CartUiState> = _uiState.asStateFlow()
 
     private var loadJob: Job? = null
     private var operationJob: Job? = null
+    private var checkoutJob: Job? = null
     private var operationMessageSequence = 0L
 
     init {
@@ -83,6 +87,126 @@ class CartViewModel(
         }
         operationJob = viewModelScope.launch {
             applyCartResult(cartRepository.selectAll(selected))
+        }
+    }
+
+    fun startCheckout() {
+        val state = _uiState.value
+        if (
+            state.isCheckoutDraftLoading ||
+            state.isCheckoutConfirming ||
+            state.operationInFlightItemId != null ||
+            state.summary.selectedCount <= 0
+        ) {
+            return
+        }
+
+        checkoutJob?.cancel()
+        _uiState.update { current ->
+            current.copy(
+                isCheckoutDraftLoading = true,
+                checkoutErrorMessage = null,
+                errorMessage = null,
+                canRetry = false,
+            )
+        }
+        checkoutJob = viewModelScope.launch {
+            orderRepository.createMockCheckout().fold(
+                onSuccess = { draft ->
+                    _uiState.update { current ->
+                        current.copy(
+                            checkoutDraft = draft,
+                            isCheckoutDraftLoading = false,
+                            checkoutErrorMessage = null,
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    val message = error.toCheckoutDisplayMessage()
+                    _uiState.update { current ->
+                        current.copy(
+                            isCheckoutDraftLoading = false,
+                            checkoutErrorMessage = message,
+                            errorMessage = message,
+                            canRetry = error is OrderOperationError.NetworkFailure,
+                            operationMessage = message.toOperationMessage(),
+                        )
+                    }
+                },
+            )
+        }
+    }
+
+    fun dismissCheckout() {
+        val state = _uiState.value
+        if (state.isCheckoutConfirming) {
+            return
+        }
+
+        val shouldCancelDraft = state.checkoutDraft != null
+        checkoutJob?.cancel()
+        _uiState.update { current ->
+            current.copy(
+                checkoutDraft = null,
+                isCheckoutDraftLoading = false,
+                checkoutErrorMessage = null,
+            )
+        }
+
+        if (shouldCancelDraft) {
+            viewModelScope.launch {
+                orderRepository.cancelMockCheckout()
+            }
+        }
+    }
+
+    fun confirmCheckout() {
+        val state = _uiState.value
+        if (
+            state.checkoutDraft == null ||
+            state.isCheckoutConfirming ||
+            state.isCheckoutDraftLoading
+        ) {
+            return
+        }
+
+        checkoutJob?.cancel()
+        _uiState.update { current ->
+            current.copy(
+                isCheckoutConfirming = true,
+                checkoutErrorMessage = null,
+                errorMessage = null,
+                canRetry = false,
+            )
+        }
+        checkoutJob = viewModelScope.launch {
+            orderRepository.confirmMockCheckout().fold(
+                onSuccess = { result ->
+                    val refreshedCart = cartRepository.getCart()
+                    _uiState.update { current ->
+                        current
+                            .applyCartContentResult(refreshedCart)
+                            .copy(
+                                checkoutDraft = null,
+                                isCheckoutConfirming = false,
+                                isCheckoutDraftLoading = false,
+                                checkoutErrorMessage = null,
+                                operationMessage = "模拟订单 ${result.orderNumber} 已生成，合计 ${result.totalText}"
+                                    .toOperationMessage(),
+                            )
+                    }
+                },
+                onFailure = { error ->
+                    val message = error.toCheckoutDisplayMessage()
+                    _uiState.update { current ->
+                        current.copy(
+                            isCheckoutConfirming = false,
+                            checkoutErrorMessage = message,
+                            operationMessage = message.toOperationMessage(),
+                        )
+                    }
+                },
+            )
         }
     }
 
@@ -186,6 +310,34 @@ class CartViewModel(
     }
 }
 
+private fun CartUiState.applyCartContentResult(
+    result: Result<CartContentUi>,
+): CartUiState =
+    result.fold(
+        onSuccess = { content ->
+            copy(
+                items = content.items,
+                summary = content.summary,
+                isLoading = false,
+                isRefreshing = false,
+                errorMessage = null,
+                canRetry = false,
+                operationInFlightItemId = null,
+                isSelectAllInFlight = false,
+            )
+        },
+        onFailure = { error ->
+            copy(
+                isLoading = false,
+                isRefreshing = false,
+                errorMessage = error.toDisplayMessage(),
+                canRetry = error is CartOperationError.NetworkFailure,
+                operationInFlightItemId = null,
+                isSelectAllInFlight = false,
+            )
+        },
+    )
+
 private fun Throwable.toDisplayMessage(): String =
     when (this) {
         CartOperationError.InvalidProductId -> "商品信息不完整，暂时无法加入购物车。"
@@ -198,4 +350,16 @@ private fun Throwable.toDisplayMessage(): String =
         is CartOperationError.NetworkFailure -> "无法连接购物车服务，请确认后端正在运行。"
         CartOperationError.ParseFailure -> "购物车数据格式异常。"
         else -> "暂时无法更新购物车。"
+    }
+
+private fun Throwable.toCheckoutDisplayMessage(): String =
+    when (this) {
+        OrderOperationError.EmptyCart -> "购物车没有可结算商品。"
+        OrderOperationError.Expired -> "待确认订单已过期，请重新结算。"
+        OrderOperationError.CartChanged -> "购物车商品已变化，请刷新后再试。"
+        OrderOperationError.ProductUnavailable -> "部分商品当前不可结算。"
+        OrderOperationError.InvalidRequest -> "模拟结算请求无效，请重新结算。"
+        OrderOperationError.ParseFailure -> "模拟订单数据格式异常。"
+        is OrderOperationError.NetworkFailure -> "无法连接订单服务，请确认后端正在运行。"
+        else -> "暂时无法创建模拟订单。"
     }

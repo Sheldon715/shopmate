@@ -57,6 +57,27 @@ data class ChatCartSummaryDto(
 )
 
 @Serializable
+data class ChatCheckoutActionDto(
+    val type: String,
+    val status: String,
+    val draftId: String? = null,
+    val orderId: String? = null,
+    val orderNumber: String? = null,
+    val selectedCount: Int? = null,
+    val totalCents: Int? = null,
+    val address: ChatCheckoutAddressDto? = null,
+    val cartRefreshRequired: Boolean? = null,
+)
+
+@Serializable
+data class ChatCheckoutAddressDto(
+    val label: String,
+    val recipient: String,
+    val phoneMasked: String,
+    val fullAddress: String,
+)
+
+@Serializable
 data class ChatComparisonResultDto(
     val id: String,
     val title: String,
@@ -103,6 +124,7 @@ sealed interface ChatStreamEvent {
         val clarification: ChatClarificationDto? = null,
         val retrieval: ChatRetrievalDto,
         val cartAction: ChatCartActionDto? = null,
+        val checkoutAction: ChatCheckoutActionDto? = null,
     ) : ChatStreamEvent
 
     data class Error(

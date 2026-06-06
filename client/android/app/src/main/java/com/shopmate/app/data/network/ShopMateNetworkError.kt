@@ -17,6 +17,9 @@ sealed class ShopMateNetworkError(message: String, cause: Throwable? = null) :
     class CartResponseParseFailed(cause: Throwable) :
         ShopMateNetworkError("Failed to parse cart response.", cause)
 
+    class OrderResponseParseFailed(cause: Throwable) :
+        ShopMateNetworkError("Failed to parse order response.", cause)
+
     class AsrResponseParseFailed(cause: Throwable) :
         ShopMateNetworkError("Failed to parse ASR response.", cause)
 
@@ -31,6 +34,9 @@ sealed class ShopMateNetworkError(message: String, cause: Throwable? = null) :
 
     class CartConnectionFailed(cause: Throwable? = null) :
         ShopMateNetworkError("Cart request failed.", cause)
+
+    class OrderConnectionFailed(cause: Throwable? = null) :
+        ShopMateNetworkError("Order request failed.", cause)
 
     class AsrConnectionFailed(cause: Throwable? = null) :
         ShopMateNetworkError("ASR request failed.", cause)

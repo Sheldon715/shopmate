@@ -196,6 +196,7 @@ async function writeChatResult(
     retrieval: withTiming(result.retrieval, timing),
     contextMemory: result.contextMemory,
     cartAction: result.cartAction,
+    checkoutAction: result.checkoutAction,
   };
 
   return safeWriteSseEvent(response, "done", donePayload);

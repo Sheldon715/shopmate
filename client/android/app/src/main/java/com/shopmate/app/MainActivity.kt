@@ -225,6 +225,13 @@ class MainActivity : ComponentActivity() {
                     chatViewModel.sideEffects.collect { effect ->
                         when (effect) {
                             is ChatSideEffect.RefreshCart -> cartViewModel.refresh()
+                            is ChatSideEffect.ShowMockOrderResult -> {
+                                Toast.makeText(
+                                    this@MainActivity,
+                                    effect.toToastText(),
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
                         }
                     }
                 }
@@ -276,11 +283,8 @@ class MainActivity : ComponentActivity() {
                     cartViewModel.addProduct(productId)
                 }
                 val showCheckoutPending: () -> Unit = {
-                    Toast.makeText(
-                        this@MainActivity,
-                        "模拟结算流程还未接入",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    cancelVoiceInput()
+                    cartViewModel.startCheckout()
                 }
                 val openHistoryConversation: (HistoryConversationUi) -> Unit = { conversation ->
                     cancelVoiceInput()
@@ -416,6 +420,8 @@ class MainActivity : ComponentActivity() {
                             )
                         },
                         onCheckoutClick = showCheckoutPending,
+                        onCheckoutConfirm = cartViewModel::confirmCheckout,
+                        onCheckoutDismiss = cartViewModel::dismissCheckout,
                         onRetry = cartViewModel::retry,
                         onToggleSelected = { item ->
                             cartViewModel.updateSelected(item.id, !item.selected)
@@ -535,6 +541,28 @@ private fun MainActivity.showImageSourceDialog(
             dialog.dismiss()
         }
         .show()
+}
+
+private fun ChatSideEffect.ShowMockOrderResult.toToastText(): String {
+    val orderText = orderNumber?.takeIf { value -> value.isNotBlank() }
+        ?.let { value -> "订单 $value" }
+        ?: "模拟订单"
+    val totalText = totalCents?.takeIf { value -> value >= 0 }
+        ?.let { value -> "，合计 ${value.toPriceText()}" }
+        .orEmpty()
+
+    return "$orderText 已生成$totalText"
+}
+
+private fun Int.toPriceText(): String {
+    val whole = this / 100
+    val cents = this % 100
+
+    return if (cents == 0) {
+        "¥$whole"
+    } else {
+        "¥$whole.${cents.toString().padStart(2, '0')}"
+    }
 }
 
 private const val CAMERA_IMAGE_CACHE_DIR = "image-search-camera"

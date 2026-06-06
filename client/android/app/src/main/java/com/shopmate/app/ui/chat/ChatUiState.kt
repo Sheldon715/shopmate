@@ -56,6 +56,10 @@ data class ChatUiState(
 
 sealed interface ChatSideEffect {
     data class RefreshCart(val message: String? = null) : ChatSideEffect
+    data class ShowMockOrderResult(
+        val orderNumber: String? = null,
+        val totalCents: Int? = null,
+    ) : ChatSideEffect
 }
 
 sealed interface VoiceInputUiState {

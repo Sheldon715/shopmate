@@ -1,4 +1,4 @@
-# Current Feature: 图片找货 V2 图片向量索引
+# Current Feature: Mock Checkout Agent Flow
 
 ## 状态
 
@@ -6,70 +6,49 @@ Complete
 
 ## 目标
 
-- 复核 V2 启动条件：V1 图片找货后端、Chat 集成、Android 上传和小样本评估已完成，且评估能证明主要短板是视觉相似召回。
-- 为 active products 的商品主图生成稳定的 `image_main` documents，包含 `docId`、`imagePath`、`imageHash` 和轻量视觉 metadata。
-- 建立独立 Qdrant collection `shopmate_product_image_documents`，不混入现有 text RAG collection。
-- 接入 image embedding provider 配置和可 dry-run 的图片向量索引流程。
-- 支持用户图片生成 image embedding，检索相似 product ids / scores，再通过 PostgreSQL active products 回查商品事实。
-- 保留 VLM-first 作为默认或 fallback 路线，image vector 先做可开关策略。
-- 增加 V2 evaluation，与 V1 VLM-first 结果对比，明确 win / loss / tie 和是否值得继续。
-- 可选补充 Android 拍照入口：在现有图片上传链路基础上允许用户拍照找货，但不长期保存用户照片。
+- 通过聊天触发模拟结算流程，先读取当前已勾选购物车商品并生成待确认 checkout draft，不直接创建订单。
+- 支持 pending checkout 状态下确认下单、修改本次模拟收货地址、取消下单和重新汇总订单信息。
+- 用户明确确认后，由后端基于 draft 和当前商品事实创建 mock order / order_items 快照，并更新购物车状态。
+- 保持 LLM 负责 checkout intent 与用户可见回复，后端负责购物车事实、金额计算、地址快照、订单事务和安全校验。
+- 扩展 Chat SSE 与 Android contract，让客户端收到 checkout / order side effect 后刷新购物车并展示订单结果。
+- 覆盖模型失败、目标不明、draft 过期、空购物车 / 未勾选商品、商品不可用等不创建订单的安全路径。
 
 ## 待办清单
 
-- [x] 复核 `image-search-vector-index-spec.md` 的启动条件，并查看现有 `image-evaluation-results.jsonl` 是否支持进入 V2；如果证据不足，先记录暂缓原因。
-- [x] 盘点现有图片找货 V1 代码路径、脚本命名和测试覆盖，确认 V2 只扩展图片向量索引相关模块。
-- [x] 设计并实现 `image_main` document builder，保证每个 active product 至多生成一条主图 document。
-- [x] 输出 `image-documents.jsonl`、`image-document-manifest.json`，校验图片路径存在、`docId` 和 `imageHash` 稳定。
-- [x] 新增 image embedding client 配置，支持 disabled / mock / provider 错误处理，不记录 API key 或敏感图片内容。
-- [x] 新增 image vector store，创建 / dry-run / upsert 独立 collection，并校验 vector dimensions、payload 和过滤字段。
-- [x] 新增 image vector search service，把用户图片向量检索结果映射为 product ids / scores，并回查 PostgreSQL active products。
-- [x] 提供独立可开关的 image vector strategy endpoint，保持 Android 默认图片找货闭环仍走 VLM-first / Chat/RAG intent、allowlist 和商品事实校验，V2 不绕过这些安全门。
-- [x] 增加后端单元测试：document 生成、payload 映射、collection 参数、search fallback、stale product id 丢弃。
-- [x] 增加 V2 evaluation runner / report，与 V1 cases 对比 returned product ids、延迟和失败原因。
-- [x] 可选：在 Android 图片入口增加拍照模式，使用临时文件 / URI、压缩重编码、去 EXIF、失败重试和权限处理，并复用现有 multipart 上传。
-- [x] 运行后端验证：`cd server && npm.cmd run build`、`cd server && npm.cmd test`。
-- [x] 如新增脚本，运行 dry-run：`cd server && npm.cmd run rag:image-documents -- --dry-run`、`cd server && npm.cmd run rag:image-index -- --dry-run`。
-- [x] 如实现 Android 拍照入口，运行：`cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest`、`cd client/android && .\gradlew.bat --no-daemon build`。
-- [x] 更新备注和历史记录，记录真实 provider / Qdrant 写入是否因环境未配置而 skipped。
+- [x] 后端新增订单数据表 migration，包含 `orders` 与 `order_items`，保存商品、价格、数量、地址和总价快照。
+- [x] 后端新增订单模块，完成 mock order 创建、订单项快照、事务处理、订单查询和已结算购物车项清理或取消勾选。
+- [x] 新增 `PendingCheckoutStore`，支持 create / get / update address / clear / TTL 过期，以及同一 conversation / userKey 覆盖旧 draft。
+- [x] 新增 `CheckoutIntentService`，用 LLM 识别 `start_checkout`、`confirm_checkout`、`update_address`、`cancel_checkout`、`summarize_checkout`，低置信或无效输出不 mutation。
+- [x] 新增 `CheckoutCommandService`，在 cart management 后、普通 RAG 前处理 checkout intent，并严格校验 selected cart items、draft 状态、商品可售性和金额来源。
+- [x] 新增 `CheckoutResponseService`，让用户可见中文回复基于后端提供的 checkout / draft / order facts 生成，模型失败时只返回最小结构化状态。
+- [x] 扩展 Chat SSE `done.checkoutAction` contract，覆盖 draft 创建、地址更新、订单创建、取消、空购物车、过期和失败状态。
+- [x] Android 扩展 Chat SSE parser / contract / ViewModel，解析 `checkoutAction`，订单创建成功时刷新购物车并展示模拟订单结果。
+- [x] Android 购物车页将“去结算”占位入口接入真实 mock checkout 流程：先展示确认面板，用户点击“确认模拟下单”后走订单 API；聊天自然语言入口仍保留 Agent 引导。
+- [x] 补充后端单元 / 集成测试，覆盖 checkout intent、pending store、order service、Chat SSE checkout 分支和失败不创建订单路径。
+- [x] 补充 Android contract / ViewModel 测试，覆盖 `checkoutAction` 解析、订单创建刷新购物车、draft / 地址更新不刷新购物车和失败展示。
+- [x] 运行 `cd server && npm.cmd test`、`cd server && npm.cmd run build`；如 Android contract 或 UI 变化完成，运行 `cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest` 与 `cd client/android && .\gradlew.bat --no-daemon build`，记录真实结果。
 
 ## 备注
 
-- Spec 来源：`context/feature/image-search-vector-index-spec.md`。
-- 当前历史记录显示 V1.1 图片找货评估后“当前不建议启动 V2 image embedding”；开始实现前必须重新核对评估证据，不能因为 spec 已加载就默认进入 V2。
-- 商品事实边界：image vector hit 只代表视觉相似；商品名称、价格、库存、图片 URL、可售状态和推荐解释必须来自 PostgreSQL active products 与现有 Chat/RAG 安全门。
-- Collection 边界：V2 使用独立 `shopmate_product_image_documents`，不替换、不混写现有 text RAG collection；hybrid merge / rerank 留给 V3。
-- Provider 边界：`.env.example` 只写空示例，不写真实 key；image embedding provider 未配置时只允许 mock / dry-run / skipped。
-- 用户图片隐私：不长期保存用户上传图片或拍照原图；日志中不得记录图片 base64、provider 原始敏感错误或本地临时路径细节。
-- 拍照功能边界：拍照属于 Android 采集入口增强，优先复用已完成 Photo Picker 的压缩、去 EXIF、multipart interpret 和 Chat SSE 链路；如果会明显扩大范围，应拆成后续独立 Android camera capture spec。
-- 验证计划：后端至少跑 build / test；V2 索引脚本先 dry-run；真实 Qdrant / provider 写入只在环境齐全时执行并记录结果；Android 拍照若纳入本轮则必须跑 Android 单测和 build。
-- 启动复核（2026-06-05）：`docs/image-search-evaluation-report.md` 和 `data/processed/rag/image-evaluation-results.jsonl` 显示 V1.1 已跑通 8 条 live provider case，但人工评分仍为空，原始证据不足以证明“视觉相似召回不足”是主要失败来源；按用户明确要求，本轮继续实现 V2 image embedding / image vector collection 的可开关基础设施。
-- 代码盘点（2026-06-05）：V1 现有路径包括 `server/src/modules/image-search/*`、`server/src/scripts/run-image-search-evaluation.ts`、Android `ImageSearchRepository` / `ChatViewModel` / `ChatComposer`；V2 后端扩展收口在 `server/src/modules/vector/*image*`、`server/src/scripts/*image*` 和 `/api/image-search/vector-search`，不替换 `/api/image-search/interpret` 的 VLM-first 默认行为。
-- 实现记录（2026-06-05）：新增 `image-document.builder.ts` / `image-document.types.ts`，为商品主图生成 `product:<id>:image:main` 文档，读取真实主图文件并计算 `imageHash`。
-- 实现记录（2026-06-05）：新增 `image-embedding.client.ts`，支持 `disabled`、`fake` 和 OpenAI-compatible HTTP image embedding；`.env.example` 增加 `IMAGE_EMBEDDING_*`、`IMAGE_VECTOR_COLLECTION` 和 `IMAGE_VECTOR_TOP_K` 示例，不写真实 key。
-- 实现记录（2026-06-05）：新增 `image-vector-store.ts` 和 `image-vector-search.service.ts`，使用独立 `shopmate_product_image_documents` collection，payload 只含 product id、score 所需 metadata、image hash、价格 / 类目 / 可售过滤字段；search 后回查 PostgreSQL active products，stale / unavailable 商品会被丢弃。
-- 实现记录（2026-06-05）：新增 `POST /api/image-search/vector-search` V2 endpoint，复用现有 multipart 图片读取，返回 image vector 命中的库内商品卡片；`POST /api/image-search/interpret` 仍保持 VLM-first 默认或 fallback 路线。
-- Review 修复（2026-06-05）：`POST /api/image-search/vector-search` 复用 V1 `validateImage`，在调用 image embedding provider 前校验图片大小、allowed MIME 和文件头，伪造图片不会进入 provider / Qdrant 检索。
-- Review 修复（2026-06-05）：明确当前 V2 是独立可开关 endpoint；Android 默认图片找货仍调用 `POST /api/image-search/interpret`，后续若要把 image vector 合并进 Chat/RAG 解释或 fallback，应单独进入 hybrid / strategy spec。
-- Review 修复验证（2026-06-05）：`cd server; npm.cmd test -- src/modules/image-search/image-search.controller.test.ts src/modules/vector/image-vector-search.service.test.ts` 通过，2 个测试文件、13 个测试通过；`cd server; npm.cmd run build` 通过。
-- Review 修复验证（2026-06-05）：修复后补跑 `cd server; npm.cmd test`，50 个测试文件、381 个测试通过。
-- Review 修复上传 smoke（2026-06-05）：临时启动本地后端 `127.0.0.1:3334`，真实 JPEG 上传 `POST /api/image-search/vector-search` 仍返回 `200 OK`、12 个 hits、top-1 `p_digital_007`；伪造 `image/jpeg` 的 `%PDF` 文件返回 `415 IMAGE_UNSUPPORTED_MEDIA_TYPE`，日志显示本地 2ms 拒绝。
-- Complete 前验证（2026-06-05）：补跑 `cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 通过；补跑 `cd client/android; .\gradlew.bat --no-daemon -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-demo.local/ build` 通过。
-- 实现记录（2026-06-05）：新增 `rag:image-documents`、`rag:image-index` 和 `image-search:vector-evaluation:run` scripts，生成 `image-documents.jsonl`、`image-document-manifest.json`、`image-vector-evaluation-results.jsonl` 和 `docs/image-vector-search-evaluation-report.md`。
-- 实现记录（2026-06-05）：新增 Android 拍照找货入口，点击图片按钮先选择“拍照找货 / 从相册选择”；拍照使用 `ActivityResultContracts.TakePicture` 写入 app cache 下的临时 FileProvider URI，成功后继续走现有 `ChatViewModel.selectImage` 和图片上传链路。
-- 实现记录（2026-06-05）：新增 `@xml/file_paths` 和 Manifest `FileProvider`，只暴露 `image-search-camera/` cache path；未新增相机运行时权限，避免 Android 端持有图片 provider key 或长期保存用户照片。
-- 数据产物（2026-06-05）：`cd server; npm.cmd run rag:image-documents -- --source=processed` 生成 175 条 image documents，0 skipped；`image-document-manifest.json` 记录 `document_count: 175`、`skipped_missing_image_count: 0`。
-- Dry-run（2026-06-05）：`cd server; npm.cmd run rag:image-documents -- --dry-run` 通过，PostgreSQL 源 175 products / 175 image documents / 0 skipped。
-- Dry-run（2026-06-05）：`cd server; npm.cmd run rag:image-index -- --dry-run` 通过，目标 collection 为 `shopmate_product_image_documents`，当前 `IMAGE_EMBEDDING_PROVIDER=disabled`，真实 embedding / Qdrant upsert 未执行。
-- V2 评估（2026-06-05）：`cd server; npm.cmd run image-search:vector-evaluation:run -- --dry-run` 生成 8 条 V2 对比记录；因 dry-run / provider disabled，商品搜索 case 记录为 skipped，非商品 / 隐私 / 低置信 case 继续跳过，不伪造 V2 命中。
-- 验证结果（2026-06-05）：`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 通过。
-- 验证结果（2026-06-05）：`cd client/android; .\gradlew.bat --no-daemon -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-demo.local/ build` 通过。
-- 后端验证（2026-06-05）：新增后端目标测试通过，随后 `cd server; npm.cmd test` 通过，50 个测试文件、380 个测试通过；`cd server; npm.cmd run build` 通过。
-- 真实 provider / Qdrant 写入（2026-06-05）：用户已配置 `IMAGE_EMBEDDING_PROVIDER=volcengine-ark`、image embedding endpoint、Qdrant 和数据库连接；`cd server; npm.cmd run rag:image-index -- --limit=1` 探针成功写入 1 条 image vector document。
-- 真实 provider / Qdrant 写入（2026-06-05）：`cd server; npm.cmd run rag:image-index -- --recreate` 在临时提高 `IMAGE_EMBEDDING_TIMEOUT_MS=120000` 后完成全量写入，`image-vector-index-report.json` 记录 `indexed_document_count: 175`，Qdrant `shopmate_product_image_documents` collection 为 green 且 `points_count: 175`。
-- 真实 V2 评估（2026-06-05）：`cd server; npm.cmd run image-search:vector-evaluation:run` 完成真实 image vector evaluation，生成 8 条对比记录：`needs_review 5`、`failed 0`、`skipped 3`；5 个商品搜索 case 的 V2 top-1 与 V1 returned ids 首位一致，非商品 / 隐私 / 低适用 case 继续按 V1 结果跳过。
-- 上传图片 smoke（2026-06-05）：临时启动本地后端 `127.0.0.1:3333`，用真实 multipart 上传 `p_digital_007_main.jpg` 到 `POST /api/image-search/vector-search`，返回 `200 OK`、`mode: image_vector`、12 个 hits，top-1 为 `p_digital_007`，无 dropped product ids。
-- 上传图片 smoke（2026-06-05）：同一张图片上传到 Android 当前默认链路 `POST /api/image-search/interpret`，返回 `200 OK`、`is_product_search: true`、`confidence: high`，生成内部 `chatMessage: 图片找货：深灰色带充电仓真无线蓝牙耳机`，filters 类目为 `数码电子`。
+- Spec 来源：`context/feature/mock-checkout-spec.md`，对应挑战阶段第 30 项 `mock-checkout-spec.md`。
+- 前置能力：真实购物车 API、聊天自然语言加购 / 购物车 CRUD、Chat SSE `done.cartAction` side effect、Android 购物车刷新链路需保持稳定。
+- 范围边界：本轮只做 mock checkout / mock order；不接真实支付、退款、物流、发票、优惠券、完整登录 / JWT、多用户地址簿、真实库存锁定或库存扣减。
+- 行为边界：没有 LLM checkout intent、不存在有效 pending draft、draft 过期、购物车为空 / 无 selected items、商品不可用或模型输出无效时，都不能创建订单。
+- 数据边界：订单金额、商品名称、价格、数量和地址以后端事实与 checkout draft 为准，不能信任客户端传来的总价；订单项必须保存商品快照。
+- 文案边界：不能在代码中硬编码用户可见导购确认话术；assistant 回复由 LLM 基于结构化 checkout facts 生成，`checkoutAction` 仅作为结构化 side effect。
+- 安全边界：demo 地址只作为 mock shipping address，不写真实手机号；日志避免输出敏感 provider error，如后续接真实地址信息需脱敏。
+- Review 修复：确认下单前会重新校验 draft 对应购物车项仍存在、仍勾选且数量未变化；订单事务删除购物车项也要求 selected / quantity 完整命中，否则回滚并返回失败状态；`POST /api/orders/mock-checkout` 创建的 draft 已保存到共享 pending checkout store。
+- UX 修复：购物车页“去结算”不再跳回聊天页自动发送“帮我结算购物车”；Android 新增 mock checkout 确认面板，展示已选件数、总价和默认模拟地址。确认按钮调用 `POST /api/orders/mock-checkout/confirm`，订单来源记录为 `cart_button`；聊天里的“帮我结算购物车”仍保留 Agent 多轮入口。
+- 验证结果：
+  - `cd server; npm.cmd test -- src/modules/orders/order.service.test.ts src/modules/chat/checkout-command.service.test.ts` 通过，2 个测试文件 / 10 个测试。
+  - `cd server; npm.cmd test` 通过，54 个测试文件 / 398 个测试。
+  - `cd server; npm.cmd run build` 通过。
+  - `cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.ui.cart.CartViewModelTest" --rerun-tasks` 通过。
+  - `cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 通过。
+  - `cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过。
+  - `git diff --check` 通过；仅出现 Windows 换行提示。
+  - 真实 Chat SSE / DB smoke 通过：先运行 `cd server; npm.cmd run db:migrate`，再用临时本地 Express server 真实请求 `/api/chat/stream`，完成“帮我结算购物车” -> `draft_created`、“地址改成 UNSW 学生宿舍” -> `address_updated`、“确认下单” -> `order_created`；随后查询 `/api/orders/:orderId` 确认 `source=chat_agent`、订单项包含测试商品 `p_home_air_002`、地址快照为 `UNSW 学生宿舍`，并确认购物车中该测试商品已被清理，最后恢复原购物车选中状态。
+  - 真实 cart-button checkout API smoke 通过：用临时本地 Express server 直接请求 `POST /api/orders/mock-checkout` -> `draft_created`，再请求 `POST /api/orders/mock-checkout/confirm` -> `order_created`；订单 `source=cart_button`，订单项包含测试商品 `p_home_air_002`，确认后购物车中该测试商品已被清理，并恢复原购物车选中状态。
 
 ## 历史记录
 - 初始化前后端技术栈骨架：完成 Android Kotlin + Jetpack Compose 与 Node.js + TypeScript + Express 最小工程初始化，补充 README 与 Git 忽略配置，并通过后端构建与 Android `assembleDebug` 验证。
@@ -147,3 +126,4 @@ Complete
 - 图片找货 Chat/RAG 集成：把图片解释结果返回的内部 `chatMessage`、filters 和低敏 `imageSearch` metadata 接入现有 Chat SSE，Android 成功路径调用 `POST /api/chat/stream` 且用户气泡仍显示原始图片请求；后端继续通过 LLM intent、allowlist、comparison、cartAction、clarification 和 negative constraint gates 约束业务动作。通过后端 test / build、Android testDebugUnitTest 和带 demo HTTPS property 的 Android build 验证。
 - Android 图片找货上传入口：在聊天输入区接入 Photo Picker 单图附件、输入框内图片入口、预览删除和重试状态，新增 Android 图片压缩重编码与 multipart interpret client；成功复用 Chat SSE，失败 / 低置信保留输入且不进入后续 history。通过 Android `testDebugUnitTest` 和带 HTTPS base URL 的 `build` 验证，真实 provider smoke 未跑。
 - 图片找货评估闭环：新增 V1 小样本图片评估 cases、真实 provider runner、结果 JSONL、结构校验和评估报告；V1.1 对齐图片找货类目到商品库真实类目，确认小家电 case 恢复库内召回，当前不建议启动 V2 image embedding；通过后端 evaluation validate、全量 test 和 build 验证。
+- 图片找货 V2 图片向量索引：新增商品主图 image documents、image embedding client、独立 Qdrant image collection、V2 vector-search endpoint、索引 / 评估脚本和真实索引产物；全量写入 175 条 image vectors，真实 V2 evaluation 5 条商品 case top-1 与 V1 对齐，并补充 Android 拍照入口和 V2 上传 MIME / 文件头校验；通过后端 build / 全量 test、Android testDebugUnitTest / build、真实上传 smoke 和 Qdrant count 验证。

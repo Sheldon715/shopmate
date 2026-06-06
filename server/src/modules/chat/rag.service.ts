@@ -44,6 +44,9 @@ import type {
   CartCommandDetection,
 } from "./cart-command.types";
 import { ChatContextMemoryService } from "./chat-context-memory.service";
+import { CheckoutCommandService } from "./checkout-command.service";
+import { CheckoutIntentService } from "./checkout-intent.service";
+import { CheckoutResponseService } from "./checkout-response.service";
 import { ClarificationIntentService } from "./clarification-intent.service";
 import { ClarificationService } from "./clarification.service";
 import type {
@@ -128,6 +131,14 @@ export type RagCartActionResponder = Pick<
   CartActionResponseService,
   "generate"
 >;
+export type RagCheckoutIntentDetector = Pick<
+  CheckoutIntentService,
+  "detect"
+>;
+export type RagCheckoutCommandRunner = Pick<
+  CheckoutCommandService,
+  "getPendingCheckout" | "execute"
+>;
 export type RagClarificationIntentDetector = Pick<
   ClarificationIntentService,
   "decide"
@@ -165,6 +176,9 @@ export interface RagChatServiceOptions {
   cartCommandService?: CartCommandService;
   cartCommandIntentService?: RagCartCommandIntentDetector;
   cartActionResponseService?: RagCartActionResponder;
+  checkoutIntentService?: RagCheckoutIntentDetector;
+  checkoutCommandService?: RagCheckoutCommandRunner;
+  checkoutResponseService?: CheckoutResponseService;
   ragResponseGenerationService?: RagResponseGenerator;
   queryRewriteService?: RagQueryRewriter;
   popularQueryCacheCoordinator?: PopularQueryCacheCoordinator;
@@ -301,6 +315,8 @@ export class RagChatService {
   private readonly cartCommandService: CartCommandService;
   private readonly cartCommandIntentService: RagCartCommandIntentDetector;
   private readonly cartActionResponseService: RagCartActionResponder;
+  private readonly checkoutIntentService: RagCheckoutIntentDetector;
+  private readonly checkoutCommandService: RagCheckoutCommandRunner;
   private readonly ragResponseGenerationService: RagResponseGenerator;
   private readonly queryRewriteService: RagQueryRewriter;
   private readonly popularQueryCacheCoordinator: PopularQueryCacheCoordinator;
@@ -351,6 +367,17 @@ export class RagChatService {
     this.cartActionResponseService =
       options.cartActionResponseService
       ?? new CartActionResponseService({ llmClient: this.llmClient });
+    this.checkoutIntentService =
+      options.checkoutIntentService
+      ?? new CheckoutIntentService({
+        llmClient: this.llmClient,
+      });
+    this.checkoutCommandService =
+      options.checkoutCommandService
+      ?? new CheckoutCommandService({
+        checkoutResponseService: options.checkoutResponseService
+          ?? new CheckoutResponseService({ llmClient: this.llmClient }),
+      });
     this.ragResponseGenerationService =
       options.ragResponseGenerationService
       ?? new RagResponseGenerationService({ llmClient: this.llmClient });
@@ -441,6 +468,35 @@ export class RagChatService {
             abortSignal: input.abortSignal,
           },
         ),
+      );
+    }
+
+    const pendingCheckout = this.checkoutCommandService.getPendingCheckout({
+      conversationId: input.conversationId,
+    });
+    const checkoutIntent = await this.checkoutIntentService.detect({
+      question,
+      shortHistory: input.shortHistory,
+      cartSnapshot,
+      pendingCheckout,
+      requestId: input.requestId,
+      abortSignal: input.abortSignal,
+    });
+    throwIfAborted(input.abortSignal);
+    input.timing?.mark("checkout_intent_done");
+
+    if (checkoutIntent.isCheckoutIntent) {
+      return this.withContextMemory(
+        memoryResolution,
+        await this.checkoutCommandService.execute({
+          question,
+          conversationId: input.conversationId,
+          cartSnapshot,
+          intent: checkoutIntent,
+          pendingCheckout,
+          requestId: input.requestId,
+          abortSignal: input.abortSignal,
+        }),
       );
     }
 
@@ -2146,6 +2202,7 @@ function createDonePayload(result: RagChatResult): ChatDonePayload {
     retrieval: result.retrieval,
     contextMemory: result.contextMemory,
     cartAction: result.cartAction,
+    checkoutAction: result.checkoutAction,
   };
 }
 

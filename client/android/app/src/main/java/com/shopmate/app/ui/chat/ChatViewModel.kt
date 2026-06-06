@@ -3,6 +3,7 @@ package com.shopmate.app.ui.chat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.shopmate.app.data.chat.ChatCartActionDto
+import com.shopmate.app.data.chat.ChatCheckoutActionDto
 import com.shopmate.app.data.chat.ChatImageSearchMetadataDto
 import com.shopmate.app.data.chat.ChatRepository
 import com.shopmate.app.data.chat.ChatStreamFiltersDto
@@ -489,6 +490,20 @@ class ChatViewModel(
         )
     }
 
+    fun startMockCheckoutFromCart(): Boolean {
+        val state = _uiState.value
+        if (state.isSending) {
+            return false
+        }
+
+        startStream(
+            message = MOCK_CHECKOUT_START_MESSAGE,
+            history = state.messages,
+            clearComposer = true,
+        )
+        return true
+    }
+
     fun clearError() {
         _uiState.update { state ->
             state.copy(
@@ -873,6 +888,7 @@ class ChatViewModel(
             is ChatStreamEvent.Done -> {
                 flushAssistantText()
                 emitCartActionSideEffect(event.cartAction)
+                emitCheckoutActionSideEffect(event.checkoutAction)
                 _uiState.update { state ->
                     state.copy(
                         messages = state.messages.markAssistantDone(),
@@ -945,6 +961,26 @@ class ChatViewModel(
 
         viewModelScope.launch {
             _sideEffects.emit(ChatSideEffect.RefreshCart(cartAction.message))
+        }
+    }
+
+    private fun emitCheckoutActionSideEffect(checkoutAction: ChatCheckoutActionDto?) {
+        if (
+            checkoutAction == null ||
+            checkoutAction.status != CHECKOUT_ORDER_CREATED_STATUS ||
+            checkoutAction.cartRefreshRequired != true
+        ) {
+            return
+        }
+
+        viewModelScope.launch {
+            _sideEffects.emit(ChatSideEffect.RefreshCart(checkoutAction.orderNumber))
+            _sideEffects.emit(
+                ChatSideEffect.ShowMockOrderResult(
+                    orderNumber = checkoutAction.orderNumber,
+                    totalCents = checkoutAction.totalCents,
+                ),
+            )
         }
     }
 
@@ -1028,6 +1064,7 @@ class ChatViewModel(
         private const val IMAGE_SEARCH_DEFAULT_USER_MESSAGE = "用图片找相似商品"
         private const val IMAGE_SEARCH_NEEDS_CLEARER_INPUT_TEXT =
             "图片识别结果还不够明确，请换一张更清晰的商品图或补充文字。"
+        private const val MOCK_CHECKOUT_START_MESSAGE = "帮我结算购物车"
     }
 }
 
@@ -1142,6 +1179,7 @@ private val CLARIFICATION_FALLBACK_REASONS = setOf(
     COMPARISON_TARGET_CLARIFICATION_REASON,
 )
 private const val CART_ACTION_SUCCESS_STATUS = "success"
+private const val CHECKOUT_ORDER_CREATED_STATUS = "order_created"
 private val CART_REFRESH_ACTION_TYPES = setOf(
     "add",
     "remove",

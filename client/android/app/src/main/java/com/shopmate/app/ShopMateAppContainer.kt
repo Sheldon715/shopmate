@@ -21,6 +21,10 @@ import com.shopmate.app.data.image.ImageSearchRepository
 import com.shopmate.app.data.image.OkHttpImageSearchApiClient
 import com.shopmate.app.data.network.ShopMateApiConfig
 import com.shopmate.app.data.network.ShopMateImageUrlResolver
+import com.shopmate.app.data.orders.DefaultOrderRepository
+import com.shopmate.app.data.orders.OkHttpOrderApiClient
+import com.shopmate.app.data.orders.OrderApiClient
+import com.shopmate.app.data.orders.OrderRepository
 import com.shopmate.app.data.products.DefaultProductRepository
 import com.shopmate.app.data.products.OkHttpProductApiClient
 import com.shopmate.app.data.products.ProductApiClient
@@ -84,6 +88,14 @@ class ShopMateAppContainer(
         DefaultCartRepository(cartApiClient, imageUrlResolver)
     }
 
+    val orderApiClient: OrderApiClient by lazy {
+        OkHttpOrderApiClient(apiConfig = apiConfig)
+    }
+
+    val orderRepository: OrderRepository by lazy {
+        DefaultOrderRepository(orderApiClient)
+    }
+
     fun chatViewModelFactory(): ChatViewModelFactory =
         ChatViewModelFactory(chatRepository, imageSearchRepository, imageUrlResolver)
 
@@ -91,5 +103,5 @@ class ShopMateAppContainer(
         ProductDetailViewModelFactory(productId, productRepository)
 
     fun cartViewModelFactory(): CartViewModelFactory =
-        CartViewModelFactory(cartRepository)
+        CartViewModelFactory(cartRepository, orderRepository)
 }

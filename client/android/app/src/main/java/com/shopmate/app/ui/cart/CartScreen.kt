@@ -7,9 +7,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
@@ -65,6 +67,8 @@ fun CartScreen(
     state: CartUiState,
     onBackClick: () -> Unit,
     onCheckoutClick: () -> Unit,
+    onCheckoutConfirm: () -> Unit,
+    onCheckoutDismiss: () -> Unit,
     onRetry: () -> Unit,
     onToggleSelected: (CartItemUi) -> Unit,
     onQuantityChange: (CartItemUi, Int) -> Unit,
@@ -212,7 +216,10 @@ fun CartScreen(
             totalText = state.summary.selectedTotalText,
             scale = scale,
             enabled = cartLines.isNotEmpty() && !state.isSelectAllInFlight,
-            checkoutEnabled = selectedCount > 0,
+            checkoutEnabled = selectedCount > 0 &&
+                !state.isCheckoutDraftLoading &&
+                !state.isCheckoutConfirming,
+            checkoutLoading = state.isCheckoutDraftLoading,
             onCheckoutClick = onCheckoutClick,
             onToggleAll = {
                 onToggleAll(!allSelected)
@@ -222,6 +229,19 @@ fun CartScreen(
                 .navigationBarsPadding()
                 .size(width = 364.667f.s(), height = footerHeight)
         )
+
+        state.checkoutDraft?.let { draft ->
+            CartCheckoutSheet(
+                draft = draft,
+                errorMessage = state.checkoutErrorMessage,
+                confirming = state.isCheckoutConfirming,
+                scale = scale,
+                textScale = textScale,
+                onConfirm = onCheckoutConfirm,
+                onDismiss = onCheckoutDismiss,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
     }
 }
 
@@ -671,6 +691,7 @@ private fun CartFooter(
     scale: Float,
     enabled: Boolean,
     checkoutEnabled: Boolean,
+    checkoutLoading: Boolean,
     onCheckoutClick: () -> Unit,
     onToggleAll: () -> Unit,
     modifier: Modifier = Modifier
@@ -757,7 +778,7 @@ private fun CartFooter(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = "去结算 ($selectedCount)",
+                text = if (checkoutLoading) "准备中..." else "去结算 ($selectedCount)",
                 color = Color.White.copy(alpha = if (checkoutEnabled) 1f else 0.72f),
                 fontSize = (14f * scale).sp,
                 lineHeight = (18f * scale).sp,
@@ -766,6 +787,204 @@ private fun CartFooter(
                 letterSpacing = 0.sp
             )
         }
+    }
+}
+
+@Composable
+private fun CartCheckoutSheet(
+    draft: CartCheckoutDraftUi,
+    errorMessage: String?,
+    confirming: Boolean,
+    scale: Float,
+    textScale: Float,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    fun Float.s(): Dp = scaledDp(scale)
+
+    Box(modifier = modifier) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.24f))
+                .clickable(
+                    enabled = !confirming,
+                    role = Role.Button,
+                    onClick = onDismiss
+                )
+        )
+
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .clip(
+                    RoundedCornerShape(
+                        topStart = 26f.s(),
+                        topEnd = 26f.s()
+                    )
+                )
+                .background(Color.White)
+                .padding(
+                    start = 22f.s(),
+                    top = 20f.s(),
+                    end = 22f.s(),
+                    bottom = 18f.s()
+                ),
+            verticalArrangement = Arrangement.spacedBy(14f.s())
+        ) {
+            Text(
+                text = "确认模拟订单",
+                color = ShopMateTextPrimary,
+                fontSize = (20f * textScale).sp,
+                lineHeight = (26f * textScale).sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                letterSpacing = 0.sp
+            )
+
+            CheckoutInfoCard(
+                title = "已选商品",
+                primary = "${draft.selectedCount} 件",
+                secondary = "合计 ${draft.totalText}",
+                scale = scale,
+                textScale = textScale
+            )
+
+            CheckoutInfoCard(
+                title = draft.address.label,
+                primary = "${draft.address.recipient} ${draft.address.phoneMasked}",
+                secondary = draft.address.fullAddress,
+                scale = scale,
+                textScale = textScale
+            )
+
+            if (errorMessage != null) {
+                Text(
+                    text = errorMessage,
+                    color = Color(0xFFB04D2D),
+                    fontSize = (12f * textScale).sp,
+                    lineHeight = (16f * textScale).sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    letterSpacing = 0.sp
+                )
+            }
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10f.s()),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44f.s())
+                        .clip(ShopMatePillShape)
+                        .background(Color(0xFFF1F5F4))
+                        .clickable(
+                            enabled = !confirming,
+                            role = Role.Button,
+                            onClick = onDismiss
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "返回修改",
+                        color = Color(0xFF4C5965),
+                        fontSize = (14f * textScale).sp,
+                        lineHeight = (18f * textScale).sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        letterSpacing = 0.sp
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44f.s())
+                        .clip(ShopMatePillShape)
+                        .background(
+                            Brush.linearGradient(
+                                listOf(ShopMateLightGreen, ShopMateGreen)
+                            )
+                        )
+                        .clickable(
+                            enabled = !confirming,
+                            role = Role.Button,
+                            onClick = onConfirm
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (confirming) "生成中..." else "确认模拟下单",
+                        color = Color.White,
+                        fontSize = (14f * textScale).sp,
+                        lineHeight = (18f * textScale).sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        letterSpacing = 0.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CheckoutInfoCard(
+    title: String,
+    primary: String,
+    secondary: String,
+    scale: Float,
+    textScale: Float,
+    modifier: Modifier = Modifier
+) {
+    fun Float.s(): Dp = scaledDp(scale)
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16f.s()))
+            .background(Color(0xFFF8FBFA))
+            .border(0.667.dp, Color(0xFFE8EFED), RoundedCornerShape(16f.s()))
+            .padding(horizontal = 14f.s(), vertical = 12f.s()),
+        verticalArrangement = Arrangement.spacedBy(4f.s())
+    ) {
+        Text(
+            text = title,
+            color = Color(0xFF7B8790),
+            fontSize = (12f * textScale).sp,
+            lineHeight = (16f * textScale).sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            letterSpacing = 0.sp
+        )
+
+        Text(
+            text = primary,
+            color = ShopMateTextPrimary,
+            fontSize = (15f * textScale).sp,
+            lineHeight = (20f * textScale).sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            letterSpacing = 0.sp
+        )
+
+        Text(
+            text = secondary,
+            color = Color(0xFF5E6973),
+            fontSize = (13f * textScale).sp,
+            lineHeight = (18f * textScale).sp,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            letterSpacing = 0.sp
+        )
     }
 }
 
@@ -947,6 +1166,8 @@ private fun CartScreenTargetPreview() {
             state = MockShopMateData.cartItems.toPreviewCartUiState(),
             onBackClick = {},
             onCheckoutClick = {},
+            onCheckoutConfirm = {},
+            onCheckoutDismiss = {},
             onRetry = {},
             onToggleSelected = {},
             onQuantityChange = { _, _ -> },
@@ -969,6 +1190,8 @@ private fun CartScreenEmptyPreview() {
             state = emptyList<CartItemUi>().toPreviewCartUiState(),
             onBackClick = {},
             onCheckoutClick = {},
+            onCheckoutConfirm = {},
+            onCheckoutDismiss = {},
             onRetry = {},
             onToggleSelected = {},
             onQuantityChange = { _, _ -> },
@@ -991,6 +1214,8 @@ private fun CartScreenCompactPreview() {
             state = MockShopMateData.cartItems.toPreviewCartUiState(),
             onBackClick = {},
             onCheckoutClick = {},
+            onCheckoutConfirm = {},
+            onCheckoutDismiss = {},
             onRetry = {},
             onToggleSelected = {},
             onQuantityChange = { _, _ -> },

@@ -10,6 +10,7 @@ import type { ChatContextMemorySummary } from "./chat-context-memory.types";
 import type { CartActionResult, CartCommandFallbackReason } from "./cart-command.types";
 import type { ChatTimingEntry, ChatTimingTracker } from "./chat-timing";
 import type { ClarificationSlot } from "./clarification.types";
+import type { CheckoutActionResult } from "../orders/checkout.types";
 
 export interface ChatHistoryMessage {
   role: "user" | "assistant";
@@ -84,6 +85,7 @@ export interface ChatDonePayload {
   };
   contextMemory?: ChatContextMemorySummary;
   cartAction?: CartActionResult;
+  checkoutAction?: CheckoutActionResult;
 }
 
 export interface ChatErrorPayload {
@@ -161,6 +163,7 @@ export interface RagChatResult {
   };
   contextMemory?: ChatContextMemorySummary;
   cartAction?: CartActionResult;
+  checkoutAction?: CheckoutActionResult;
   comparisonResult?: ChatComparisonResultPayload;
 }
 
