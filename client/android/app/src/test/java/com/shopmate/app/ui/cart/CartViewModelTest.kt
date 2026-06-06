@@ -229,6 +229,7 @@ class CartViewModelTest {
         }
 
         override suspend fun confirmMockCheckout(
+            conversationId: String,
             draftId: String,
             shipping: CheckoutShippingInputUi,
             deliveryMethodType: String,

@@ -9,6 +9,7 @@ import com.shopmate.app.data.chat.ChatRepository
 import com.shopmate.app.data.chat.ChatStreamFiltersDto
 import com.shopmate.app.data.chat.ChatStreamEvent
 import com.shopmate.app.data.chat.toComparisonUi
+import com.shopmate.app.data.chat.toCheckoutDraftCardUi
 import com.shopmate.app.data.chat.toProductCardUiList
 import com.shopmate.app.data.image.ImageSearchAttachmentInput
 import com.shopmate.app.data.image.ImageSearchException
@@ -179,6 +180,7 @@ class ChatViewModel(
                 productCardsAnchorMessageId = currentState.productCardsAnchorMessageId,
                 comparisonResults = currentState.comparisonResults,
                 comparisonActions = currentState.comparisonActions,
+                activeCheckoutDraft = currentState.activeCheckoutDraft,
                 lastStreamRequest = null,
             )
 
@@ -504,6 +506,88 @@ class ChatViewModel(
         return true
     }
 
+    fun confirmActiveCheckout(): Boolean {
+        val state = _uiState.value
+        if (
+            state.isSending ||
+            state.activeCheckoutDraft?.canOpenCheckoutDraft() != true
+        ) {
+            return false
+        }
+
+        markActiveCheckoutUpdating()
+        startStream(
+            message = CHECKOUT_CONFIRM_MESSAGE,
+            history = state.messages,
+            clearComposer = false,
+        )
+        return true
+    }
+
+    fun cancelActiveCheckout(): Boolean {
+        val state = _uiState.value
+        if (
+            state.isSending ||
+            state.activeCheckoutDraft?.canOpenCheckoutDraft() != true
+        ) {
+            return false
+        }
+
+        markActiveCheckoutUpdating()
+        startStream(
+            message = CHECKOUT_CANCEL_MESSAGE,
+            history = state.messages,
+            clearComposer = false,
+        )
+        return true
+    }
+
+    fun openActiveCheckoutDraft(draftId: String): Boolean {
+        val normalizedDraftId = draftId.trim()
+        val activeDraft = _uiState.value.activeCheckoutDraft
+        if (
+            normalizedDraftId.isBlank() ||
+            activeDraft?.draft?.id != normalizedDraftId ||
+            !activeDraft.canOpenCheckoutDraft()
+        ) {
+            return false
+        }
+
+        viewModelScope.launch {
+            _sideEffects.emit(ChatSideEffect.OpenCheckoutDraft(normalizedDraftId))
+        }
+        return true
+    }
+
+    fun markCheckoutDraftSubmittedFromCheckout(
+        draftId: String,
+        orderNumber: String?,
+    ): Boolean {
+        val normalizedDraftId = draftId.trim()
+        if (normalizedDraftId.isBlank()) {
+            return false
+        }
+
+        var updated = false
+        _uiState.update { state ->
+            val activeDraft = state.activeCheckoutDraft
+            if (activeDraft?.draft?.id != normalizedDraftId) {
+                return@update state
+            }
+
+            updated = true
+            state.copy(
+                activeCheckoutDraft = activeDraft.copy(
+                    status = ChatCheckoutDraftStatusUi.Submitted,
+                    orderNumber = orderNumber?.takeIf { value -> value.isNotBlank() }
+                        ?: activeDraft.orderNumber,
+                ),
+            ).also(::saveCurrentSession)
+        }
+
+        return updated
+    }
+
     fun clearError() {
         _uiState.update { state ->
             state.copy(
@@ -555,6 +639,7 @@ class ChatViewModel(
                 productCardsAnchorMessageId = snapshot.productCardsAnchorMessageId,
                 comparisonResults = snapshot.comparisonResults,
                 comparisonActions = snapshot.comparisonActions,
+                activeCheckoutDraft = snapshot.activeCheckoutDraft,
                 composerText = "",
                 isSending = false,
                 errorMessage = null,
@@ -630,6 +715,7 @@ class ChatViewModel(
         messages.any { message -> !message.isVoiceTranscribing } ||
             productCards.isNotEmpty() ||
             comparisonActions.isNotEmpty() ||
+            activeCheckoutDraft != null ||
             isSending
 
     private fun saveCurrentSession(state: ChatUiState): List<HistoryConversationUi> {
@@ -647,6 +733,7 @@ class ChatViewModel(
             productCardsAnchorMessageId = state.productCardsAnchorMessageId,
             comparisonResults = state.comparisonResults,
             comparisonActions = state.comparisonActions,
+            activeCheckoutDraft = state.activeCheckoutDraft,
             lastStreamRequest = lastStreamRequest,
         )
         sessionSnapshots[sessionId] = snapshot
@@ -703,6 +790,7 @@ class ChatViewModel(
         val productCardsAnchorMessageId: String?,
         val comparisonResults: List<com.shopmate.app.ui.model.ComparisonUi>,
         val comparisonActions: List<ChatComparisonActionUi>,
+        val activeCheckoutDraft: ChatCheckoutDraftCardUi?,
         val lastStreamRequest: ChatStreamStartInput? = null,
     )
 
@@ -785,6 +873,7 @@ class ChatViewModel(
                 productCardsAnchorMessageId = state.productCardsAnchorMessageId,
                 comparisonResults = state.comparisonResults,
                 comparisonActions = state.comparisonActions,
+                activeCheckoutDraft = state.activeCheckoutDraft,
                 lastStreamRequest = streamRequest,
             )
 
@@ -888,10 +977,16 @@ class ChatViewModel(
             is ChatStreamEvent.Done -> {
                 flushAssistantText()
                 emitCartActionSideEffect(event.cartAction)
-                emitCheckoutActionSideEffect(event.checkoutAction)
                 _uiState.update { state ->
                     state.copy(
                         messages = state.messages.markAssistantDone(),
+                        activeCheckoutDraft = event.checkoutAction
+                            ?.toCheckoutDraftCardUi(
+                                conversationId = currentSessionId.orEmpty(),
+                                previous = state.activeCheckoutDraft,
+                                imageUrlResolver = imageUrlResolver,
+                            )
+                            ?: state.activeCheckoutDraft,
                         isSending = false,
                         errorMessage = if (event.shouldShowNoMatchError(
                                 productCards = state.productCards,
@@ -905,6 +1000,7 @@ class ChatViewModel(
                         canRetry = false,
                     ).also(::saveCurrentSession)
                 }
+                emitCheckoutActionSideEffect(event.checkoutAction)
                 clearCompletedStreamState()
             }
 
@@ -974,15 +1070,31 @@ class ChatViewModel(
         }
 
         viewModelScope.launch {
-            _sideEffects.emit(ChatSideEffect.RefreshCart(checkoutAction.orderNumber))
+            val orderNumber = checkoutAction.orderNumber ?: checkoutAction.order?.orderNumber
+            val totalCents = checkoutAction.totalCents ?: checkoutAction.order?.totalCents
+            _sideEffects.emit(ChatSideEffect.RefreshCart(orderNumber))
             _sideEffects.emit(
                 ChatSideEffect.ShowMockOrderResult(
-                    orderNumber = checkoutAction.orderNumber,
-                    totalCents = checkoutAction.totalCents,
+                    orderNumber = orderNumber,
+                    totalCents = totalCents,
                 ),
             )
         }
     }
+
+    private fun markActiveCheckoutUpdating() {
+        _uiState.update { state ->
+            state.copy(
+                activeCheckoutDraft = state.activeCheckoutDraft?.copy(
+                    status = ChatCheckoutDraftStatusUi.Updating,
+                ),
+            )
+        }
+    }
+
+    private fun ChatCheckoutDraftCardUi.canOpenCheckoutDraft(): Boolean =
+        status == ChatCheckoutDraftStatusUi.Pending ||
+            status == ChatCheckoutDraftStatusUi.Updated
 
     private fun applyFailure(error: Throwable) {
         flushAssistantText()
@@ -1065,6 +1177,8 @@ class ChatViewModel(
         private const val IMAGE_SEARCH_NEEDS_CLEARER_INPUT_TEXT =
             "图片识别结果还不够明确，请换一张更清晰的商品图或补充文字。"
         private const val MOCK_CHECKOUT_START_MESSAGE = "帮我结算购物车"
+        private const val CHECKOUT_CONFIRM_MESSAGE = "确认下单"
+        private const val CHECKOUT_CANCEL_MESSAGE = "取消下单"
     }
 }
 

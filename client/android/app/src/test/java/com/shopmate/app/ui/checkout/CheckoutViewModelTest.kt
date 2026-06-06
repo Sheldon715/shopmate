@@ -184,6 +184,7 @@ class CheckoutViewModelTest {
         override suspend fun createMockCheckout(): Result<CheckoutDraftUi> = createResult
 
         override suspend fun confirmMockCheckout(
+            conversationId: String,
             draftId: String,
             shipping: CheckoutShippingInputUi,
             deliveryMethodType: String,
@@ -191,6 +192,7 @@ class CheckoutViewModelTest {
         ): Result<CheckoutOrderResultUi> {
             confirmCalls += 1
             lastConfirmRequest = ConfirmRequest(
+                conversationId = conversationId,
                 draftId = draftId,
                 shipping = shipping,
                 deliveryMethodType = deliveryMethodType,
@@ -203,6 +205,7 @@ class CheckoutViewModelTest {
     }
 
     private data class ConfirmRequest(
+        val conversationId: String,
         val draftId: String,
         val shipping: CheckoutShippingInputUi,
         val deliveryMethodType: String,

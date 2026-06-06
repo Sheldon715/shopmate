@@ -240,6 +240,91 @@ class ChatStreamEventParserTest {
     }
 
     @Test
+    fun parsesDoneCheckoutActionDraftSnapshot() {
+        val event = parseChatStreamEvent(
+            "done",
+            """
+                {
+                  "recommendedProductIds": [],
+                  "fallbackUsed": false,
+                  "retrieval": {
+                    "candidateCount": 1,
+                    "returnedProductIds": []
+                  },
+                  "checkoutAction": {
+                    "type": "update_checkout",
+                    "status": "draft_updated",
+                    "draftId": "draft_1",
+                    "changedFields": ["shipping", "delivery"],
+                    "draft": {
+                      "id": "draft_1",
+                      "status": "needs_confirmation",
+                      "address": {
+                        "label": "本次地址",
+                        "recipient": "ShopMate Demo 用户",
+                        "phoneMasked": "138****0000",
+                        "fullAddress": "UNSW Village 6 栋 302"
+                      },
+                      "items": [
+                        {
+                          "cartItemId": "cart-item-1",
+                          "productId": "product_001",
+                          "productName": "通勤蓝牙耳机",
+                          "brand": "示例品牌",
+                          "category": "数码电子",
+                          "unitPriceCents": 19900,
+                          "quantity": 1,
+                          "subtotalCents": 19900,
+                          "imagePath": "electronics/images/product_001.jpg"
+                        }
+                      ],
+                      "summary": {
+                        "itemCount": 1,
+                        "selectedCount": 1,
+                        "subtotalCents": 19900,
+                        "shippingFeeCents": 1200,
+                        "totalCents": 21100,
+                        "currency": "CNY"
+                      },
+                      "selectedDeliveryMethod": {
+                        "type": "express",
+                        "label": "加急配送",
+                        "feeCents": 1200,
+                        "etaText": "预计明天送达"
+                      },
+                      "selectedPaymentMethod": {
+                        "type": "alipay",
+                        "label": "支付宝",
+                        "status": "available"
+                      },
+                      "deliveryOptions": [],
+                      "paymentOptions": [],
+                      "expiresAt": "2026-06-06T00:15:00.000Z"
+                    },
+                    "order": {
+                      "id": "order_1",
+                      "orderNumber": "SM-20260606-TEST",
+                      "totalCents": 21100
+                    },
+                    "cartRefreshRequired": false
+                  }
+                }
+            """.trimIndent(),
+        )
+
+        val checkoutAction = assertIs<ChatStreamEvent.Done>(event).checkoutAction
+        assertEquals("draft_updated", checkoutAction?.status)
+        assertEquals(listOf("shipping", "delivery"), checkoutAction?.changedFields)
+        assertEquals("draft_1", checkoutAction?.draft?.id)
+        assertEquals("UNSW Village 6 栋 302", checkoutAction?.draft?.address?.fullAddress)
+        assertEquals("通勤蓝牙耳机", checkoutAction?.draft?.items?.single()?.productName)
+        assertEquals(21100, checkoutAction?.draft?.summary?.totalCents)
+        assertEquals("express", checkoutAction?.draft?.selectedDeliveryMethod?.type)
+        assertEquals("alipay", checkoutAction?.draft?.selectedPaymentMethod?.type)
+        assertEquals("SM-20260606-TEST", checkoutAction?.order?.orderNumber)
+    }
+
+    @Test
     fun parsesComparisonResult() {
         val event = parseChatStreamEvent(
             "comparison_result",

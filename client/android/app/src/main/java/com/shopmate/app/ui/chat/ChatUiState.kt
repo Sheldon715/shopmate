@@ -1,6 +1,7 @@
 package com.shopmate.app.ui.chat
 
 import com.shopmate.app.data.mock.MockShopMateData
+import com.shopmate.app.ui.checkout.CheckoutDraftUi
 import com.shopmate.app.ui.model.ComparisonUi
 import com.shopmate.app.ui.model.HistoryConversationUi
 import com.shopmate.app.ui.model.ProductCardUi
@@ -39,12 +40,30 @@ data class ChatComparisonActionUi(
     val anchorMessageId: String,
 )
 
+data class ChatCheckoutDraftCardUi(
+    val draft: CheckoutDraftUi,
+    val status: ChatCheckoutDraftStatusUi,
+    val changedFields: List<String> = emptyList(),
+    val orderNumber: String? = null,
+)
+
+enum class ChatCheckoutDraftStatusUi {
+    Pending,
+    Updating,
+    Updated,
+    Cancelled,
+    Expired,
+    Submitted,
+    Failed,
+}
+
 data class ChatUiState(
     val messages: List<ChatMessageUi> = emptyList(),
     val productCards: List<ProductCardUi> = emptyList(),
     val productCardsAnchorMessageId: String? = null,
     val comparisonResults: List<ComparisonUi> = emptyList(),
     val comparisonActions: List<ChatComparisonActionUi> = emptyList(),
+    val activeCheckoutDraft: ChatCheckoutDraftCardUi? = null,
     val historyConversations: List<HistoryConversationUi> = emptyList(),
     val composerText: String = "",
     val isSending: Boolean = false,
@@ -60,6 +79,7 @@ sealed interface ChatSideEffect {
         val orderNumber: String? = null,
         val totalCents: Int? = null,
     ) : ChatSideEffect
+    data class OpenCheckoutDraft(val draftId: String) : ChatSideEffect
 }
 
 sealed interface VoiceInputUiState {

@@ -67,6 +67,9 @@ data class ChatCheckoutActionDto(
     val totalCents: Int? = null,
     val address: ChatCheckoutAddressDto? = null,
     val cartRefreshRequired: Boolean? = null,
+    val draft: ChatCheckoutDraftDto? = null,
+    val order: ChatCheckoutOrderDto? = null,
+    val changedFields: List<String> = emptyList(),
 )
 
 @Serializable
@@ -75,6 +78,65 @@ data class ChatCheckoutAddressDto(
     val recipient: String,
     val phoneMasked: String,
     val fullAddress: String,
+)
+
+@Serializable
+data class ChatCheckoutDraftDto(
+    val id: String,
+    val status: String,
+    val address: ChatCheckoutAddressDto,
+    val items: List<ChatCheckoutDraftItemDto> = emptyList(),
+    val summary: ChatCheckoutSummaryDto,
+    val selectedDeliveryMethod: ChatCheckoutDeliveryMethodDto? = null,
+    val selectedPaymentMethod: ChatCheckoutPaymentMethodDto? = null,
+    val deliveryOptions: List<ChatCheckoutDeliveryMethodDto> = emptyList(),
+    val paymentOptions: List<ChatCheckoutPaymentMethodDto> = emptyList(),
+    val expiresAt: String,
+)
+
+@Serializable
+data class ChatCheckoutDraftItemDto(
+    val cartItemId: String,
+    val productId: String,
+    val productName: String,
+    val brand: String,
+    val category: String,
+    val unitPriceCents: Int,
+    val quantity: Int,
+    val subtotalCents: Int,
+    val imagePath: String? = null,
+)
+
+@Serializable
+data class ChatCheckoutSummaryDto(
+    val itemCount: Int = 0,
+    val selectedCount: Int = 0,
+    val subtotalCents: Int = 0,
+    val shippingFeeCents: Int = 0,
+    val totalCents: Int = 0,
+    val currency: String = "CNY",
+)
+
+@Serializable
+data class ChatCheckoutDeliveryMethodDto(
+    val type: String,
+    val label: String,
+    val feeCents: Int,
+    val etaText: String? = null,
+)
+
+@Serializable
+data class ChatCheckoutPaymentMethodDto(
+    val type: String,
+    val label: String,
+    val status: String? = null,
+)
+
+@Serializable
+data class ChatCheckoutOrderDto(
+    val id: String? = null,
+    val orderNumber: String? = null,
+    val totalCents: Int? = null,
 )
 
 @Serializable

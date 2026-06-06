@@ -2,6 +2,13 @@ package com.shopmate.app.ui.chat
 
 import com.shopmate.app.data.chat.ChatCartActionDto
 import com.shopmate.app.data.chat.ChatCheckoutActionDto
+import com.shopmate.app.data.chat.ChatCheckoutAddressDto
+import com.shopmate.app.data.chat.ChatCheckoutDeliveryMethodDto
+import com.shopmate.app.data.chat.ChatCheckoutDraftDto
+import com.shopmate.app.data.chat.ChatCheckoutDraftItemDto
+import com.shopmate.app.data.chat.ChatCheckoutOrderDto
+import com.shopmate.app.data.chat.ChatCheckoutPaymentMethodDto
+import com.shopmate.app.data.chat.ChatCheckoutSummaryDto
 import com.shopmate.app.data.chat.ChatComparisonCellDto
 import com.shopmate.app.data.chat.ChatComparisonDimensionDto
 import com.shopmate.app.data.chat.ChatComparisonHighlightDto
@@ -23,6 +30,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -1513,8 +1521,286 @@ class ChatViewModelTest {
         runCurrent()
 
         assertEquals(null, sideEffect.await())
+        val checkoutDraft = assertNotNull(viewModel.uiState.value.activeCheckoutDraft)
+        assertEquals(ChatCheckoutDraftStatusUi.Pending, checkoutDraft.status)
+        assertEquals("draft_1", checkoutDraft.draft.id)
+        assertEquals("¥199", checkoutDraft.draft.summary.totalText)
+        assertEquals("待确认", checkoutDraft.draft.address.fullAddress)
         assertEquals(null, viewModel.uiState.value.errorMessage)
         assertFalse(viewModel.uiState.value.canRetry)
+    }
+
+    @Test
+    fun draftCheckoutActionCreatesActiveCheckoutDraftFromSnapshot() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("帮我结算购物车")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        repository.emitCheckoutDone(
+            ChatCheckoutActionDto(
+                type = "start_checkout",
+                status = "draft_created",
+                draftId = "draft_1",
+                draft = checkoutDraftDto(
+                    fullAddress = "UNSW Village 6 栋 302",
+                    selectedDeliveryType = "express",
+                    selectedPaymentType = "alipay",
+                    shippingFeeCents = 1200,
+                    totalCents = 21100,
+                ),
+                cartRefreshRequired = false,
+            ),
+        )
+        advanceUntilIdle()
+
+        val checkoutDraft = assertNotNull(viewModel.uiState.value.activeCheckoutDraft)
+        assertEquals(ChatCheckoutDraftStatusUi.Pending, checkoutDraft.status)
+        assertEquals("draft_1", checkoutDraft.draft.id)
+        assertEquals(repository.conversationIds.single(), checkoutDraft.draft.conversationId)
+        assertEquals("UNSW Village 6 栋 302", checkoutDraft.draft.address.fullAddress)
+        assertEquals("通勤蓝牙耳机", checkoutDraft.draft.items.single().productName)
+        assertEquals("¥211", checkoutDraft.draft.summary.totalText)
+        assertEquals("express", checkoutDraft.draft.selectedDeliveryMethodType)
+        assertEquals("alipay", checkoutDraft.draft.selectedPaymentMethodType)
+        assertEquals(
+            "加急配送",
+            checkoutDraft.draft.deliveryOptions.single { option -> option.type == "express" }.label,
+        )
+        assertEquals(
+            "支付宝",
+            checkoutDraft.draft.paymentOptions.single { option -> option.type == "alipay" }.label,
+        )
+    }
+
+    @Test
+    fun draftUpdatedCheckoutActionUpdatesExistingActiveCheckoutDraft() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("帮我结算购物车")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+        repository.emitCheckoutDone(
+            ChatCheckoutActionDto(
+                type = "start_checkout",
+                status = "draft_created",
+                draftId = "draft_1",
+                draft = checkoutDraftDto(fullAddress = "ShopMate 收货点"),
+            ),
+        )
+        advanceUntilIdle()
+
+        viewModel.onComposerTextChange("地址改成宿舍 302")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+        repository.emitCheckoutDone(
+            ChatCheckoutActionDto(
+                type = "update_checkout",
+                status = "address_updated",
+                draftId = "draft_1",
+                draft = checkoutDraftDto(
+                    fullAddress = "UNSW Village 6 栋 302",
+                    selectedDeliveryType = "express",
+                    shippingFeeCents = 1200,
+                    totalCents = 21100,
+                ),
+                changedFields = listOf("shipping", "delivery"),
+            ),
+        )
+        advanceUntilIdle()
+
+        val checkoutDraft = assertNotNull(viewModel.uiState.value.activeCheckoutDraft)
+        assertEquals(ChatCheckoutDraftStatusUi.Updated, checkoutDraft.status)
+        assertEquals("draft_1", checkoutDraft.draft.id)
+        assertEquals("UNSW Village 6 栋 302", checkoutDraft.draft.address.fullAddress)
+        assertEquals("¥211", checkoutDraft.draft.summary.totalText)
+        assertEquals(listOf("shipping", "delivery"), checkoutDraft.changedFields)
+    }
+
+    @Test
+    fun submittedCheckoutActionUsesNestedOrderForSideEffectsAndDraftStatus() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("确认下单")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        val refreshEffect = backgroundScope.async {
+            viewModel.sideEffects.first()
+        }
+        val orderEffect = backgroundScope.async {
+            viewModel.sideEffects.drop(1).first()
+        }
+        repository.emitCheckoutDone(
+            ChatCheckoutActionDto(
+                type = "confirm_checkout",
+                status = "order_created",
+                draftId = "draft_1",
+                draft = checkoutDraftDto(),
+                order = ChatCheckoutOrderDto(
+                    id = "order_1",
+                    orderNumber = "SM-20260606-TEST",
+                    totalCents = 19900,
+                ),
+                cartRefreshRequired = true,
+            ),
+        )
+        advanceUntilIdle()
+
+        val refresh = assertIs<ChatSideEffect.RefreshCart>(refreshEffect.await())
+        val order = assertIs<ChatSideEffect.ShowMockOrderResult>(orderEffect.await())
+        val checkoutDraft = assertNotNull(viewModel.uiState.value.activeCheckoutDraft)
+        assertEquals(ChatCheckoutDraftStatusUi.Submitted, checkoutDraft.status)
+        assertEquals("SM-20260606-TEST", checkoutDraft.orderNumber)
+        assertEquals("SM-20260606-TEST", refresh.message)
+        assertEquals("SM-20260606-TEST", order.orderNumber)
+        assertEquals(19900, order.totalCents)
+    }
+
+    @Test
+    fun openActiveCheckoutDraftEmitsSideEffectForCurrentDraftOnly() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("帮我结算购物车")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+        repository.emitCheckoutDone(
+            ChatCheckoutActionDto(
+                type = "start_checkout",
+                status = "draft_created",
+                draftId = "draft_1",
+                draft = checkoutDraftDto(),
+            ),
+        )
+        advanceUntilIdle()
+
+        assertFalse(viewModel.openActiveCheckoutDraft("other_draft"))
+        val openEffect = backgroundScope.async {
+            viewModel.sideEffects.first()
+        }
+        assertTrue(viewModel.openActiveCheckoutDraft("draft_1"))
+        advanceUntilIdle()
+
+        val effect = assertIs<ChatSideEffect.OpenCheckoutDraft>(openEffect.await())
+        assertEquals("draft_1", effect.draftId)
+    }
+
+    @Test
+    fun submittedCheckoutDraftDoesNotOpenOrSendChatActions() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("帮我结算购物车")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+        repository.emitCheckoutDone(
+            ChatCheckoutActionDto(
+                type = "start_checkout",
+                status = "draft_created",
+                draftId = "draft_1",
+                draft = checkoutDraftDto(),
+            ),
+        )
+        advanceUntilIdle()
+
+        assertTrue(
+            viewModel.markCheckoutDraftSubmittedFromCheckout(
+                draftId = "draft_1",
+                orderNumber = "SM-20260606-TEST",
+            ),
+        )
+        advanceUntilIdle()
+
+        val checkoutDraft = assertNotNull(viewModel.uiState.value.activeCheckoutDraft)
+        assertEquals(ChatCheckoutDraftStatusUi.Submitted, checkoutDraft.status)
+        assertEquals("SM-20260606-TEST", checkoutDraft.orderNumber)
+        assertFalse(viewModel.openActiveCheckoutDraft("draft_1"))
+        assertFalse(viewModel.confirmActiveCheckout())
+        assertFalse(viewModel.cancelActiveCheckout())
+        assertEquals(listOf("帮我结算购物车"), repository.messages)
+    }
+
+    @Test
+    fun markCheckoutDraftSubmittedIgnoresDifferentDraftId() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("帮我结算购物车")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+        repository.emitCheckoutDone(
+            ChatCheckoutActionDto(
+                type = "start_checkout",
+                status = "draft_created",
+                draftId = "draft_1",
+                draft = checkoutDraftDto(),
+            ),
+        )
+        advanceUntilIdle()
+
+        assertFalse(
+            viewModel.markCheckoutDraftSubmittedFromCheckout(
+                draftId = "other_draft",
+                orderNumber = "SM-20260606-TEST",
+            ),
+        )
+
+        assertEquals(
+            ChatCheckoutDraftStatusUi.Pending,
+            viewModel.uiState.value.activeCheckoutDraft?.status,
+        )
+    }
+
+    @Test
+    fun confirmAndCancelActiveCheckoutSendChatMessagesAndMarkDraftUpdating() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("帮我结算购物车")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+        repository.emitCheckoutDone(
+            ChatCheckoutActionDto(
+                type = "start_checkout",
+                status = "draft_created",
+                draftId = "draft_1",
+                draft = checkoutDraftDto(),
+            ),
+        )
+        advanceUntilIdle()
+
+        assertTrue(viewModel.confirmActiveCheckout())
+        advanceUntilIdle()
+
+        assertEquals(listOf("帮我结算购物车", "确认下单"), repository.messages)
+        assertEquals(
+            ChatCheckoutDraftStatusUi.Updating,
+            viewModel.uiState.value.activeCheckoutDraft?.status,
+        )
+
+        repository.emitCheckoutDone(
+            ChatCheckoutActionDto(
+                type = "update_checkout",
+                status = "draft_updated",
+                draftId = "draft_1",
+                draft = checkoutDraftDto(),
+            ),
+        )
+        advanceUntilIdle()
+
+        assertTrue(viewModel.cancelActiveCheckout())
+        advanceUntilIdle()
+
+        assertEquals(listOf("帮我结算购物车", "确认下单", "取消下单"), repository.messages)
+        assertEquals(
+            ChatCheckoutDraftStatusUi.Updating,
+            viewModel.uiState.value.activeCheckoutDraft?.status,
+        )
     }
 
     @Test
@@ -2137,6 +2423,19 @@ class ChatViewModelTest {
             imageSearchCalls += imageSearch
             return events
         }
+
+        suspend fun emitCheckoutDone(checkoutAction: ChatCheckoutActionDto) {
+            events.emit(ChatStreamEvent.ProductCards(emptyList()))
+            events.emit(
+                ChatStreamEvent.Done(
+                    recommendedProductIds = emptyList(),
+                    fallbackUsed = false,
+                    fallbackReason = null,
+                    retrieval = ChatRetrievalDto(candidateCount = 1),
+                    checkoutAction = checkoutAction,
+                ),
+            )
+        }
     }
 
     private class FakeImageSearchRepository(
@@ -2205,4 +2504,80 @@ class ChatViewModelTest {
             tags = listOf("通勤"),
             available = true,
         )
+
+    private fun checkoutDraftDto(
+        fullAddress: String = "ShopMate 收货点",
+        selectedDeliveryType: String = "standard",
+        selectedPaymentType: String = "wechat",
+        shippingFeeCents: Int = 0,
+        totalCents: Int = 19900,
+    ): ChatCheckoutDraftDto {
+        val deliveryOptions = listOf(
+            ChatCheckoutDeliveryMethodDto(
+                type = "standard",
+                label = "标准配送",
+                feeCents = 0,
+                etaText = "预计 2-4 天送达",
+            ),
+            ChatCheckoutDeliveryMethodDto(
+                type = "express",
+                label = "加急配送",
+                feeCents = 1200,
+                etaText = "预计明天送达",
+            ),
+        )
+        val paymentOptions = listOf(
+            ChatCheckoutPaymentMethodDto(
+                type = "wechat",
+                label = "微信支付",
+                status = "available",
+            ),
+            ChatCheckoutPaymentMethodDto(
+                type = "alipay",
+                label = "支付宝",
+                status = "available",
+            ),
+        )
+
+        return ChatCheckoutDraftDto(
+            id = "draft_1",
+            status = "needs_confirmation",
+            address = ChatCheckoutAddressDto(
+                label = "本次地址",
+                recipient = "ShopMate 用户",
+                phoneMasked = "138****0000",
+                fullAddress = fullAddress,
+            ),
+            items = listOf(
+                ChatCheckoutDraftItemDto(
+                    cartItemId = "cart-item-1",
+                    productId = "product_001",
+                    productName = "通勤蓝牙耳机",
+                    brand = "示例品牌",
+                    category = "数码电子",
+                    unitPriceCents = 19900,
+                    quantity = 1,
+                    subtotalCents = 19900,
+                    imagePath = "electronics/images/product_001.jpg",
+                ),
+            ),
+            summary = ChatCheckoutSummaryDto(
+                itemCount = 1,
+                selectedCount = 1,
+                subtotalCents = 19900,
+                shippingFeeCents = shippingFeeCents,
+                totalCents = totalCents,
+                currency = "CNY",
+            ),
+            selectedDeliveryMethod = deliveryOptions.first { option ->
+                option.type == selectedDeliveryType
+            },
+            selectedPaymentMethod = paymentOptions.first { option ->
+                option.type == selectedPaymentType
+            },
+            deliveryOptions = deliveryOptions,
+            paymentOptions = paymentOptions,
+            expiresAt = "2026-06-06T00:15:00.000Z",
+        )
+    }
 }

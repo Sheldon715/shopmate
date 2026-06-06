@@ -1,19 +1,24 @@
 package com.shopmate.app.ui.chat
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -31,11 +36,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -54,6 +62,7 @@ import com.shopmate.app.ui.model.HistoryConversationUi
 import com.shopmate.app.ui.model.ProductCardUi
 import com.shopmate.app.ui.sidebar.SidebarHistoryDrawer
 import com.shopmate.app.ui.theme.ShopMateGreen
+import com.shopmate.app.ui.theme.ShopMateLightGreen
 import com.shopmate.app.ui.theme.ShopMateTheme
 import com.shopmate.app.ui.theme.shopMateScreenBackground
 
@@ -74,6 +83,9 @@ fun ChatRecommendationScreen(
     onProductClick: (String) -> Unit,
     onAddCartClick: (String) -> Unit,
     onComparisonClick: (String) -> Unit,
+    onCheckoutViewClick: (String) -> Unit,
+    onCheckoutCancelClick: () -> Unit,
+    onCheckoutSubmitClick: () -> Unit,
     onHistoryClick: (HistoryConversationUi) -> Unit,
     historyConversations: List<HistoryConversationUi> = MockShopMateData.historyConversations,
     editableConversationIds: Set<String> = emptySet(),
@@ -118,6 +130,8 @@ fun ChatRecommendationScreen(
             state.productCards.size,
             state.comparisonActions.size,
             state.comparisonResults.size,
+            state.activeCheckoutDraft?.draft?.id,
+            state.activeCheckoutDraft?.status,
             state.errorMessage,
             state.selectedImage?.status,
         ) {
@@ -143,6 +157,9 @@ fun ChatRecommendationScreen(
             onProductClick = onProductClick,
             onAddCartClick = onAddCartClick,
             onComparisonClick = onComparisonClick,
+            onCheckoutViewClick = onCheckoutViewClick,
+            onCheckoutCancelClick = onCheckoutCancelClick,
+            onCheckoutSubmitClick = onCheckoutSubmitClick,
             modifier = Modifier
                 .fillMaxSize()
                 .clipToBounds(),
@@ -255,6 +272,9 @@ private fun ChatStreamList(
     onProductClick: (String) -> Unit,
     onAddCartClick: (String) -> Unit,
     onComparisonClick: (String) -> Unit,
+    onCheckoutViewClick: (String) -> Unit,
+    onCheckoutCancelClick: () -> Unit,
+    onCheckoutSubmitClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     fun Float.s(): Dp = scaledDp(scale)
@@ -347,6 +367,18 @@ private fun ChatStreamList(
             }
         }
 
+        state.activeCheckoutDraft?.let { checkoutDraft ->
+            item(key = "checkout-draft-${checkoutDraft.draft.id}") {
+                CheckoutDraftCard(
+                    checkoutDraft = checkoutDraft,
+                    scale = scale,
+                    onViewClick = { onCheckoutViewClick(checkoutDraft.draft.id) },
+                    onCancelClick = onCheckoutCancelClick,
+                    onSubmitClick = onCheckoutSubmitClick,
+                )
+            }
+        }
+
         if (state.productCardsAnchorMessageId == null) {
             item(key = "unanchored-product-cards") {
                 ProductCardList(
@@ -376,6 +408,231 @@ private fun ChatStreamList(
         }
     }
 }
+
+@Composable
+private fun CheckoutDraftCard(
+    checkoutDraft: ChatCheckoutDraftCardUi,
+    scale: Float,
+    onViewClick: () -> Unit,
+    onCancelClick: () -> Unit,
+    onSubmitClick: () -> Unit,
+) {
+    fun Float.s(): Dp = scaledDp(scale)
+    val draft = checkoutDraft.draft
+    val selectedDelivery = draft.deliveryOptions.firstOrNull { option ->
+        option.type == draft.selectedDeliveryMethodType
+    }
+    val selectedPayment = draft.paymentOptions.firstOrNull { option ->
+        option.type == draft.selectedPaymentMethodType
+    }
+    val actionsEnabled = checkoutDraft.status == ChatCheckoutDraftStatusUi.Pending ||
+        checkoutDraft.status == ChatCheckoutDraftStatusUi.Updated
+    val itemSummary = draft.items
+        .take(2)
+        .joinToString("、") { item -> item.productName }
+        .ifBlank { "${draft.summary.selectedCount} 件商品" }
+    val extraCount = (draft.summary.selectedCount - draft.items.take(2).sumOf { item -> item.quantity })
+        .coerceAtLeast(0)
+    val itemText = if (extraCount > 0) {
+        "$itemSummary 等 $extraCount 件"
+    } else {
+        itemSummary
+    }
+
+    Column(
+        modifier = Modifier
+            .padding(horizontal = 18f.s())
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18f.s()))
+            .background(Color.White.copy(alpha = 0.98f))
+            .border(0.667.dp, Color(0xFFE8EFED), RoundedCornerShape(18f.s()))
+            .padding(horizontal = 16f.s(), vertical = 14f.s()),
+        verticalArrangement = Arrangement.spacedBy(10f.s()),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "订单草稿",
+                    color = Color(0xFF172331),
+                    fontSize = (15f * scale).sp,
+                    lineHeight = (19f * scale).sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.sp,
+                )
+                Text(
+                    text = checkoutDraft.status.toCheckoutStatusText(checkoutDraft.orderNumber),
+                    color = checkoutDraft.status.toCheckoutStatusColor(),
+                    fontSize = (11.5f * scale).sp,
+                    lineHeight = (15f * scale).sp,
+                    letterSpacing = 0.sp,
+                    modifier = Modifier.padding(top = 3f.s()),
+                )
+            }
+            Text(
+                text = draft.summary.totalText,
+                color = ShopMateGreen,
+                fontSize = (17f * scale).sp,
+                lineHeight = (21f * scale).sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.sp,
+            )
+        }
+
+        CheckoutInfoLine("商品", itemText, scale)
+        CheckoutInfoLine("收货", "${draft.address.recipient} ${draft.address.phoneMasked}", scale)
+        CheckoutInfoLine("地址", draft.address.fullAddress, scale, maxLines = 2)
+        CheckoutInfoLine(
+            "配送",
+            listOfNotNull(selectedDelivery?.label, selectedDelivery?.feeText, selectedDelivery?.etaText)
+                .filter { value -> value.isNotBlank() }
+                .joinToString(" · ")
+                .ifBlank { "待确认" },
+            scale,
+        )
+        CheckoutInfoLine("支付", selectedPayment?.label?.ifBlank { null } ?: "待确认", scale)
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8f.s()),
+        ) {
+            CheckoutDraftActionButton(
+                text = "查看订单",
+                primary = false,
+                enabled = actionsEnabled,
+                scale = scale,
+                onClick = onViewClick,
+                modifier = Modifier.weight(1f),
+            )
+            CheckoutDraftActionButton(
+                text = "取消",
+                primary = false,
+                enabled = actionsEnabled,
+                scale = scale,
+                onClick = onCancelClick,
+                modifier = Modifier.weight(1f),
+            )
+            CheckoutDraftActionButton(
+                text = if (checkoutDraft.status == ChatCheckoutDraftStatusUi.Updating) {
+                    "处理中"
+                } else {
+                    "提交订单"
+                },
+                primary = true,
+                enabled = actionsEnabled,
+                scale = scale,
+                onClick = onSubmitClick,
+                modifier = Modifier.weight(1.2f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun CheckoutInfoLine(
+    label: String,
+    value: String,
+    scale: Float,
+    maxLines: Int = 1,
+) {
+    fun Float.s(): Dp = scaledDp(scale)
+
+    Row(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = label,
+            color = Color(0xFF8B949D),
+            fontSize = (11.5f * scale).sp,
+            lineHeight = (16f * scale).sp,
+            letterSpacing = 0.sp,
+            modifier = Modifier.width(42f.s()),
+        )
+        Text(
+            text = value.ifBlank { "待确认" },
+            color = Color(0xFF394852),
+            fontSize = (12.5f * scale).sp,
+            lineHeight = (17f * scale).sp,
+            letterSpacing = 0.sp,
+            maxLines = maxLines,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+@Composable
+private fun CheckoutDraftActionButton(
+    text: String,
+    primary: Boolean,
+    enabled: Boolean,
+    scale: Float,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    fun Float.s(): Dp = scaledDp(scale)
+    val shape = RoundedCornerShape(14f.s())
+    val background = if (primary) {
+        Brush.linearGradient(listOf(ShopMateLightGreen, ShopMateGreen))
+    } else {
+        Brush.linearGradient(listOf(Color(0xFFF5F8F7), Color(0xFFEFF5F2)))
+    }
+
+    Box(
+        modifier = modifier
+            .height(36f.s())
+            .clip(shape)
+            .background(background)
+            .border(
+                width = 0.667.dp,
+                color = if (primary) Color.Transparent else Color(0xFFE2ECE8),
+                shape = shape,
+            )
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            color = if (primary) Color.White else ShopMateGreen,
+            fontSize = (12f * scale).sp,
+            lineHeight = (15f * scale).sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 0.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 4f.s()),
+        )
+    }
+}
+
+private fun ChatCheckoutDraftStatusUi.toCheckoutStatusText(
+    orderNumber: String?,
+): String =
+    when (this) {
+        ChatCheckoutDraftStatusUi.Pending -> "待确认"
+        ChatCheckoutDraftStatusUi.Updating -> "正在同步订单信息"
+        ChatCheckoutDraftStatusUi.Updated -> "信息已更新，等待确认"
+        ChatCheckoutDraftStatusUi.Cancelled -> "已取消"
+        ChatCheckoutDraftStatusUi.Expired -> "已过期"
+        ChatCheckoutDraftStatusUi.Submitted -> orderNumber
+            ?.takeIf { value -> value.isNotBlank() }
+            ?.let { value -> "已提交 · ${value.substringAfterLast("-")}" }
+            ?: "已提交"
+        ChatCheckoutDraftStatusUi.Failed -> "更新失败，请稍后再试"
+    }
+
+private fun ChatCheckoutDraftStatusUi.toCheckoutStatusColor(): Color =
+    when (this) {
+        ChatCheckoutDraftStatusUi.Pending,
+        ChatCheckoutDraftStatusUi.Updated,
+        ChatCheckoutDraftStatusUi.Updating,
+        -> ShopMateGreen
+        ChatCheckoutDraftStatusUi.Submitted -> Color(0xFF2F7D5F)
+        ChatCheckoutDraftStatusUi.Cancelled,
+        ChatCheckoutDraftStatusUi.Expired,
+        ChatCheckoutDraftStatusUi.Failed,
+        -> Color(0xFFB04D2D)
+    }
 
 @Composable
 private fun ComparisonEntryList(
@@ -530,6 +787,9 @@ private fun ChatRecommendationScreenTargetPreview() {
             onProductClick = {},
             onAddCartClick = {},
             onComparisonClick = {},
+            onCheckoutViewClick = {},
+            onCheckoutCancelClick = {},
+            onCheckoutSubmitClick = {},
             onHistoryClick = {},
         )
     }
@@ -560,6 +820,9 @@ private fun ChatRecommendationScreenCompactPreview() {
             onProductClick = {},
             onAddCartClick = {},
             onComparisonClick = {},
+            onCheckoutViewClick = {},
+            onCheckoutCancelClick = {},
+            onCheckoutSubmitClick = {},
             onHistoryClick = {},
         )
     }
@@ -590,6 +853,9 @@ private fun ChatRecommendationScreenEmptyCompactPreview() {
             onProductClick = {},
             onAddCartClick = {},
             onComparisonClick = {},
+            onCheckoutViewClick = {},
+            onCheckoutCancelClick = {},
+            onCheckoutSubmitClick = {},
             onHistoryClick = {},
         )
     }

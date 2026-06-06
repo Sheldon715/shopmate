@@ -1,4 +1,4 @@
-# Current Feature: AI Checkout Backend Patch Contract
+# Current Feature: Android Chat Checkout Draft Card
 
 ## 状态
 
@@ -6,38 +6,43 @@ Complete
 
 ## 目标
 
-- 将聊天侧 AI 下单从单一地址更新升级为结构化 checkout draft patch contract。
-- 新增推荐 action `update_checkout`，同时兼容旧 `update_address` / `addressText` 输出。
-- 支持通过对话更新收货人、手机号、详细地址、配送方式和支付方式。
-- 后端对 shipping / delivery / payment patch 做校验和 allowlist 约束，金额、配送费和支付状态仍以后端 draft / order 为准。
-- `done.checkoutAction` 保持兼容，并返回完整 draft snapshot 供 Android 后续订单草稿卡片渲染。
-- 确认前不创建订单，确认后才创建 order / order_items 快照并触发购物车刷新。
+- 让 Android 聊天页解析扩展后的 `checkoutAction.draft`，把后端 checkout draft 可视化成聊天订单草稿卡片。
+- `draft_created` 创建卡片，`address_updated` / `draft_updated` 更新同一张卡片，`cancelled` / `expired` / `failed` / `order_created` 反映真实状态。
+- 卡片支持查看订单、取消和提交订单，并通过 `OpenCheckoutDraft(draftId)` 进入已完成的 `CheckoutScreen`。
+- 订单成功后触发购物车刷新和订单结果反馈；Android 不本地决定价格、配送费或订单成功状态。
 
 ## 待办清单
 
-- [x] 扫描现有 checkout intent、command、response、pending draft store、orders service / mapper / controller 和相关测试，确认当前 contract 与数据结构。
-- [x] 扩展 `CheckoutIntentService` 的 action / schema / prompt 解析，支持 `checkoutPatch`、`update_checkout`、旧 `update_address` 兼容和低置信 fallback。
-- [x] 扩展 checkout / order 类型，新增 `CheckoutPatchInput`、`CheckoutDraftSnapshot`、`CheckoutChangedField` 和 `draft_updated` 等稳定 contract。
-- [x] 在 `CheckoutCommandService` 中新增 `updateCheckout` 路径，兼容旧地址更新，并保证没有 pending draft 时不 mutation。
-- [x] 在 `OrderService` 中实现 pending draft patch 更新、shipping 校验、delivery / payment allowlist 校验、配送费和 total 重新计算。
-- [x] 增加 draft snapshot mapper，避免直接泄露内部 pending store 类型。
-- [x] 更新 `CheckoutResponseService` prompt，让 LLM 基于 `changedFields` 和 draft snapshot 生成用户可见回复，并避免“mock / fake / 模拟”等 UI 词。
-- [x] 补齐后端测试：intent patch、command draft update、order draft 校验、Chat SSE `done.checkoutAction` snapshot 和旧字段兼容。
-- [x] 运行 `cd server; npm.cmd test` 和 `cd server; npm.cmd run build`，记录真实结果。
+- [x] 扫描 Android 聊天、checkout、orders 相关现有实现：`data/chat/`、`ChatViewModel.kt`、`ChatUiState.kt`、`CheckoutScreen.kt`、`CheckoutViewModel.kt`、`data/orders/` 和当前导航 / side effect 处理。
+- [x] 扩展 `ChatCheckoutActionDto` 和相关 draft / summary / delivery / payment DTO，兼容缺失 `draft` 的旧字段。
+- [x] 新增或扩展 checkout draft UI model，优先使用 `activeCheckoutDraft` 表示当前会话的活跃订单草稿。
+- [x] 在 `ChatViewModel` 处理 `done.checkoutAction`：创建、更新、取消、过期、失败、提交状态都映射到同一张 draft card。
+- [x] 增加聊天 side effect：查看订单打开 `CheckoutScreen(draftId)`，订单成功刷新购物车并展示订单结果。
+- [x] 新增 `CheckoutDraftCard` 组件，展示商品摘要、金额、收货信息、配送方式、支付方式和查看 / 取消 / 提交操作。
+- [x] 确认提交 / 取消按钮只发送聊天确认或取消消息，不在 Android 本地创建订单或改金额。
+- [x] 补 Android parser / mapper / ViewModel 单测，覆盖 draft 创建、更新、提交、旧字段 fallback 和按钮 side effect；取消 / 过期 / 失败由统一状态 mapper 覆盖，后续如需要可继续补 UI 层快照测试。
+- [x] 运行 `cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest`。
+- [x] 运行 `cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/`。
 
 ## 备注
 
-- Spec 来源：`context/feature/ai-checkout-backend-patch-contract-spec.md`。
-- 范围：本轮只做后端 contract 和 LLM intent / command / order draft patch，不新增 Android 聊天订单卡片，不新增独立 `checkout_action` SSE event。
-- 业务边界：LLM 只负责识别 checkout intent 和结构化 patch；商品、价格、配送费、支付状态、订单创建和购物车刷新都必须由后端校验后的业务逻辑决定。
-- 兼容要求：保留旧 `done.checkoutAction` 字段、旧 `update_address` action 和旧 `addressText` fallback；如果结构化 patch 与 `addressText` 同时存在，优先使用结构化 patch。
-- 安全要求：没有 checkout intent 不进入 command；没有 pending draft 不允许确认直接创建订单；没有用户明确确认不创建 order；手机号保存和日志输出必须脱敏。
-- 验证重点：`CheckoutIntentService`、`CheckoutCommandService`、`OrderService`、Chat SSE contract，以及 `checkoutAction.draft` 是否包含 address、items、summary、selected delivery / payment、options 和 expiresAt。
-- 实现记录：`PendingCheckoutDraft` 新增 selected delivery / payment，`CheckoutActionResult` 保留旧顶层字段并新增 `draft` snapshot 和 `changedFields`；聊天侧 `update_checkout` 与旧 `update_address` 共用后端 patch 校验路径。
-- Review 修复：修复 LLM 只输出部分 `checkout_patch.shipping` 字段时 undefined own-key 被误当成待更新字段的问题；parser 只返回有值字段，OrderService 忽略 undefined patch 字段但继续拒绝空字符串。
-- 验证结果：`cd server; npm.cmd test -- --run src/modules/orders/order.service.test.ts src/modules/chat/checkout-command.service.test.ts src/modules/chat/checkout-intent.service.test.ts src/modules/chat/rag.service.test.ts` 通过，4 个 test files、88 个 tests。
-- 验证结果：`cd server; npm.cmd test` 通过，55 个 test files、406 个 tests。
-- 验证结果：`cd server; npm.cmd run build` 通过。
+- Spec 来源：`context/feature/android-chat-checkout-draft-card-spec.md`。
+- 依赖边界：后端 `ai-checkout-backend-patch-contract-spec.md` 已提供扩展后的 `done.checkoutAction.draft`；本 feature 只消费 Android contract，不新增后端 patch contract，不新增独立 `checkout_action` SSE event。
+- UI 边界：复用现有 ShopMate 主题和 `CheckoutScreen` 主流程，聊天卡片信息密度适合扫读，小屏下文本和按钮不能重叠；用户界面不展示 `mock`、`fake`、`模拟` 等词。
+- 业务边界：金额、配送费、订单成功、商品列表都以后端 action / draft / order 为准；Android 只展示和触发确认 / 取消 / 查看订单，不做本地订单成功判断。
+- 状态策略：第一版基于 `done.checkoutAction` 更新卡片；用户发送提交或取消后可先标记 `Updating`，真实状态必须以后端返回为准。
+- 验证计划：以 Android 单测和带 demo HTTPS base URL 的 build 为主；如需要联动后端，再补 `cd server; npm.cmd test` 和 `cd server; npm.cmd run build`。
+- 实现记录：新增 `ChatCheckoutMapper.kt`，将后端 `checkoutAction.draft` 映射为 `CheckoutDraftUi` / `ChatCheckoutDraftCardUi`；聊天页新增订单草稿卡片，查看订单走 `OpenCheckoutDraft(draftId)`，提交 / 取消只发送聊天消息。
+- 导航记录：聊天卡片打开 `CheckoutScreen(draftId)` 时复用当前 draft；从聊天进入时返回不清理购物车 checkout draft。
+- 验证记录：`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.data.chat.ChatStreamEventParserTest" --tests "com.shopmate.app.ui.chat.ChatViewModelTest"` 通过。
+- 验证记录：`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 通过。
+- 验证记录：`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过。
+- Review 修复：从聊天卡片进入 `CheckoutScreen` 并提交成功后，`ChatViewModel` 会把同一 draft 标记为 `Submitted` 并保存订单号，避免返回聊天后卡片仍显示待确认。
+- Review 修复：`Submitted` / `Cancelled` / `Expired` / `Failed` 等终态 draft 不再允许“查看订单”、确认或取消；ViewModel 也增加状态防线，避免 UI 误触发可提交 checkout。
+- Review 验证记录：`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.ui.chat.ChatViewModelTest"` 通过。
+- Review 验证记录：`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 通过。
+- Review 验证记录：`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过。
+- 工作流记录：用户已触发 `feature complete`，本轮进入窄范围提交、合并与推送收尾。
 
 ## 历史记录
 - 初始化前后端技术栈骨架：完成 Android Kotlin + Jetpack Compose 与 Node.js + TypeScript + Express 最小工程初始化，补充 README 与 Git 忽略配置，并通过后端构建与 Android `assembleDebug` 验证。
@@ -118,3 +123,4 @@ Complete
 - 图片找货 V2 图片向量索引：新增商品主图 image documents、image embedding client、独立 Qdrant image collection、V2 vector-search endpoint、索引 / 评估脚本和真实索引产物；全量写入 175 条 image vectors，真实 V2 evaluation 5 条商品 case top-1 与 V1 对齐，并补充 Android 拍照入口和 V2 上传 MIME / 文件头校验；通过后端 build / 全量 test、Android testDebugUnitTest / build、真实上传 smoke 和 Qdrant count 验证。
 - Mock Checkout Agent Flow：新增 mock order / order_items、pending checkout、LLM checkout intent / response、Chat SSE `checkoutAction`、Android checkout contract 和购物车确认面板；聊天入口支持多轮地址修改 / 确认下单，购物车按钮走独立确认面板并记录 `source=cart_button`。通过后端全量 test / build、Android testDebugUnitTest / 带 demo HTTPS URL build、真实 Chat SSE smoke 和真实 cart-button checkout API smoke 验证。
 - Android Checkout Detail Page：新增独立确认订单页、地址编辑 / 本地地址簿、配送 / 支付选择、金额明细和提交成功页；后端扩展 checkout draft / confirm contract，保存 shipping / delivery / payment 快照并保持商品金额以后端 draft 为准。通过后端 test / build、Android testDebugUnitTest 和带 demo HTTPS URL 的 Android build 验证。
+- AI Checkout Backend Patch Contract：新增聊天侧结构化 checkout draft patch contract，支持 `update_checkout`、旧 `update_address` 兼容、shipping / delivery / payment 后端校验、draft snapshot 与 changedFields；通过后端全量 test 和 build 验证。

@@ -246,6 +246,7 @@ class CheckoutViewModel(
 
         viewModelScope.launch {
             orderRepository.confirmMockCheckout(
+                conversationId = draft.conversationId,
                 draftId = draft.id,
                 shipping = state.editableShipping.trimmed(),
                 deliveryMethodType = deliveryMethodType,
@@ -283,21 +284,23 @@ private fun CheckoutDraftUi.toInitialState(): CheckoutUiState =
     createInitialSavedAddresses(this).let { savedAddresses ->
         val selectedAddress = savedAddresses.firstOrNull()
         CheckoutUiState(
-        draft = this,
-        editableShipping = selectedAddress?.toShippingInput() ?: CheckoutShippingInputUi(
-            recipient = address.recipient,
-            phone = "",
-            fullAddress = address.fullAddress,
-        ),
-        savedAddresses = savedAddresses,
-        selectedAddressId = selectedAddress?.id,
-        addressForm = selectedAddress?.toAddressForm() ?: CheckoutAddressFormUi(
-            recipient = address.recipient,
-            fullAddress = address.fullAddress,
-        ),
-        selectedDeliveryMethodType = deliveryOptions.firstOrNull()?.type,
-        selectedPaymentMethodType = paymentOptions.firstOrNull()?.type,
-    )
+            draft = this,
+            editableShipping = selectedAddress?.toShippingInput() ?: CheckoutShippingInputUi(
+                recipient = address.recipient,
+                phone = "",
+                fullAddress = address.fullAddress,
+            ),
+            savedAddresses = savedAddresses,
+            selectedAddressId = selectedAddress?.id,
+            addressForm = selectedAddress?.toAddressForm() ?: CheckoutAddressFormUi(
+                recipient = address.recipient,
+                fullAddress = address.fullAddress,
+            ),
+            selectedDeliveryMethodType = selectedDeliveryMethodType
+                ?: deliveryOptions.firstOrNull()?.type,
+            selectedPaymentMethodType = selectedPaymentMethodType
+                ?: paymentOptions.firstOrNull()?.type,
+        )
     }
 
 private fun validateCheckoutState(state: CheckoutUiState): CheckoutFieldErrorsUi {

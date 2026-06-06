@@ -16,6 +16,7 @@ import kotlinx.coroutines.CancellationException
 interface OrderRepository {
     suspend fun createMockCheckout(): Result<CheckoutDraftUi>
     suspend fun confirmMockCheckout(
+        conversationId: String,
         draftId: String,
         shipping: CheckoutShippingInputUi,
         deliveryMethodType: String,
@@ -35,6 +36,7 @@ class DefaultOrderRepository(
         )
 
     override suspend fun confirmMockCheckout(
+        conversationId: String,
         draftId: String,
         shipping: CheckoutShippingInputUi,
         deliveryMethodType: String,
@@ -44,7 +46,7 @@ class DefaultOrderRepository(
             block = {
                 orderApiClient.confirmMockCheckout(
                     MockCheckoutConfirmRequestDto(
-                        conversationId = CART_BUTTON_CONVERSATION_ID,
+                        conversationId = conversationId.ifBlank { CART_BUTTON_CONVERSATION_ID },
                         draftId = draftId,
                         shipping = shipping.toConfirmShippingDto(),
                         deliveryMethodType = deliveryMethodType,
@@ -137,6 +139,8 @@ private fun MockCheckoutDraftDto.toCheckoutDraftUi(
         deliveryOptions = deliveryOptions.map { option -> option.toCheckoutDeliveryMethodUi() },
         paymentOptions = paymentOptions.map { option -> option.toCheckoutPaymentMethodUi() },
         expiresAt = expiresAt,
+        selectedDeliveryMethodType = null,
+        selectedPaymentMethodType = null,
     )
 
 private fun MockCheckoutSummaryDto.toCheckoutSummaryUi(): CheckoutSummaryUi =

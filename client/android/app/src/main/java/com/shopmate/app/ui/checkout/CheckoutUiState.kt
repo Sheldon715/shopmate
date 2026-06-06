@@ -27,6 +27,8 @@ data class CheckoutDraftUi(
     val deliveryOptions: List<CheckoutDeliveryMethodUi>,
     val paymentOptions: List<CheckoutPaymentMethodUi>,
     val expiresAt: String,
+    val selectedDeliveryMethodType: String? = null,
+    val selectedPaymentMethodType: String? = null,
 )
 
 data class CheckoutItemUi(
