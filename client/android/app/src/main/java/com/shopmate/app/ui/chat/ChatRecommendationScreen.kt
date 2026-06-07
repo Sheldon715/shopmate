@@ -54,6 +54,7 @@ import com.shopmate.app.ui.components.ChatComposer
 import com.shopmate.app.ui.components.ChatMessageBubble
 import com.shopmate.app.ui.components.ChatTypingIndicatorBubble
 import com.shopmate.app.ui.components.ProductCard
+import com.shopmate.app.ui.components.ShopMateBuddyMotionState
 import com.shopmate.app.ui.components.ShopMateFigmaFrameWidth
 import com.shopmate.app.ui.components.ShopMateStatusMessage
 import com.shopmate.app.ui.components.ShopMateTopActionBar
@@ -208,6 +209,7 @@ fun ChatRecommendationScreen(
             rightIcon = R.drawable.ic_cart,
             rightContentDescription = "购物车",
             onRightClick = onCartClick,
+            centerBuddyMotionState = state.toBuddyMotionState(),
             modifier = Modifier
                 .offset(x = 0.dp, y = headerTop)
                 .size(width = ShopMateFigmaFrameWidth.s(), height = 44f.s())
@@ -765,6 +767,22 @@ private fun ChatMessageUi.isTypingPlaceholder(): Boolean =
 
 private fun ChatMessageUi.shouldShowStreamingContinuationIndicator(): Boolean =
     !fromUser && isStreaming && text.isNotBlank()
+
+private fun ChatUiState.toBuddyMotionState(): ShopMateBuddyMotionState {
+    val imageBusy = selectedImage?.status in setOf(
+        ChatImageAttachmentStatus.Uploading,
+        ChatImageAttachmentStatus.Interpreting,
+        ChatImageAttachmentStatus.Searching,
+    )
+    val voiceBusy = voiceInput is VoiceInputUiState.Listening ||
+        voiceInput is VoiceInputUiState.Transcribing
+
+    return if (isSending || voiceBusy || imageBusy) {
+        ShopMateBuddyMotionState.Thinking
+    } else {
+        ShopMateBuddyMotionState.Idle
+    }
+}
 
 @Preview(
     name = "Chat recommendation - 389 x 843",

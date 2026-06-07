@@ -5,10 +5,17 @@ import androidx.compose.material3.Shapes
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.res.imageResource
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import com.shopmate.app.R
+import kotlin.math.roundToInt
 
 private val ShopMateColorScheme = lightColorScheme(
     primary = ShopMateGreen,
@@ -37,26 +44,48 @@ fun ShopMateTheme(content: @Composable () -> Unit) {
     )
 }
 
-fun Modifier.shopMateScreenBackground(): Modifier =
+fun Modifier.shopMateScreenBackground(): Modifier = composed {
+    val background = ImageBitmap.imageResource(id = R.drawable.shopmate_screen_background_mist)
+
+    drawBehind {
+        drawImage(
+            image = background,
+            srcOffset = IntOffset.Zero,
+            srcSize = IntSize(background.width, background.height),
+            dstOffset = IntOffset.Zero,
+            dstSize = IntSize(
+                width = size.width.roundToInt(),
+                height = size.height.roundToInt()
+            )
+        )
+    }
+}
+
+fun Modifier.shopMateOnboardingBackground(): Modifier =
     drawBehind {
         drawRect(
             brush = Brush.verticalGradient(
-                colors = listOf(ShopMateSurface, ShopMateSurfaceSoft)
+                colorStops = arrayOf(
+                    0f to Color(0xFFF7FEFB),
+                    0.44f to Color(0xFFF2FBF7),
+                    1f to Color(0xFFFBFDFC)
+                )
             )
         )
         drawCircle(
             brush = Brush.radialGradient(
                 colorStops = arrayOf(
-                    0f to Color(0xFF7FDCC1).copy(alpha = 0.26f),
-                    0.36f to Color(0xFF7FDCC1).copy(alpha = 0.18f),
-                    0.72f to Color(0xFF7FDCC1).copy(alpha = 0.07f),
+                    0f to Color(0xFF78E8BE).copy(alpha = 0.34f),
+                    0.42f to Color(0xFF78E8BE).copy(alpha = 0.18f),
+                    0.76f to Color(0xFF78E8BE).copy(alpha = 0.06f),
                     1f to Color.Transparent
                 ),
                 center = Offset(
-                    x = size.width * (299.27f / 388.667f),
-                    y = size.height * 0.15f
+                    x = size.width * 0.5f,
+                    y = size.height * 0.5f
                 ),
-                radius = size.maxDimension * 0.38f
+                radius = size.maxDimension * 0.46f
             )
         )
+        drawRect(color = Color.White.copy(alpha = 0.28f))
     }

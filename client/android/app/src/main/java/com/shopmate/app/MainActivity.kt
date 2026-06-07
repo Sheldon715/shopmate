@@ -17,6 +17,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
@@ -26,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewModelScope
@@ -38,6 +41,9 @@ import com.shopmate.app.ui.chat.ChatRecommendationScreen
 import com.shopmate.app.ui.chat.ChatSideEffect
 import com.shopmate.app.ui.chat.ChatViewModel
 import com.shopmate.app.ui.chat.VoiceInputUiState
+import com.shopmate.app.ui.components.ShopMateBuddyTransitionController
+import com.shopmate.app.ui.components.ShopMateBuddyTransitionOverlay
+import com.shopmate.app.ui.components.ShopMateBuddyTransitionRequest
 import com.shopmate.app.ui.comparison.ProductComparisonScreen
 import com.shopmate.app.ui.home.HomeChatEntryScreen
 import com.shopmate.app.ui.model.HistoryConversationUi
@@ -84,6 +90,24 @@ class MainActivity : ComponentActivity() {
                     factory = appContainer.cartViewModelFactory()
                 )
                 val cartUiState by cartViewModel.uiState.collectAsState()
+                val buddyTransitionController = remember { ShopMateBuddyTransitionController() }
+                var buddyTransitionRequest by remember {
+                    mutableStateOf<ShopMateBuddyTransitionRequest?>(null)
+                }
+                fun triggerHomeToChatBuddyTransition() {
+                    if (currentScreen == ShopMateScreen.HomeChatEntry) {
+                        buddyTransitionRequest = buddyTransitionController.trigger()
+                    }
+                }
+                fun cancelBuddyTransition() {
+                    buddyTransitionController.cancel()
+                    buddyTransitionRequest = null
+                }
+                LaunchedEffect(currentScreen) {
+                    if (currentScreen != ShopMateScreen.ChatRecommendation) {
+                        cancelBuddyTransition()
+                    }
+                }
                 val voiceController = remember(chatViewModel, appContainer.asrRepository) {
                     val voiceListener = object : AndroidSpeechVoiceInputController.Listener {
                         override fun onListening() {
@@ -92,11 +116,13 @@ class MainActivity : ComponentActivity() {
 
                         override fun onTranscribing() {
                             chatViewModel.onVoiceTranscribing()
+                            triggerHomeToChatBuddyTransition()
                             currentScreen = ShopMateScreen.ChatRecommendation
                         }
 
                         override fun onTranscriptReady(transcript: String) {
                             chatViewModel.onVoiceTranscriptReady(transcript)
+                            triggerHomeToChatBuddyTransition()
                             currentScreen = ShopMateScreen.ChatRecommendation
                         }
 
@@ -281,6 +307,7 @@ class MainActivity : ComponentActivity() {
                 }
                 val startNewChat: () -> Unit = {
                     cancelVoiceInput()
+                    cancelBuddyTransition()
                     chatViewModel.startNewChat()
                     currentScreen = ShopMateScreen.HomeChatEntry
                 }
@@ -291,6 +318,7 @@ class MainActivity : ComponentActivity() {
                             currentChatState.selectedImage != null) &&
                         !currentChatState.isSending
                     ) {
+                        triggerHomeToChatBuddyTransition()
                         chatViewModel.sendMessage()
                         currentScreen = ShopMateScreen.ChatRecommendation
                     }
@@ -318,12 +346,13 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                when (currentScreen) {
-                    ShopMateScreen.Onboarding -> OnboardingScreen(
-                        onStartShopping = {
-                            currentScreen = ShopMateScreen.HomeChatEntry
-                        }
-                    )
+                Box(modifier = Modifier.fillMaxSize()) {
+                    when (currentScreen) {
+                        ShopMateScreen.Onboarding -> OnboardingScreen(
+                            onStartShopping = {
+                                currentScreen = ShopMateScreen.HomeChatEntry
+                            }
+                        )
 
                     ShopMateScreen.HomeChatEntry -> HomeChatEntryScreen(
                         composerText = chatUiState.composerText,
@@ -552,6 +581,18 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                     }
+                    }
+
+                    ShopMateBuddyTransitionOverlay(
+                        request = buddyTransitionRequest,
+                        onFinished = { request ->
+                            buddyTransitionController.consume(request)
+                            if (buddyTransitionRequest == request) {
+                                buddyTransitionRequest = null
+                            }
+                        },
+                        modifier = Modifier.fillMaxSize(),
+                    )
                 }
             }
         }

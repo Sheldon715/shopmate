@@ -32,7 +32,7 @@ import com.shopmate.app.ui.theme.ShopMateGreen
 import com.shopmate.app.ui.theme.ShopMateTextPrimary
 import com.shopmate.app.ui.theme.ShopMateTextSecondary
 import com.shopmate.app.ui.theme.ShopMateTextTertiary
-import com.shopmate.app.ui.theme.shopMateScreenBackground
+import com.shopmate.app.ui.theme.shopMateOnboardingBackground
 
 private const val FIGMA_WIDTH = 388.667f
 private const val FIGMA_HEIGHT = 842.667f
@@ -44,7 +44,7 @@ fun OnboardingScreen(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .shopMateScreenBackground()
+            .shopMateOnboardingBackground()
     ) {
         val widthScale = maxWidth.value / FIGMA_WIDTH
         val heightScale = maxHeight.value / FIGMA_HEIGHT
@@ -71,7 +71,7 @@ fun OnboardingScreen(
         }
 
         Image(
-            painter = painterResource(id = R.drawable.mascot_assistant),
+            painter = painterResource(id = R.drawable.onboarding_shopmate_buddy),
             contentDescription = null,
             modifier = Modifier
                 .offset(x = 69.33f.w(), y = 130f.h())

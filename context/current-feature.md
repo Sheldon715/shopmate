@@ -1,4 +1,4 @@
-# Current Feature: Checkout Realtime SSE Event
+# Current Feature: Android Buddy Lottie Motion
 
 ## 状态
 
@@ -6,49 +6,67 @@ Complete
 
 ## 目标
 
-- 后端新增独立 `checkout_action` SSE event，在 checkout draft 创建、更新、取消或确认后先发送结构化 action，再继续发送 assistant 文案和最终 `done`。
-- 保留 `done.checkoutAction`，兼容旧 Android 客户端、Gradio evidence 和既有 contract 测试。
-- Android SSE parser 支持 `checkout_action`，`ChatViewModel` 能立即同步订单草稿卡片，并与 `done.checkoutAction` 去重。
-- `order_created` 相关购物车刷新只触发一次，普通推荐、对比、购物车管理和图片找货 SSE 不受影响。
+- 在 Android 端接入 Lottie Compose，只服务 ShopMate Buddy 品牌动效，并保留后续状态微动效复用入口。
+- 新增可复用 `ShopMateBuddyMotion` 组件，统一 Buddy `Idle` / `Arrival` / `Thinking` 状态、raw 资源命名和静态 PNG fallback。
+- 为 Home -> Chat 首次进入增加克制的 Buddy 视觉桥接，让中部 Buddy 过渡到聊天顶部栏头像位置，但不阻塞路由、消息发送或 SSE 接收。
+- 在 Lottie 加载失败、资源缺失、Preview 环境或系统动画关闭时正常显示静态 Buddy，不出现空白或业务中断。
+- 保持 Chat SSE、RAG、cart、checkout、image search、商品卡锚点和页面路由 contract 不变。
 
 ## 待办清单
 
-- [x] 扫描后端 Chat SSE 现状：`chat.controller.ts`、`chat.types.ts`、`rag.service.ts`、SSE writer、contract fixture 和相关测试，确认 `checkoutAction` 的生成与输出路径。
-- [x] 后端新增 `checkout_action` event 写出逻辑，确保 checkout action 先于 `message_delta` 和 `done`，普通 RAG 请求不发送该 event。
-- [x] 补齐后端测试 / fixture：事件顺序、`checkout_action` 与 `done.checkoutAction` 核心字段一致、无 checkout action 场景、LLM 回复失败仍保留结构化 action、序列化失败不输出半截非法 SSE。
-- [x] 更新 Android SSE parser：新增 `ChatStreamEvent.CheckoutAction`，复用 `ChatCheckoutActionDto` 解析 `event: checkout_action`，未知字段忽略，异常不导致聊天页崩溃。
-- [x] 更新 `ChatViewModel`：收到 `CheckoutAction` 时立即同步 `activeCheckoutDraft`，收到 `Done.checkoutAction` 时兜底同步，并按 `draftId|orderId|status|updatedAt/totalCents` 去重。
-- [x] 验证 `order_created` 的 `RefreshCart` side effect 只触发一次，同时旧的只有 `done.checkoutAction` 的 SSE 流仍可工作。
-- [x] 运行并记录后端 `npm.cmd test`、`npm.cmd run build`，以及 Android `testDebugUnitTest` 和带 demo HTTPS base URL 的 build；如有 smoke 条件，再验证 `checkout_action` 出现在 `done` 前。
+- [x] 实现前确认 Lottie Compose 当前官方接入方式和可用版本，记录依赖用途与影响。
+- [x] 在 `client/android/app/build.gradle.kts` 添加 `com.airbnb.android:lottie-compose` 依赖，并说明只用于 Buddy / 状态动效。
+- [x] 新增 `ShopMateBuddyMotion.kt`，包含 `ShopMateBuddyMotionState` 与 `ShopMateBuddyMotion`，支持 idle / arrival / thinking、循环策略、Preview / fallback 行为和无障碍描述。
+- [x] 准备或接入 `res/raw/` Buddy 动画资源；如果动画资产暂未定，先完成组件 fallback 接口，不提交大体积占位 JSON。
+- [x] 将 Home 主入口 Buddy 与聊天顶部栏 Buddy 接入新的 Buddy 动效组件，保持现有静态图片视觉可回退。
+- [x] 新增 `ShopMateBuddyTransitionOverlay` 或等价顶层视觉桥接，在 Home 点击 prompt、文字发送、语音 transcript 或图片请求进入 Chat 时触发一次性过渡。
+- [x] 确保过渡可取消、不堆叠，并兼容 389x843 与 360x740 小屏布局，不遮挡 composer、消息气泡或系统权限弹窗。
+- [x] 限定 Thinking 仅用于真实等待态或 AI 正在生成前的顶部 Buddy 小动效，不扩散到商品卡、prompt carousel、skeleton、checkout 成功或普通页面转场。
+- [x] 如新增 transition trigger helper，补充一次性消费、重复触发和取消逻辑单元测试；纯 Compose UI 改动则记录无新增可测业务逻辑。
+- [x] 运行 Android 验证命令，并把结果或失败原因记录到本 tracker。
 
 ## 备注
 
-- Spec 来源：`context/feature/checkout-realtime-sse-event-spec.md`。
-- Research 判断：不需要外部 research；这是 ShopMate 现有 Chat SSE / checkout contract 的本地增强。
-- 范围边界：不新增 checkout patch intent，不新增聊天订单卡片 UI，不改变订单创建、金额计算、配送 / 支付校验逻辑，不移除旧 `done.checkoutAction`。
-- Contract 顺序目标：`checkout_action` -> `message_delta` -> `done`；第一版接受 controller 仍需先拿到 `RagChatResult` 后才能开始写 SSE 的边界。
-- 安全边界：`checkout_action` 只是结构化 side effect，不是用户可见话术；Android 必须以后端 action 为准，不能因本地按钮点击自行创建订单；payload 不包含完整手机号、真实支付凭证或 provider secret。
-- 验证命令：
-  - `cd server; npm.cmd test`
-  - `cd server; npm.cmd run build`
-  - `cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest`
-  - `cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/`
-- 实现记录：后端 `ChatStreamEventName` / `ChatStreamWriter` 新增 `checkout_action`，controller 和 streaming RAG flush 路径都会在 assistant 文案前写出同一份 `checkoutAction` payload，`done.checkoutAction` 保留。
-- 实现记录：Android parser 新增 `ChatStreamEvent.CheckoutAction`，`ChatViewModel` 在该 event 到达时立即更新 `activeCheckoutDraft`，并用 checkout action key 去重后续 `done.checkoutAction` side effect。
-- 验证记录：`cd server; npm.cmd test -- --run src/modules/chat/chat.controller.test.ts src/modules/chat/chat-contract.fixture.test.ts src/modules/chat/rag.service.test.ts` 通过。
-- 验证记录：`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.data.chat.ChatStreamEventParserTest" --tests "com.shopmate.app.ui.chat.ChatViewModelTest"` 通过。
-- 验证记录：`cd server; npm.cmd run build` 通过。
-- 验证记录：`cd server; npm.cmd test` 通过。
+- Spec 来源：`context/feature/android-buddy-lottie-motion-spec.md`。
+- Roadmap 位置：`context/spec-implementation-order.md` 的 `34.1 android-buddy-lottie-motion-spec.md`，属于商业 Demo 体验打磨 V1 的 Buddy Lottie 品牌动效。
+- 依赖边界：允许新增 `com.airbnb.android:lottie-compose`，但实现前需要确认当前版本；不接远程 Lottie URL、不使用 LottieFiles 网络 SDK / token / 在线素材接口。
+- 资产边界：动画 JSON 放在 `client/android/app/src/main/res/raw/`，建议单个 Buddy 动画控制在 250KB 以内，总量控制在 800KB 以内；背景透明，风格接近现有 ShopMate green / mint 和 Buddy PNG。
+- Fallback 边界：composition 未加载完成、资源缺失、Preview 或系统动画关闭时显示 `sidebar_shopmate_buddy` 等静态 PNG，不能空白。
+- 动效边界：Lottie 只做 Buddy idle / arrival / thinking 的品牌生命力；普通列表、按钮、商品卡、composer、checkout 卡片和页面 motion 仍由 Compose / Material3 状态处理。
+- 业务边界：不得改变 Chat SSE 事件、RAG 回答生成、购物车 / checkout action、图片找货、语音转写、商品卡锚点或导航 contract。
+- 依赖确认：Maven metadata 显示 `com.airbnb.android:lottie-compose` 当前 release / latest 为 `6.7.1`；官方 Compose 文档使用 `rememberLottieComposition(LottieCompositionSpec.RawRes(...))`、`animateLottieCompositionAsState` 和 `LottieAnimation`。
+- 实现记录：新增 `ShopMateBuddyMotion`，先渲染静态 Buddy PNG，再叠加本地 raw Lottie；Preview 和系统动画关闭时禁用 Lottie，保留 PNG fallback。
+- 实现记录：新增 3 个小体积本地 raw 动效资源：`shopmate_buddy_idle.json`、`shopmate_buddy_home_to_avatar.json`、`shopmate_buddy_thinking.json`，总量约 10.8KB，未接远程 URL 或 LottieFiles SDK。
+- 实现记录：Home 主入口 Buddy 和聊天顶部栏 Buddy 已接入 `ShopMateBuddyMotion`；聊天发送、语音监听 / 转写、图片上传 / 解释 / 搜索期间顶部 Buddy 使用 `Thinking`。
+- 实现记录：新增 `ShopMateBuddyTransitionOverlay` 与 `ShopMateBuddyTransitionController`，从 Home 进入 Chat 时触发一次中部 Buddy 到顶部头像的视觉桥接；快速重复触发会替换旧 request，新聊天 / 离开 Chat 会取消旧 overlay。
+- 视觉回归修复：移除 `shopmate_buddy_home_to_avatar.json` 的 `arrival_ring` 和 `shopmate_buddy_idle.json` 的 `pulse_ring` 图层，避免 Buddy 周围出现额外圆圈；Home -> Chat 位移 / 缩放桥接和 Thinking 点状动效保留。
+- 实现记录：新增 `shopmate_buddy_thinking.png` 透明头像资源；`ShopMateBuddyMotionState.Thinking` 自动切换到思考头像作为 fallback，并继续叠加 `shopmate_buddy_thinking.json` 的三点 thinking 动效。
+- 实现记录：新增 `onboarding_shopmate_buddy.png` 高清透明欢迎页 Buddy 资源，欢迎页单独引用该资源；旧 `mascot_assistant.png` 继续保留给 mock / fallback 场景。
+- 视觉调整记录：全局 `shopMateScreenBackground()` 从单一淡绿光斑改为 mint / aqua / pale green / warm cream 多层低透明 radial gradient，形成更柔和的雾化背景；未新增第三方库。
+- 视觉调整记录：`ShopMateBuddyMotionState.Thinking` 去掉三点 Lottie overlay，只保留思考头像切换；Idle / Arrival 的 fallback 和 overlay 逻辑不变。
+- 视觉调整记录：根据视觉反馈拆分背景 helper：欢迎页改用 `shopMateOnboardingBackground()` 保留聚焦圆形光晕；其他页面继续用 `shopMateScreenBackground()`，但改为整屏线性柔雾渐变，不再绘制中间大圆。
+- 视觉调整记录：根据首页截图反馈，通用背景继续降绿、提白，改为近白底上从右上斜向右侧 / 下方延展的低透明 mint / aqua 色带，避免整屏从上到下像一整片绿色。
+- 测试记录：新增 `ShopMateBuddyTransitionControllerTest`，覆盖一次性触发、重复触发替换、取消和只消费匹配 request。
+- 验证计划：
+  - `cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest`
+  - `cd client/android && .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/`
+- 验证记录：`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.ui.components.ShopMateBuddyTransitionControllerTest"` 通过。
 - 验证记录：`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 通过。
-- 验证记录：`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过。
-- Smoke 记录：已启动后端 dev server：`http://127.0.0.1:3000`，PID `23356`；`GET /api/health` 返回 200，`status=ok`。
-- Smoke 记录：空购物车直接 chat checkout 请求走普通推荐兜底，SSE 事件为 `message_delta -> product_cards -> done`，无 `checkout_action`，`done.fallbackReason=LLM_ERROR`。
-- Smoke 记录：临时加购 `p_food_021` 后，`POST /api/orders/mock-checkout` 返回 201，`checkoutAction.type=start_checkout`、`status=draft_created`、`selectedCount=1`、`totalCents=1890`。
-- Smoke 记录：同一 seeded cart 的 `POST /api/chat/stream` 返回 `checkout_action -> message_delta -> product_cards -> done`，无 `error`，`checkout_action` 在 `done` 前；测试结束后已删除临时 cart item，购物车恢复空状态。
-- 修复记录：聊天确认下单收到 `order_created` 后不再保留 active checkout draft；独立确认订单页提交成功回到聊天时也清空草稿状态，UI 兜底不渲染已提交草稿卡，避免“订单草稿 / 提交订单 / 取消”在下单成功后继续显示。
-- 验证记录：`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.ui.chat.ChatViewModelTest"` 通过。
-- 附带修复：购物车底部合计金额区域从固定宽度改为自适应行布局，避免 `¥18998` 等五位数金额被“去结算”按钮挤压截断。
-- 验证记录：`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过。
+- 验证记录：第一次 `cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 被工具 244 秒超时截断；未见 Gradle 失败结论。
+- 验证记录：同一 build 命令以 480 秒工具超时重跑，43 秒内 `BUILD SUCCESSFUL`。
+- 验证记录：`git diff --check` 通过；仅提示 Windows line ending 将由 Git 转 CRLF。
+- 验证记录：圈层修复后，`res/raw/*.json` 均可被 PowerShell `ConvertFrom-Json` 解析；`Select-String` 确认 Buddy raw 资源里不再包含 `ring` / `ellipse` / `stroke` / `arrival` 圈层残留。
+- 验证记录：圈层修复后，`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过。
+- 验证记录：思考头像资源已处理为 `drawable-nodpi/shopmate_buddy_thinking.png`，尺寸 512x512，透明背景；等待态保留三点 Lottie 叠加。
+- 验证记录：思考头像切换接入后，`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过。
+- 验证记录：欢迎页高清 Buddy 资源已处理为 `drawable-nodpi/onboarding_shopmate_buddy.png`，尺寸 821x967，透明背景；欢迎页布局尺寸保持不变，仅替换图片资源。
+- 验证记录：欢迎页高清 Buddy 接入后，`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过。
+- 验证计划：全局雾化背景和 Thinking 小点移除后运行 Android build，确认 theme / Buddy Motion 编译通过。
+- 验证记录：全局雾化背景和 Thinking 小点移除后，`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过。
+- 验证计划：背景 helper 拆分后运行 Android build，确认欢迎页专属背景和其他页面通用背景编译通过。
+- 验证记录：背景 helper 拆分后，`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过。
+- 验证计划：通用背景降绿并改为右上斜向色带后运行 Android build，确认 theme 编译通过。
+- 验证记录：通用背景降绿并改为右上斜向色带后，`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过，输出 `BUILD SUCCESSFUL in 1m 22s`。
 
 ## 历史记录
 - 初始化前后端技术栈骨架：完成 Android Kotlin + Jetpack Compose 与 Node.js + TypeScript + Express 最小工程初始化，补充 README 与 Git 忽略配置，并通过后端构建与 Android `assembleDebug` 验证。
@@ -131,3 +149,4 @@ Complete
 - Android Checkout Detail Page：新增独立确认订单页、地址编辑 / 本地地址簿、配送 / 支付选择、金额明细和提交成功页；后端扩展 checkout draft / confirm contract，保存 shipping / delivery / payment 快照并保持商品金额以后端 draft 为准。通过后端 test / build、Android testDebugUnitTest 和带 demo HTTPS URL 的 Android build 验证。
 - AI Checkout Backend Patch Contract：新增聊天侧结构化 checkout draft patch contract，支持 `update_checkout`、旧 `update_address` 兼容、shipping / delivery / payment 后端校验、draft snapshot 与 changedFields；通过后端全量 test 和 build 验证。
 - Android Chat Checkout Draft Card：新增 Android 聊天订单草稿卡片，解析 `checkoutAction.draft`，支持草稿创建 / 更新 / 取消 / 过期 / 失败 / 提交状态展示，卡片可进入 `CheckoutScreen(draftId)` 并通过聊天确认或取消下单；通过 Android `testDebugUnitTest` 和带 demo HTTPS URL 的 build 验证。
+- Checkout Realtime SSE Event：新增独立 `checkout_action` SSE event，Android 可在 `done` 前同步 checkout draft 状态并对 `done.checkoutAction` 去重；同时修复下单成功后草稿卡残留和购物车合计金额截断问题。通过后端 test / build、Android `testDebugUnitTest`、带 demo HTTPS URL 的 Android build 和本地 Chat SSE smoke 验证。

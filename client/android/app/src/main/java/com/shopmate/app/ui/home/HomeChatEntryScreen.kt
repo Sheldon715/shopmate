@@ -43,6 +43,8 @@ import com.shopmate.app.R
 import com.shopmate.app.data.mock.MockShopMateData
 import com.shopmate.app.ui.chat.ChatImageAttachmentUi
 import com.shopmate.app.ui.chat.VoiceInputUiState
+import com.shopmate.app.ui.components.ShopMateBuddyMotion
+import com.shopmate.app.ui.components.ShopMateBuddyMotionState
 import com.shopmate.app.ui.components.ChatComposer
 import com.shopmate.app.ui.components.ShopMateFigmaFrameWidth
 import com.shopmate.app.ui.components.ShopMateCircleIconButton
@@ -287,13 +289,14 @@ private fun HeroMascot(
         )
     }
 
-    Image(
-        painter = painterResource(id = R.drawable.home_chat_buddy),
+    ShopMateBuddyMotion(
+        state = ShopMateBuddyMotionState.Idle,
+        fallbackRes = R.drawable.home_chat_buddy,
+        fallbackContentScale = ContentScale.Crop,
         contentDescription = null,
         modifier = Modifier
             .offset(x = 68.333f.s(), y = 198.18f.s())
             .size(width = 252f.s(), height = 255.823f.s()),
-        contentScale = ContentScale.Crop
     )
 }
 
