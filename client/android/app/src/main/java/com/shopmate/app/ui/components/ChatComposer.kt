@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.input.pointer.pointerInteropFilter
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -301,6 +302,16 @@ private fun ComposerImagePreview(
             )
         }
 
+        attachment.stateIndicatorState()?.let { indicatorState ->
+            ShopMateLottieStateIndicator(
+                state = indicatorState,
+                contentDescription = attachment.previewStatusText(),
+                modifier = Modifier
+                    .padding(horizontal = 6.dp)
+                    .size(24.dp),
+            )
+        }
+
         if (attachment.status == ChatImageAttachmentStatus.Failed) {
             Text(
                 text = "重试",
@@ -342,6 +353,9 @@ private fun ChatImageAttachmentUi.previewStatusText(): String =
         ChatImageAttachmentStatus.Searching -> "正在找相似商品"
         ChatImageAttachmentStatus.Failed -> errorMessage ?: "图片找货失败"
     }
+
+private fun ChatImageAttachmentUi.stateIndicatorState(): ShopMateLottieState? =
+    status.lottieStateOrNull()
 
 private fun formatImageSize(sizeBytes: Long): String =
     if (sizeBytes >= 1024 * 1024) {
@@ -480,12 +494,29 @@ private fun VoiceInputSurface(
         voiceInputState is VoiceInputUiState.PermissionDenied -> Color(0xFFFFD5CC)
         else -> Color(0xFFEDF2F1)
     }
+    val busyHintText = when {
+        isListening -> "松手发送 上滑取消"
+        isTranscribing -> "正在转成文字"
+        else -> null
+    }
+    val cancelDragDistancePx = with(LocalDensity.current) {
+        VoiceCancelDragDistance.toPx()
+    }
     var pressStarted by remember { mutableStateOf(false) }
 
     Box(
         modifier = modifier,
         contentAlignment = Alignment.Center
     ) {
+        busyHintText?.let { hintText ->
+            VoiceInputHintChip(
+                text = hintText,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(y = (-28).dp),
+            )
+        }
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -539,6 +570,14 @@ private fun VoiceInputSurface(
                             true
                         }
 
+                        MotionEvent.ACTION_MOVE -> {
+                            if (pressStarted && event.y < -cancelDragDistancePx) {
+                                pressStarted = false
+                                onPressCancel()
+                            }
+                            true
+                        }
+
                         MotionEvent.ACTION_UP -> {
                             if (pressStarted) {
                                 pressStarted = false
@@ -562,8 +601,18 @@ private fun VoiceInputSurface(
                 },
             contentAlignment = Alignment.Center
         ) {
-            if (isListening) {
-                VoiceWaveform(color = ShopMateGreen)
+            if (isListening || isTranscribing) {
+                ShopMateLottieStateIndicator(
+                    state = if (isListening) {
+                        ShopMateLottieState.VoiceListening
+                    } else {
+                        ShopMateLottieState.VoiceTranscribing
+                    },
+                    contentDescription = accessibilityState,
+                    modifier = Modifier
+                        .fillMaxWidth(0.76f)
+                        .height(34.dp),
+                )
             } else {
                 Text(
                     text = label,
@@ -578,20 +627,23 @@ private fun VoiceInputSurface(
 }
 
 @Composable
-private fun VoiceWaveform(color: Color) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        VoiceWaveHeights.forEach { height ->
-            Box(
-                modifier = Modifier
-                    .size(width = 5.dp, height = height.dp)
-                    .clip(ShopMatePillShape)
-                    .background(color)
-            )
-        }
-    }
+private fun VoiceInputHintChip(
+    text: String,
+    modifier: Modifier = Modifier,
+) {
+    Text(
+        text = text,
+        color = Color(0xFF65717C),
+        fontSize = 11.5.sp,
+        lineHeight = 14.sp,
+        letterSpacing = 0.sp,
+        maxLines = 1,
+        modifier = modifier
+            .clip(ShopMatePillShape)
+            .background(Color.White.copy(alpha = 0.88f), ShopMatePillShape)
+            .border(1.dp, Color(0xFFE8EFED), ShopMatePillShape)
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+    )
 }
 
 @Composable
@@ -653,11 +705,7 @@ private val ComposerToggleSize = 38.dp
 private val ComposerToggleIconSize = 16.dp
 private val ComposerPreviewShape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp)
 private val ComposerPreviewImageShape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
-
-private val VoiceWaveHeights = listOf(
-    18, 24, 18, 10, 6, 6, 8, 8, 9, 8, 8, 10, 14, 20, 22, 22, 20, 18,
-    12, 8, 7, 8, 10, 16, 20, 21, 20, 14
-)
+private val VoiceCancelDragDistance = 36.dp
 
 @Preview(
     name = "Chat composer - disabled send",
@@ -763,6 +811,31 @@ private fun ChatComposerVoicePressedPreview() {
         onVoicePressEnd = {},
         inputMode = ComposerInputMode.Voice,
         voiceInputState = VoiceInputUiState.Listening,
+        voiceEnabled = true,
+        onInputModeChange = {},
+        onVoiceCancel = {},
+        modifier = Modifier
+            .padding(start = 18.dp, top = 44.dp, end = 18.dp)
+            .background(ShopMateSurfaceSoft)
+    )
+}
+
+@Preview(
+    name = "Chat composer - voice transcribing",
+    widthDp = 389,
+    showBackground = true,
+    backgroundColor = 0xFFFBFDFC
+)
+@Composable
+private fun ChatComposerVoiceTranscribingPreview() {
+    ChatComposerContent(
+        value = "",
+        onValueChange = {},
+        onSend = {},
+        onVoicePressStart = {},
+        onVoicePressEnd = {},
+        inputMode = ComposerInputMode.Voice,
+        voiceInputState = VoiceInputUiState.Transcribing,
         voiceEnabled = true,
         onInputModeChange = {},
         onVoiceCancel = {},

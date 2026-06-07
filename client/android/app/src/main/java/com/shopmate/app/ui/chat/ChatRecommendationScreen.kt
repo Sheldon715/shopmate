@@ -326,16 +326,6 @@ private fun ChatStreamList(
                     ),
                 )
 
-                if (message.shouldShowStreamingContinuationIndicator()) {
-                    ChatTypingIndicatorBubble(
-                        textScale = scale,
-                        modifier = Modifier
-                            .align(Alignment.Start)
-                            .padding(start = 16f.s())
-                            .size(width = 66f.s(), height = 34f.s()),
-                    )
-                }
-
                 ComparisonEntryList(
                     actions = state.comparisonActions.filter { action ->
                         action.anchorMessageId == message.id
@@ -710,12 +700,12 @@ private fun ChatMessageItem(
         )
     } else {
         ChatMessageBubble(
-                        text = message.displayText(),
-                        fromUser = message.fromUser,
-                        textScale = scale,
-                        imageAttachment = message.imageAttachment,
-                        modifier = modifier
-                            .padding(
+            text = message.displayText(),
+            fromUser = message.fromUser,
+            textScale = scale,
+            imageAttachment = message.imageAttachment,
+            modifier = modifier
+                .padding(
                     start = if (message.fromUser) 72f.s() else 16f.s(),
                     end = if (message.fromUser) 16f.s() else 18f.s(),
                 )
@@ -764,9 +754,6 @@ private fun ChatMessageUi.displayText(): String =
 
 private fun ChatMessageUi.isTypingPlaceholder(): Boolean =
     !fromUser && isStreaming && text.isBlank()
-
-private fun ChatMessageUi.shouldShowStreamingContinuationIndicator(): Boolean =
-    !fromUser && isStreaming && text.isNotBlank()
 
 private fun ChatUiState.toBuddyMotionState(): ShopMateBuddyMotionState {
     val imageBusy = selectedImage?.status in setOf(

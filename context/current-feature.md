@@ -1,4 +1,4 @@
-# Current Feature: Android Buddy Lottie Motion
+# Current Feature: Android State Lottie Feedback
 
 ## 状态
 
@@ -6,67 +6,54 @@ Complete
 
 ## 目标
 
-- 在 Android 端接入 Lottie Compose，只服务 ShopMate Buddy 品牌动效，并保留后续状态微动效复用入口。
-- 新增可复用 `ShopMateBuddyMotion` 组件，统一 Buddy `Idle` / `Arrival` / `Thinking` 状态、raw 资源命名和静态 PNG fallback。
-- 为 Home -> Chat 首次进入增加克制的 Buddy 视觉桥接，让中部 Buddy 过渡到聊天顶部栏头像位置，但不阻塞路由、消息发送或 SSE 接收。
-- 在 Lottie 加载失败、资源缺失、Preview 环境或系统动画关闭时正常显示静态 Buddy，不出现空白或业务中断。
-- 保持 Chat SSE、RAG、cart、checkout、image search、商品卡锚点和页面路由 contract 不变。
+- 为聊天等待、语音 listening / transcribing、图片解释 / 搜索等高频 busy 状态增加克制的 Lottie 微动效。
+- 新增统一的 `ShopMateLottieStateIndicator` 封装，复用本地 `res/raw` 动效资源，并提供 Compose / 静态 fallback。
+- 保留每个状态的用户可见文案、颜色或无障碍语义，避免只靠动画表达状态。
+- 保持业务状态、Chat SSE schema、ASR / image provider、购物车和 checkout contract 不变，不因动画延迟真实结果。
+- 明确 Lottie 只服务 AI / 语音 / 图片处理状态，不替代商品图、详情、购物车或 checkout skeleton。
 
 ## 待办清单
 
-- [x] 实现前确认 Lottie Compose 当前官方接入方式和可用版本，记录依赖用途与影响。
-- [x] 在 `client/android/app/build.gradle.kts` 添加 `com.airbnb.android:lottie-compose` 依赖，并说明只用于 Buddy / 状态动效。
-- [x] 新增 `ShopMateBuddyMotion.kt`，包含 `ShopMateBuddyMotionState` 与 `ShopMateBuddyMotion`，支持 idle / arrival / thinking、循环策略、Preview / fallback 行为和无障碍描述。
-- [x] 准备或接入 `res/raw/` Buddy 动画资源；如果动画资产暂未定，先完成组件 fallback 接口，不提交大体积占位 JSON。
-- [x] 将 Home 主入口 Buddy 与聊天顶部栏 Buddy 接入新的 Buddy 动效组件，保持现有静态图片视觉可回退。
-- [x] 新增 `ShopMateBuddyTransitionOverlay` 或等价顶层视觉桥接，在 Home 点击 prompt、文字发送、语音 transcript 或图片请求进入 Chat 时触发一次性过渡。
-- [x] 确保过渡可取消、不堆叠，并兼容 389x843 与 360x740 小屏布局，不遮挡 composer、消息气泡或系统权限弹窗。
-- [x] 限定 Thinking 仅用于真实等待态或 AI 正在生成前的顶部 Buddy 小动效，不扩散到商品卡、prompt carousel、skeleton、checkout 成功或普通页面转场。
-- [x] 如新增 transition trigger helper，补充一次性消费、重复触发和取消逻辑单元测试；纯 Compose UI 改动则记录无新增可测业务逻辑。
-- [x] 运行 Android 验证命令，并把结果或失败原因记录到本 tracker。
+- [x] 确认 `android-buddy-lottie-motion-spec.md` 已接入 Lottie Compose 与本地 raw resource 方案，避免重复依赖或重复封装。
+- [x] 新增 `ShopMateLottieStateIndicator` 与 `ShopMateLottieState`，完成 state -> raw resource / fallback 的集中映射。
+- [x] 新增或接入本地 raw 动效资源：AI thinking、voice listening、voice transcribing、image interpreting。
+- [x] 在聊天等待态接入 `AiThinking`，首个真实 `message_delta` 到达后停止动画并交给现有 streaming / typewriter 文本。
+- [x] 在 `ChatComposer` 语音 listening / transcribing 状态接入对应横向波形或 pulse 动效，权限拒绝和错误状态保持静态错误反馈。
+- [x] 在图片解释 / 搜索 busy 状态接入 `ImageInterpreting`，同时保留状态文案、失败重试和删除入口。
+- [x] 确认商品详情、购物车、checkout draft、商品图 loading 仍走 skeleton / 静态占位，不被 Lottie 替代。
+- [x] 补充必要的 Android 单元测试或 resource 映射测试；已有 ViewModel 只断言业务状态，不把 Lottie 当业务状态来源。
+- [x] 运行 `cd client/android` 后的 `.\gradlew.bat --no-daemon testDebugUnitTest`。
+- [x] 运行 `.\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/`，或记录真实失败原因。
 
 ## 备注
 
-- Spec 来源：`context/feature/android-buddy-lottie-motion-spec.md`。
-- Roadmap 位置：`context/spec-implementation-order.md` 的 `34.1 android-buddy-lottie-motion-spec.md`，属于商业 Demo 体验打磨 V1 的 Buddy Lottie 品牌动效。
-- 依赖边界：允许新增 `com.airbnb.android:lottie-compose`，但实现前需要确认当前版本；不接远程 Lottie URL、不使用 LottieFiles 网络 SDK / token / 在线素材接口。
-- 资产边界：动画 JSON 放在 `client/android/app/src/main/res/raw/`，建议单个 Buddy 动画控制在 250KB 以内，总量控制在 800KB 以内；背景透明，风格接近现有 ShopMate green / mint 和 Buddy PNG。
-- Fallback 边界：composition 未加载完成、资源缺失、Preview 或系统动画关闭时显示 `sidebar_shopmate_buddy` 等静态 PNG，不能空白。
-- 动效边界：Lottie 只做 Buddy idle / arrival / thinking 的品牌生命力；普通列表、按钮、商品卡、composer、checkout 卡片和页面 motion 仍由 Compose / Material3 状态处理。
-- 业务边界：不得改变 Chat SSE 事件、RAG 回答生成、购物车 / checkout action、图片找货、语音转写、商品卡锚点或导航 contract。
-- 依赖确认：Maven metadata 显示 `com.airbnb.android:lottie-compose` 当前 release / latest 为 `6.7.1`；官方 Compose 文档使用 `rememberLottieComposition(LottieCompositionSpec.RawRes(...))`、`animateLottieCompositionAsState` 和 `LottieAnimation`。
-- 实现记录：新增 `ShopMateBuddyMotion`，先渲染静态 Buddy PNG，再叠加本地 raw Lottie；Preview 和系统动画关闭时禁用 Lottie，保留 PNG fallback。
-- 实现记录：新增 3 个小体积本地 raw 动效资源：`shopmate_buddy_idle.json`、`shopmate_buddy_home_to_avatar.json`、`shopmate_buddy_thinking.json`，总量约 10.8KB，未接远程 URL 或 LottieFiles SDK。
-- 实现记录：Home 主入口 Buddy 和聊天顶部栏 Buddy 已接入 `ShopMateBuddyMotion`；聊天发送、语音监听 / 转写、图片上传 / 解释 / 搜索期间顶部 Buddy 使用 `Thinking`。
-- 实现记录：新增 `ShopMateBuddyTransitionOverlay` 与 `ShopMateBuddyTransitionController`，从 Home 进入 Chat 时触发一次中部 Buddy 到顶部头像的视觉桥接；快速重复触发会替换旧 request，新聊天 / 离开 Chat 会取消旧 overlay。
-- 视觉回归修复：移除 `shopmate_buddy_home_to_avatar.json` 的 `arrival_ring` 和 `shopmate_buddy_idle.json` 的 `pulse_ring` 图层，避免 Buddy 周围出现额外圆圈；Home -> Chat 位移 / 缩放桥接和 Thinking 点状动效保留。
-- 实现记录：新增 `shopmate_buddy_thinking.png` 透明头像资源；`ShopMateBuddyMotionState.Thinking` 自动切换到思考头像作为 fallback，并继续叠加 `shopmate_buddy_thinking.json` 的三点 thinking 动效。
-- 实现记录：新增 `onboarding_shopmate_buddy.png` 高清透明欢迎页 Buddy 资源，欢迎页单独引用该资源；旧 `mascot_assistant.png` 继续保留给 mock / fallback 场景。
-- 视觉调整记录：全局 `shopMateScreenBackground()` 从单一淡绿光斑改为 mint / aqua / pale green / warm cream 多层低透明 radial gradient，形成更柔和的雾化背景；未新增第三方库。
-- 视觉调整记录：`ShopMateBuddyMotionState.Thinking` 去掉三点 Lottie overlay，只保留思考头像切换；Idle / Arrival 的 fallback 和 overlay 逻辑不变。
-- 视觉调整记录：根据视觉反馈拆分背景 helper：欢迎页改用 `shopMateOnboardingBackground()` 保留聚焦圆形光晕；其他页面继续用 `shopMateScreenBackground()`，但改为整屏线性柔雾渐变，不再绘制中间大圆。
-- 视觉调整记录：根据首页截图反馈，通用背景继续降绿、提白，改为近白底上从右上斜向右侧 / 下方延展的低透明 mint / aqua 色带，避免整屏从上到下像一整片绿色。
-- 测试记录：新增 `ShopMateBuddyTransitionControllerTest`，覆盖一次性触发、重复触发替换、取消和只消费匹配 request。
-- 验证计划：
-  - `cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest`
-  - `cd client/android && .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/`
-- 验证记录：`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.ui.components.ShopMateBuddyTransitionControllerTest"` 通过。
+- Spec 来源：`context/feature/android-state-lottie-feedback-spec.md`。
+- 开发顺序：对应 `context/spec-implementation-order.md` 的 34.2，属于商业 Demo 体验打磨 V1 中的“状态 Lottie 微动效”。
+- 实现边界：只修改 Android UI / resource 层；不修改后端、Chat SSE schema、ASR provider、image search provider、Cart / Checkout API。
+- 依赖边界：优先复用 34.1 Buddy Lottie 已接入的 Lottie Compose 依赖和本地 raw resource 方式；不要新增远程 Lottie 加载或 LottieFiles SDK。
+- 行为边界：动画不得延迟 SSE、ASR、图片解释、购物车或 checkout 真实结果；进入非 busy、失败、权限拒绝或完成状态后必须停止动画。
+- 可访问性边界：每个动画状态必须有文本、颜色或 `contentDescription` / 语义 fallback；Lottie 加载失败时不能出现空白或不可点击状态。
+- 视觉边界：动效应小尺寸、透明背景、低饱和 ShopMate green / mint / soft gray；不用于按钮按压、业务成功提示、页面转场或商品 skeleton。
+- 验证重点：普通聊天等待、语音按住 / 转写、语音错误、图片解释 / 搜索失败、小屏语音条布局、低端设备或动画关闭时 fallback。
+- 实现记录：`client/android/app/build.gradle.kts` 已有 `com.airbnb.android:lottie-compose:6.7.1`，本 feature 未重复改 Gradle 依赖。
+- 实现记录：新增 `ShopMateLottieStateIndicator`，集中处理 `AiThinking`、`VoiceListening`、`VoiceTranscribing`、`ImageInterpreting` 的 raw resource 映射、循环播放、系统动画关闭 / Preview fallback 和语义描述。
+- 实现记录：新增 4 个本地 `res/raw` 状态动效资源：`shopmate_ai_thinking.json`、`shopmate_voice_wave_listening.json`、`shopmate_voice_wave_transcribing.json`、`shopmate_image_interpreting.json`；新增资源总量约 21KB，未接远程 Lottie。
+- 实现记录：聊天空白 streaming 占位气泡接入 `AiThinking`；真实文本到达后不再显示 continuation thinking 指示器，由现有 streaming / typewriter 文本承担展示。
+- 实现记录：`ChatComposer` 的语音 listening / transcribing 状态接入横向 Lottie 指示器，同时保留“松开发送”“正在转成文字”等用户可见文案；权限拒绝和错误状态不播放 Lottie。
+- 交互调整记录：根据反馈将语音 listening 的“松手发送 上滑取消”提示移到语音条上方低对比度胶囊内，语音条内部主要展示更宽的 Lottie 波形；transcribing 状态同样把“正在转成文字”放到条上方并让动效占据更多语音条空间。
+- 交互调整记录：语音 listening 增加上滑取消阈值，按住后向上滑出约 36dp 会触发 `onVoiceCancel()`；松手仍走原有发送 / 结束语音路径。
+- App 展示记录：根据反馈将 Android app 名称改为“抖选选”，并使用用户提供的绿色 Buddy 方图生成 `mipmap-mdpi` 到 `mipmap-xxxhdpi` 的 launcher / round launcher PNG 资源；`AndroidManifest.xml` 已改用 `@mipmap/ic_shopmate_launcher` 与 `@mipmap/ic_shopmate_launcher_round`。
+- 实现记录：图片解释 / 搜索 busy 状态在 composer preview 和用户气泡附件状态行显示 `ImageInterpreting` 小动效，同时保留状态文案、重试和删除入口；上传 / 失败 / 已选择不播放 Lottie。
+- 范围确认：本 feature 未修改后端、Chat SSE schema、ASR provider、image search provider、Cart / Checkout API；商品详情、购物车、checkout draft、商品图 loading 文件未进入本次实现 diff。
+- 测试记录：新增 `ShopMateLottieStateIndicatorTest`，覆盖 state -> raw resource 映射和图片 busy 状态到 `ImageInterpreting` 的映射。
+- 验证记录：`client/android/app/src/main/res/raw/shopmate_*.json` 全部通过 PowerShell `ConvertFrom-Json` 解析。
+- 验证记录：`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.ui.components.ShopMateLottieStateIndicatorTest"` 通过。
 - 验证记录：`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 通过。
-- 验证记录：第一次 `cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 被工具 244 秒超时截断；未见 Gradle 失败结论。
-- 验证记录：同一 build 命令以 480 秒工具超时重跑，43 秒内 `BUILD SUCCESSFUL`。
-- 验证记录：`git diff --check` 通过；仅提示 Windows line ending 将由 Git 转 CRLF。
-- 验证记录：圈层修复后，`res/raw/*.json` 均可被 PowerShell `ConvertFrom-Json` 解析；`Select-String` 确认 Buddy raw 资源里不再包含 `ring` / `ellipse` / `stroke` / `arrival` 圈层残留。
-- 验证记录：圈层修复后，`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过。
-- 验证记录：思考头像资源已处理为 `drawable-nodpi/shopmate_buddy_thinking.png`，尺寸 512x512，透明背景；等待态保留三点 Lottie 叠加。
-- 验证记录：思考头像切换接入后，`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过。
-- 验证记录：欢迎页高清 Buddy 资源已处理为 `drawable-nodpi/onboarding_shopmate_buddy.png`，尺寸 821x967，透明背景；欢迎页布局尺寸保持不变，仅替换图片资源。
-- 验证记录：欢迎页高清 Buddy 接入后，`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过。
-- 验证计划：全局雾化背景和 Thinking 小点移除后运行 Android build，确认 theme / Buddy Motion 编译通过。
-- 验证记录：全局雾化背景和 Thinking 小点移除后，`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过。
-- 验证计划：背景 helper 拆分后运行 Android build，确认欢迎页专属背景和其他页面通用背景编译通过。
-- 验证记录：背景 helper 拆分后，`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过。
-- 验证计划：通用背景降绿并改为右上斜向色带后运行 Android build，确认 theme 编译通过。
-- 验证记录：通用背景降绿并改为右上斜向色带后，`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过，输出 `BUILD SUCCESSFUL in 1m 22s`。
+- 验证记录：`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过，输出 `BUILD SUCCESSFUL in 1m 7s`。
+- 验证记录：`git diff --check -- <feature-owned Android files>` 通过；仅提示 Windows line ending 将由 Git 转 CRLF。
+- 验证记录：语音条提示调整后，`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 通过，输出 `SHOPMATE_TEST_DEBUG_UNIT_OK`。
+- 验证记录：语音条提示调整后，`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过，输出 `SHOPMATE_DEMO_BUILD_OK`。
+- 验证记录：App 名称 / launcher icon 接入后，`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 与 `.\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 均通过；`git diff --check -- <feature-owned Android files>` 仅提示 Windows line ending 将由 Git 转 CRLF。
 
 ## 历史记录
 - 初始化前后端技术栈骨架：完成 Android Kotlin + Jetpack Compose 与 Node.js + TypeScript + Express 最小工程初始化，补充 README 与 Git 忽略配置，并通过后端构建与 Android `assembleDebug` 验证。
@@ -150,3 +137,4 @@ Complete
 - AI Checkout Backend Patch Contract：新增聊天侧结构化 checkout draft patch contract，支持 `update_checkout`、旧 `update_address` 兼容、shipping / delivery / payment 后端校验、draft snapshot 与 changedFields；通过后端全量 test 和 build 验证。
 - Android Chat Checkout Draft Card：新增 Android 聊天订单草稿卡片，解析 `checkoutAction.draft`，支持草稿创建 / 更新 / 取消 / 过期 / 失败 / 提交状态展示，卡片可进入 `CheckoutScreen(draftId)` 并通过聊天确认或取消下单；通过 Android `testDebugUnitTest` 和带 demo HTTPS URL 的 build 验证。
 - Checkout Realtime SSE Event：新增独立 `checkout_action` SSE event，Android 可在 `done` 前同步 checkout draft 状态并对 `done.checkoutAction` 去重；同时修复下单成功后草稿卡残留和购物车合计金额截断问题。通过后端 test / build、Android `testDebugUnitTest`、带 demo HTTPS URL 的 Android build 和本地 Chat SSE smoke 验证。
+- Android Buddy Lottie Motion：新增 `ShopMateBuddyMotion`、Home 到 Chat 的 Buddy 视觉桥接、本地 Lottie raw 动效和 PNG fallback，聊天等待态顶部 Buddy 可切换 Thinking；补充过渡控制器单元测试，并通过 Android `testDebugUnitTest` 和带 demo HTTPS URL 的 build 验证。
