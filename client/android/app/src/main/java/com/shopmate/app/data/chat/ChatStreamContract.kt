@@ -179,6 +179,8 @@ sealed interface ChatStreamEvent {
 
     data class ComparisonResult(val result: ChatComparisonResultDto) : ChatStreamEvent
 
+    data class CheckoutAction(val action: ChatCheckoutActionDto) : ChatStreamEvent
+
     data class Done(
         val recommendedProductIds: List<String>,
         val fallbackUsed: Boolean,

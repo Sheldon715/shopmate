@@ -52,6 +52,12 @@ describe("chat contract fixtures", () => {
       "product_cards",
       "done",
     ]);
+    expect(eventNames(chatContractFixtures.checkoutStream.events)).toEqual([
+      "checkout_action",
+      "message_delta",
+      "product_cards",
+      "done",
+    ]);
     expect(eventNames(chatContractFixtures.comparisonStream.events)).toEqual([
       "message_delta",
       "product_cards",
@@ -131,7 +137,36 @@ describe("chat contract fixtures", () => {
           message: expect.any(String) as unknown as string,
         });
       }
+      if (event.payload.checkoutAction) {
+        expect(event.payload.checkoutAction).toMatchObject({
+          type: expect.any(String) as unknown as string,
+          status: expect.any(String) as unknown as string,
+        });
+      }
     }
+  });
+
+  it("keeps checkout_action payloads aligned with done.checkoutAction", () => {
+    const checkoutActionEvents = contractEventsByName("checkout_action");
+
+    expect(checkoutActionEvents).toHaveLength(1);
+
+    const done = chatContractFixtures.checkoutStream.events.find(
+      (event): event is Extract<ChatStreamContractEvent, { eventName: "done" }> =>
+        event.eventName === "done",
+    );
+
+    expect(done?.payload.checkoutAction).toEqual(checkoutActionEvents[0].payload);
+    expect(checkoutActionEvents[0].payload).toMatchObject({
+      type: "start_checkout",
+      status: "draft_created",
+      draftId: "draft_1",
+      draft: {
+        id: "draft_1",
+        status: "pending",
+      },
+      changedFields: [],
+    });
   });
 
   it("keeps comparison payloads compatible with Android parser expectations", () => {

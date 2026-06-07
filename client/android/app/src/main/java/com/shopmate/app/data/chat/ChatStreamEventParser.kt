@@ -32,6 +32,11 @@ fun parseChatStreamEvent(
                 ChatStreamEvent.ComparisonResult(result = payload)
             }
 
+            "checkout_action" -> {
+                val payload = json.decodeFromString<ChatCheckoutActionDto>(data)
+                ChatStreamEvent.CheckoutAction(action = payload)
+            }
+
             "done" -> {
                 val payload = json.decodeFromString<DonePayloadDto>(data)
                 ChatStreamEvent.Done(

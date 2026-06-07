@@ -700,76 +700,92 @@ private fun CartFooter(
     ) {
         Row(
             modifier = Modifier
-                .offset(x = 10f.s(), y = 14f.s())
-                .size(width = 71f.s(), height = 30f.s())
-                .clickable(enabled = enabled, role = Role.Checkbox, onClick = onToggleAll),
+                .fillMaxSize()
+                .padding(
+                    start = 10f.s(),
+                    top = 8f.s(),
+                    end = 11f.s(),
+                    bottom = 8f.s()
+                ),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            SelectableCheckButton(
-                selected = allSelected,
-                enabled = enabled,
-                onClick = onToggleAll,
-                modifier = Modifier.size(28f.s())
-            )
-            Spacer(modifier = Modifier.width(7f.s()))
-            Text(
-                text = "全选",
-                color = Color(0xFF4C5965),
-                fontSize = (12f * scale).sp,
-                lineHeight = (16f * scale).sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                letterSpacing = 0.sp
-            )
-        }
-
-        Text(
-            text = "合计：",
-            color = Color(0xFF3F4A56),
-            fontSize = (12f * scale).sp,
-            lineHeight = (16f * scale).sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            letterSpacing = 0.sp,
-            modifier = Modifier.offset(x = 106f.s(), y = 22f.s())
-        )
-
-        Text(
-            text = totalText,
-            color = ShopMateTextPrimary,
-            fontSize = (22f * scale).sp,
-            lineHeight = (22f * scale).sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            letterSpacing = 0.sp,
-            modifier = Modifier
-                .offset(x = 150f.s(), y = 16f.s())
-                .width(72f.s())
-        )
-
-        Box(
-            modifier = Modifier
-                .offset(x = 217.33f.s(), y = 8f.s())
-                .size(width = 136f.s(), height = 42f.s())
-                .shadow(
-                    elevation = 12f.s(),
-                    shape = ShopMatePillShape,
-                    clip = false
+            Row(
+                modifier = Modifier
+                    .size(width = 72f.s(), height = 42f.s())
+                    .clickable(enabled = enabled, role = Role.Checkbox, onClick = onToggleAll),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                SelectableCheckButton(
+                    selected = allSelected,
+                    enabled = enabled,
+                    onClick = onToggleAll,
+                    modifier = Modifier.size(28f.s())
                 )
-                .clip(ShopMatePillShape)
-                .background(checkoutBrush)
-                .clickable(enabled = checkoutEnabled, role = Role.Button, onClick = onCheckoutClick),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = if (checkoutLoading) "准备中..." else "去结算 ($selectedCount)",
-                color = Color.White.copy(alpha = if (checkoutEnabled) 1f else 0.72f),
-                fontSize = (14f * scale).sp,
-                lineHeight = (18f * scale).sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                letterSpacing = 0.sp
-            )
+                Spacer(modifier = Modifier.width(7f.s()))
+                Text(
+                    text = "全选",
+                    color = Color(0xFF4C5965),
+                    fontSize = (12f * scale).sp,
+                    lineHeight = (16f * scale).sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    letterSpacing = 0.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.width(8f.s()))
+
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "合计：",
+                    color = Color(0xFF3F4A56),
+                    fontSize = (12f * scale).sp,
+                    lineHeight = (16f * scale).sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    letterSpacing = 0.sp
+                )
+
+                Text(
+                    text = totalText,
+                    color = ShopMateTextPrimary,
+                    fontSize = (21f * scale).sp,
+                    lineHeight = (24f * scale).sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Clip,
+                    letterSpacing = 0.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.width(8f.s()))
+
+            Box(
+                modifier = Modifier
+                    .size(width = 128f.s(), height = 42f.s())
+                    .shadow(
+                        elevation = 12f.s(),
+                        shape = ShopMatePillShape,
+                        clip = false
+                    )
+                    .clip(ShopMatePillShape)
+                    .background(checkoutBrush)
+                    .clickable(enabled = checkoutEnabled, role = Role.Button, onClick = onCheckoutClick),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (checkoutLoading) "准备中..." else "去结算 ($selectedCount)",
+                    color = Color.White.copy(alpha = if (checkoutEnabled) 1f else 0.72f),
+                    fontSize = (14f * scale).sp,
+                    lineHeight = (18f * scale).sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    letterSpacing = 0.sp
+                )
+            }
         }
     }
 }

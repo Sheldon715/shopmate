@@ -240,6 +240,62 @@ class ChatStreamEventParserTest {
     }
 
     @Test
+    fun parsesCheckoutActionEvent() {
+        val event = parseChatStreamEvent(
+            "checkout_action",
+            """
+                {
+                  "type": "start_checkout",
+                  "status": "draft_created",
+                  "draftId": "draft_1",
+                  "selectedCount": 1,
+                  "totalCents": 19900,
+                  "changedFields": [],
+                  "draft": {
+                    "id": "draft_1",
+                    "status": "pending",
+                    "address": {
+                      "label": "本次地址",
+                      "recipient": "ShopMate Demo 用户",
+                      "phoneMasked": "138****0000",
+                      "fullAddress": "UNSW Village 6 栋 302"
+                    },
+                    "items": [],
+                    "summary": {
+                      "itemCount": 1,
+                      "selectedCount": 1,
+                      "subtotalCents": 19900,
+                      "shippingFeeCents": 0,
+                      "totalCents": 19900,
+                      "currency": "CNY"
+                    },
+                    "selectedDeliveryMethod": {
+                      "type": "standard",
+                      "label": "标准配送",
+                      "feeCents": 0
+                    },
+                    "selectedPaymentMethod": {
+                      "type": "wechat",
+                      "label": "微信支付",
+                      "status": "not_charged"
+                    },
+                    "deliveryOptions": [],
+                    "paymentOptions": [],
+                    "expiresAt": "2026-06-06T00:15:00.000Z"
+                  }
+                }
+            """.trimIndent(),
+        )
+
+        val checkoutAction = assertIs<ChatStreamEvent.CheckoutAction>(event).action
+        assertEquals("start_checkout", checkoutAction.type)
+        assertEquals("draft_created", checkoutAction.status)
+        assertEquals("draft_1", checkoutAction.draftId)
+        assertEquals(19900, checkoutAction.totalCents)
+        assertEquals("UNSW Village 6 栋 302", checkoutAction.draft?.address?.fullAddress)
+    }
+
+    @Test
     fun parsesDoneCheckoutActionDraftSnapshot() {
         val event = parseChatStreamEvent(
             "done",

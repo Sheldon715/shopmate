@@ -35,6 +35,7 @@ import kotlin.test.assertTrue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.drop
@@ -1621,7 +1622,7 @@ class ChatViewModelTest {
     }
 
     @Test
-    fun submittedCheckoutActionUsesNestedOrderForSideEffectsAndDraftStatus() = runTest {
+    fun submittedCheckoutActionUsesNestedOrderForSideEffectsAndClearsDraft() = runTest {
         val repository = FakeChatRepository()
         val viewModel = ChatViewModel(repository)
 
@@ -1653,12 +1654,92 @@ class ChatViewModelTest {
 
         val refresh = assertIs<ChatSideEffect.RefreshCart>(refreshEffect.await())
         val order = assertIs<ChatSideEffect.ShowMockOrderResult>(orderEffect.await())
-        val checkoutDraft = assertNotNull(viewModel.uiState.value.activeCheckoutDraft)
-        assertEquals(ChatCheckoutDraftStatusUi.Submitted, checkoutDraft.status)
-        assertEquals("SM-20260606-TEST", checkoutDraft.orderNumber)
+        assertEquals(null, viewModel.uiState.value.activeCheckoutDraft)
         assertEquals("SM-20260606-TEST", refresh.message)
         assertEquals("SM-20260606-TEST", order.orderNumber)
         assertEquals(19900, order.totalCents)
+    }
+
+    @Test
+    fun checkoutActionEventUpdatesDraftBeforeDone() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("帮我结算购物车")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        repository.events.emit(
+            ChatStreamEvent.CheckoutAction(
+                ChatCheckoutActionDto(
+                    type = "start_checkout",
+                    status = "draft_created",
+                    draftId = "draft_1",
+                    draft = checkoutDraftDto(fullAddress = "UNSW Village 6 栋 302"),
+                    cartRefreshRequired = false,
+                ),
+            ),
+        )
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        val checkoutDraft = assertNotNull(state.activeCheckoutDraft)
+        assertEquals(ChatCheckoutDraftStatusUi.Pending, checkoutDraft.status)
+        assertEquals("draft_1", checkoutDraft.draft.id)
+        assertEquals("UNSW Village 6 栋 302", checkoutDraft.draft.address.fullAddress)
+        assertTrue(state.isSending)
+        assertTrue(state.messages.last { message -> !message.fromUser }.isStreaming)
+    }
+
+    @Test
+    fun checkoutActionEventAndDoneCheckoutActionTriggerOrderSideEffectsOnce() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+        val checkoutAction = ChatCheckoutActionDto(
+            type = "confirm_checkout",
+            status = "order_created",
+            draftId = "draft_1",
+            orderId = "order_1",
+            orderNumber = "SM-20260606-TEST",
+            totalCents = 19900,
+            draft = checkoutDraftDto(),
+            cartRefreshRequired = true,
+        )
+
+        viewModel.onComposerTextChange("确认下单")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        val effects = mutableListOf<ChatSideEffect>()
+        val collectJob = backgroundScope.launch {
+            viewModel.sideEffects.collect { effect ->
+                effects += effect
+            }
+        }
+
+        repository.events.emit(ChatStreamEvent.CheckoutAction(checkoutAction))
+        repository.events.emit(ChatStreamEvent.MessageDelta("订单已生成。", 0))
+        repository.events.emit(ChatStreamEvent.ProductCards(emptyList()))
+        repository.events.emit(
+            ChatStreamEvent.Done(
+                recommendedProductIds = emptyList(),
+                fallbackUsed = false,
+                fallbackReason = null,
+                retrieval = ChatRetrievalDto(candidateCount = 1),
+                checkoutAction = checkoutAction,
+            ),
+        )
+        advanceUntilIdle()
+        collectJob.cancel()
+
+        assertEquals(2, effects.size)
+        val refresh = assertIs<ChatSideEffect.RefreshCart>(effects[0])
+        val order = assertIs<ChatSideEffect.ShowMockOrderResult>(effects[1])
+        assertEquals("SM-20260606-TEST", refresh.message)
+        assertEquals("SM-20260606-TEST", order.orderNumber)
+        assertEquals(19900, order.totalCents)
+        assertFalse(viewModel.uiState.value.isSending)
+        assertEquals(null, viewModel.uiState.value.activeCheckoutDraft)
     }
 
     @Test
@@ -1716,9 +1797,7 @@ class ChatViewModelTest {
         )
         advanceUntilIdle()
 
-        val checkoutDraft = assertNotNull(viewModel.uiState.value.activeCheckoutDraft)
-        assertEquals(ChatCheckoutDraftStatusUi.Submitted, checkoutDraft.status)
-        assertEquals("SM-20260606-TEST", checkoutDraft.orderNumber)
+        assertEquals(null, viewModel.uiState.value.activeCheckoutDraft)
         assertFalse(viewModel.openActiveCheckoutDraft("draft_1"))
         assertFalse(viewModel.confirmActiveCheckout())
         assertFalse(viewModel.cancelActiveCheckout())

@@ -367,7 +367,11 @@ private fun ChatStreamList(
             }
         }
 
-        state.activeCheckoutDraft?.let { checkoutDraft ->
+        state.activeCheckoutDraft
+            ?.takeUnless { checkoutDraft ->
+                checkoutDraft.status == ChatCheckoutDraftStatusUi.Submitted
+            }
+            ?.let { checkoutDraft ->
             item(key = "checkout-draft-${checkoutDraft.draft.id}") {
                 CheckoutDraftCard(
                     checkoutDraft = checkoutDraft,

@@ -2172,6 +2172,12 @@ async function writeRagResultToStream(
   result: RagChatResult,
   options: { skipMessageDeltas: boolean },
 ): Promise<void> {
+  if (result.checkoutAction) {
+    if (!(await writer.writeCheckoutAction(result.checkoutAction))) {
+      return;
+    }
+  }
+
   if (!options.skipMessageDeltas) {
     for (const chunk of chunkMessageDelta(result.answer)) {
       if (!(await writer.writeMessageDelta(chunk))) {

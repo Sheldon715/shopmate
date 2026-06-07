@@ -1424,11 +1424,20 @@ describe("RagChatService", () => {
       pendingCheckout: { status: "missing" },
     });
     expect(events.map((event) => event.eventName)).toEqual([
+      "checkout_action",
       "message_delta",
       "product_cards",
       "done",
     ]);
-    expect(events[2]).toMatchObject({
+    expect(events[0]).toMatchObject({
+      eventName: "checkout_action",
+      payload: {
+        type: "start_checkout",
+        status: "draft_created",
+        draftId: "draft_1",
+      },
+    });
+    expect(events[3]).toMatchObject({
       eventName: "done",
       payload: {
         checkoutAction: {
@@ -1466,6 +1475,10 @@ describe("RagChatService", () => {
           },
         },
       },
+    });
+    expect(events[0]).toEqual({
+      eventName: "checkout_action",
+      payload: events[3].payload.checkoutAction,
     });
   });
 
@@ -3644,6 +3657,13 @@ function createCollectingStreamWriter(onMessageDelta?: () => void): {
       });
       messageIndex += 1;
       onMessageDelta?.();
+      return true;
+    },
+    writeCheckoutAction: async (payload) => {
+      events.push({
+        eventName: "checkout_action",
+        payload,
+      });
       return true;
     },
     writeProductCards: async (items) => {

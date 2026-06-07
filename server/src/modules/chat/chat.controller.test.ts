@@ -248,6 +248,100 @@ describe("createChatStreamController", () => {
     expect(response.ended).toBe(true);
   });
 
+  it("streams checkout_action before assistant text and keeps done compatible", async () => {
+    const service = createService(async () =>
+      createResultFromFixture(chatContractFixtures.checkoutStream.events)
+    );
+    const request = createRequest({ message: "帮我结算购物车" });
+    const response = new FakeResponse();
+
+    await createChatStreamController(service)(
+      request.asRequest(),
+      response.asResponse(),
+    );
+
+    const events = stripTiming(response.streamEvents());
+
+    expect(events).toEqual(chatContractFixtures.checkoutStream.events);
+    expect(eventNames(events)).toEqual([
+      "checkout_action",
+      "message_delta",
+      "product_cards",
+      "done",
+    ]);
+    expect(payloadFor(events, "checkout_action")).toEqual(
+      payloadFor(events, "done").checkoutAction,
+    );
+    expect(response.ended).toBe(true);
+  });
+
+  it("streams checkout_action even when checkout assistant text is empty", async () => {
+    const checkoutAction = payloadFor(
+      chatContractFixtures.checkoutStream.events,
+      "checkout_action",
+    );
+    const service = createService(async () =>
+      createResult({
+        answer: "",
+        recommendedProductIds: [],
+        productCards: [],
+        fallbackUsed: false,
+        retrieval: {
+          candidateCount: 1,
+          returnedProductIds: [],
+        },
+        checkoutAction,
+      })
+    );
+    const request = createRequest({ message: "帮我结算购物车" });
+    const response = new FakeResponse();
+
+    await createChatStreamController(service)(
+      request.asRequest(),
+      response.asResponse(),
+    );
+
+    const events = stripTiming(response.streamEvents());
+
+    expect(eventNames(events)).toEqual([
+      "checkout_action",
+      "product_cards",
+      "done",
+    ]);
+    expect(payloadFor(events, "done").checkoutAction).toEqual(checkoutAction);
+  });
+
+  it("does not write partial checkout_action chunks when serialization fails", async () => {
+    const circular: Record<string, unknown> = {
+      type: "start_checkout",
+      status: "draft_created",
+    };
+    circular.self = circular;
+    const service = createService(async () =>
+      createResult({
+        checkoutAction: circular as NonNullable<RagChatResult["checkoutAction"]>,
+      })
+    );
+    const request = createRequest({ message: "帮我结算购物车" });
+    const response = new FakeResponse();
+
+    await createChatStreamController(service)(
+      request.asRequest(),
+      response.asResponse(),
+    );
+
+    expect(response.chunks).toHaveLength(1);
+    expect(response.streamEvents()).toEqual([{
+      eventName: "error",
+      payload: {
+        code: "SSE_SERIALIZATION_ERROR",
+        message: "Chat stream payload could not be serialized.",
+        retryable: false,
+      },
+    }]);
+    expect(response.ended).toBe(true);
+  });
+
   it("streams comparison results before done", async () => {
     const service = createService(async () =>
       createResultFromFixture(chatContractFixtures.comparisonStream.events)
@@ -472,6 +566,7 @@ function createResultFromFixture(
     retrieval: donePayload.retrieval,
     contextMemory: donePayload.contextMemory,
     cartAction: donePayload.cartAction,
+    checkoutAction: donePayload.checkoutAction,
     comparisonResult: events.find(
       (
         event,

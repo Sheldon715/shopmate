@@ -1,4 +1,4 @@
-# Current Feature: Android Chat Checkout Draft Card
+# Current Feature: Checkout Realtime SSE Event
 
 ## 状态
 
@@ -6,43 +6,49 @@ Complete
 
 ## 目标
 
-- 让 Android 聊天页解析扩展后的 `checkoutAction.draft`，把后端 checkout draft 可视化成聊天订单草稿卡片。
-- `draft_created` 创建卡片，`address_updated` / `draft_updated` 更新同一张卡片，`cancelled` / `expired` / `failed` / `order_created` 反映真实状态。
-- 卡片支持查看订单、取消和提交订单，并通过 `OpenCheckoutDraft(draftId)` 进入已完成的 `CheckoutScreen`。
-- 订单成功后触发购物车刷新和订单结果反馈；Android 不本地决定价格、配送费或订单成功状态。
+- 后端新增独立 `checkout_action` SSE event，在 checkout draft 创建、更新、取消或确认后先发送结构化 action，再继续发送 assistant 文案和最终 `done`。
+- 保留 `done.checkoutAction`，兼容旧 Android 客户端、Gradio evidence 和既有 contract 测试。
+- Android SSE parser 支持 `checkout_action`，`ChatViewModel` 能立即同步订单草稿卡片，并与 `done.checkoutAction` 去重。
+- `order_created` 相关购物车刷新只触发一次，普通推荐、对比、购物车管理和图片找货 SSE 不受影响。
 
 ## 待办清单
 
-- [x] 扫描 Android 聊天、checkout、orders 相关现有实现：`data/chat/`、`ChatViewModel.kt`、`ChatUiState.kt`、`CheckoutScreen.kt`、`CheckoutViewModel.kt`、`data/orders/` 和当前导航 / side effect 处理。
-- [x] 扩展 `ChatCheckoutActionDto` 和相关 draft / summary / delivery / payment DTO，兼容缺失 `draft` 的旧字段。
-- [x] 新增或扩展 checkout draft UI model，优先使用 `activeCheckoutDraft` 表示当前会话的活跃订单草稿。
-- [x] 在 `ChatViewModel` 处理 `done.checkoutAction`：创建、更新、取消、过期、失败、提交状态都映射到同一张 draft card。
-- [x] 增加聊天 side effect：查看订单打开 `CheckoutScreen(draftId)`，订单成功刷新购物车并展示订单结果。
-- [x] 新增 `CheckoutDraftCard` 组件，展示商品摘要、金额、收货信息、配送方式、支付方式和查看 / 取消 / 提交操作。
-- [x] 确认提交 / 取消按钮只发送聊天确认或取消消息，不在 Android 本地创建订单或改金额。
-- [x] 补 Android parser / mapper / ViewModel 单测，覆盖 draft 创建、更新、提交、旧字段 fallback 和按钮 side effect；取消 / 过期 / 失败由统一状态 mapper 覆盖，后续如需要可继续补 UI 层快照测试。
-- [x] 运行 `cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest`。
-- [x] 运行 `cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/`。
+- [x] 扫描后端 Chat SSE 现状：`chat.controller.ts`、`chat.types.ts`、`rag.service.ts`、SSE writer、contract fixture 和相关测试，确认 `checkoutAction` 的生成与输出路径。
+- [x] 后端新增 `checkout_action` event 写出逻辑，确保 checkout action 先于 `message_delta` 和 `done`，普通 RAG 请求不发送该 event。
+- [x] 补齐后端测试 / fixture：事件顺序、`checkout_action` 与 `done.checkoutAction` 核心字段一致、无 checkout action 场景、LLM 回复失败仍保留结构化 action、序列化失败不输出半截非法 SSE。
+- [x] 更新 Android SSE parser：新增 `ChatStreamEvent.CheckoutAction`，复用 `ChatCheckoutActionDto` 解析 `event: checkout_action`，未知字段忽略，异常不导致聊天页崩溃。
+- [x] 更新 `ChatViewModel`：收到 `CheckoutAction` 时立即同步 `activeCheckoutDraft`，收到 `Done.checkoutAction` 时兜底同步，并按 `draftId|orderId|status|updatedAt/totalCents` 去重。
+- [x] 验证 `order_created` 的 `RefreshCart` side effect 只触发一次，同时旧的只有 `done.checkoutAction` 的 SSE 流仍可工作。
+- [x] 运行并记录后端 `npm.cmd test`、`npm.cmd run build`，以及 Android `testDebugUnitTest` 和带 demo HTTPS base URL 的 build；如有 smoke 条件，再验证 `checkout_action` 出现在 `done` 前。
 
 ## 备注
 
-- Spec 来源：`context/feature/android-chat-checkout-draft-card-spec.md`。
-- 依赖边界：后端 `ai-checkout-backend-patch-contract-spec.md` 已提供扩展后的 `done.checkoutAction.draft`；本 feature 只消费 Android contract，不新增后端 patch contract，不新增独立 `checkout_action` SSE event。
-- UI 边界：复用现有 ShopMate 主题和 `CheckoutScreen` 主流程，聊天卡片信息密度适合扫读，小屏下文本和按钮不能重叠；用户界面不展示 `mock`、`fake`、`模拟` 等词。
-- 业务边界：金额、配送费、订单成功、商品列表都以后端 action / draft / order 为准；Android 只展示和触发确认 / 取消 / 查看订单，不做本地订单成功判断。
-- 状态策略：第一版基于 `done.checkoutAction` 更新卡片；用户发送提交或取消后可先标记 `Updating`，真实状态必须以后端返回为准。
-- 验证计划：以 Android 单测和带 demo HTTPS base URL 的 build 为主；如需要联动后端，再补 `cd server; npm.cmd test` 和 `cd server; npm.cmd run build`。
-- 实现记录：新增 `ChatCheckoutMapper.kt`，将后端 `checkoutAction.draft` 映射为 `CheckoutDraftUi` / `ChatCheckoutDraftCardUi`；聊天页新增订单草稿卡片，查看订单走 `OpenCheckoutDraft(draftId)`，提交 / 取消只发送聊天消息。
-- 导航记录：聊天卡片打开 `CheckoutScreen(draftId)` 时复用当前 draft；从聊天进入时返回不清理购物车 checkout draft。
+- Spec 来源：`context/feature/checkout-realtime-sse-event-spec.md`。
+- Research 判断：不需要外部 research；这是 ShopMate 现有 Chat SSE / checkout contract 的本地增强。
+- 范围边界：不新增 checkout patch intent，不新增聊天订单卡片 UI，不改变订单创建、金额计算、配送 / 支付校验逻辑，不移除旧 `done.checkoutAction`。
+- Contract 顺序目标：`checkout_action` -> `message_delta` -> `done`；第一版接受 controller 仍需先拿到 `RagChatResult` 后才能开始写 SSE 的边界。
+- 安全边界：`checkout_action` 只是结构化 side effect，不是用户可见话术；Android 必须以后端 action 为准，不能因本地按钮点击自行创建订单；payload 不包含完整手机号、真实支付凭证或 provider secret。
+- 验证命令：
+  - `cd server; npm.cmd test`
+  - `cd server; npm.cmd run build`
+  - `cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest`
+  - `cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/`
+- 实现记录：后端 `ChatStreamEventName` / `ChatStreamWriter` 新增 `checkout_action`，controller 和 streaming RAG flush 路径都会在 assistant 文案前写出同一份 `checkoutAction` payload，`done.checkoutAction` 保留。
+- 实现记录：Android parser 新增 `ChatStreamEvent.CheckoutAction`，`ChatViewModel` 在该 event 到达时立即更新 `activeCheckoutDraft`，并用 checkout action key 去重后续 `done.checkoutAction` side effect。
+- 验证记录：`cd server; npm.cmd test -- --run src/modules/chat/chat.controller.test.ts src/modules/chat/chat-contract.fixture.test.ts src/modules/chat/rag.service.test.ts` 通过。
 - 验证记录：`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.data.chat.ChatStreamEventParserTest" --tests "com.shopmate.app.ui.chat.ChatViewModelTest"` 通过。
+- 验证记录：`cd server; npm.cmd run build` 通过。
+- 验证记录：`cd server; npm.cmd test` 通过。
 - 验证记录：`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 通过。
 - 验证记录：`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过。
-- Review 修复：从聊天卡片进入 `CheckoutScreen` 并提交成功后，`ChatViewModel` 会把同一 draft 标记为 `Submitted` 并保存订单号，避免返回聊天后卡片仍显示待确认。
-- Review 修复：`Submitted` / `Cancelled` / `Expired` / `Failed` 等终态 draft 不再允许“查看订单”、确认或取消；ViewModel 也增加状态防线，避免 UI 误触发可提交 checkout。
-- Review 验证记录：`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.ui.chat.ChatViewModelTest"` 通过。
-- Review 验证记录：`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 通过。
-- Review 验证记录：`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过。
-- 工作流记录：用户已触发 `feature complete`，本轮进入窄范围提交、合并与推送收尾。
+- Smoke 记录：已启动后端 dev server：`http://127.0.0.1:3000`，PID `23356`；`GET /api/health` 返回 200，`status=ok`。
+- Smoke 记录：空购物车直接 chat checkout 请求走普通推荐兜底，SSE 事件为 `message_delta -> product_cards -> done`，无 `checkout_action`，`done.fallbackReason=LLM_ERROR`。
+- Smoke 记录：临时加购 `p_food_021` 后，`POST /api/orders/mock-checkout` 返回 201，`checkoutAction.type=start_checkout`、`status=draft_created`、`selectedCount=1`、`totalCents=1890`。
+- Smoke 记录：同一 seeded cart 的 `POST /api/chat/stream` 返回 `checkout_action -> message_delta -> product_cards -> done`，无 `error`，`checkout_action` 在 `done` 前；测试结束后已删除临时 cart item，购物车恢复空状态。
+- 修复记录：聊天确认下单收到 `order_created` 后不再保留 active checkout draft；独立确认订单页提交成功回到聊天时也清空草稿状态，UI 兜底不渲染已提交草稿卡，避免“订单草稿 / 提交订单 / 取消”在下单成功后继续显示。
+- 验证记录：`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.ui.chat.ChatViewModelTest"` 通过。
+- 附带修复：购物车底部合计金额区域从固定宽度改为自适应行布局，避免 `¥18998` 等五位数金额被“去结算”按钮挤压截断。
+- 验证记录：`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过。
 
 ## 历史记录
 - 初始化前后端技术栈骨架：完成 Android Kotlin + Jetpack Compose 与 Node.js + TypeScript + Express 最小工程初始化，补充 README 与 Git 忽略配置，并通过后端构建与 Android `assembleDebug` 验证。
@@ -124,3 +130,4 @@ Complete
 - Mock Checkout Agent Flow：新增 mock order / order_items、pending checkout、LLM checkout intent / response、Chat SSE `checkoutAction`、Android checkout contract 和购物车确认面板；聊天入口支持多轮地址修改 / 确认下单，购物车按钮走独立确认面板并记录 `source=cart_button`。通过后端全量 test / build、Android testDebugUnitTest / 带 demo HTTPS URL build、真实 Chat SSE smoke 和真实 cart-button checkout API smoke 验证。
 - Android Checkout Detail Page：新增独立确认订单页、地址编辑 / 本地地址簿、配送 / 支付选择、金额明细和提交成功页；后端扩展 checkout draft / confirm contract，保存 shipping / delivery / payment 快照并保持商品金额以后端 draft 为准。通过后端 test / build、Android testDebugUnitTest 和带 demo HTTPS URL 的 Android build 验证。
 - AI Checkout Backend Patch Contract：新增聊天侧结构化 checkout draft patch contract，支持 `update_checkout`、旧 `update_address` 兼容、shipping / delivery / payment 后端校验、draft snapshot 与 changedFields；通过后端全量 test 和 build 验证。
+- Android Chat Checkout Draft Card：新增 Android 聊天订单草稿卡片，解析 `checkoutAction.draft`，支持草稿创建 / 更新 / 取消 / 过期 / 失败 / 提交状态展示，卡片可进入 `CheckoutScreen(draftId)` 并通过聊天确认或取消下单；通过 Android `testDebugUnitTest` 和带 demo HTTPS URL 的 build 验证。

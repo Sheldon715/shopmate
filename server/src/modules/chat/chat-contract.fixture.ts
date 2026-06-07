@@ -1,5 +1,6 @@
 import type { ProductCardDto } from "../products/product.types";
 import type {
+  ChatCheckoutActionPayload,
   ChatDonePayload,
   ChatComparisonResultPayload,
   ChatErrorPayload,
@@ -195,6 +196,91 @@ const cartAddDone: ChatDonePayload = {
   },
 };
 
+const checkoutAction: ChatCheckoutActionPayload = {
+  type: "start_checkout",
+  status: "draft_created",
+  draftId: "draft_1",
+  selectedCount: 1,
+  totalCents: 19900,
+  address: {
+    label: "默认地址",
+    recipient: "ShopMate 用户",
+    phoneMasked: "138****0000",
+    fullAddress: "ShopMate 收货点",
+  },
+  cartRefreshRequired: false,
+  draft: {
+    id: "draft_1",
+    status: "pending",
+    address: {
+      label: "默认地址",
+      recipient: "ShopMate 用户",
+      phoneMasked: "138****0000",
+      fullAddress: "ShopMate 收货点",
+    },
+    items: [{
+      cartItemId: "item_001",
+      productId: "product_001",
+      productName: "通勤蓝牙耳机 A",
+      brand: "示例品牌",
+      category: "数码电子",
+      unitPriceCents: 19900,
+      quantity: 1,
+      subtotalCents: 19900,
+      imagePath: "/images/product_001.png",
+    }],
+    summary: {
+      itemCount: 1,
+      selectedCount: 1,
+      subtotalCents: 19900,
+      shippingFeeCents: 0,
+      totalCents: 19900,
+      currency: "CNY",
+    },
+    selectedDeliveryMethod: {
+      type: "standard",
+      label: "标准配送",
+      feeCents: 0,
+    },
+    selectedPaymentMethod: {
+      type: "wechat",
+      label: "微信支付",
+      status: "not_charged",
+    },
+    deliveryOptions: [{
+      type: "standard",
+      label: "标准配送",
+      feeCents: 0,
+      etaText: "预计 2-4 天送达",
+    }],
+    paymentOptions: [{
+      type: "wechat",
+      label: "微信支付",
+    }],
+    expiresAt: "2026-06-06T00:15:00.000Z",
+  },
+  changedFields: [],
+};
+
+const checkoutMessageDelta: ChatMessageDeltaPayload = {
+  text: "我先汇总已勾选商品，请确认是否生成订单。",
+  index: 0,
+};
+
+const checkoutProductCards: ChatProductCardsPayload = {
+  items: [],
+};
+
+const checkoutDone: ChatDonePayload = {
+  recommendedProductIds: [],
+  fallbackUsed: false,
+  retrieval: {
+    candidateCount: 1,
+    returnedProductIds: ["product_001"],
+  },
+  checkoutAction,
+};
+
 const comparisonMessageDelta: ChatMessageDeltaPayload = {
   text: "我把这两款按通勤肤感、防晒稳定性和预算做了对比。",
   index: 0,
@@ -336,6 +422,16 @@ export const chatContractFixtures = {
       { eventName: "message_delta", payload: cartAddMessageDelta },
       { eventName: "product_cards", payload: cartAddProductCards },
       { eventName: "done", payload: cartAddDone },
+    ],
+  },
+  checkoutStream: {
+    name: "checkout stream",
+    description: "A checkout action event, assistant message, product cards, and compatible done payload.",
+    events: [
+      { eventName: "checkout_action", payload: checkoutAction },
+      { eventName: "message_delta", payload: checkoutMessageDelta },
+      { eventName: "product_cards", payload: checkoutProductCards },
+      { eventName: "done", payload: checkoutDone },
     ],
   },
   comparisonStream: {

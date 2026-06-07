@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Request, Response } from "express";
 import { fail } from "../../types/api-response";
 import type {
+  ChatCheckoutActionPayload,
   ChatDonePayload,
   ChatComparisonResultPayload,
   ChatErrorPayload,
@@ -149,6 +150,18 @@ async function writeChatResult(
 ): Promise<SseWriteStatus> {
   const chunks = chunkMessageDelta(result.answer);
 
+  if (result.checkoutAction) {
+    const checkoutActionStatus = await safeWriteSseEvent(
+      response,
+      "checkout_action",
+      result.checkoutAction,
+    );
+
+    if (checkoutActionStatus !== "ok") {
+      return checkoutActionStatus;
+    }
+  }
+
   for (const [index, text] of chunks.entries()) {
     const payload: ChatMessageDeltaPayload = {
       text,
@@ -223,6 +236,8 @@ function createChatStreamWriter(
       return (await safeWriteSseEvent(response, "message_delta", payload))
         === "ok";
     },
+    writeCheckoutAction: async (payload: ChatCheckoutActionPayload) =>
+      (await safeWriteSseEvent(response, "checkout_action", payload)) === "ok",
     writeProductCards: async (items) => {
       const payload: ChatProductCardsPayload = { items };
 

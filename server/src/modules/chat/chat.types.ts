@@ -20,6 +20,7 @@ export interface ChatHistoryMessage {
 export type ChatStreamEventName =
   | "message_delta"
   | "product_cards"
+  | "checkout_action"
   | "comparison_result"
   | "done"
   | "error";
@@ -55,6 +56,8 @@ export interface ChatComparisonResultPayload {
     text: string;
   }>;
 }
+
+export type ChatCheckoutActionPayload = CheckoutActionResult;
 
 export interface ChatImageSearchMetadata {
   mode: "vlm_first";
@@ -97,6 +100,7 @@ export interface ChatErrorPayload {
 export interface ChatStreamEventPayloadByName {
   message_delta: ChatMessageDeltaPayload;
   product_cards: ChatProductCardsPayload;
+  checkout_action: ChatCheckoutActionPayload;
   comparison_result: ChatComparisonResultPayload;
   done: ChatDonePayload;
   error: ChatErrorPayload;
@@ -169,6 +173,7 @@ export interface RagChatResult {
 
 export interface ChatStreamWriter {
   writeMessageDelta(text: string): Promise<boolean>;
+  writeCheckoutAction(payload: ChatCheckoutActionPayload): Promise<boolean>;
   writeProductCards(items: ProductCardDto[]): Promise<boolean>;
   writeComparisonResult(payload: ChatComparisonResultPayload): Promise<boolean>;
   writeDone(payload: ChatDonePayload): Promise<boolean>;

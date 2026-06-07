@@ -54,6 +54,7 @@ class ChatViewModel(
     private var voicePendingMessageId: String? = null
     private var imageSearchPendingUserMessageId: String? = null
     private var assistantTextRevealer: AssistantTextRevealer? = null
+    private var lastCheckoutActionKey: String? = null
     private val sessionSnapshots = mutableMapOf<String, ChatSessionSnapshot>()
 
     fun onComposerTextChange(text: String) {
@@ -577,11 +578,7 @@ class ChatViewModel(
 
             updated = true
             state.copy(
-                activeCheckoutDraft = activeDraft.copy(
-                    status = ChatCheckoutDraftStatusUi.Submitted,
-                    orderNumber = orderNumber?.takeIf { value -> value.isNotBlank() }
-                        ?: activeDraft.orderNumber,
-                ),
+                activeCheckoutDraft = null,
             ).also(::saveCurrentSession)
         }
 
@@ -832,6 +829,7 @@ class ChatViewModel(
         preservingExistingProductCardsForCurrentStream = false
         latestStreamProductCards = emptyList()
         preStreamProductCards = _uiState.value.productCards
+        lastCheckoutActionKey = null
         val recentProductIds = preStreamProductCards.map { product -> product.id }
         voicePendingMessageId = null
         val conversationId = conversationIdOverride ?: currentSessionId ?: nextSessionId().also { id ->
@@ -974,19 +972,17 @@ class ChatViewModel(
                 }
             }
 
+            is ChatStreamEvent.CheckoutAction -> {
+                applyCheckoutAction(event.action)
+            }
+
             is ChatStreamEvent.Done -> {
                 flushAssistantText()
                 emitCartActionSideEffect(event.cartAction)
+                val checkoutActionHandled = applyCheckoutAction(event.checkoutAction)
                 _uiState.update { state ->
                     state.copy(
                         messages = state.messages.markAssistantDone(),
-                        activeCheckoutDraft = event.checkoutAction
-                            ?.toCheckoutDraftCardUi(
-                                conversationId = currentSessionId.orEmpty(),
-                                previous = state.activeCheckoutDraft,
-                                imageUrlResolver = imageUrlResolver,
-                            )
-                            ?: state.activeCheckoutDraft,
                         isSending = false,
                         errorMessage = if (event.shouldShowNoMatchError(
                                 productCards = state.productCards,
@@ -1000,7 +996,9 @@ class ChatViewModel(
                         canRetry = false,
                     ).also(::saveCurrentSession)
                 }
-                emitCheckoutActionSideEffect(event.checkoutAction)
+                if (!checkoutActionHandled) {
+                    emitCheckoutActionSideEffect(event.checkoutAction)
+                }
                 clearCompletedStreamState()
             }
 
@@ -1080,6 +1078,35 @@ class ChatViewModel(
                 ),
             )
         }
+    }
+
+    private fun applyCheckoutAction(checkoutAction: ChatCheckoutActionDto?): Boolean {
+        if (checkoutAction == null) {
+            return false
+        }
+
+        val actionKey = checkoutAction.dedupeKey()
+        val isDuplicate = actionKey == lastCheckoutActionKey
+        if (!isDuplicate) {
+            lastCheckoutActionKey = actionKey
+            _uiState.update { state ->
+                val nextCheckoutDraft = if (checkoutAction.status == CHECKOUT_ORDER_CREATED_STATUS) {
+                    null
+                } else {
+                    checkoutAction.toCheckoutDraftCardUi(
+                        conversationId = currentSessionId.orEmpty(),
+                        previous = state.activeCheckoutDraft,
+                        imageUrlResolver = imageUrlResolver,
+                    ) ?: state.activeCheckoutDraft
+                }
+
+                state.copy(activeCheckoutDraft = nextCheckoutDraft)
+                    .also(::saveCurrentSession)
+            }
+            emitCheckoutActionSideEffect(checkoutAction)
+        }
+
+        return true
     }
 
     private fun markActiveCheckoutUpdating() {
@@ -1233,6 +1260,19 @@ private fun ChatStreamEvent.Error.toDisplayMessage(): String =
 
 private fun Throwable.toDisplayMessage(): String =
     "无法连接导购服务，请确认后端正在运行。"
+
+private fun ChatCheckoutActionDto.dedupeKey(): String =
+    listOf(
+        draftId.orKeyPart(),
+        orderId.orKeyPart(),
+        status,
+        order?.orderNumber.orKeyPart(),
+        (totalCents ?: order?.totalCents)?.toString().orKeyPart(),
+        type,
+    ).joinToString("|")
+
+private fun String?.orKeyPart(): String =
+    this?.trim()?.takeIf { value -> value.isNotBlank() } ?: "_"
 
 private fun ChatStreamEvent.Done.shouldShowNoMatchError(
     productCards: List<ProductCardUi>,
