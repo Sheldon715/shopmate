@@ -1,7 +1,6 @@
 package com.shopmate.app.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -49,7 +48,7 @@ fun ShopMatePrimaryButton(
                 shape = ShopMatePillShape
             )
             .alpha(if (enabled) 1f else 0.55f)
-            .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
+            .shopMatePressable(enabled = enabled, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Row(

@@ -8,12 +8,12 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.shopmate.app.R
 import com.shopmate.app.data.mock.MockShopMateData
+import com.shopmate.app.ui.components.ShopMateEnterMotion
 import com.shopmate.app.ui.components.ShopMateElevatedSurface
 import com.shopmate.app.ui.components.ShopMateFigmaFrameHeight
 import com.shopmate.app.ui.components.ShopMateFigmaFrameWidth
@@ -66,6 +67,7 @@ import com.shopmate.app.ui.components.ShopMateSkeletonBlock
 import com.shopmate.app.ui.components.ShopMateSkeletonTextLine
 import com.shopmate.app.ui.components.ShopMateStatusMessage
 import com.shopmate.app.ui.components.scaledDp
+import com.shopmate.app.ui.components.shopMatePressable
 import com.shopmate.app.ui.model.ProductAddCartState
 import com.shopmate.app.ui.model.ProductDetailSpecUi
 import com.shopmate.app.ui.model.ProductDetailUi
@@ -210,41 +212,49 @@ private fun ProductDetailScreenContent(
                             .size(width = 352.667f.s(), height = 252f.s())
                     )
                 } else {
-                    ProductHeroCard(
-                        product = product,
-                        isFavorite = favoriteSelected,
-                        favoriteEnabled = favoriteEnabled,
-                        favoriteLoading = productAddCartState == ProductAddCartState.Loading,
-                        onFavoriteClick = onAddCartClick,
-                        scale = scale,
-                        modifier = Modifier
-                            .offset(x = frameStart + 18f.s(), y = contentTop + 4f.s())
-                            .size(width = 352.667f.s(), height = 419.531f.s())
-                    )
+                    ShopMateEnterMotion(delayMillis = 0) {
+                        ProductHeroCard(
+                            product = product,
+                            isFavorite = favoriteSelected,
+                            favoriteEnabled = favoriteEnabled,
+                            favoriteLoading = productAddCartState == ProductAddCartState.Loading,
+                            onFavoriteClick = onAddCartClick,
+                            scale = scale,
+                            modifier = Modifier
+                                .offset(x = frameStart + 18f.s(), y = contentTop + 4f.s())
+                                .size(width = 352.667f.s(), height = 419.531f.s())
+                        )
+                    }
 
-                    RecommendationReasonCard(
-                        product = product,
-                        scale = scale,
-                        modifier = Modifier
-                            .offset(x = frameStart + 18f.s(), y = contentTop + 437.531f.s())
-                            .size(width = 352.667f.s(), height = recommendationHeight)
-                    )
+                    ShopMateEnterMotion(delayMillis = 50) {
+                        RecommendationReasonCard(
+                            product = product,
+                            scale = scale,
+                            modifier = Modifier
+                                .offset(x = frameStart + 18f.s(), y = contentTop + 437.531f.s())
+                                .size(width = 352.667f.s(), height = recommendationHeight)
+                        )
+                    }
 
-                    ProductSpecGrid(
-                        specs = product.specs,
-                        scale = scale,
-                        modifier = Modifier
-                            .offset(x = frameStart + 18f.s(), y = specTop)
-                            .size(width = 352.667f.s(), height = 162f.s())
-                    )
+                    ShopMateEnterMotion(delayMillis = 90) {
+                        ProductSpecGrid(
+                            specs = product.specs,
+                            scale = scale,
+                            modifier = Modifier
+                                .offset(x = frameStart + 18f.s(), y = specTop)
+                                .size(width = 352.667f.s(), height = 162f.s())
+                        )
+                    }
 
-                    SuitabilityCard(
-                        product = product,
-                        scale = scale,
-                        modifier = Modifier
-                            .offset(x = frameStart + 18f.s(), y = suitabilityTop)
-                            .size(width = 352.667f.s(), height = 95.188f.s())
-                    )
+                    ShopMateEnterMotion(delayMillis = 130) {
+                        SuitabilityCard(
+                            product = product,
+                            scale = scale,
+                            modifier = Modifier
+                                .offset(x = frameStart + 18f.s(), y = suitabilityTop)
+                                .size(width = 352.667f.s(), height = 95.188f.s())
+                        )
+                    }
                 }
             }
         }
@@ -312,6 +322,11 @@ private fun ProductHeroCard(
     modifier: Modifier = Modifier
 ) {
     val cardShape = RoundedCornerShape(24f.scaledDp(scale))
+    var titleLineCount by remember(product.name) { mutableStateOf(1) }
+    val hasWrappedTitle = titleLineCount > 1
+    val titleTop = if (hasWrappedTitle) 305f else 307f
+    val priceTop = if (hasWrappedTitle) 363f else 343f
+    val tagsTop = if (hasWrappedTitle) 397f else 383f
 
     ShopMateElevatedSurface(
         modifier = modifier,
@@ -358,9 +373,13 @@ private fun ProductHeroCard(
             letterSpacing = 0.sp,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
+            onTextLayout = { result ->
+                titleLineCount = result.lineCount.coerceAtMost(2)
+            },
             modifier = Modifier
-                .offset(x = 16f.scaledDp(scale), y = 307f.scaledDp(scale))
-                .size(width = 319.333f.scaledDp(scale), height = 32f.scaledDp(scale))
+                .offset(x = 16f.scaledDp(scale), y = titleTop.scaledDp(scale))
+                .width(319.333f.scaledDp(scale))
+                .heightIn(min = 32f.scaledDp(scale), max = 56f.scaledDp(scale))
         )
 
         Text(
@@ -372,13 +391,13 @@ private fun ProductHeroCard(
             letterSpacing = 0.sp,
             maxLines = 1,
             modifier = Modifier
-                .offset(x = 16f.scaledDp(scale), y = 343f.scaledDp(scale))
+                .offset(x = 16f.scaledDp(scale), y = priceTop.scaledDp(scale))
                 .size(width = 319.333f.scaledDp(scale), height = 30f.scaledDp(scale))
         )
 
         Row(
             horizontalArrangement = Arrangement.spacedBy(6f.scaledDp(scale)),
-            modifier = Modifier.offset(x = 16f.scaledDp(scale), y = 383f.scaledDp(scale))
+            modifier = Modifier.offset(x = 16f.scaledDp(scale), y = tagsTop.scaledDp(scale))
         ) {
             product.tags.take(2).forEach { tag ->
                 DetailTag(text = tag, scale = scale)
@@ -799,7 +818,7 @@ private fun ProductDetailFooter(
                 .background(addCartSpec.backgroundColor)
                 .border(0.667.dp, addCartSpec.borderColor, ShopMatePillShape)
                 .semantics { contentDescription = addCartSpec.contentDescription }
-                .clickable(
+                .shopMatePressable(
                     enabled = addCartSpec.clickable,
                     role = Role.Button,
                     onClick = onAddCartClick,
@@ -854,7 +873,7 @@ private fun ProductDetailFooter(
                     buyNowSpec.backgroundBrush
                 )
                 .semantics { contentDescription = buyNowSpec.contentDescription }
-                .clickable(
+                .shopMatePressable(
                     enabled = buyNowSpec.clickable,
                     role = Role.Button,
                     onClick = onBuyNowClick,

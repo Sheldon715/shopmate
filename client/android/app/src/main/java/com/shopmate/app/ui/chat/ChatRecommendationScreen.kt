@@ -2,7 +2,6 @@ package com.shopmate.app.ui.chat
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -54,12 +53,14 @@ import com.shopmate.app.ui.components.ChatComposer
 import com.shopmate.app.ui.components.ChatMessageBubble
 import com.shopmate.app.ui.components.ChatTypingIndicatorBubble
 import com.shopmate.app.ui.components.ProductCard
+import com.shopmate.app.ui.components.ShopMateEnterMotion
 import com.shopmate.app.ui.components.ShopMateBuddyMotionState
 import com.shopmate.app.ui.components.ShopMateFigmaFrameWidth
 import com.shopmate.app.ui.components.ShopMateReadableControlScale
 import com.shopmate.app.ui.components.ShopMateStatusMessage
 import com.shopmate.app.ui.components.ShopMateTopActionBar
 import com.shopmate.app.ui.components.scaledDp
+import com.shopmate.app.ui.components.shopMatePressable
 import com.shopmate.app.ui.model.HistoryConversationUi
 import com.shopmate.app.ui.model.ProductAddCartState
 import com.shopmate.app.ui.model.ProductCardUi
@@ -415,13 +416,15 @@ private fun ChatStreamList(
             }
             ?.let { checkoutDraft ->
             item(key = "checkout-draft-${checkoutDraft.draft.id}") {
-                CheckoutDraftCard(
-                    checkoutDraft = checkoutDraft,
-                    scale = scale,
-                    onViewClick = { onCheckoutViewClick(checkoutDraft.draft.id) },
-                    onCancelClick = onCheckoutCancelClick,
-                    onSubmitClick = onCheckoutSubmitClick,
-                )
+                ShopMateEnterMotion {
+                    CheckoutDraftCard(
+                        checkoutDraft = checkoutDraft,
+                        scale = scale,
+                        onViewClick = { onCheckoutViewClick(checkoutDraft.draft.id) },
+                        onCancelClick = onCheckoutCancelClick,
+                        onSubmitClick = onCheckoutSubmitClick,
+                    )
+                }
             }
         }
 
@@ -635,7 +638,7 @@ private fun CheckoutDraftActionButton(
                 color = if (primary) Color.Transparent else Color(0xFFE2ECE8),
                 shape = shape,
             )
-            .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
+            .shopMatePressable(enabled = enabled, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -689,47 +692,49 @@ private fun ComparisonEntryList(
 ) {
     fun Float.s(): Dp = scaledDp(scale)
 
-    actions.forEach { action ->
-        Column(
-            modifier = Modifier
-                .padding(horizontal = 18f.s())
-                .fillMaxWidth()
-                .background(
-                    color = Color.White.copy(alpha = 0.98f),
-                    shape = RoundedCornerShape(18f.s()),
-                )
-                .padding(horizontal = 16f.s(), vertical = 12f.s()),
-        ) {
-            Text(
-                text = action.title.ifBlank { "商品对比详情" },
-                color = Color(0xFF172331),
-                fontSize = (14f * scale).sp,
-                lineHeight = (18f * scale).sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.sp,
-            )
-            if (action.summaryText.isNotBlank()) {
+    actions.forEachIndexed { index, action ->
+        ShopMateEnterMotion(delayMillis = index * 35) {
+            Column(
+                modifier = Modifier
+                    .padding(horizontal = 18f.s())
+                    .fillMaxWidth()
+                    .background(
+                        color = Color.White.copy(alpha = 0.98f),
+                        shape = RoundedCornerShape(18f.s()),
+                    )
+                    .padding(horizontal = 16f.s(), vertical = 12f.s()),
+            ) {
                 Text(
-                    text = action.summaryText,
-                    color = Color(0xFF65717C),
-                    fontSize = (11.5f * scale).sp,
-                    lineHeight = (16f * scale).sp,
+                    text = action.title.ifBlank { "商品对比详情" },
+                    color = Color(0xFF172331),
+                    fontSize = (14f * scale).sp,
+                    lineHeight = (18f * scale).sp,
+                    fontWeight = FontWeight.Bold,
                     letterSpacing = 0.sp,
-                    modifier = Modifier.padding(top = 4f.s()),
+                )
+                if (action.summaryText.isNotBlank()) {
+                    Text(
+                        text = action.summaryText,
+                        color = Color(0xFF65717C),
+                        fontSize = (11.5f * scale).sp,
+                        lineHeight = (16f * scale).sp,
+                        letterSpacing = 0.sp,
+                        modifier = Modifier.padding(top = 4f.s()),
+                    )
+                }
+
+                Text(
+                    text = "打开对比详情",
+                    color = ShopMateGreen,
+                    fontSize = (12.5f * scale).sp,
+                    lineHeight = (16f * scale).sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.sp,
+                    modifier = Modifier
+                        .padding(top = 10f.s())
+                        .shopMatePressable(onClick = { onComparisonClick(action.comparisonId) }),
                 )
             }
-
-            Text(
-                text = "打开对比详情",
-                color = ShopMateGreen,
-                fontSize = (12.5f * scale).sp,
-                lineHeight = (16f * scale).sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.sp,
-                modifier = Modifier
-                    .padding(top = 10f.s())
-                    .clickable { onComparisonClick(action.comparisonId) },
-            )
         }
     }
 }
@@ -781,20 +786,22 @@ private fun ProductCardList(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(10f.s()),
     ) {
-        products.forEach { product ->
-            ProductCard(
-                product = product,
-                enabled = true,
-                addCartState = productAddCartStates[product.id] ?: ProductAddCartState.Idle,
-                onClick = {
-                    onProductClick(product.id)
-                },
-                onAddCartClick = {
-                    onAddCartClick(product.id)
-                },
-                modifier = Modifier
-                    .size(width = 360.667f.s(), height = 179.104f.s()),
-            )
+        products.forEachIndexed { index, product ->
+            ShopMateEnterMotion(delayMillis = index * 45) {
+                ProductCard(
+                    product = product,
+                    enabled = true,
+                    addCartState = productAddCartStates[product.id] ?: ProductAddCartState.Idle,
+                    onClick = {
+                        onProductClick(product.id)
+                    },
+                    onAddCartClick = {
+                        onAddCartClick(product.id)
+                    },
+                    modifier = Modifier
+                        .size(width = 360.667f.s(), height = 179.104f.s()),
+                )
+            }
         }
     }
 }

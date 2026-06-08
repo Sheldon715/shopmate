@@ -3,6 +3,7 @@ package com.shopmate.app.ui.components
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -49,6 +50,7 @@ import com.shopmate.app.R
 import com.shopmate.app.ui.model.ProductAddCartState
 import com.shopmate.app.ui.model.ProductCardUi
 import com.shopmate.app.ui.theme.ShopMateGreen
+import com.shopmate.app.ui.theme.ShopMateMotion
 import com.shopmate.app.ui.theme.ShopMatePillShape
 import com.shopmate.app.ui.theme.ShopMateTextPrimary
 import com.shopmate.app.ui.theme.ShopMateTheme
@@ -75,7 +77,11 @@ fun ProductCard(
         val cardInteractionSource = remember { MutableInteractionSource() }
         val isCardPressed by cardInteractionSource.collectIsPressedAsState()
         val cardScale by animateFloatAsState(
-            targetValue = if (enabled && isCardPressed) 0.985f else 1f,
+            targetValue = if (enabled && isCardPressed) ShopMateMotion.SubtlePressedScale else 1f,
+            animationSpec = tween(
+                durationMillis = ShopMateMotion.FastMillis,
+                easing = ShopMateMotion.StandardEasing,
+            ),
             label = "product-card-press-scale",
         )
         val cardElevation by animateDpAsState(
@@ -255,7 +261,11 @@ private fun AddCartButton(
     val buttonInteractionSource = remember { MutableInteractionSource() }
     val isPressed by buttonInteractionSource.collectIsPressedAsState()
     val pressScale by animateFloatAsState(
-        targetValue = if (buttonSpec.clickable && isPressed) 0.96f else 1f,
+        targetValue = if (buttonSpec.clickable && isPressed) ShopMateMotion.PressedScale else 1f,
+        animationSpec = tween(
+            durationMillis = ShopMateMotion.FastMillis,
+            easing = ShopMateMotion.StandardEasing,
+        ),
         label = "product-add-cart-press-scale",
     )
     val backgroundColor by animateColorAsState(

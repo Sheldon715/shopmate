@@ -1,4 +1,4 @@
-# Current Feature: Android Entry Global Feedback Polish
+# Current Feature: Android Motion Transition Polish
 
 ## 状态
 
@@ -6,48 +6,50 @@ Complete
 
 ## 目标
 
-- 收口 Onboarding、Home、顶部栏、侧边栏入口、图片来源选择、系统返回和全局提示，让主 Demo 入口体验更像真实商业 App。
-- 统一 Toast、状态消息和临时操作反馈策略，避免同一操作重复出现 Toast、状态卡和页面跳转提示。
-- 明确语音输入和图片找货在 `ChatComposer` 内的状态反馈与互斥边界，复用既有 Lottie / loading 方案，不扩大业务 contract。
-- 校验显式返回和路由恢复路径，确保 Chat、Detail、Comparison、Cart、Checkout 之间不会回到错误页面。
-- 保持后端 API、Chat SSE schema、Cart / Order contract、ASR provider 和图片找货 provider 不变。
+- 为主 Demo 路径补上轻量、克制、可维护的页面和状态过渡，让切换、等待、卡片出现和 checkout 状态更新不再硬切。
+- 新增或收口统一 motion token，集中管理时长、easing 和 press scale，避免各页面散落魔法值。
+- 覆盖 onboarding、home、sidebar、chat、composer、comparison、product detail、cart、checkout 等 V1 商业打磨主路径。
+- 为共享按钮、商品卡、顶部栏、composer 控件、checkout 选项等高频点击点补即时按压反馈。
+- 保持业务状态、SSE / API 返回、自动滚动、商品卡锚点、checkout contract 和现有导航架构不变。
+- 不引入第三方动效库、不新增 Lottie、不做复杂共享元素转场，普通 motion 以现有 Compose 能力为主。
 
 ## 待办清单
 
-- [x] 扫描入口与全局反馈相关代码：`MainActivity.kt`、`OnboardingScreen.kt`、`HomeChatEntryScreen.kt`、`ShopMateTopActionBar.kt`、`ChatComposer.kt`、`ShopMateStatusMessage.kt`、`SidebarHistoryDrawer.kt`。
-- [x] 优化 Onboarding 到 Home、Home prompt 点击、顶部栏按钮和侧边栏入口的 press feedback、层级和小屏稳定性。
-- [x] 收口图片来源选择、取消、相机失败、图片失败重试与语音取消之间的状态边界，避免污染 composer 文本、语音状态或聊天历史。
-- [x] 统一语音 / 图片 / 发送按钮的 busy、disabled、failed、enabled 视觉和可访问性文案，确保文案不溢出。
-- [x] 收口高频 Toast / 临时反馈路径，覆盖加购、购物车操作、checkout 订单生成、图片选择失败和语音权限拒绝，避免重复反馈和开发态文案。
-- [x] 统一 `ShopMateStatusMessage` 与局部状态卡的标题、正文、动作按钮和 mascot 占位策略，不出现 mock / fake / 模拟等用户可见文案。
-- [x] 验证 Onboarding、Home、Chat、Detail、Cart、Checkout、Comparison 的显式返回与恢复路径，不回到错误页面。
-- [x] 补充必要的 Android 单元测试或 helper 回归；如没有合适可测逻辑，记录手动验证清单。
-- [x] 运行 Android 验证命令，并记录真实结果或失败原因。
+- [x] 扫描 `MainActivity.kt`、`SidebarHistoryDrawer.kt`、Home / Chat / Composer、Comparison、Product Detail、Cart、Checkout 和 `ChatViewModel` streaming / side effect 入口，确认现有切换点和风险。
+- [x] 新增或收口 `ShopMateMotion` token，必要时新增轻量 pressable helper，统一 fast / medium / slow duration 与 press scale。
+- [x] 为 Onboarding -> Home、Home -> Chat、Chat / Comparison / Product Detail / Cart / Checkout 内容进入补轻量 fade / slide / expand，不改变最终布局和路由状态。
+- [x] 重做侧边栏打开 / 关闭动效，保证遮罩 alpha、抽屉 slide 和历史项操作同步过渡，关闭期间不误触底层内容。
+- [x] 为聊天 loading / streaming 气泡、商品卡列表、comparison result、checkout draft card 和 composer text / voice / image 切换补稳定过渡。
+- [x] 为商品卡、加购按钮、详情收藏 / 底部按钮、顶部栏按钮、checkout 选项、composer 模式切换 / 发送 / 语音 surface 补统一按压反馈，disabled 状态不触发动画。
+- [x] 检查购物车 item 删除、数量更新和 checkout 地址 / 配送 / 支付 / 提交状态切换，避免底部栏跳动、闪烁或误触。
+- [x] 根据侧边栏截图反馈调整抽屉宽度、顶部品牌区、入口行、历史项、时间文字和操作菜单的字号 / 触控尺度，最终回收到中间阅读尺度。
+- [ ] 手动覆盖普通推荐、侧边栏、prompt 到聊天、商品详情、对比、购物车、checkout 和小屏长文案场景，并记录发现。
+- [x] 运行 `cd client/android` 后的 `.\gradlew.bat --no-daemon testDebugUnitTest`。
+- [x] 运行 `cd client/android` 后的 `.\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/`，如失败记录真实原因。
 
 ## 备注
 
-- Spec 来源：`context/feature/android-entry-global-feedback-polish-spec.md`，对应 `context/spec-implementation-order.md` 中 34.6 `android-entry-global-feedback-polish-spec.md`。
-- 范围限定：只做 Android 入口体验、全局反馈、composer 状态、状态卡和返回路径 polish；不新增登录 / 注册，不重写导航框架，不引入 Navigation Compose。
-- 不修改后端、Chat SSE schema、Cart / Order API、图片找货 provider / vector strategy 或 ASR provider。
-- Lottie 相关 busy 状态应复用 `android-state-lottie-feedback-spec.md` 已建立的状态动效能力；本 feature 不把普通按钮、商品卡或页面 motion 扩散成新的 Lottie 范围。
-- 订单号展示不能出现 `MOCK-` 前缀；失败信息不能展示 stack trace、provider 原始错误、真实文件路径或敏感信息。
-- 验证命令：
-  - `cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest`
-  - `cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/`
-- 实现记录：`MainActivity` 新增统一 transient message 状态，购物车操作、checkout 订单生成、相机启动 / 打开失败、拍照取消和语音权限拒绝统一走 `ShopMateOperationBanner`，移除系统 Toast。
-- 实现记录：图片来源选择从系统 dialog 改为 ShopMate 主题 Compose 弹窗，提供拍照找货、相册选择和取消入口；取消拍照 / 取消选择不修改 composer 文本、语音状态或聊天历史。
-- 实现记录：`ShopMatePrimaryButton` 的 press feedback 裁切到 pill 内；`ShopMateTopActionBar` 和 Home header 图标恢复统一按压反馈；中间 Buddy 和状态卡 mascot 改为装饰语义，不抢无障碍焦点。
-- 实现记录：`ShopMateScreen` 路由恢复 helper 改为 `internal` 并补充 `ShopMateScreenRouteTest`；route saver 保存完整 previousScreen 链路，覆盖 Cart / Checkout / ProductDetail 的安全返回。
-- 验证记录：`cd client/android; .\gradlew.bat --no-daemon :app:compileDebugKotlin --console=plain` 通过，输出 `BUILD SUCCESSFUL in 25s`。
-- 验证记录：并行运行 `:app:compileDebugKotlin` 和目标测试时触发 Kotlin incremental cache 竞争 / 损坏日志，包含 `source-to-classes.tab is already registered`；已执行 `.\gradlew.bat --stop` 后改为串行 in-process 验证。
-- 验证记录：`cd client/android; .\gradlew.bat --no-daemon :app:testDebugUnitTest --tests com.shopmate.app.ShopMateScreenRouteTest --console=plain "-Dkotlin.compiler.execution.strategy=in-process"` 通过，输出 `BUILD SUCCESSFUL in 16s`。
-- 验证记录：`cd client/android; .\gradlew.bat --no-daemon :app:testDebugUnitTest --console=plain "-Dkotlin.compiler.execution.strategy=in-process"` 通过，输出 `BUILD SUCCESSFUL in 13s`。
-- 验证记录：`cd client/android; .\gradlew.bat --no-daemon build --console=plain -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/ "-Dkotlin.compiler.execution.strategy=in-process"` 通过，输出 `BUILD SUCCESSFUL in 1m 26s`。
-- 用户验收反馈补修：图片来源弹窗主题化；购物车页返回按钮恢复按压反馈；购物车精选卡移除右侧浅绿色圆形装饰。
-- 验证记录：`cd client/android; .\gradlew.bat --no-daemon :app:compileDebugKotlin --console=plain "-Dkotlin.compiler.execution.strategy=in-process"` 通过，输出 `BUILD SUCCESSFUL in 36s`。
-- 验证记录：`cd client/android; .\gradlew.bat --no-daemon :app:testDebugUnitTest --console=plain "-Dkotlin.compiler.execution.strategy=in-process"` 通过，输出 `BUILD SUCCESSFUL in 42s`。
-- 验证记录：`cd client/android; .\gradlew.bat --no-daemon build --console=plain -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/ "-Dkotlin.compiler.execution.strategy=in-process"` 通过，输出 `BUILD SUCCESSFUL in 2m 34s`。
-- 手动验证记录：本轮未启动模拟器 / 真机做点击路径手测；路由恢复通过新增 helper 单测覆盖，视觉和交互最终仍建议在 Demo 设备上快速过一遍 Onboarding、Home、图片入口、语音权限、Cart、Checkout 和 Detail 返回路径。
+- Spec 来源：`context/feature/android-motion-transition-polish-spec.md`，对应路线 `34.7 Android Motion Transition Polish`。
+- Research 判断：不需要外部 research；V1 使用 Compose 官方动画能力和现有状态结构。
+- 范围边界：不新增 Lottie、不新增 Accompanist / 第三方 transition 库、不引入 Navigation Compose、不重写 `MainActivity` screen state 架构。
+- 业务边界：动效不能人为延迟 API / SSE / checkout 结果，不能把动画作为业务成功依据，也不能破坏自动滚动、最近商品锚点、购物车刷新或 checkout draft 状态。
+- 依赖边界：默认不新增依赖；只有当前 Gradle 未显式暴露官方 Compose animation API 时，才允许补 `androidx.compose.animation:animation`，并在实现说明中记录用途。
+- 和前序商业打磨的分工：Buddy / 状态 Lottie 已由 34.1 / 34.2 负责，skeleton 由 34.4 负责，商品操作反馈由 34.5 覆盖；本 feature 只收口普通页面 motion、状态过渡和统一 press feedback。
+- 当前动作：已进入 `feature start`，准备在 `feature/android-motion-transition-polish` 分支实现；工作树中已有的无关本地改动保持不动。
+- 实现记录：新增 `ShopMateMotion` token、`shopMatePressable` / `shopMatePressedScale` 和 `ShopMateEnterMotion`，并显式补充官方 Compose animation artifact 供页面 / 区块进入动画使用。
+- 实现记录：主 screen 切换、侧边栏遮罩 / 抽屉、聊天商品卡 / 对比入口 / checkout draft、对比详情区块、商品详情内容区块、购物车 item 和 checkout summary / subpage 均接入轻量进入或状态过渡。
+- 实现记录：共享按钮、顶部图标、composer 控件、商品卡、对比页商品入口、购物车行 / stepper / footer、checkout 地址 / 选项 / 提交按钮和图片来源弹窗接入统一 press feedback。
+- 实现记录：根据截图反馈补调侧边栏阅读尺度，先放大抽屉宽度、Buddy 头像、标题 / 副标题、入口行、历史聊天行、时间文字和长按操作菜单；随后按反馈回收到中间尺度，保持历史标题单行省略避免挤压。
+- 实现记录：修复商品详情页长标题裁切问题，标题实际换行时增高文本区域并下移价格 / 标签，单行标题保持原有紧凑节奏。
+- 验证记录：`cd client/android; .\gradlew.bat --no-daemon :app:compileDebugKotlin --console=plain "-Dkotlin.compiler.execution.strategy=in-process"` 在侧边栏尺度回收后通过，输出 `BUILD SUCCESSFUL in 10s`。
+- 验证记录：`cd client/android; .\gradlew.bat --no-daemon :app:compileDebugKotlin --console=plain "-Dkotlin.compiler.execution.strategy=in-process"` 在商品详情长标题布局修复后通过，输出 `BUILD SUCCESSFUL in 11s`。
+- 验证记录：`cd client/android; .\gradlew.bat --no-daemon :app:compileDebugKotlin --console=plain "-Dkotlin.compiler.execution.strategy=in-process"` 在侧边栏尺度补调后通过，输出 `BUILD SUCCESSFUL in 14s`。
+- 验证记录：`cd client/android; .\gradlew.bat --no-daemon :app:compileDebugKotlin --console=plain "-Dkotlin.compiler.execution.strategy=in-process"` 首次因 `CheckoutScreen.kt` 缺少 `getValue` delegate import 失败，补充 import 后通过，输出 `BUILD SUCCESSFUL in 26s`。
+- 验证记录：`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest --console=plain "-Dkotlin.compiler.execution.strategy=in-process"` 通过，最终复跑输出 `BUILD SUCCESSFUL in 22s`。
+- 验证记录：`cd client/android; .\gradlew.bat --no-daemon build --console=plain -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/ "-Dkotlin.compiler.execution.strategy=in-process"` 通过，最终复跑输出 `BUILD SUCCESSFUL in 1m 40s`。
+- 验证记录：complete 前复跑 `cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest --console=plain "-Dkotlin.compiler.execution.strategy=in-process"` 通过，输出 `BUILD SUCCESSFUL in 16s`。
+- 验证记录：complete 前复跑 `cd client/android; .\gradlew.bat --no-daemon build --console=plain -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/ "-Dkotlin.compiler.execution.strategy=in-process"` 通过，输出 `BUILD SUCCESSFUL in 1m 13s`。
+- 手动验证记录：本轮未启动模拟器 / 真机做点击路径和小屏长文案手测；代码侧已覆盖主路径 motion，最终视觉仍建议在 Demo 设备上快速过一遍。
 
 ## 历史记录
 - 初始化前后端技术栈骨架：完成 Android Kotlin + Jetpack Compose 与 Node.js + TypeScript + Express 最小工程初始化，补充 README 与 Git 忽略配置，并通过后端构建与 Android `assembleDebug` 验证。
@@ -136,3 +138,4 @@ Complete
 - Android Home Prompt Carousel：将 Home prompt 从 4 条升级为 8 条可循环匀速滚动中文建议，覆盖推荐、预算、反选、图片找货、对比、购物车 checkout 等入口；统一 Home / 推荐页顶部按钮、composer、聊天气泡阅读尺度，修正键盘避让、顶部按钮亮斑、Buddy 透明头像与键盘开合 Lottie morph；新增 `MockShopMateDataTest`，并通过 Android `testDebugUnitTest` 与带 demo HTTPS URL 的 `build` 验证。
 - Android Loading Skeleton Polish：新增共享 skeleton / pulse 占位，统一商品图、商品详情、购物车、checkout 和对比页 loading / empty / fallback 视觉；调整购物车空状态、顶部推荐卡箭头和 Home Buddy 键盘开合闪烁，并通过 Android `testDebugUnitTest` 与带 demo HTTPS URL 的 `build` 验证。
 - Android Product Card Rich Interaction：新增商品卡、详情页、对比页和购物车的加购 / 操作反馈，详情页立即购买改为单品 `buy_now` checkout，购物车商品可进入详情；通过后端 test / build、Android `testDebugUnitTest` 与带 demo HTTPS URL 的 `build` 验证。
+- Android Entry Global Feedback Polish：统一入口、图片找货、购物车操作、checkout 和语音权限等全局临时反馈，图片来源改为 ShopMate 主题弹窗，恢复入口 / 购物车返回按压反馈，收口状态卡装饰语义和完整路由恢复链路；通过 Android 路由 helper 单测、全量 `testDebugUnitTest` 和带 demo HTTPS URL 的 `build` 验证。

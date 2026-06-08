@@ -3,7 +3,6 @@ package com.shopmate.app.ui.cart
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -49,6 +48,7 @@ import androidx.compose.ui.unit.sp
 import com.shopmate.app.R
 import com.shopmate.app.data.mock.MockShopMateData
 import com.shopmate.app.ui.components.ShopMateCircleIconButton
+import com.shopmate.app.ui.components.ShopMateEnterMotion
 import com.shopmate.app.ui.components.ShopMateElevatedSurface
 import com.shopmate.app.ui.components.ShopMateFigmaFrameWidth
 import com.shopmate.app.ui.components.ShopMateProductImage
@@ -56,6 +56,7 @@ import com.shopmate.app.ui.components.ShopMateSkeletonBlock
 import com.shopmate.app.ui.components.ShopMateSkeletonTextLine
 import com.shopmate.app.ui.components.ShopMateStatusMessage
 import com.shopmate.app.ui.components.scaledDp
+import com.shopmate.app.ui.components.shopMatePressable
 import com.shopmate.app.ui.model.CartItemUi
 import com.shopmate.app.ui.theme.ShopMateGreen
 import com.shopmate.app.ui.theme.ShopMateLightGreen
@@ -183,32 +184,34 @@ fun CartScreen(
                     )
                 ) {
                     cartLines.forEachIndexed { index, line ->
-                        CartItemCard(
-                            line = line,
-                            scale = scale,
-                            textScale = textScale,
-                            onSelectedChange = {
-                                onToggleSelected(line.item)
-                            },
-                            onDecrease = {
-                                onQuantityChange(line.item, (line.quantity - 1).coerceAtLeast(1))
-                            },
-                            onIncrease = {
-                                onQuantityChange(line.item, (line.quantity + 1).coerceAtMost(MAX_CART_QUANTITY))
-                            },
-                            onDelete = {
-                                onDelete(line.item)
-                            },
-                            onProductClick = {
-                                onProductClick(line.item)
-                            },
-                            modifier = Modifier
-                                .offset(
-                                    x = listShadowPadding,
-                                    y = listShadowPadding + (itemHeight + itemSpacing) * index
-                                )
-                                .size(width = 352.667f.s(), height = itemHeight)
-                        )
+                        ShopMateEnterMotion(delayMillis = (index * 30).coerceAtMost(120)) {
+                            CartItemCard(
+                                line = line,
+                                scale = scale,
+                                textScale = textScale,
+                                onSelectedChange = {
+                                    onToggleSelected(line.item)
+                                },
+                                onDecrease = {
+                                    onQuantityChange(line.item, (line.quantity - 1).coerceAtLeast(1))
+                                },
+                                onIncrease = {
+                                    onQuantityChange(line.item, (line.quantity + 1).coerceAtMost(MAX_CART_QUANTITY))
+                                },
+                                onDelete = {
+                                    onDelete(line.item)
+                                },
+                                onProductClick = {
+                                    onProductClick(line.item)
+                                },
+                                modifier = Modifier
+                                    .offset(
+                                        x = listShadowPadding,
+                                        y = listShadowPadding + (itemHeight + itemSpacing) * index
+                                    )
+                                    .size(width = 352.667f.s(), height = itemHeight)
+                            )
+                        }
                     }
                 }
             }
@@ -395,7 +398,7 @@ private fun CartItemCard(
     val isEnabled = line.item.available && !line.inFlight
 
     ShopMateElevatedSurface(
-        modifier = modifier.clickable(
+        modifier = modifier.shopMatePressable(
             enabled = isEnabled,
             role = Role.Button,
             onClick = onProductClick,
@@ -536,7 +539,7 @@ private fun SelectableCheckButton(
                 color = if (selected) ShopMateGreen.copy(alpha = 0.22f) else Color(0xFFDDE6E3),
                 shape = CircleShape
             )
-            .clickable(enabled = enabled, role = Role.Checkbox, onClick = onClick),
+            .shopMatePressable(enabled = enabled, role = Role.Checkbox, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         if (selected) {
@@ -657,7 +660,7 @@ private fun StepperButton(
 ) {
     Box(
         modifier = modifier
-            .clickable(
+            .shopMatePressable(
                 enabled = enabled,
                 role = Role.Button,
                 onClick = onClick
@@ -718,7 +721,11 @@ private fun CartFooter(
             Row(
                 modifier = Modifier
                     .size(width = 72f.s(), height = 42f.s())
-                    .clickable(enabled = enabled, role = Role.Checkbox, onClick = onToggleAll),
+                    .shopMatePressable(
+                        enabled = enabled,
+                        role = Role.Checkbox,
+                        onClick = onToggleAll,
+                    ),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 SelectableCheckButton(
@@ -786,7 +793,11 @@ private fun CartFooter(
                     )
                     .clip(ShopMatePillShape)
                     .background(checkoutBrush)
-                    .clickable(enabled = checkoutEnabled, role = Role.Button, onClick = onCheckoutClick),
+                    .shopMatePressable(
+                        enabled = checkoutEnabled,
+                        role = Role.Button,
+                        onClick = onCheckoutClick,
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -855,7 +866,7 @@ private fun EmptyCartState(
                     .size(width = 164f.s(), height = 38f.s())
                     .clip(ShopMatePillShape)
                     .background(Color(0xFFE9FBF3))
-                    .clickable(role = Role.Button, onClick = onBackClick),
+                    .shopMatePressable(role = Role.Button, onClick = onBackClick),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -990,7 +1001,7 @@ private fun CartInlineErrorCard(
                 color = Color(0xFFFFD7C7),
                 shape = RoundedCornerShape(16f.scaledDp(scale))
             )
-            .clickable(role = Role.Button, onClick = onRetry)
+            .shopMatePressable(role = Role.Button, onClick = onRetry)
             .padding(horizontal = 14f.scaledDp(scale), vertical = 9f.scaledDp(scale)),
         contentAlignment = Alignment.CenterStart
     ) {

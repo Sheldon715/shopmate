@@ -18,7 +18,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -74,7 +73,9 @@ import com.shopmate.app.ui.chat.VoiceInputUiState
 import com.shopmate.app.ui.components.ShopMateBuddyTransitionController
 import com.shopmate.app.ui.components.ShopMateBuddyTransitionOverlay
 import com.shopmate.app.ui.components.ShopMateBuddyTransitionRequest
+import com.shopmate.app.ui.components.ShopMateEnterMotion
 import com.shopmate.app.ui.components.ShopMateOperationBanner
+import com.shopmate.app.ui.components.shopMatePressable
 import com.shopmate.app.ui.comparison.ProductComparisonScreen
 import com.shopmate.app.ui.comparison.ProductComparisonUnavailableScreen
 import com.shopmate.app.ui.home.HomeChatEntryScreen
@@ -418,105 +419,119 @@ class MainActivity : ComponentActivity() {
 
                 Box(modifier = Modifier.fillMaxSize()) {
                     when (currentScreen) {
-                        ShopMateScreen.Onboarding -> OnboardingScreen(
-                            onStartShopping = {
-                                currentScreen = ShopMateScreen.HomeChatEntry
-                            }
-                        )
-
-                    ShopMateScreen.HomeChatEntry -> HomeChatEntryScreen(
-                        composerText = chatUiState.composerText,
-                        isSending = chatUiState.isSending,
-                        historyConversations = historyConversations,
-                        voiceInputState = chatUiState.voiceInput,
-                        selectedImage = chatUiState.selectedImage,
-                        onComposerTextChange = chatViewModel::onComposerTextChange,
-                        onSend = sendHomeChatMessage,
-                        onVoicePressStart = startVoiceInput,
-                        onVoicePressEnd = finishVoiceInput,
-                        onVoiceCancel = cancelVoiceInput,
-                        onImagePickClick = pickImage,
-                        onImageRemoveClick = chatViewModel::clearSelectedImage,
-                        onImageRetryClick = chatViewModel::retryImageSearch,
-                        onCartClick = openCart,
-                        onKeyboardAvatarVisibilityChange = { visible ->
-                            homeKeyboardAvatarVisible = visible
-                        },
-                        onNewChatClick = startNewChat,
-                        onHistoryClick = openHistoryConversation,
-                        editableConversationIds = editableHistoryIds,
-                        onRenameHistory = renameHistory,
-                        onDeleteHistory = deleteHistory
-                    )
-
-                    ShopMateScreen.ChatRecommendation -> ChatRecommendationScreen(
-                        state = chatUiState,
-                        onComposerTextChange = chatViewModel::onComposerTextChange,
-                        onSend = chatViewModel::sendMessage,
-                        onVoicePressStart = startVoiceInput,
-                        onVoicePressEnd = finishVoiceInput,
-                        onVoiceCancel = cancelVoiceInput,
-                        onImagePickClick = pickImage,
-                        onImageRemoveClick = chatViewModel::clearSelectedImage,
-                        onImageRetryClick = chatViewModel::retryImageSearch,
-                        onRetry = chatViewModel::retryLastMessage,
-                        onNewChatClick = startNewChat,
-                        onCartClick = openCart,
-                        onProductClick = { productId ->
-                            currentScreen = ShopMateScreen.ProductDetail(
-                                productId = productId,
-                                previousScreen = ShopMateScreen.ChatRecommendation,
+                        ShopMateScreen.Onboarding -> ShopMateEnterMotion(
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            OnboardingScreen(
+                                onStartShopping = {
+                                    currentScreen = ShopMateScreen.HomeChatEntry
+                                }
                             )
-                        },
-                        onAddCartClick = addProductToCart,
-                        productAddCartStates = cartUiState.productAddCartStates,
-                        onComparisonClick = { comparisonId ->
-                            currentScreen = ShopMateScreen.ProductComparison(comparisonId)
-                        },
-                        onCheckoutViewClick = { draftId ->
-                            chatViewModel.openActiveCheckoutDraft(draftId)
-                        },
-                        onCheckoutCancelClick = {
-                            chatViewModel.cancelActiveCheckout()
-                        },
-                        onCheckoutSubmitClick = {
-                            chatViewModel.confirmActiveCheckout()
-                        },
-                        onHistoryClick = openHistoryConversation,
-                        historyConversations = historyConversations,
-                        editableConversationIds = editableHistoryIds,
-                        onRenameHistory = renameHistory,
-                        onDeleteHistory = deleteHistory
-                    )
+                        }
+
+                    ShopMateScreen.HomeChatEntry -> ShopMateEnterMotion(
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        HomeChatEntryScreen(
+                            composerText = chatUiState.composerText,
+                            isSending = chatUiState.isSending,
+                            historyConversations = historyConversations,
+                            voiceInputState = chatUiState.voiceInput,
+                            selectedImage = chatUiState.selectedImage,
+                            onComposerTextChange = chatViewModel::onComposerTextChange,
+                            onSend = sendHomeChatMessage,
+                            onVoicePressStart = startVoiceInput,
+                            onVoicePressEnd = finishVoiceInput,
+                            onVoiceCancel = cancelVoiceInput,
+                            onImagePickClick = pickImage,
+                            onImageRemoveClick = chatViewModel::clearSelectedImage,
+                            onImageRetryClick = chatViewModel::retryImageSearch,
+                            onCartClick = openCart,
+                            onKeyboardAvatarVisibilityChange = { visible ->
+                                homeKeyboardAvatarVisible = visible
+                            },
+                            onNewChatClick = startNewChat,
+                            onHistoryClick = openHistoryConversation,
+                            editableConversationIds = editableHistoryIds,
+                            onRenameHistory = renameHistory,
+                            onDeleteHistory = deleteHistory
+                        )
+                    }
+
+                    ShopMateScreen.ChatRecommendation -> ShopMateEnterMotion(
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        ChatRecommendationScreen(
+                            state = chatUiState,
+                            onComposerTextChange = chatViewModel::onComposerTextChange,
+                            onSend = chatViewModel::sendMessage,
+                            onVoicePressStart = startVoiceInput,
+                            onVoicePressEnd = finishVoiceInput,
+                            onVoiceCancel = cancelVoiceInput,
+                            onImagePickClick = pickImage,
+                            onImageRemoveClick = chatViewModel::clearSelectedImage,
+                            onImageRetryClick = chatViewModel::retryImageSearch,
+                            onRetry = chatViewModel::retryLastMessage,
+                            onNewChatClick = startNewChat,
+                            onCartClick = openCart,
+                            onProductClick = { productId ->
+                                currentScreen = ShopMateScreen.ProductDetail(
+                                    productId = productId,
+                                    previousScreen = ShopMateScreen.ChatRecommendation,
+                                )
+                            },
+                            onAddCartClick = addProductToCart,
+                            productAddCartStates = cartUiState.productAddCartStates,
+                            onComparisonClick = { comparisonId ->
+                                currentScreen = ShopMateScreen.ProductComparison(comparisonId)
+                            },
+                            onCheckoutViewClick = { draftId ->
+                                chatViewModel.openActiveCheckoutDraft(draftId)
+                            },
+                            onCheckoutCancelClick = {
+                                chatViewModel.cancelActiveCheckout()
+                            },
+                            onCheckoutSubmitClick = {
+                                chatViewModel.confirmActiveCheckout()
+                            },
+                            onHistoryClick = openHistoryConversation,
+                            historyConversations = historyConversations,
+                            editableConversationIds = editableHistoryIds,
+                            onRenameHistory = renameHistory,
+                            onDeleteHistory = deleteHistory
+                        )
+                    }
 
                     is ShopMateScreen.ProductComparison -> {
                         val comparisonId =
                             (currentScreen as ShopMateScreen.ProductComparison).comparisonId
                         val comparison = comparisonId?.let(chatViewModel::findComparison)
 
-                        if (comparison == null) {
-                            ProductComparisonUnavailableScreen(
-                                onBackClick = {
-                                    currentScreen = ShopMateScreen.ChatRecommendation
-                                },
-                                onCartClick = openCart,
-                            )
-                        } else {
-                            ProductComparisonScreen(
-                                comparison = comparison,
-                                onBackClick = {
-                                    currentScreen = ShopMateScreen.ChatRecommendation
-                                },
-                                onCartClick = openCart,
-                                onAddCartClick = addProductToCart,
-                                onProductClick = { productId ->
-                                    currentScreen = ShopMateScreen.ProductDetail(
-                                        productId = productId,
-                                        previousScreen = currentScreen,
-                                    )
-                                },
-                                productAddCartStates = cartUiState.productAddCartStates,
-                            )
+                        ShopMateEnterMotion(modifier = Modifier.fillMaxSize()) {
+                            if (comparison == null) {
+                                ProductComparisonUnavailableScreen(
+                                    onBackClick = {
+                                        currentScreen = ShopMateScreen.ChatRecommendation
+                                    },
+                                    onCartClick = openCart,
+                                )
+                            } else {
+                                ProductComparisonScreen(
+                                    comparison = comparison,
+                                    onBackClick = {
+                                        currentScreen = ShopMateScreen.ChatRecommendation
+                                    },
+                                    onCartClick = openCart,
+                                    onAddCartClick = addProductToCart,
+                                    onProductClick = { productId ->
+                                        currentScreen = ShopMateScreen.ProductDetail(
+                                            productId = productId,
+                                            previousScreen = currentScreen,
+                                        )
+                                    },
+                                    productAddCartStates = cartUiState.productAddCartStates,
+                                )
+                            }
                         }
                     }
 
@@ -532,56 +547,60 @@ class MainActivity : ComponentActivity() {
                             item.product.id == productId && item.quantity > 0
                         }
 
-                        ProductDetailScreen(
-                            state = productDetailState,
-                            onBackClick = {
-                                currentScreen = restoreProductDetailPrevious(
-                                    productDetailScreen.previousScreen
-                                )
-                            },
-                            onCartClick = openCart,
-                            onRetry = productDetailViewModel::retry,
-                            onAddCartClick = {
-                                addProductToCart(productId)
-                            },
-                            onBuyNowClick = {
-                                buyNowProduct(productId)
-                            },
-                            productAddCartState = cartUiState.productAddCartStates[productId]
-                                ?: ProductAddCartState.Idle,
-                            productBuyNowState = cartUiState.productBuyNowStates[productId]
-                                ?: ProductAddCartState.Idle,
-                            isProductInCart = productInCart,
-                        )
+                        ShopMateEnterMotion(modifier = Modifier.fillMaxSize()) {
+                            ProductDetailScreen(
+                                state = productDetailState,
+                                onBackClick = {
+                                    currentScreen = restoreProductDetailPrevious(
+                                        productDetailScreen.previousScreen
+                                    )
+                                },
+                                onCartClick = openCart,
+                                onRetry = productDetailViewModel::retry,
+                                onAddCartClick = {
+                                    addProductToCart(productId)
+                                },
+                                onBuyNowClick = {
+                                    buyNowProduct(productId)
+                                },
+                                productAddCartState = cartUiState.productAddCartStates[productId]
+                                    ?: ProductAddCartState.Idle,
+                                productBuyNowState = cartUiState.productBuyNowStates[productId]
+                                    ?: ProductAddCartState.Idle,
+                                isProductInCart = productInCart,
+                            )
+                        }
                     }
 
                     is ShopMateScreen.Cart -> {
                         val cartScreen = currentScreen as ShopMateScreen.Cart
 
-                        CartScreen(
-                            state = cartUiState,
-                            onBackClick = {
-                                currentScreen = restoreCartPrevious(cartScreen.previousScreen)
-                            },
-                            onCheckoutClick = showCheckoutPending,
-                            onRetry = cartViewModel::retry,
-                            onToggleSelected = { item ->
-                                cartViewModel.updateSelected(item.id, !item.selected)
-                            },
-                            onQuantityChange = { item, quantity ->
-                                cartViewModel.updateQuantity(item.id, quantity)
-                            },
-                            onDelete = { item ->
-                                cartViewModel.removeItem(item.id)
-                            },
-                            onProductClick = { item ->
-                                currentScreen = ShopMateScreen.ProductDetail(
-                                    productId = item.product.id,
-                                    previousScreen = cartScreen,
-                                )
-                            },
-                            onToggleAll = cartViewModel::selectAll
-                        )
+                        ShopMateEnterMotion(modifier = Modifier.fillMaxSize()) {
+                            CartScreen(
+                                state = cartUiState,
+                                onBackClick = {
+                                    currentScreen = restoreCartPrevious(cartScreen.previousScreen)
+                                },
+                                onCheckoutClick = showCheckoutPending,
+                                onRetry = cartViewModel::retry,
+                                onToggleSelected = { item ->
+                                    cartViewModel.updateSelected(item.id, !item.selected)
+                                },
+                                onQuantityChange = { item, quantity ->
+                                    cartViewModel.updateQuantity(item.id, quantity)
+                                },
+                                onDelete = { item ->
+                                    cartViewModel.removeItem(item.id)
+                                },
+                                onProductClick = { item ->
+                                    currentScreen = ShopMateScreen.ProductDetail(
+                                        productId = item.product.id,
+                                        previousScreen = cartScreen,
+                                    )
+                                },
+                                onToggleAll = cartViewModel::selectAll
+                            )
+                        }
                     }
 
                     is ShopMateScreen.Checkout -> {
@@ -601,40 +620,42 @@ class MainActivity : ComponentActivity() {
                             checkoutScreen.previousScreen is ShopMateScreen.ProductDetail
 
                         if (draft == null) {
-                            CheckoutScreen(
-                                state = CheckoutUiState(
-                                    errorMessage = "待确认订单不可用，请返回购物车重新结算。"
-                                ),
-                                onBackClick = {
-                                    currentScreen = checkoutScreen.previousScreen
-                                },
-                                onRecipientChange = {},
-                                onPhoneChange = {},
-                                onAddressChange = {},
-                                onAddressEditClick = {},
-                                onAddressBookClick = {},
-                                onAddressPanelBack = {},
-                                onAddressAddClick = {},
-                                onSavedAddressClick = {},
-                                onSavedAddressEditClick = {},
-                                onAddressFormRecipientChange = {},
-                                onAddressFormPhoneChange = {},
-                                onAddressFormFullAddressChange = {},
-                                onAddressFormRegionChange = {},
-                                onAddressTagClick = {},
-                                onAddressSaveClick = {},
-                                onDeliveryMethodClick = {},
-                                onPaymentMethodClick = {},
-                                onSubmitClick = {},
-                                onReturnToCart = {
-                                    currentScreen = ShopMateScreen.Cart(
-                                        previousScreen = checkoutScreen.previousScreen
-                                    )
-                                },
-                                onReturnToChat = {
-                                    currentScreen = ShopMateScreen.ChatRecommendation
-                                },
-                            )
+                            ShopMateEnterMotion(modifier = Modifier.fillMaxSize()) {
+                                CheckoutScreen(
+                                    state = CheckoutUiState(
+                                        errorMessage = "待确认订单不可用，请返回购物车重新结算。"
+                                    ),
+                                    onBackClick = {
+                                        currentScreen = checkoutScreen.previousScreen
+                                    },
+                                    onRecipientChange = {},
+                                    onPhoneChange = {},
+                                    onAddressChange = {},
+                                    onAddressEditClick = {},
+                                    onAddressBookClick = {},
+                                    onAddressPanelBack = {},
+                                    onAddressAddClick = {},
+                                    onSavedAddressClick = {},
+                                    onSavedAddressEditClick = {},
+                                    onAddressFormRecipientChange = {},
+                                    onAddressFormPhoneChange = {},
+                                    onAddressFormFullAddressChange = {},
+                                    onAddressFormRegionChange = {},
+                                    onAddressTagClick = {},
+                                    onAddressSaveClick = {},
+                                    onDeliveryMethodClick = {},
+                                    onPaymentMethodClick = {},
+                                    onSubmitClick = {},
+                                    onReturnToCart = {
+                                        currentScreen = ShopMateScreen.Cart(
+                                            previousScreen = checkoutScreen.previousScreen
+                                        )
+                                    },
+                                    onReturnToChat = {
+                                        currentScreen = ShopMateScreen.ChatRecommendation
+                                    },
+                                )
+                            }
                         } else {
                             val checkoutViewModel: CheckoutViewModel = viewModel(
                                 key = "checkout-${draft.id}",
@@ -655,61 +676,63 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
 
-                            CheckoutScreen(
-                                state = checkoutState,
-                                onBackClick = {
-                                    if (!checkoutState.isSubmitting) {
-                                        if (!openedFromChat) {
-                                            cartViewModel.dismissCheckout()
-                                            currentScreen = if (openedFromProductDetail) {
-                                                checkoutScreen.previousScreen
+                            ShopMateEnterMotion(modifier = Modifier.fillMaxSize()) {
+                                CheckoutScreen(
+                                    state = checkoutState,
+                                    onBackClick = {
+                                        if (!checkoutState.isSubmitting) {
+                                            if (!openedFromChat) {
+                                                cartViewModel.dismissCheckout()
+                                                currentScreen = if (openedFromProductDetail) {
+                                                    checkoutScreen.previousScreen
+                                                } else {
+                                                    ShopMateScreen.Cart(
+                                                        previousScreen = checkoutScreen.previousScreen
+                                                    )
+                                                }
                                             } else {
-                                                ShopMateScreen.Cart(
-                                                    previousScreen = checkoutScreen.previousScreen
-                                                )
+                                                currentScreen = checkoutScreen.previousScreen
                                             }
-                                        } else {
-                                            currentScreen = checkoutScreen.previousScreen
                                         }
-                                    }
-                                },
-                                onRecipientChange = checkoutViewModel::onRecipientChange,
-                                onPhoneChange = checkoutViewModel::onPhoneChange,
-                                onAddressChange = checkoutViewModel::onAddressChange,
-                                onAddressEditClick = checkoutViewModel::openAddressEditor,
-                                onAddressBookClick = checkoutViewModel::openAddressBook,
-                                onAddressPanelBack = checkoutViewModel::closeAddressPanel,
-                                onAddressAddClick = checkoutViewModel::addAddress,
-                                onSavedAddressClick = checkoutViewModel::selectSavedAddress,
-                                onSavedAddressEditClick = checkoutViewModel::editAddress,
-                                onAddressFormRecipientChange =
-                                    checkoutViewModel::onAddressFormRecipientChange,
-                                onAddressFormPhoneChange =
-                                    checkoutViewModel::onAddressFormPhoneChange,
-                                onAddressFormFullAddressChange =
-                                    checkoutViewModel::onAddressFormFullAddressChange,
-                                onAddressFormRegionChange =
-                                    checkoutViewModel::onAddressFormRegionChange,
-                                onAddressTagClick = checkoutViewModel::selectAddressTag,
-                                onAddressSaveClick = checkoutViewModel::saveAddressForm,
-                                onDeliveryMethodClick = checkoutViewModel::selectDeliveryMethod,
-                                onPaymentMethodClick = checkoutViewModel::selectPaymentMethod,
-                                onSubmitClick = checkoutViewModel::submitOrder,
-                                onReturnToCart = {
-                                    if (!openedFromChat) {
-                                        cartViewModel.clearCheckoutDraftAfterOrder()
-                                    }
-                                    currentScreen = ShopMateScreen.Cart(
-                                        previousScreen = checkoutScreen.previousScreen
-                                    )
-                                },
-                                onReturnToChat = {
-                                    if (!openedFromChat) {
-                                        cartViewModel.clearCheckoutDraftAfterOrder()
-                                    }
-                                    currentScreen = checkoutScreen.previousScreen
-                                },
-                            )
+                                    },
+                                    onRecipientChange = checkoutViewModel::onRecipientChange,
+                                    onPhoneChange = checkoutViewModel::onPhoneChange,
+                                    onAddressChange = checkoutViewModel::onAddressChange,
+                                    onAddressEditClick = checkoutViewModel::openAddressEditor,
+                                    onAddressBookClick = checkoutViewModel::openAddressBook,
+                                    onAddressPanelBack = checkoutViewModel::closeAddressPanel,
+                                    onAddressAddClick = checkoutViewModel::addAddress,
+                                    onSavedAddressClick = checkoutViewModel::selectSavedAddress,
+                                    onSavedAddressEditClick = checkoutViewModel::editAddress,
+                                    onAddressFormRecipientChange =
+                                        checkoutViewModel::onAddressFormRecipientChange,
+                                    onAddressFormPhoneChange =
+                                        checkoutViewModel::onAddressFormPhoneChange,
+                                    onAddressFormFullAddressChange =
+                                        checkoutViewModel::onAddressFormFullAddressChange,
+                                    onAddressFormRegionChange =
+                                        checkoutViewModel::onAddressFormRegionChange,
+                                    onAddressTagClick = checkoutViewModel::selectAddressTag,
+                                    onAddressSaveClick = checkoutViewModel::saveAddressForm,
+                                    onDeliveryMethodClick = checkoutViewModel::selectDeliveryMethod,
+                                    onPaymentMethodClick = checkoutViewModel::selectPaymentMethod,
+                                    onSubmitClick = checkoutViewModel::submitOrder,
+                                    onReturnToCart = {
+                                        if (!openedFromChat) {
+                                            cartViewModel.clearCheckoutDraftAfterOrder()
+                                        }
+                                        currentScreen = ShopMateScreen.Cart(
+                                            previousScreen = checkoutScreen.previousScreen
+                                        )
+                                    },
+                                    onReturnToChat = {
+                                        if (!openedFromChat) {
+                                            cartViewModel.clearCheckoutDraftAfterOrder()
+                                        }
+                                        currentScreen = checkoutScreen.previousScreen
+                                    },
+                                )
+                            }
                         }
                     }
                     }
@@ -959,7 +982,7 @@ private fun ShopMateImageSourceDialog(
                         color = Color(0xFFDDE8E4),
                         shape = ShopMatePillShape,
                     )
-                    .clickable(role = Role.Button, onClick = onDismiss),
+                    .shopMatePressable(role = Role.Button, onClick = onDismiss),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -993,7 +1016,7 @@ private fun ImageSourceOption(
                 color = ShopMateGreen.copy(alpha = 0.14f),
                 shape = RoundedCornerShape(18.dp),
             )
-            .clickable(role = Role.Button, onClick = onClick)
+            .shopMatePressable(role = Role.Button, onClick = onClick)
             .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

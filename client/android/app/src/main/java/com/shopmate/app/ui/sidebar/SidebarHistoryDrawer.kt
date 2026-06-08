@@ -1,5 +1,11 @@
 package com.shopmate.app.ui.sidebar
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -57,7 +63,10 @@ import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.zIndex
 import com.shopmate.app.R
 import com.shopmate.app.data.mock.MockShopMateData
+import com.shopmate.app.ui.components.shopMatePressable
+import com.shopmate.app.ui.components.shopMatePressedScale
 import com.shopmate.app.ui.model.HistoryConversationUi
+import com.shopmate.app.ui.theme.ShopMateMotion
 import com.shopmate.app.ui.theme.ShopMateTextPrimary
 
 @Composable
@@ -74,41 +83,81 @@ fun SidebarHistoryDrawer(
     onDeleteHistory: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    if (!isOpen) {
-        return
-    }
-
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
-            .zIndex(10f)
+            .zIndex(if (isOpen) 10f else 0f)
     ) {
         val drawerWidth = if (maxWidth < 340.dp) {
-            maxWidth * 0.82f
+            maxWidth * 0.88f
         } else {
-            280.dp
+            300.dp
         }
 
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.42f))
-                .clickable(role = Role.Button, onClick = onDismiss)
-        )
+        AnimatedVisibility(
+            visible = isOpen,
+            enter = fadeIn(
+                animationSpec = tween(
+                    durationMillis = ShopMateMotion.FastMillis,
+                    easing = ShopMateMotion.StandardEasing,
+                ),
+            ),
+            exit = fadeOut(
+                animationSpec = tween(
+                    durationMillis = ShopMateMotion.FastMillis,
+                    easing = ShopMateMotion.StandardEasing,
+                ),
+            ),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.42f))
+                    .clickable(role = Role.Button, onClick = onDismiss)
+            )
+        }
 
-        SidebarPanel(
-            conversations = conversations,
-            onNewChatClick = onNewChatClick,
-            onCartClick = onCartClick,
-            onSettingsClick = onSettingsClick,
-            onHistoryClick = onHistoryClick,
-            editableConversationIds = editableConversationIds,
-            onRenameHistory = onRenameHistory,
-            onDeleteHistory = onDeleteHistory,
-            modifier = Modifier
-                .width(drawerWidth)
-                .fillMaxHeight()
-        )
+        AnimatedVisibility(
+            visible = isOpen,
+            enter = slideInHorizontally(
+                animationSpec = tween(
+                    durationMillis = ShopMateMotion.MediumMillis,
+                    easing = ShopMateMotion.StandardEasing,
+                ),
+                initialOffsetX = { fullWidth -> -fullWidth },
+            ) + fadeIn(
+                animationSpec = tween(
+                    durationMillis = ShopMateMotion.FastMillis,
+                    easing = ShopMateMotion.StandardEasing,
+                ),
+            ),
+            exit = slideOutHorizontally(
+                animationSpec = tween(
+                    durationMillis = ShopMateMotion.MediumMillis,
+                    easing = ShopMateMotion.StandardEasing,
+                ),
+                targetOffsetX = { fullWidth -> -fullWidth },
+            ) + fadeOut(
+                animationSpec = tween(
+                    durationMillis = ShopMateMotion.FastMillis,
+                    easing = ShopMateMotion.StandardEasing,
+                ),
+            ),
+        ) {
+            SidebarPanel(
+                conversations = conversations,
+                onNewChatClick = onNewChatClick,
+                onCartClick = onCartClick,
+                onSettingsClick = onSettingsClick,
+                onHistoryClick = onHistoryClick,
+                editableConversationIds = editableConversationIds,
+                onRenameHistory = onRenameHistory,
+                onDeleteHistory = onDeleteHistory,
+                modifier = Modifier
+                    .width(drawerWidth)
+                    .fillMaxHeight()
+            )
+        }
     }
 }
 
@@ -159,36 +208,36 @@ private fun SidebarPanel(
             )
             .clip(drawerShape)
             .background(Color.White)
-            .padding(start = 20.dp, top = 60.dp, end = 20.dp, bottom = 34.dp)
+            .padding(start = 22.dp, top = 60.dp, end = 20.dp, bottom = 32.dp)
     ) {
         AssistantHeader()
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(18.dp))
 
         SidebarActionRow(
             icon = R.drawable.ic_sidebar_new_chat,
             label = "新聊天",
             onClick = onNewChatClick
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(10.dp))
         SidebarActionRow(
             icon = R.drawable.ic_sidebar_cart,
             label = "购物车",
             onClick = onCartClick
         )
 
-        Spacer(modifier = Modifier.height(18.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
         Text(
             text = "历史聊天",
             color = Color(0xFF8C95A0),
-            fontSize = 12.sp,
-            lineHeight = 16.sp,
+            fontSize = 13.sp,
+            lineHeight = 17.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 0.sp
         )
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         Column(
             modifier = Modifier
@@ -228,7 +277,7 @@ private fun SidebarPanel(
                         Popup(
                             alignment = Alignment.TopStart,
                             offset = with(density) {
-                                IntOffset(x = 116.dp.roundToPx(), y = (-22).dp.roundToPx())
+                                IntOffset(x = 106.dp.roundToPx(), y = (-20).dp.roundToPx())
                             },
                             onDismissRequest = {
                                 menuConversationId = null
@@ -265,7 +314,7 @@ private fun AssistantHeader(modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(70.667.dp)
+            .height(78.dp)
             .drawBehind {
                 val strokeWidth = 0.667.dp.toPx()
                 drawLine(
@@ -280,29 +329,29 @@ private fun AssistantHeader(modifier: Modifier = Modifier) {
         Image(
             painter = painterResource(id = R.drawable.sidebar_shopmate_buddy),
             contentDescription = "Shopmate Buddy",
-            modifier = Modifier.size(54.dp)
+            modifier = Modifier.size(58.dp)
         )
 
         Spacer(modifier = Modifier.width(16.dp))
 
         Column(
-            modifier = Modifier.padding(top = 3.dp)
+            modifier = Modifier.padding(top = 4.dp)
         ) {
             Text(
                 text = "AI 导购助手",
                 color = ShopMateTextPrimary,
-                fontSize = 17.sp,
-                lineHeight = 20.4.sp,
+                fontSize = 19.sp,
+                lineHeight = 23.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 0.sp,
                 maxLines = 1
             )
-            Spacer(modifier = Modifier.height(11.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = "懂你所需 · 帮你选得更好",
                 color = Color(0xFF8E98A2),
-                fontSize = 12.sp,
-                lineHeight = 16.2.sp,
+                fontSize = 13.sp,
+                lineHeight = 17.sp,
                 letterSpacing = 0.sp,
                 maxLines = 1
             )
@@ -320,22 +369,23 @@ private fun SidebarActionRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(44.dp)
-            .clip(RoundedCornerShape(13.dp))
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = 10.dp),
+            .height(48.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .shopMatePressable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 11.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Image(
             painter = painterResource(id = icon),
             contentDescription = null,
-            modifier = Modifier.size(15.dp)
+            modifier = Modifier.size(17.dp)
         )
-        Spacer(modifier = Modifier.width(12.dp))
+        Spacer(modifier = Modifier.width(13.dp))
         Text(
             text = label,
             color = Color(0xFF293441),
-            fontSize = 15.sp,
+            fontSize = 17.sp,
+            lineHeight = 22.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 0.sp,
             maxLines = 1
@@ -381,10 +431,15 @@ private fun HistoryConversationRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(44.dp)
-            .clip(RoundedCornerShape(13.dp))
+            .height(48.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .shopMatePressedScale(
+                enabled = !isEditing,
+                interactionSource = interactionSource,
+                pressedScale = ShopMateMotion.SubtlePressedScale,
+            )
             .then(clickModifier)
-            .padding(horizontal = 10.dp),
+            .padding(horizontal = 11.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (isEditing) {
@@ -396,8 +451,8 @@ private fun HistoryConversationRow(
                 singleLine = true,
                 textStyle = TextStyle(
                     color = Color(0xFF293441),
-                    fontSize = 15.sp,
-                    lineHeight = 20.sp,
+                    fontSize = 16.sp,
+                    lineHeight = 21.sp,
                     letterSpacing = 0.sp
                 ),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
@@ -425,8 +480,8 @@ private fun HistoryConversationRow(
             Text(
                 text = conversation.title,
                 color = Color(0xFF293441),
-                fontSize = 15.sp,
-                lineHeight = 20.sp,
+                fontSize = 16.sp,
+                lineHeight = 21.sp,
                 letterSpacing = 0.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -438,7 +493,7 @@ private fun HistoryConversationRow(
             text = conversation.timeText,
             color = Color(0xFFA2ABB3),
             fontSize = 13.sp,
-            lineHeight = 17.333.sp,
+            lineHeight = 17.sp,
             letterSpacing = 0.sp,
             maxLines = 1
         )
@@ -486,8 +541,8 @@ private fun HistoryActionMenuRow(
         modifier = Modifier
             .fillMaxWidth()
             .height(42.dp)
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = 16.dp),
+            .shopMatePressable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 14.dp),
         contentAlignment = Alignment.CenterStart
     ) {
         Text(

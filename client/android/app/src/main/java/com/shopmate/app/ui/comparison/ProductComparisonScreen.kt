@@ -3,7 +3,6 @@ package com.shopmate.app.ui.comparison
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -50,6 +49,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.shopmate.app.R
 import com.shopmate.app.data.mock.MockShopMateData
+import com.shopmate.app.ui.components.ShopMateEnterMotion
 import com.shopmate.app.ui.components.ShopMateElevatedSurface
 import com.shopmate.app.ui.components.ShopMateFigmaFrameHeight
 import com.shopmate.app.ui.components.ShopMateFigmaFrameWidth
@@ -57,6 +57,7 @@ import com.shopmate.app.ui.components.ShopMateProductImage
 import com.shopmate.app.ui.components.ShopMateRoundedIconButton
 import com.shopmate.app.ui.components.ShopMateStatusMessage
 import com.shopmate.app.ui.components.scaledDp
+import com.shopmate.app.ui.components.shopMatePressable
 import com.shopmate.app.ui.model.ComparisonCellUi
 import com.shopmate.app.ui.model.ComparisonHighlightUi
 import com.shopmate.app.ui.model.ComparisonRowUi
@@ -105,43 +106,53 @@ fun ProductComparisonScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(14f.s()),
         ) {
-            ComparisonHeroCard(
-                comparison = comparison,
-                scale = scale,
-                modifier = Modifier.width(contentWidth),
-            )
+            ShopMateEnterMotion(delayMillis = 0) {
+                ComparisonHeroCard(
+                    comparison = comparison,
+                    scale = scale,
+                    modifier = Modifier.width(contentWidth),
+                )
+            }
 
-            ComparisonProductSection(
-                products = comparison.products,
-                recommendedProductId = comparison.recommendedProductId,
-                scale = scale,
-                onProductClick = onProductClick,
-                onAddCartClick = onAddCartClick,
-                productAddCartStates = productAddCartStates,
-                modifier = Modifier.width(contentWidth),
-            )
+            ShopMateEnterMotion(delayMillis = 40) {
+                ComparisonProductSection(
+                    products = comparison.products,
+                    recommendedProductId = comparison.recommendedProductId,
+                    scale = scale,
+                    onProductClick = onProductClick,
+                    onAddCartClick = onAddCartClick,
+                    productAddCartStates = productAddCartStates,
+                    modifier = Modifier.width(contentWidth),
+                )
+            }
 
-            ComparisonRowsSection(
-                rows = comparison.rows,
-                products = comparison.products,
-                scale = scale,
-                modifier = Modifier.width(contentWidth),
-            )
-
-            if (comparison.highlights.isNotEmpty()) {
-                ComparisonHighlightsSection(
-                    highlights = comparison.highlights,
+            ShopMateEnterMotion(delayMillis = 80) {
+                ComparisonRowsSection(
+                    rows = comparison.rows,
                     products = comparison.products,
                     scale = scale,
                     modifier = Modifier.width(contentWidth),
                 )
             }
 
-            RecommendationConclusionCard(
-                comparison = comparison,
-                scale = scale,
-                modifier = Modifier.width(contentWidth),
-            )
+            if (comparison.highlights.isNotEmpty()) {
+                ShopMateEnterMotion(delayMillis = 120) {
+                    ComparisonHighlightsSection(
+                        highlights = comparison.highlights,
+                        products = comparison.products,
+                        scale = scale,
+                        modifier = Modifier.width(contentWidth),
+                    )
+                }
+            }
+
+            ShopMateEnterMotion(delayMillis = 160) {
+                RecommendationConclusionCard(
+                    comparison = comparison,
+                    scale = scale,
+                    modifier = Modifier.width(contentWidth),
+                )
+            }
         }
 
         ShopMateRoundedIconButton(
@@ -424,7 +435,7 @@ private fun ComparisonProductSummaryCard(
                     .size(86f.scaledDp(scale))
                     .clip(RoundedCornerShape(16f.scaledDp(scale)))
                     .background(Color.White)
-                    .clickable(onClick = onProductClick),
+                    .shopMatePressable(onClick = onProductClick),
                 contentAlignment = Alignment.Center,
             ) {
                 ShopMateProductImage(
@@ -462,7 +473,7 @@ private fun ComparisonProductSummaryCard(
                 letterSpacing = 0.sp,
                 modifier = Modifier
                     .padding(top = 8f.scaledDp(scale))
-                    .clickable(onClick = onProductClick),
+                    .shopMatePressable(onClick = onProductClick),
             )
 
             Text(
@@ -929,7 +940,7 @@ private fun ComparisonActionPill(
                 shape = ShopMatePillShape,
             )
             .semantics { this.contentDescription = contentDescription }
-            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .shopMatePressable(enabled = enabled, role = Role.Button, onClick = onClick)
             .padding(
                 horizontal = 10f.scaledDp(scale),
                 vertical = 7f.scaledDp(scale),

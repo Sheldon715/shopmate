@@ -1,8 +1,9 @@
 package com.shopmate.app.ui.checkout
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,6 +28,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,11 +49,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.shopmate.app.R
 import com.shopmate.app.ui.components.ShopMateCircleIconButton
+import com.shopmate.app.ui.components.ShopMateEnterMotion
 import com.shopmate.app.ui.components.ShopMateProductImage
 import com.shopmate.app.ui.components.ShopMateSkeletonBlock
 import com.shopmate.app.ui.components.ShopMateSkeletonTextLine
+import com.shopmate.app.ui.components.shopMatePressable
 import com.shopmate.app.ui.theme.ShopMateGreen
 import com.shopmate.app.ui.theme.ShopMateLightGreen
+import com.shopmate.app.ui.theme.ShopMateMotion
 import com.shopmate.app.ui.theme.ShopMatePillShape
 import com.shopmate.app.ui.theme.ShopMateSurfaceSoft
 import com.shopmate.app.ui.theme.ShopMateTextPrimary
@@ -91,40 +96,46 @@ fun CheckoutScreen(
     ) {
         val orderResult = state.orderResult
         if (orderResult != null) {
-            CheckoutSuccessContent(
-                result = orderResult,
-                onReturnToCart = onReturnToCart,
-                onReturnToChat = onReturnToChat,
-                modifier = Modifier.fillMaxSize()
-            )
+            ShopMateEnterMotion(modifier = Modifier.fillMaxSize()) {
+                CheckoutSuccessContent(
+                    result = orderResult,
+                    onReturnToCart = onReturnToCart,
+                    onReturnToChat = onReturnToChat,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
             return@Box
         }
 
         when (state.addressMode) {
             CheckoutAddressModeUi.Edit -> {
-                CheckoutAddressEditScreen(
-                    state = state,
-                    onBackClick = onAddressPanelBack,
-                    onRecipientChange = onAddressFormRecipientChange,
-                    onPhoneChange = onAddressFormPhoneChange,
-                    onFullAddressChange = onAddressFormFullAddressChange,
-                    onRegionChange = onAddressFormRegionChange,
-                    onTagClick = onAddressTagClick,
-                    onSaveClick = onAddressSaveClick,
-                    modifier = Modifier.fillMaxSize(),
-                )
+                ShopMateEnterMotion(modifier = Modifier.fillMaxSize()) {
+                    CheckoutAddressEditScreen(
+                        state = state,
+                        onBackClick = onAddressPanelBack,
+                        onRecipientChange = onAddressFormRecipientChange,
+                        onPhoneChange = onAddressFormPhoneChange,
+                        onFullAddressChange = onAddressFormFullAddressChange,
+                        onRegionChange = onAddressFormRegionChange,
+                        onTagClick = onAddressTagClick,
+                        onSaveClick = onAddressSaveClick,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
                 return@Box
             }
 
             CheckoutAddressModeUi.Book -> {
-                CheckoutAddressBookScreen(
-                    state = state,
-                    onBackClick = onAddressPanelBack,
-                    onAddClick = onAddressAddClick,
-                    onAddressClick = onSavedAddressClick,
-                    onAddressEditClick = onSavedAddressEditClick,
-                    modifier = Modifier.fillMaxSize(),
-                )
+                ShopMateEnterMotion(modifier = Modifier.fillMaxSize()) {
+                    CheckoutAddressBookScreen(
+                        state = state,
+                        onBackClick = onAddressPanelBack,
+                        onAddClick = onAddressAddClick,
+                        onAddressClick = onSavedAddressClick,
+                        onAddressEditClick = onSavedAddressEditClick,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
                 return@Box
             }
 
@@ -139,10 +150,12 @@ fun CheckoutScreen(
                 .padding(start = 18.dp, top = 38.dp, end = 18.dp, bottom = 122.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            CheckoutHeader(
-                submitting = state.isSubmitting,
-                onBackClick = onBackClick,
-            )
+            ShopMateEnterMotion(delayMillis = 0) {
+                CheckoutHeader(
+                    submitting = state.isSubmitting,
+                    onBackClick = onBackClick,
+                )
+            }
 
             if (draft == null && state.errorMessage == null) {
                 CheckoutDraftSkeleton()
@@ -152,36 +165,46 @@ fun CheckoutScreen(
                     message = state.errorMessage ?: "请返回购物车重新结算。"
                 )
             } else {
-                CheckoutAddressCard(
-                    shipping = state.editableShipping,
-                    selectedAddress = state.selectedAddress,
-                    phoneFallback = draft.address.phoneMasked,
-                    errors = state.fieldErrors,
-                    onEditClick = onAddressEditClick,
-                    onBookClick = onAddressBookClick,
-                )
+                ShopMateEnterMotion(delayMillis = 40) {
+                    CheckoutAddressCard(
+                        shipping = state.editableShipping,
+                        selectedAddress = state.selectedAddress,
+                        phoneFallback = draft.address.phoneMasked,
+                        errors = state.fieldErrors,
+                        onEditClick = onAddressEditClick,
+                        onBookClick = onAddressBookClick,
+                    )
+                }
 
-                CheckoutItemsSection(items = draft.items)
+                ShopMateEnterMotion(delayMillis = 80) {
+                    CheckoutItemsSection(items = draft.items)
+                }
 
-                DeliverySection(
-                    options = draft.deliveryOptions,
-                    selectedType = state.selectedDeliveryMethodType,
-                    errorMessage = state.fieldErrors.deliveryMethod,
-                    onOptionClick = onDeliveryMethodClick,
-                )
+                ShopMateEnterMotion(delayMillis = 120) {
+                    DeliverySection(
+                        options = draft.deliveryOptions,
+                        selectedType = state.selectedDeliveryMethodType,
+                        errorMessage = state.fieldErrors.deliveryMethod,
+                        onOptionClick = onDeliveryMethodClick,
+                    )
+                }
 
-                PaymentSection(
-                    options = draft.paymentOptions,
-                    selectedType = state.selectedPaymentMethodType,
-                    errorMessage = state.fieldErrors.paymentMethod,
-                    onOptionClick = onPaymentMethodClick,
-                )
+                ShopMateEnterMotion(delayMillis = 160) {
+                    PaymentSection(
+                        options = draft.paymentOptions,
+                        selectedType = state.selectedPaymentMethodType,
+                        errorMessage = state.fieldErrors.paymentMethod,
+                        onOptionClick = onPaymentMethodClick,
+                    )
+                }
 
-                AmountSection(
-                    summary = draft.summary,
-                    selectedDelivery = state.selectedDeliveryMethod,
-                    totalText = state.estimatedTotalText,
-                )
+                ShopMateEnterMotion(delayMillis = 200) {
+                    AmountSection(
+                        summary = draft.summary,
+                        selectedDelivery = state.selectedDeliveryMethod,
+                        totalText = state.estimatedTotalText,
+                    )
+                }
 
                 if (state.errorMessage != null) {
                     CheckoutInlineMessage(
@@ -644,7 +667,7 @@ private fun SavedAddressCard(
             .clip(RoundedCornerShape(20.dp))
             .background(Color.White.copy(alpha = 0.96f))
             .border(0.667.dp, borderColor, RoundedCornerShape(20.dp))
-            .clickable(role = Role.Button, onClick = onClick)
+            .shopMatePressable(role = Role.Button, onClick = onClick)
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(9.dp),
     ) {
@@ -731,7 +754,7 @@ private fun AddressSubPageHeader(
                 letterSpacing = 0.sp,
                 modifier = Modifier
                     .clip(RoundedCornerShape(12.dp))
-                    .clickable(role = Role.Button, onClick = onTrailingClick)
+                    .shopMatePressable(role = Role.Button, onClick = onTrailingClick)
                     .padding(horizontal = 8.dp, vertical = 6.dp),
             )
         }
@@ -790,7 +813,7 @@ private fun AddressTagChip(
     }
     val textColor = if (selected) ShopMateGreen else Color(0xFF59646E)
     val clickableModifier = if (onClick != null) {
-        Modifier.clickable(role = Role.Button, onClick = onClick)
+        Modifier.shopMatePressable(role = Role.Button, onClick = onClick)
     } else {
         Modifier
     }
@@ -824,7 +847,7 @@ private fun AddressIconActionButton(
             .size(36.dp)
             .clip(RoundedCornerShape(18.dp))
             .background(backgroundColor)
-            .clickable(role = Role.Button, onClick = onClick),
+            .shopMatePressable(role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
@@ -1131,14 +1154,30 @@ private fun SelectableOptionRow(
 ) {
     val borderColor = if (selected) ShopMateGreen.copy(alpha = 0.75f) else Color(0xFFE8EFED)
     val backgroundColor = if (selected) ShopMateGreen.copy(alpha = 0.08f) else ShopMateSurfaceSoft
+    val animatedBorderColor by animateColorAsState(
+        targetValue = borderColor,
+        animationSpec = tween(
+            durationMillis = ShopMateMotion.MediumMillis,
+            easing = ShopMateMotion.StandardEasing,
+        ),
+        label = "checkout-option-border",
+    )
+    val animatedBackgroundColor by animateColorAsState(
+        targetValue = backgroundColor,
+        animationSpec = tween(
+            durationMillis = ShopMateMotion.MediumMillis,
+            easing = ShopMateMotion.StandardEasing,
+        ),
+        label = "checkout-option-background",
+    )
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(backgroundColor)
-            .border(0.667.dp, borderColor, RoundedCornerShape(16.dp))
-            .clickable(role = Role.RadioButton, onClick = onClick)
+            .background(animatedBackgroundColor)
+            .border(0.667.dp, animatedBorderColor, RoundedCornerShape(16.dp))
+            .shopMatePressable(role = Role.RadioButton, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -1265,7 +1304,11 @@ private fun CheckoutSubmitBar(
                         Brush.linearGradient(listOf(Color(0xFFD9E9E3), Color(0xFFD0E4DB)))
                     }
                 )
-                .clickable(enabled = enabled, role = Role.Button, onClick = onSubmitClick),
+                .shopMatePressable(
+                    enabled = enabled,
+                    role = Role.Button,
+                    onClick = onSubmitClick,
+                ),
             contentAlignment = Alignment.Center,
         ) {
             if (submitting) {
@@ -1458,7 +1501,7 @@ private fun CheckoutActionButton(
             .height(48.dp)
             .clip(ShopMatePillShape)
             .background(background)
-            .clickable(role = Role.Button, onClick = onClick),
+            .shopMatePressable(role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Text(

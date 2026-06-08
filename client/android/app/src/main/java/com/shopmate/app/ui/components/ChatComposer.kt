@@ -4,7 +4,6 @@ import android.view.MotionEvent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -247,7 +246,7 @@ private fun InputModeToggleButton(
                 color = Color(0xFFEEF3F2),
                 shape = ShopMatePillShape
             )
-            .clickable(role = Role.Button, onClick = onClick),
+            .shopMatePressable(role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Image(
@@ -334,7 +333,7 @@ private fun ComposerImagePreview(
                 letterSpacing = 0.sp,
                 modifier = Modifier
                     .padding(horizontal = 8f.cs())
-                    .clickable(role = Role.Button, onClick = onRetryClick),
+                    .shopMatePressable(role = Role.Button, onClick = onRetryClick),
             )
         }
 
@@ -344,7 +343,7 @@ private fun ComposerImagePreview(
             modifier = Modifier
                 .size(22f.cs())
                 .clip(ShopMatePillShape)
-                .clickable(role = Role.Button, onClick = onRemoveClick)
+                .shopMatePressable(role = Role.Button, onClick = onRemoveClick)
                 .padding(4f.cs()),
             alpha = 0.72f,
         )
@@ -453,7 +452,7 @@ private fun InlineImagePickButton(
         modifier = Modifier
             .size(28f.cs())
             .clip(ShopMatePillShape)
-            .clickable(
+            .shopMatePressable(
                 enabled = enabled,
                 role = Role.Button,
                 onClick = onClick,
@@ -693,7 +692,7 @@ private fun SendButton(
                     )
                 }
             )
-            .clickable(
+            .shopMatePressable(
                 enabled = enabled,
                 role = Role.Button,
                 onClick = onClick

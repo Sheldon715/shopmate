@@ -39,7 +39,7 @@ fun ShopMateRoundedIconButton(
         .background(backgroundColor, shape)
         .alpha(if (enabled) 1f else 0.55f)
     val clickableModifier = if (showPressIndication) {
-        baseModifier.clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+        baseModifier.shopMatePressable(enabled = enabled, role = Role.Button, onClick = onClick)
     } else {
         baseModifier.clickable(
             enabled = enabled,
