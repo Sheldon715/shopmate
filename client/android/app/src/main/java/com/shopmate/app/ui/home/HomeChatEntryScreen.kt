@@ -326,7 +326,7 @@ private fun KeyboardHeader(
             ShopMateBuddyMotion(
                 state = ShopMateBuddyMotionState.Idle,
                 fallbackRes = R.drawable.sidebar_shopmate_buddy,
-                contentDescription = "Shopmate Buddy",
+                contentDescription = null,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .offset(y = (HOME_KEYBOARD_BUDDY_Y - controlOffset).s())
@@ -473,7 +473,6 @@ private fun HeaderIconButton(
         modifier = Modifier.size((38f * ShopMateReadableControlScale).s()),
         iconSize = (16f * ShopMateReadableControlScale).s(),
         backgroundColor = Color.White,
-        showPressIndication = false,
     )
 }
 

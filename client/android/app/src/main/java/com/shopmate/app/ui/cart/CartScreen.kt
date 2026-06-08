@@ -29,7 +29,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -256,7 +255,6 @@ private fun CartHeader(
             .size(36f.s()),
         iconSize = 18f.s(),
         backgroundColor = Color.White,
-        showPressIndication = false,
     )
 
     Text(
@@ -323,13 +321,6 @@ private fun CartFeatureCard(
                     end = Offset(352f.s().value, 82f.s().value)
                 )
             )
-            .drawBehind {
-                drawCircle(
-                    color = ShopMateGreen.copy(alpha = 0.09f),
-                    center = Offset(size.width * 0.82f, size.height * 0.18f),
-                    radius = size.minDimension * 0.38f
-                )
-            }
     ) {
         Box(
             modifier = Modifier

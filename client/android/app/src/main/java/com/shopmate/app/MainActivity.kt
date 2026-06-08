@@ -1,9 +1,8 @@
 package com.shopmate.app
 
 import android.Manifest
-import android.app.AlertDialog
 import android.content.ContentResolver
-import android.graphics.Color
+import android.graphics.Color as AndroidColor
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -11,16 +10,29 @@ import android.provider.OpenableColumns
 import android.content.pm.PackageManager
 import android.view.View
 import android.view.WindowInsets
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
@@ -32,12 +44,24 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.zIndex
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewModelScope
-import com.shopmate.app.ui.cart.CartOperationMessage
 import com.shopmate.app.ui.cart.CartScreen
 import com.shopmate.app.ui.cart.CartViewModel
 import com.shopmate.app.ui.checkout.CheckoutScreen
@@ -59,6 +83,11 @@ import com.shopmate.app.ui.model.ProductAddCartState
 import com.shopmate.app.ui.onboarding.OnboardingScreen
 import com.shopmate.app.ui.product.ProductDetailScreen
 import com.shopmate.app.ui.product.ProductDetailViewModel
+import com.shopmate.app.ui.theme.ShopMateGreen
+import com.shopmate.app.ui.theme.ShopMateLightGreen
+import com.shopmate.app.ui.theme.ShopMatePillShape
+import com.shopmate.app.ui.theme.ShopMateTextPrimary
+import com.shopmate.app.ui.theme.ShopMateTextSecondary
 import com.shopmate.app.ui.theme.ShopMateTheme
 import com.shopmate.app.ui.voice.AndroidSpeechVoiceInputController
 import com.shopmate.app.ui.voice.CloudAsrVoiceInputController
@@ -72,8 +101,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        window.statusBarColor = Color.WHITE
-        window.navigationBarColor = Color.WHITE
+        window.statusBarColor = AndroidColor.WHITE
+        window.navigationBarColor = AndroidColor.WHITE
         var systemUiFlags = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -104,8 +133,23 @@ class MainActivity : ComponentActivity() {
                 var buddyTransitionRequest by remember {
                     mutableStateOf<ShopMateBuddyTransitionRequest?>(null)
                 }
-                var cartOperationBanner by remember { mutableStateOf<CartOperationMessage?>(null) }
+                var transientMessageSequence by remember { mutableStateOf(0L) }
+                var transientMessage by remember {
+                    mutableStateOf<ShopMateTransientMessage?>(null)
+                }
+                var showImageSourceDialog by remember { mutableStateOf(false) }
                 var homeKeyboardAvatarVisible by remember { mutableStateOf(false) }
+                fun showTransientMessage(text: String) {
+                    val normalizedText = text.trim()
+                    if (normalizedText.isBlank()) {
+                        return
+                    }
+                    transientMessageSequence += 1
+                    transientMessage = ShopMateTransientMessage(
+                        key = "local-$transientMessageSequence",
+                        text = normalizedText,
+                    )
+                }
                 fun triggerHomeToChatBuddyTransition() {
                     if (currentScreen == ShopMateScreen.HomeChatEntry) {
                         buddyTransitionRequest = buddyTransitionController.trigger()
@@ -178,6 +222,7 @@ class MainActivity : ComponentActivity() {
                         beginVoiceRecognition()
                     } else {
                         chatViewModel.onVoicePermissionDenied()
+                        showTransientMessage("需要开启麦克风权限才能语音输入")
                     }
                 }
                 val startVoiceInput: () -> Unit = {
@@ -229,6 +274,8 @@ class MainActivity : ComponentActivity() {
                             mimeType = contentResolver.getType(uri) ?: "image/jpeg",
                             sizeBytes = imageAttachmentSizeBytes(contentResolver, uri),
                         )
+                    } else if (!captured && uri != null) {
+                        showTransientMessage("已取消拍照，当前输入不会被修改")
                     }
                 }
                 val pickImageFromGallery: () -> Unit = {
@@ -241,11 +288,7 @@ class MainActivity : ComponentActivity() {
                     cancelVoiceInput()
                     val uri = runCatching { createCameraImageUri() }
                         .onFailure {
-                            Toast.makeText(
-                                this@MainActivity,
-                                "无法启动拍照，请稍后重试",
-                                Toast.LENGTH_SHORT
-                            ).show()
+                            showTransientMessage("无法启动拍照，请稍后重试")
                         }
                         .getOrNull()
 
@@ -254,31 +297,20 @@ class MainActivity : ComponentActivity() {
                         runCatching { cameraCaptureLauncher.launch(uri) }
                             .onFailure {
                                 pendingCameraImageUri = null
-                                Toast.makeText(
-                                    this@MainActivity,
-                                    "无法打开相机，请从相册选择图片",
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                                showTransientMessage("无法打开相机，请从相册选择图片")
                             }
                     }
                 }
                 val pickImage: () -> Unit = {
                     cancelVoiceInput()
-                    showImageSourceDialog(
-                        onCamera = captureImage,
-                        onGallery = pickImageFromGallery,
-                    )
+                    showImageSourceDialog = true
                 }
                 LaunchedEffect(chatViewModel) {
                     chatViewModel.sideEffects.collect { effect ->
                         when (effect) {
                             is ChatSideEffect.RefreshCart -> cartViewModel.refresh()
                             is ChatSideEffect.ShowMockOrderResult -> {
-                                Toast.makeText(
-                                    this@MainActivity,
-                                    effect.toToastText(),
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                                showTransientMessage(effect.toBannerText())
                             }
                             is ChatSideEffect.OpenCheckoutDraft -> {
                                 currentScreen = ShopMateScreen.Checkout(
@@ -291,12 +323,25 @@ class MainActivity : ComponentActivity() {
                 }
                 cartUiState.operationMessage?.let { message ->
                     LaunchedEffect(message.id) {
-                        cartOperationBanner = message
+                        transientMessage = ShopMateTransientMessage(
+                            key = "cart-${message.id}",
+                            text = message.text,
+                        )
                         delay(CART_OPERATION_BANNER_DURATION_MS)
-                        if (cartOperationBanner?.id == message.id) {
-                            cartOperationBanner = null
+                        if (transientMessage?.key == "cart-${message.id}") {
+                            transientMessage = null
                         }
                         cartViewModel.consumeOperationMessage(message.id)
+                    }
+                }
+                transientMessage
+                    ?.takeUnless { message -> message.key.startsWith("cart-") }
+                    ?.let { message ->
+                    LaunchedEffect(message.key) {
+                        delay(CART_OPERATION_BANNER_DURATION_MS)
+                        if (transientMessage?.key == message.key) {
+                            transientMessage = null
+                        }
                     }
                 }
                 LaunchedEffect(cartUiState.checkoutDraft?.id, currentScreen) {
@@ -680,7 +725,23 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.fillMaxSize(),
                     )
 
-                    cartOperationBanner?.let { message ->
+                    if (showImageSourceDialog) {
+                        ShopMateImageSourceDialog(
+                            onCamera = {
+                                showImageSourceDialog = false
+                                captureImage()
+                            },
+                            onGallery = {
+                                showImageSourceDialog = false
+                                pickImageFromGallery()
+                            },
+                            onDismiss = {
+                                showImageSourceDialog = false
+                            },
+                        )
+                    }
+
+                    transientMessage?.let { message ->
                         ShopMateOperationBanner(
                             text = message.text,
                             modifier = Modifier
@@ -696,7 +757,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private sealed class ShopMateScreen {
+internal sealed class ShopMateScreen {
     object Onboarding : ShopMateScreen()
     object HomeChatEntry : ShopMateScreen()
     object ChatRecommendation : ShopMateScreen()
@@ -712,6 +773,11 @@ private sealed class ShopMateScreen {
     ) : ShopMateScreen()
 }
 
+private data class ShopMateTransientMessage(
+    val key: String,
+    val text: String,
+)
+
 private const val CART_OPERATION_BANNER_DURATION_MS = 1700L
 
 private val ShopMateScreenSaver: Saver<ShopMateScreen, List<String>> = Saver(
@@ -719,7 +785,7 @@ private val ShopMateScreenSaver: Saver<ShopMateScreen, List<String>> = Saver(
     restore = { parts -> restoreScreenFromRouteParts(parts) }
 )
 
-private fun restoreCartPrevious(previousScreen: ShopMateScreen): ShopMateScreen =
+internal fun restoreCartPrevious(previousScreen: ShopMateScreen): ShopMateScreen =
     when (previousScreen) {
         ShopMateScreen.Onboarding -> ShopMateScreen.HomeChatEntry
         is ShopMateScreen.Cart -> ShopMateScreen.HomeChatEntry
@@ -727,7 +793,7 @@ private fun restoreCartPrevious(previousScreen: ShopMateScreen): ShopMateScreen 
         else -> previousScreen
     }
 
-private fun restoreProductDetailPrevious(previousScreen: ShopMateScreen): ShopMateScreen =
+internal fun restoreProductDetailPrevious(previousScreen: ShopMateScreen): ShopMateScreen =
     when (previousScreen) {
         ShopMateScreen.Onboarding -> ShopMateScreen.HomeChatEntry
         is ShopMateScreen.Cart -> previousScreen
@@ -736,20 +802,20 @@ private fun restoreProductDetailPrevious(previousScreen: ShopMateScreen): ShopMa
         else -> previousScreen
     }
 
-private fun ShopMateScreen.toRouteParts(): List<String> =
+internal fun ShopMateScreen.toRouteParts(): List<String> =
     when (this) {
         ShopMateScreen.Onboarding -> listOf("onboarding")
         ShopMateScreen.HomeChatEntry -> listOf("home")
         ShopMateScreen.ChatRecommendation -> listOf("chat-recommendation")
         is ShopMateScreen.ProductComparison -> listOf("comparison", comparisonId.orEmpty())
         is ShopMateScreen.ProductDetail -> listOf("product-detail", productId) +
-            previousScreen.toRouteParts().take(2)
-        is ShopMateScreen.Cart -> listOf("cart") + previousScreen.toRouteParts().take(2)
+            previousScreen.toRouteParts()
+        is ShopMateScreen.Cart -> listOf("cart") + previousScreen.toRouteParts()
         is ShopMateScreen.Checkout -> listOf("checkout", draftId.orEmpty()) +
-            previousScreen.toRouteParts().take(2)
+            previousScreen.toRouteParts()
     }
 
-private fun restoreScreenFromRouteParts(parts: List<String>): ShopMateScreen =
+internal fun restoreScreenFromRouteParts(parts: List<String>): ShopMateScreen =
     when (parts.firstOrNull()) {
         "home" -> ShopMateScreen.HomeChatEntry
         "chat-recommendation" -> ShopMateScreen.ChatRecommendation
@@ -799,22 +865,180 @@ private fun MainActivity.createCameraImageUri(): Uri {
     )
 }
 
-private fun MainActivity.showImageSourceDialog(
+@Composable
+private fun ShopMateImageSourceDialog(
     onCamera: () -> Unit,
     onGallery: () -> Unit,
+    onDismiss: () -> Unit,
 ) {
-    AlertDialog.Builder(this)
-        .setItems(arrayOf("拍照找货", "从相册选择")) { dialog, selectedIndex ->
-            when (selectedIndex) {
-                0 -> onCamera()
-                else -> onGallery()
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(horizontal = 24.dp)
+                .fillMaxWidth()
+                .shadow(
+                    elevation = 24.dp,
+                    shape = RoundedCornerShape(28.dp),
+                    clip = false,
+                )
+                .clip(RoundedCornerShape(28.dp))
+                .background(
+                    Brush.linearGradient(
+                        listOf(Color.White, Color(0xFFEAFBF4))
+                    )
+                )
+                .border(
+                    width = 0.667.dp,
+                    color = ShopMateGreen.copy(alpha = 0.18f),
+                    shape = RoundedCornerShape(28.dp),
+                )
+                .padding(horizontal = 18.dp, vertical = 18.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.sidebar_shopmate_buddy),
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.size(38.dp),
+                )
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 10.dp),
+                ) {
+                    Text(
+                        text = "图片找货",
+                        color = ShopMateTextPrimary,
+                        fontSize = 20.sp,
+                        lineHeight = 26.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.sp,
+                    )
+                    Text(
+                        text = "选择拍照或相册图片，我来帮你识别好物",
+                        color = ShopMateTextSecondary,
+                        fontSize = 12.sp,
+                        lineHeight = 17.sp,
+                        letterSpacing = 0.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
-            dialog.dismiss()
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            ImageSourceOption(
+                icon = R.drawable.ic_prompt_camera,
+                title = "拍照找货",
+                subtitle = "适合现场商品、包装和搭配灵感",
+                onClick = onCamera,
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            ImageSourceOption(
+                icon = R.drawable.ic_image,
+                title = "从相册选择",
+                subtitle = "从已有图片中挑一张来搜索",
+                onClick = onGallery,
+            )
+            Spacer(modifier = Modifier.height(14.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .clip(ShopMatePillShape)
+                    .background(Color.White.copy(alpha = 0.72f), ShopMatePillShape)
+                    .border(
+                        width = 0.667.dp,
+                        color = Color(0xFFDDE8E4),
+                        shape = ShopMatePillShape,
+                    )
+                    .clickable(role = Role.Button, onClick = onDismiss),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "取消",
+                    color = ShopMateTextSecondary,
+                    fontSize = 15.sp,
+                    lineHeight = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.sp,
+                )
+            }
         }
-        .show()
+    }
 }
 
-private fun ChatSideEffect.ShowMockOrderResult.toToastText(): String {
+@Composable
+private fun ImageSourceOption(
+    icon: Int,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(66.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.White.copy(alpha = 0.86f), RoundedCornerShape(18.dp))
+            .border(
+                width = 0.667.dp,
+                color = ShopMateGreen.copy(alpha = 0.14f),
+                shape = RoundedCornerShape(18.dp),
+            )
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .clip(RoundedCornerShape(19.dp))
+                .background(Brush.linearGradient(listOf(ShopMateLightGreen, ShopMateGreen))),
+            contentAlignment = Alignment.Center,
+        ) {
+            Image(
+                painter = painterResource(id = icon),
+                contentDescription = null,
+                colorFilter = ColorFilter.tint(Color.White),
+                modifier = Modifier.size(18.dp),
+            )
+        }
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 12.dp),
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text(
+                text = title,
+                color = ShopMateTextPrimary,
+                fontSize = 15.sp,
+                lineHeight = 20.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.sp,
+            )
+            Text(
+                text = subtitle,
+                color = ShopMateTextSecondary,
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
+                letterSpacing = 0.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+private fun ChatSideEffect.ShowMockOrderResult.toBannerText(): String {
     val orderText = orderNumber?.takeIf { value -> value.isNotBlank() }
         ?.toDisplayCheckoutOrderNumber()
         ?.let { value -> "订单 $value" }

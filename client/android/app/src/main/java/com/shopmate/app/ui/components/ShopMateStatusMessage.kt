@@ -66,7 +66,7 @@ fun ShopMateStatusMessage(
         ) {
             Image(
                 painter = painterResource(id = mascot),
-                contentDescription = "Shopmate Buddy",
+                contentDescription = null,
                 modifier = Modifier
                     .offset(x = 103f.s(), y = 0.dp)
                     .size(70f.s()),

@@ -45,7 +45,6 @@ fun ShopMateTopActionBar(
                 modifier = Modifier.size(controlSize.s()),
                 iconSize = iconSize.s(),
                 backgroundColor = buttonBackgroundColor,
-                showPressIndication = false,
             )
             Spacer(modifier = Modifier.weight(1f))
             ShopMateCircleIconButton(
@@ -55,7 +54,6 @@ fun ShopMateTopActionBar(
                 modifier = Modifier.size(controlSize.s()),
                 iconSize = iconSize.s(),
                 backgroundColor = buttonBackgroundColor,
-                showPressIndication = false,
             )
         }
         return
@@ -71,13 +69,12 @@ fun ShopMateTopActionBar(
                 .size(controlSize.s()),
             iconSize = iconSize.s(),
             backgroundColor = buttonBackgroundColor,
-            showPressIndication = false,
         )
 
         ShopMateBuddyMotion(
             state = centerBuddyMotionState,
             fallbackRes = R.drawable.sidebar_shopmate_buddy,
-            contentDescription = "Shopmate Buddy",
+            contentDescription = null,
             modifier = Modifier
                 .offset(x = (175.33f - controlOffset).s(), y = (3f - controlOffset).s())
                 .size(controlSize.s()),
@@ -92,7 +89,6 @@ fun ShopMateTopActionBar(
                 .size(controlSize.s()),
             iconSize = iconSize.s(),
             backgroundColor = buttonBackgroundColor,
-            showPressIndication = false,
         )
     }
 }
