@@ -63,6 +63,7 @@ data class ChatUiState(
     val productCardsAnchorMessageId: String? = null,
     val comparisonResults: List<ComparisonUi> = emptyList(),
     val comparisonActions: List<ChatComparisonActionUi> = emptyList(),
+    val isComparisonGenerating: Boolean = false,
     val activeCheckoutDraft: ChatCheckoutDraftCardUi? = null,
     val historyConversations: List<HistoryConversationUi> = emptyList(),
     val composerText: String = "",

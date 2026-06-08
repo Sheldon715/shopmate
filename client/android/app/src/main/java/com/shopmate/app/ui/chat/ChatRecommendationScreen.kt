@@ -61,6 +61,7 @@ import com.shopmate.app.ui.components.ShopMateStatusMessage
 import com.shopmate.app.ui.components.ShopMateTopActionBar
 import com.shopmate.app.ui.components.scaledDp
 import com.shopmate.app.ui.model.HistoryConversationUi
+import com.shopmate.app.ui.model.ProductAddCartState
 import com.shopmate.app.ui.model.ProductCardUi
 import com.shopmate.app.ui.sidebar.SidebarHistoryDrawer
 import com.shopmate.app.ui.theme.ShopMateGreen
@@ -87,6 +88,7 @@ fun ChatRecommendationScreen(
     onCartClick: () -> Unit,
     onProductClick: (String) -> Unit,
     onAddCartClick: (String) -> Unit,
+    productAddCartStates: Map<String, ProductAddCartState> = emptyMap(),
     onComparisonClick: (String) -> Unit,
     onCheckoutViewClick: (String) -> Unit,
     onCheckoutCancelClick: () -> Unit,
@@ -136,6 +138,7 @@ fun ChatRecommendationScreen(
             state.messages.lastOrNull()?.text,
             state.productCards.size,
             state.comparisonActions.size,
+            state.isComparisonGenerating,
             state.comparisonResults.size,
             state.activeCheckoutDraft?.draft?.id,
             state.activeCheckoutDraft?.status,
@@ -163,6 +166,7 @@ fun ChatRecommendationScreen(
             onCartClick = onCartClick,
             onProductClick = onProductClick,
             onAddCartClick = onAddCartClick,
+            productAddCartStates = productAddCartStates,
             onComparisonClick = onComparisonClick,
             onCheckoutViewClick = onCheckoutViewClick,
             onCheckoutCancelClick = onCheckoutCancelClick,
@@ -296,6 +300,7 @@ private fun ChatStreamList(
     onCartClick: () -> Unit,
     onProductClick: (String) -> Unit,
     onAddCartClick: (String) -> Unit,
+    productAddCartStates: Map<String, ProductAddCartState>,
     onComparisonClick: (String) -> Unit,
     onCheckoutViewClick: (String) -> Unit,
     onCheckoutCancelClick: () -> Unit,
@@ -307,6 +312,12 @@ private fun ChatStreamList(
     val messageIds = remember(state.messages) {
         state.messages.map { message -> message.id }.toSet()
     }
+    val comparisonLoadingAnchorMessageId =
+        if (state.isComparisonGenerating) {
+            state.messages.lastOrNull { message -> !message.fromUser }?.id
+        } else {
+            null
+        }
 
     LazyColumn(
         state = listState,
@@ -359,12 +370,26 @@ private fun ChatStreamList(
                     onComparisonClick = onComparisonClick,
                 )
 
+                if (
+                    message.id == comparisonLoadingAnchorMessageId &&
+                    !message.isTypingPlaceholder()
+                ) {
+                    ChatTypingIndicatorBubble(
+                        textScale = bubbleTextScale,
+                        modifier = Modifier
+                            .align(Alignment.Start)
+                            .padding(start = 16f.s())
+                            .size(width = 66f.s(), height = 34f.s()),
+                    )
+                }
+
                 if (message.id == state.productCardsAnchorMessageId) {
                     ProductCardList(
                         products = state.productCards,
                         scale = scale,
                         onProductClick = onProductClick,
                         onAddCartClick = onAddCartClick,
+                        productAddCartStates = productAddCartStates,
                     )
                 }
             }
@@ -407,6 +432,7 @@ private fun ChatStreamList(
                     scale = scale,
                     onProductClick = onProductClick,
                     onAddCartClick = onAddCartClick,
+                    productAddCartStates = productAddCartStates,
                 )
             }
         }
@@ -746,6 +772,7 @@ private fun ProductCardList(
     scale: Float,
     onProductClick: (String) -> Unit,
     onAddCartClick: (String) -> Unit,
+    productAddCartStates: Map<String, ProductAddCartState>,
 ) {
     fun Float.s(): Dp = scaledDp(scale)
 
@@ -758,6 +785,7 @@ private fun ProductCardList(
             ProductCard(
                 product = product,
                 enabled = true,
+                addCartState = productAddCartStates[product.id] ?: ProductAddCartState.Idle,
                 onClick = {
                     onProductClick(product.id)
                 },

@@ -183,6 +183,9 @@ class CheckoutViewModelTest {
 
         override suspend fun createMockCheckout(): Result<CheckoutDraftUi> = createResult
 
+        override suspend fun createProductCheckout(productId: String): Result<CheckoutDraftUi> =
+            createResult
+
         override suspend fun confirmMockCheckout(
             conversationId: String,
             draftId: String,

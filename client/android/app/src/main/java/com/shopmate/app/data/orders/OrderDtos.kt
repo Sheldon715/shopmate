@@ -21,6 +21,12 @@ data class MockCheckoutRequestDto(
 )
 
 @Serializable
+data class MockProductCheckoutRequestDto(
+    val conversationId: String,
+    val productId: String,
+)
+
+@Serializable
 data class MockCheckoutConfirmRequestDto(
     val conversationId: String,
     val draftId: String,

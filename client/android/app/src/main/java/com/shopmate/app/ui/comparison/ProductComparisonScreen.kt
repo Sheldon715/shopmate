@@ -27,6 +27,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -38,6 +39,8 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -58,6 +61,7 @@ import com.shopmate.app.ui.model.ComparisonCellUi
 import com.shopmate.app.ui.model.ComparisonHighlightUi
 import com.shopmate.app.ui.model.ComparisonRowUi
 import com.shopmate.app.ui.model.ComparisonUi
+import com.shopmate.app.ui.model.ProductAddCartState
 import com.shopmate.app.ui.model.ProductCardUi
 import com.shopmate.app.ui.theme.ShopMateGreen
 import com.shopmate.app.ui.theme.ShopMatePillShape
@@ -72,6 +76,7 @@ fun ProductComparisonScreen(
     onCartClick: () -> Unit,
     onAddCartClick: (String) -> Unit,
     onProductClick: (String) -> Unit,
+    productAddCartStates: Map<String, ProductAddCartState> = emptyMap(),
     modifier: Modifier = Modifier,
 ) {
     BoxWithConstraints(
@@ -112,6 +117,7 @@ fun ProductComparisonScreen(
                 scale = scale,
                 onProductClick = onProductClick,
                 onAddCartClick = onAddCartClick,
+                productAddCartStates = productAddCartStates,
                 modifier = Modifier.width(contentWidth),
             )
 
@@ -327,6 +333,7 @@ private fun ComparisonProductSection(
     scale: Float,
     onProductClick: (String) -> Unit,
     onAddCartClick: (String) -> Unit,
+    productAddCartStates: Map<String, ProductAddCartState>,
     modifier: Modifier = Modifier,
 ) {
     ComparisonSectionCard(
@@ -348,6 +355,7 @@ private fun ComparisonProductSection(
                     scale = scale,
                     onProductClick = { onProductClick(product.id) },
                     onAddCartClick = { onAddCartClick(product.id) },
+                    addCartState = productAddCartStates[product.id] ?: ProductAddCartState.Idle,
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight(),
@@ -365,6 +373,7 @@ private fun ComparisonProductSummaryCard(
     scale: Float,
     onProductClick: () -> Unit,
     onAddCartClick: () -> Unit,
+    addCartState: ProductAddCartState,
     modifier: Modifier = Modifier,
 ) {
     val shape = RoundedCornerShape(18f.scaledDp(scale))
@@ -494,10 +503,15 @@ private fun ComparisonProductSummaryCard(
             Spacer(modifier = Modifier.weight(1f))
 
             ComparisonActionPill(
-                text = "加入购物车",
-                iconRes = R.drawable.ic_cart,
+                text = addCartState.toComparisonActionText(),
+                iconRes = addCartState.toComparisonActionIcon(),
                 scale = scale,
                 onClick = onAddCartClick,
+                enabled = addCartState.isComparisonActionClickable(),
+                contentDescription = addCartState.toComparisonContentDescription(),
+                contentColor = addCartState.toComparisonActionColor(),
+                backgroundColor = addCartState.toComparisonBackgroundColor(),
+                showProgress = addCartState == ProductAddCartState.Loading,
                 modifier = Modifier
                     .padding(top = 10f.scaledDp(scale))
                     .fillMaxWidth(),
@@ -897,19 +911,25 @@ private fun ComparisonActionPill(
     iconRes: Int?,
     scale: Float,
     onClick: () -> Unit,
+    enabled: Boolean = true,
+    contentDescription: String = text,
+    contentColor: Color = ShopMateGreen,
+    backgroundColor: Color = Color.White.copy(alpha = 0.9f),
+    showProgress: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     Row(
         modifier = modifier
             .heightIn(min = 32f.scaledDp(scale))
             .clip(ShopMatePillShape)
-            .background(Color.White.copy(alpha = 0.9f))
+            .background(backgroundColor)
             .border(
                 width = 0.667.dp,
                 color = Color(0xFFE8F0EE),
                 shape = ShopMatePillShape,
             )
-            .clickable(role = Role.Button, onClick = onClick)
+            .semantics { this.contentDescription = contentDescription }
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .padding(
                 horizontal = 10f.scaledDp(scale),
                 vertical = 7f.scaledDp(scale),
@@ -917,19 +937,28 @@ private fun ComparisonActionPill(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {
-        iconRes?.let { resId ->
-            Image(
-                painter = painterResource(id = resId),
-                contentDescription = null,
-                colorFilter = ColorFilter.tint(ShopMateGreen),
+        if (showProgress) {
+            CircularProgressIndicator(
+                color = contentColor,
+                strokeWidth = 1.7f.scaledDp(scale),
                 modifier = Modifier.size(13f.scaledDp(scale)),
             )
             Spacer(modifier = Modifier.width(5f.scaledDp(scale)))
+        } else {
+            iconRes?.let { resId ->
+                Image(
+                    painter = painterResource(id = resId),
+                    contentDescription = null,
+                    colorFilter = ColorFilter.tint(contentColor),
+                    modifier = Modifier.size(13f.scaledDp(scale)),
+                )
+                Spacer(modifier = Modifier.width(5f.scaledDp(scale)))
+            }
         }
 
         Text(
             text = text,
-            color = ShopMateGreen,
+            color = contentColor,
             fontSize = (11.5f * scale).sp,
             lineHeight = (15f * scale).sp,
             fontWeight = FontWeight.Bold,
@@ -938,6 +967,48 @@ private fun ComparisonActionPill(
         )
     }
 }
+
+private fun ProductAddCartState.toComparisonActionText(): String =
+    when (this) {
+        ProductAddCartState.Loading -> "加入中"
+        ProductAddCartState.Added -> "已加入"
+        ProductAddCartState.Failed -> "重试"
+        ProductAddCartState.Disabled -> "暂不可选"
+        ProductAddCartState.Idle -> "加入购物车"
+    }
+
+private fun ProductAddCartState.toComparisonContentDescription(): String =
+    when (this) {
+        ProductAddCartState.Loading -> "正在加入购物车"
+        ProductAddCartState.Added -> "已加入购物车"
+        ProductAddCartState.Failed -> "加入购物车失败，点按重试"
+        ProductAddCartState.Disabled -> "暂不可选"
+        ProductAddCartState.Idle -> "加入购物车"
+    }
+
+private fun ProductAddCartState.toComparisonActionIcon(): Int =
+    when (this) {
+        ProductAddCartState.Added -> R.drawable.ic_cart_check
+        else -> R.drawable.ic_cart
+    }
+
+private fun ProductAddCartState.isComparisonActionClickable(): Boolean =
+    this == ProductAddCartState.Idle || this == ProductAddCartState.Failed
+
+private fun ProductAddCartState.toComparisonActionColor(): Color =
+    when (this) {
+        ProductAddCartState.Failed -> Color(0xFFB54B2A)
+        ProductAddCartState.Disabled -> Color(0xFF99A4AA)
+        else -> ShopMateGreen
+    }
+
+private fun ProductAddCartState.toComparisonBackgroundColor(): Color =
+    when (this) {
+        ProductAddCartState.Added -> Color(0xFFDDF8EC)
+        ProductAddCartState.Failed -> Color(0xFFFFF0EA)
+        ProductAddCartState.Disabled -> Color(0xFFEFF2F2)
+        else -> Color.White.copy(alpha = 0.9f)
+    }
 
 private fun ComparisonUi.summaryWithHighlight(): String {
     val firstHighlight = highlights.firstOrNull() ?: return summaryText

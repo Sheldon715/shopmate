@@ -14,6 +14,7 @@ import com.shopmate.app.ui.checkout.CheckoutPaymentMethodUi
 import com.shopmate.app.ui.checkout.CheckoutShippingInputUi
 import com.shopmate.app.ui.checkout.CheckoutSummaryUi
 import com.shopmate.app.ui.model.CartItemUi
+import com.shopmate.app.ui.model.ProductAddCartState
 import com.shopmate.app.ui.model.ProductCardUi
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -21,8 +22,10 @@ import kotlin.test.assertTrue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -72,6 +75,40 @@ class CartViewModelTest {
     }
 
     @Test
+    fun addProductTracksProductFeedbackState() = runTest {
+        val repository = FakeCartRepository(Result.success(cartContent()))
+        val viewModel = CartViewModel(repository, FakeOrderRepository())
+        advanceUntilIdle()
+
+        viewModel.addProduct(" product_001 ")
+
+        assertEquals(ProductAddCartState.Loading, viewModel.uiState.value.productAddCartStates["product_001"])
+
+        runCurrent()
+
+        assertEquals("product_001", repository.lastAddedProductId)
+        assertEquals(ProductAddCartState.Added, viewModel.uiState.value.productAddCartStates["product_001"])
+
+        advanceTimeBy(1000)
+        runCurrent()
+
+        assertEquals(null, viewModel.uiState.value.productAddCartStates["product_001"])
+    }
+
+    @Test
+    fun addProductIgnoresRepeatedClickWhileLoading() = runTest {
+        val repository = FakeCartRepository(Result.success(cartContent()))
+        val viewModel = CartViewModel(repository, FakeOrderRepository())
+        advanceUntilIdle()
+
+        viewModel.addProduct("product_001")
+        viewModel.addProduct("product_001")
+        runCurrent()
+
+        assertEquals(1, repository.addCalls)
+    }
+
+    @Test
     fun consumeOperationMessageClearsOnlyMatchingMessage() = runTest {
         val repository = FakeCartRepository(Result.success(cartContent()))
         val viewModel = CartViewModel(repository, FakeOrderRepository())
@@ -102,6 +139,26 @@ class CartViewModelTest {
         val state = viewModel.uiState.value
         assertEquals("商品当前不可加购。", state.errorMessage)
         assertEquals("商品当前不可加购。", state.operationMessage?.text)
+    }
+
+    @Test
+    fun addProductFailureMarksProductFailedUntilFeedbackExpires() = runTest {
+        val repository = FakeCartRepository(
+            Result.failure(CartOperationError.ProductUnavailable),
+        )
+        val viewModel = CartViewModel(repository, FakeOrderRepository())
+        advanceUntilIdle()
+
+        viewModel.addProduct("product_001")
+        runCurrent()
+
+        assertEquals(ProductAddCartState.Failed, viewModel.uiState.value.productAddCartStates["product_001"])
+        assertEquals("商品当前不可加购。", viewModel.uiState.value.errorMessage)
+
+        advanceTimeBy(1500)
+        runCurrent()
+
+        assertEquals(null, viewModel.uiState.value.productAddCartStates["product_001"])
     }
 
     @Test
@@ -149,6 +206,56 @@ class CartViewModelTest {
     }
 
     @Test
+    fun buyNowProductCreatesSingleProductCheckoutWithoutAddingCart() = runTest {
+        val cartRepository = FakeCartRepository(Result.success(cartContent()))
+        val orderRepository = FakeOrderRepository()
+        val viewModel = CartViewModel(cartRepository, orderRepository)
+        advanceUntilIdle()
+
+        viewModel.buyNowProduct(" product_001 ")
+
+        assertEquals(ProductAddCartState.Loading, viewModel.uiState.value.productBuyNowStates["product_001"])
+        assertEquals(null, viewModel.uiState.value.productAddCartStates["product_001"])
+
+        runCurrent()
+
+        val state = viewModel.uiState.value
+        assertEquals(0, cartRepository.addCalls)
+        assertEquals(null, cartRepository.lastAddedProductId)
+        assertEquals(0, orderRepository.createCalls)
+        assertEquals(1, orderRepository.productCheckoutCalls)
+        assertEquals("product_001", orderRepository.lastProductCheckoutId)
+        assertEquals("draft-1", state.checkoutDraft?.id)
+        assertEquals(ProductAddCartState.Added, state.productBuyNowStates["product_001"])
+        assertFalse(state.isCheckoutDraftLoading)
+
+        advanceTimeBy(1000)
+        runCurrent()
+
+        assertEquals(null, viewModel.uiState.value.productBuyNowStates["product_001"])
+    }
+
+    @Test
+    fun buyNowProductFailureUsesBuyNowFeedbackStateOnly() = runTest {
+        val cartRepository = FakeCartRepository(Result.success(cartContent()))
+        val orderRepository = FakeOrderRepository(
+            createResult = Result.failure(OrderOperationError.CartChanged),
+        )
+        val viewModel = CartViewModel(cartRepository, orderRepository)
+        advanceUntilIdle()
+
+        viewModel.buyNowProduct("product_001")
+        runCurrent()
+
+        val state = viewModel.uiState.value
+        assertEquals(null, state.checkoutDraft)
+        assertEquals(ProductAddCartState.Failed, state.productBuyNowStates["product_001"])
+        assertEquals(null, state.productAddCartStates["product_001"])
+        assertEquals("购物车商品已变化，请刷新后再试。", state.operationMessage?.text)
+        assertFalse(state.isCheckoutDraftLoading)
+    }
+
+    @Test
     fun dismissCheckoutCancelsDraftAndClearsState() = runTest {
         val cartRepository = FakeCartRepository(Result.success(cartContent()))
         val orderRepository = FakeOrderRepository()
@@ -186,12 +293,14 @@ class CartViewModelTest {
     private class FakeCartRepository(
         var result: Result<CartContentUi>,
     ) : CartRepository {
+        var addCalls = 0
         var lastAddedProductId: String? = null
         var lastUpdatedQuantity: Int? = null
 
         override suspend fun getCart(): Result<CartContentUi> = result
 
         override suspend fun addProduct(productId: String, quantity: Int): Result<CartContentUi> {
+            addCalls += 1
             lastAddedProductId = productId
             return result
         }
@@ -216,16 +325,25 @@ class CartViewModelTest {
 
     private class FakeOrderRepository(
         private val createResult: Result<CheckoutDraftUi> = Result.success(checkoutDraft()),
+        private val productCheckoutResult: Result<CheckoutDraftUi> = createResult,
         private val confirmResult: Result<CheckoutOrderResultUi> = Result.success(checkoutResult()),
         private val cancelResult: Result<Unit> = Result.success(Unit),
     ) : OrderRepository {
         var createCalls = 0
+        var productCheckoutCalls = 0
         var confirmCalls = 0
         var cancelCalls = 0
+        var lastProductCheckoutId: String? = null
 
         override suspend fun createMockCheckout(): Result<CheckoutDraftUi> {
             createCalls += 1
             return createResult
+        }
+
+        override suspend fun createProductCheckout(productId: String): Result<CheckoutDraftUi> {
+            productCheckoutCalls += 1
+            lastProductCheckoutId = productId
+            return productCheckoutResult
         }
 
         override suspend fun confirmMockCheckout(

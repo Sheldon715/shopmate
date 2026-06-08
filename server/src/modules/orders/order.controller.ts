@@ -18,6 +18,7 @@ import {
   parseMockCheckoutBody,
   parseMockCheckoutConfirmBody,
   parseOrderIdParam,
+  parseProductCheckoutBody,
 } from "./order.service";
 
 const orderService = new OrderService();
@@ -65,6 +66,37 @@ export async function createMockCheckoutController(
   }
 }
 
+export async function createProductCheckoutController(
+  request: Request,
+  response: Response,
+): Promise<void> {
+  try {
+    const input = parseProductCheckoutBody(request.body);
+    const conversationId = input.conversationId ?? DEFAULT_CHECKOUT_CONVERSATION_ID;
+    const draft = await orderService.createProductCheckout({
+      conversationId,
+      productId: input.productId,
+    });
+    pendingCheckoutStore.save(draft);
+
+    response.status(201).json(ok({
+      draft,
+      checkoutAction: {
+        type: "start_checkout",
+        status: "draft_created",
+        draftId: draft.id,
+        selectedCount: draft.summary.selectedCount,
+        totalCents: draft.summary.totalCents,
+        address: draft.address,
+        cartRefreshRequired: false,
+        draft: mapPendingCheckoutDraftToSnapshot(draft),
+      },
+    }));
+  } catch (error) {
+    handleOrderError(error, response);
+  }
+}
+
 export async function confirmMockCheckoutController(
   request: Request,
   response: Response,
@@ -91,7 +123,7 @@ export async function confirmMockCheckoutController(
 
     const order = await orderService.confirmPendingCheckout(
       lookup.draft,
-      "cart_button",
+      lookup.draft.source === "buy_now" ? "buy_now" : "cart_button",
       {
         shipping: input.shipping,
         deliveryMethodType: input.deliveryMethodType,
@@ -115,7 +147,7 @@ export async function confirmMockCheckoutController(
         selectedCount: lookup.draft.summary.selectedCount,
         totalCents: orderDto.totalCents,
         address: orderDto.shippingAddress,
-        cartRefreshRequired: true,
+        cartRefreshRequired: lookup.draft.source !== "buy_now",
       },
     }));
   } catch (error) {

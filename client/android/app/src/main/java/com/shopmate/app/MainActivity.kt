@@ -19,6 +19,8 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
@@ -28,10 +30,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewModelScope
+import com.shopmate.app.ui.cart.CartOperationMessage
 import com.shopmate.app.ui.cart.CartScreen
 import com.shopmate.app.ui.cart.CartViewModel
 import com.shopmate.app.ui.checkout.CheckoutScreen
@@ -44,10 +50,12 @@ import com.shopmate.app.ui.chat.VoiceInputUiState
 import com.shopmate.app.ui.components.ShopMateBuddyTransitionController
 import com.shopmate.app.ui.components.ShopMateBuddyTransitionOverlay
 import com.shopmate.app.ui.components.ShopMateBuddyTransitionRequest
+import com.shopmate.app.ui.components.ShopMateOperationBanner
 import com.shopmate.app.ui.comparison.ProductComparisonScreen
 import com.shopmate.app.ui.comparison.ProductComparisonUnavailableScreen
 import com.shopmate.app.ui.home.HomeChatEntryScreen
 import com.shopmate.app.ui.model.HistoryConversationUi
+import com.shopmate.app.ui.model.ProductAddCartState
 import com.shopmate.app.ui.onboarding.OnboardingScreen
 import com.shopmate.app.ui.product.ProductDetailScreen
 import com.shopmate.app.ui.product.ProductDetailViewModel
@@ -55,6 +63,7 @@ import com.shopmate.app.ui.theme.ShopMateTheme
 import com.shopmate.app.ui.voice.AndroidSpeechVoiceInputController
 import com.shopmate.app.ui.voice.CloudAsrVoiceInputController
 import java.io.File
+import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
     private val appContainer by lazy { ShopMateAppContainer(applicationContext) }
@@ -95,6 +104,7 @@ class MainActivity : ComponentActivity() {
                 var buddyTransitionRequest by remember {
                     mutableStateOf<ShopMateBuddyTransitionRequest?>(null)
                 }
+                var cartOperationBanner by remember { mutableStateOf<CartOperationMessage?>(null) }
                 var homeKeyboardAvatarVisible by remember { mutableStateOf(false) }
                 fun triggerHomeToChatBuddyTransition() {
                     if (currentScreen == ShopMateScreen.HomeChatEntry) {
@@ -281,11 +291,11 @@ class MainActivity : ComponentActivity() {
                 }
                 cartUiState.operationMessage?.let { message ->
                     LaunchedEffect(message.id) {
-                        Toast.makeText(
-                            this@MainActivity,
-                            message.text,
-                            Toast.LENGTH_SHORT
-                        ).show()
+                        cartOperationBanner = message
+                        delay(CART_OPERATION_BANNER_DURATION_MS)
+                        if (cartOperationBanner?.id == message.id) {
+                            cartOperationBanner = null
+                        }
                         cartViewModel.consumeOperationMessage(message.id)
                     }
                 }
@@ -293,11 +303,20 @@ class MainActivity : ComponentActivity() {
                     val draft = cartUiState.checkoutDraft
                     val screen = currentScreen
 
-                    if (draft != null && screen is ShopMateScreen.Cart) {
-                        currentScreen = ShopMateScreen.Checkout(
-                            previousScreen = restoreCartPrevious(screen.previousScreen),
-                            draftId = draft.id,
-                        )
+                    if (draft != null) {
+                        currentScreen = when (screen) {
+                            is ShopMateScreen.Cart -> ShopMateScreen.Checkout(
+                                previousScreen = restoreCartPrevious(screen.previousScreen),
+                                draftId = draft.id,
+                            )
+
+                            is ShopMateScreen.ProductDetail -> ShopMateScreen.Checkout(
+                                previousScreen = screen,
+                                draftId = draft.id,
+                            )
+
+                            else -> screen
+                        }
                     }
                 }
                 val historyConversations = chatUiState.historyConversations
@@ -337,6 +356,9 @@ class MainActivity : ComponentActivity() {
                 }
                 val addProductToCart: (String) -> Unit = { productId ->
                     cartViewModel.addProduct(productId)
+                }
+                val buyNowProduct: (String) -> Unit = { productId ->
+                    cartViewModel.buyNowProduct(productId)
                 }
                 val showCheckoutPending: () -> Unit = {
                     cancelVoiceInput()
@@ -402,6 +424,7 @@ class MainActivity : ComponentActivity() {
                             )
                         },
                         onAddCartClick = addProductToCart,
+                        productAddCartStates = cartUiState.productAddCartStates,
                         onComparisonClick = { comparisonId ->
                             currentScreen = ShopMateScreen.ProductComparison(comparisonId)
                         },
@@ -446,7 +469,8 @@ class MainActivity : ComponentActivity() {
                                         productId = productId,
                                         previousScreen = currentScreen,
                                     )
-                                }
+                                },
+                                productAddCartStates = cartUiState.productAddCartStates,
                             )
                         }
                     }
@@ -459,6 +483,9 @@ class MainActivity : ComponentActivity() {
                             factory = appContainer.productDetailViewModelFactory(productId)
                         )
                         val productDetailState by productDetailViewModel.uiState.collectAsState()
+                        val productInCart = cartUiState.items.any { item ->
+                            item.product.id == productId && item.quantity > 0
+                        }
 
                         ProductDetailScreen(
                             state = productDetailState,
@@ -473,31 +500,44 @@ class MainActivity : ComponentActivity() {
                                 addProductToCart(productId)
                             },
                             onBuyNowClick = {
-                                addProductToCart(productId)
-                            }
+                                buyNowProduct(productId)
+                            },
+                            productAddCartState = cartUiState.productAddCartStates[productId]
+                                ?: ProductAddCartState.Idle,
+                            productBuyNowState = cartUiState.productBuyNowStates[productId]
+                                ?: ProductAddCartState.Idle,
+                            isProductInCart = productInCart,
                         )
                     }
 
-                    is ShopMateScreen.Cart -> CartScreen(
-                        state = cartUiState,
-                        onBackClick = {
-                            currentScreen = restoreCartPrevious(
-                                (currentScreen as ShopMateScreen.Cart).previousScreen
-                            )
-                        },
-                        onCheckoutClick = showCheckoutPending,
-                        onRetry = cartViewModel::retry,
-                        onToggleSelected = { item ->
-                            cartViewModel.updateSelected(item.id, !item.selected)
-                        },
-                        onQuantityChange = { item, quantity ->
-                            cartViewModel.updateQuantity(item.id, quantity)
-                        },
-                        onDelete = { item ->
-                            cartViewModel.removeItem(item.id)
-                        },
-                        onToggleAll = cartViewModel::selectAll
-                    )
+                    is ShopMateScreen.Cart -> {
+                        val cartScreen = currentScreen as ShopMateScreen.Cart
+
+                        CartScreen(
+                            state = cartUiState,
+                            onBackClick = {
+                                currentScreen = restoreCartPrevious(cartScreen.previousScreen)
+                            },
+                            onCheckoutClick = showCheckoutPending,
+                            onRetry = cartViewModel::retry,
+                            onToggleSelected = { item ->
+                                cartViewModel.updateSelected(item.id, !item.selected)
+                            },
+                            onQuantityChange = { item, quantity ->
+                                cartViewModel.updateQuantity(item.id, quantity)
+                            },
+                            onDelete = { item ->
+                                cartViewModel.removeItem(item.id)
+                            },
+                            onProductClick = { item ->
+                                currentScreen = ShopMateScreen.ProductDetail(
+                                    productId = item.product.id,
+                                    previousScreen = cartScreen,
+                                )
+                            },
+                            onToggleAll = cartViewModel::selectAll
+                        )
+                    }
 
                     is ShopMateScreen.Checkout -> {
                         val checkoutScreen = currentScreen as ShopMateScreen.Checkout
@@ -512,6 +552,8 @@ class MainActivity : ComponentActivity() {
                             ?: cartUiState.checkoutDraft
                         val openedFromChat = checkoutScreen.draftId != null &&
                             chatUiState.activeCheckoutDraft?.draft?.id == checkoutScreen.draftId
+                        val openedFromProductDetail =
+                            checkoutScreen.previousScreen is ShopMateScreen.ProductDetail
 
                         if (draft == null) {
                             CheckoutScreen(
@@ -574,9 +616,13 @@ class MainActivity : ComponentActivity() {
                                     if (!checkoutState.isSubmitting) {
                                         if (!openedFromChat) {
                                             cartViewModel.dismissCheckout()
-                                            currentScreen = ShopMateScreen.Cart(
-                                                previousScreen = checkoutScreen.previousScreen
-                                            )
+                                            currentScreen = if (openedFromProductDetail) {
+                                                checkoutScreen.previousScreen
+                                            } else {
+                                                ShopMateScreen.Cart(
+                                                    previousScreen = checkoutScreen.previousScreen
+                                                )
+                                            }
                                         } else {
                                             currentScreen = checkoutScreen.previousScreen
                                         }
@@ -633,6 +679,17 @@ class MainActivity : ComponentActivity() {
                         },
                         modifier = Modifier.fillMaxSize(),
                     )
+
+                    cartOperationBanner?.let { message ->
+                        ShopMateOperationBanner(
+                            text = message.text,
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = 86.dp)
+                                .navigationBarsPadding()
+                                .zIndex(5f),
+                        )
+                    }
                 }
             }
         }
@@ -655,6 +712,8 @@ private sealed class ShopMateScreen {
     ) : ShopMateScreen()
 }
 
+private const val CART_OPERATION_BANNER_DURATION_MS = 1700L
+
 private val ShopMateScreenSaver: Saver<ShopMateScreen, List<String>> = Saver(
     save = { screen -> screen.toRouteParts() },
     restore = { parts -> restoreScreenFromRouteParts(parts) }
@@ -671,7 +730,7 @@ private fun restoreCartPrevious(previousScreen: ShopMateScreen): ShopMateScreen 
 private fun restoreProductDetailPrevious(previousScreen: ShopMateScreen): ShopMateScreen =
     when (previousScreen) {
         ShopMateScreen.Onboarding -> ShopMateScreen.HomeChatEntry
-        is ShopMateScreen.Cart -> ShopMateScreen.ChatRecommendation
+        is ShopMateScreen.Cart -> previousScreen
         is ShopMateScreen.Checkout -> ShopMateScreen.ChatRecommendation
         is ShopMateScreen.ProductDetail -> ShopMateScreen.ChatRecommendation
         else -> previousScreen

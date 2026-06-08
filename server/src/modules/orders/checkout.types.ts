@@ -50,6 +50,8 @@ export interface PendingCheckoutItem {
   imagePath: string | null;
 }
 
+export type PendingCheckoutSource = "cart" | "buy_now";
+
 export interface CheckoutDeliveryOption {
   type: string;
   label: string;
@@ -102,6 +104,7 @@ export interface PendingCheckoutDraft {
   id: string;
   conversationId: string;
   userKey: string;
+  source: PendingCheckoutSource;
   status: "pending";
   address: MockShippingAddress;
   items: PendingCheckoutItem[];
@@ -117,6 +120,7 @@ export interface PendingCheckoutDraft {
 
 export interface CheckoutDraftSnapshot {
   id: string;
+  source: PendingCheckoutSource;
   status: "pending";
   address: MockShippingAddress;
   items: PendingCheckoutItem[];

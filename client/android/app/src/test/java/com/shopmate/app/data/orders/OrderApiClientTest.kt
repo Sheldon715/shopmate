@@ -48,6 +48,33 @@ class OrderApiClientTest {
     }
 
     @Test
+    fun createProductCheckoutPostsProductId() = runBlocking {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(201)
+                .addHeader("Content-Type", "application/json")
+                .setBody(draftResponseBody),
+        )
+        val client = orderApiClient()
+
+        val response = client.createProductCheckout(
+            conversationId = "cart-button-checkout",
+            productId = "product_001",
+        )
+
+        assertTrue(response.success)
+        assertEquals("draft-1", response.data?.draft?.id)
+
+        val request = server.takeRequest()
+        assertEquals("POST", request.method)
+        assertEquals("/api/orders/mock-checkout/product", request.path)
+        assertEquals(
+            """{"conversationId":"cart-button-checkout","productId":"product_001"}""",
+            request.body.readUtf8(),
+        )
+    }
+
+    @Test
     fun confirmMockCheckoutPostsEditedSnapshot() = runBlocking {
         server.enqueue(
             MockResponse()

@@ -637,6 +637,7 @@ class ChatViewModelTest {
         var state = viewModel.uiState.value
         assertTrue(state.isSending)
         assertTrue(state.messages.last().isStreaming)
+        assertTrue(state.isComparisonGenerating)
         assertEquals("我先帮你核对这两款商品的关键信息。", state.messages.last().text)
 
         repository.events.emit(
@@ -681,6 +682,7 @@ class ChatViewModelTest {
         state = viewModel.uiState.value
         assertTrue(state.isSending)
         assertTrue(state.messages.last().isStreaming)
+        assertFalse(state.isComparisonGenerating)
         assertEquals("comparison-preset-streaming", state.comparisonActions.single().comparisonId)
 
         repository.events.emit(

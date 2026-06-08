@@ -169,6 +169,51 @@ export class OrderService {
       id: this.dependencies.createId(),
       conversationId,
       userKey: this.userKey,
+      source: "cart",
+      status: "pending",
+      address: input.address ?? createDefaultMockShippingAddress(),
+      items,
+      summary: createCheckoutSummary(items, selectedDeliveryMethod.feeCents),
+      selectedDeliveryMethod,
+      selectedPaymentMethod,
+      deliveryOptions: DEFAULT_CHECKOUT_DELIVERY_OPTIONS,
+      paymentOptions: DEFAULT_CHECKOUT_PAYMENT_OPTIONS,
+      expiresAt: new Date(now.getTime() + DEFAULT_CHECKOUT_TTL_MS).toISOString(),
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+    };
+
+    return draft;
+  }
+
+  async createProductCheckout(input: {
+    productId: string;
+    conversationId?: string;
+    address?: MockShippingAddress;
+  }): Promise<PendingCheckoutDraft> {
+    const productId = normalizeRequiredText(input.productId, "productId");
+    const conversationId = normalizeOptionalText(input.conversationId)
+      ?? DEFAULT_CHECKOUT_CONVERSATION_ID;
+    const product = (await this.dependencies.findActiveProductsByIds([productId]))
+      .find((candidate) => candidate.id === productId);
+
+    if (!product || !isProductAvailable(product)) {
+      throw new CheckoutProductUnavailableError(productId);
+    }
+
+    const now = this.dependencies.now();
+    const items = [mapProductToPendingCheckoutItem(product)];
+    const selectedDeliveryMethod = mapDeliveryOptionToSnapshot(
+      DEFAULT_CHECKOUT_DELIVERY_OPTIONS[0],
+    );
+    const selectedPaymentMethod = mapPaymentOptionToSnapshot(
+      DEFAULT_CHECKOUT_PAYMENT_OPTIONS[0],
+    );
+    const draft: PendingCheckoutDraft = {
+      id: this.dependencies.createId(),
+      conversationId,
+      userKey: this.userKey,
+      source: "buy_now",
       status: "pending",
       address: input.address ?? createDefaultMockShippingAddress(),
       items,
@@ -267,8 +312,12 @@ export class OrderService {
       throw new CheckoutEmptyCartError();
     }
 
-    const currentCart = await this.dependencies.getCart(draft.userKey);
-    assertDraftMatchesCurrentCart(draft, currentCart);
+    const shouldValidateCart = draft.source === "cart";
+
+    if (shouldValidateCart) {
+      const currentCart = await this.dependencies.getCart(draft.userKey);
+      assertDraftMatchesCurrentCart(draft, currentCart);
+    }
 
     const activeProducts = await this.dependencies.findActiveProductsByIds(
       draft.items.map((item) => item.productId),
@@ -319,10 +368,12 @@ export class OrderService {
 
     return this.dependencies.persistOrder(
       orderInput,
-      draft.items.map((item) => ({
-        id: item.cartItemId,
-        quantity: item.quantity,
-      })),
+      shouldValidateCart
+        ? draft.items.map((item) => ({
+          id: item.cartItemId,
+          quantity: item.quantity,
+        }))
+        : [],
     );
   }
 
@@ -354,6 +405,18 @@ export function parseMockCheckoutBody(body: unknown): {
 
   return {
     conversationId: normalizeOptionalText(record.conversationId),
+  };
+}
+
+export function parseProductCheckoutBody(body: unknown): {
+  conversationId?: string;
+  productId: string;
+} {
+  const record = parseOptionalObjectBody(body);
+
+  return {
+    conversationId: normalizeOptionalText(record.conversationId),
+    productId: normalizeRequiredText(record.productId, "productId"),
   };
 }
 
@@ -434,6 +497,20 @@ function mapCartItemToPendingCheckoutItem(item: CartItemDto): PendingCheckoutIte
     quantity: item.quantity,
     subtotalCents: item.subtotalCents,
     imagePath: item.imagePath,
+  };
+}
+
+function mapProductToPendingCheckoutItem(product: Product): PendingCheckoutItem {
+  return {
+    cartItemId: `buy-now:${product.id}`,
+    productId: product.id,
+    productName: product.name,
+    brand: product.brand,
+    category: product.category,
+    unitPriceCents: product.priceMinCents,
+    quantity: 1,
+    subtotalCents: product.priceMinCents,
+    imagePath: product.imagePath,
   };
 }
 

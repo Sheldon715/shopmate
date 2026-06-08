@@ -16,6 +16,7 @@ export function mapPendingCheckoutDraftToSnapshot(
 ): CheckoutDraftSnapshot {
   return {
     id: draft.id,
+    source: draft.source,
     status: draft.status,
     address: draft.address,
     items: draft.items.map((item) => ({ ...item })),

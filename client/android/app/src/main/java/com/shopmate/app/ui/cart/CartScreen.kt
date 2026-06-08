@@ -22,10 +22,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
@@ -72,6 +74,7 @@ fun CartScreen(
     onToggleSelected: (CartItemUi) -> Unit,
     onQuantityChange: (CartItemUi, Int) -> Unit,
     onDelete: (CartItemUi) -> Unit,
+    onProductClick: (CartItemUi) -> Unit,
     onToggleAll: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -196,6 +199,9 @@ fun CartScreen(
                             },
                             onDelete = {
                                 onDelete(line.item)
+                            },
+                            onProductClick = {
+                                onProductClick(line.item)
                             },
                             modifier = Modifier
                                 .offset(
@@ -389,6 +395,7 @@ private fun CartItemCard(
     onDecrease: () -> Unit,
     onIncrease: () -> Unit,
     onDelete: () -> Unit,
+    onProductClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     fun Float.s(): Dp = scaledDp(scale)
@@ -397,7 +404,11 @@ private fun CartItemCard(
     val isEnabled = line.item.available && !line.inFlight
 
     ShopMateElevatedSurface(
-        modifier = modifier,
+        modifier = modifier.clickable(
+            enabled = isEnabled,
+            role = Role.Button,
+            onClick = onProductClick,
+        ),
         shape = RoundedCornerShape(20f.s()),
         elevation = 4f.s(),
         backgroundColor = Color.White.copy(alpha = 0.96f),
@@ -416,6 +427,7 @@ private fun CartItemCard(
             modifier = Modifier
                 .offset(x = 66f.s(), y = 27.29f.s())
                 .size(96f.s())
+                .alpha(if (line.inFlight) 0.72f else 1f)
                 .clip(RoundedCornerShape(18f.s()))
                 .background(Color(0xFFF8F8F8)),
             contentAlignment = Alignment.Center
@@ -431,7 +443,7 @@ private fun CartItemCard(
 
         Text(
             text = line.item.product.name,
-            color = Color(0xFF25303B),
+            color = Color(0xFF25303B).copy(alpha = if (line.inFlight) 0.62f else 1f),
             fontSize = (13f * textScale).sp,
             lineHeight = (18.2f * textScale).sp,
             fontWeight = FontWeight.Bold,
@@ -458,7 +470,7 @@ private fun CartItemCard(
 
         Text(
             text = cartVariantText(line.item),
-            color = Color(0xFF8E98A2),
+            color = Color(0xFF8E98A2).copy(alpha = if (line.inFlight) 0.7f else 1f),
             fontSize = (12f * textScale).sp,
             lineHeight = (16f * textScale).sp,
             maxLines = 1,
@@ -484,7 +496,7 @@ private fun CartItemCard(
 
         Text(
             text = subtotalText,
-            color = ShopMateTextPrimary,
+            color = ShopMateTextPrimary.copy(alpha = if (line.inFlight) 0.62f else 1f),
             fontSize = (16f * textScale).sp,
             lineHeight = (20.667f * textScale).sp,
             fontWeight = FontWeight.Bold,
@@ -498,6 +510,7 @@ private fun CartItemCard(
         QuantityStepper(
             quantity = line.quantity,
             enabled = isEnabled,
+            loading = line.inFlight,
             onDecrease = onDecrease,
             onIncrease = onIncrease,
             scale = scale,
@@ -574,6 +587,7 @@ private fun CartTag(
 private fun QuantityStepper(
     quantity: Int,
     enabled: Boolean,
+    loading: Boolean,
     onDecrease: () -> Unit,
     onIncrease: () -> Unit,
     scale: Float,
@@ -602,7 +616,7 @@ private fun QuantityStepper(
             modifier = Modifier
                 .offset(x = 30f.s(), y = 0.dp)
                 .size(width = 34f.s(), height = 26.667f.s())
-                .background(Color.White)
+                .background(if (loading) Color(0xFFEAFBF4) else Color.White)
                 .border(
                     width = 0.667.dp,
                     color = Color(0xFFEDF1F1),
@@ -610,15 +624,23 @@ private fun QuantityStepper(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = quantity.toString(),
-                color = Color(0xFF1D2B39),
-                fontSize = (13f * scale).sp,
-                lineHeight = (17f * scale).sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                letterSpacing = 0.sp
-            )
+            if (loading) {
+                CircularProgressIndicator(
+                    color = ShopMateGreen,
+                    strokeWidth = 1.5f.s(),
+                    modifier = Modifier.size(13f.s()),
+                )
+            } else {
+                Text(
+                    text = quantity.toString(),
+                    color = Color(0xFF1D2B39),
+                    fontSize = (13f * scale).sp,
+                    lineHeight = (17f * scale).sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    letterSpacing = 0.sp
+                )
+            }
         }
 
         StepperButton(
@@ -1028,6 +1050,7 @@ private fun CartScreenTargetPreview() {
             onToggleSelected = {},
             onQuantityChange = { _, _ -> },
             onDelete = {},
+            onProductClick = {},
             onToggleAll = {}
         )
     }
@@ -1050,6 +1073,7 @@ private fun CartScreenEmptyPreview() {
             onToggleSelected = {},
             onQuantityChange = { _, _ -> },
             onDelete = {},
+            onProductClick = {},
             onToggleAll = {}
         )
     }
@@ -1072,6 +1096,7 @@ private fun CartScreenCompactPreview() {
             onToggleSelected = {},
             onQuantityChange = { _, _ -> },
             onDelete = {},
+            onProductClick = {},
             onToggleAll = {}
         )
     }

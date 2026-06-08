@@ -21,6 +21,11 @@ interface OrderApiClient {
         conversationId: String,
     ): OrderApiResponseDto<MockCheckoutDraftResponseDto>
 
+    suspend fun createProductCheckout(
+        conversationId: String,
+        productId: String,
+    ): OrderApiResponseDto<MockCheckoutDraftResponseDto>
+
     suspend fun confirmMockCheckout(
         request: MockCheckoutConfirmRequestDto,
     ): OrderApiResponseDto<MockCheckoutConfirmResponseDto>
@@ -43,6 +48,17 @@ class OkHttpOrderApiClient(
         executeOrderRequest(
             request = mockCheckoutRequestBuilder()
                 .post(createMockCheckoutBody(conversationId))
+                .build(),
+            serializer = mockCheckoutDraftResponseSerializer,
+        )
+
+    override suspend fun createProductCheckout(
+        conversationId: String,
+        productId: String,
+    ): OrderApiResponseDto<MockCheckoutDraftResponseDto> =
+        executeOrderRequest(
+            request = mockCheckoutRequestBuilder("product")
+                .post(createProductCheckoutBody(conversationId, productId))
                 .build(),
             serializer = mockCheckoutDraftResponseSerializer,
         )
@@ -83,6 +99,16 @@ class OkHttpOrderApiClient(
     private fun createMockCheckoutBody(conversationId: String) =
         json.encodeToString(MockCheckoutRequestDto(conversationId = conversationId))
             .toJsonRequestBody()
+
+    private fun createProductCheckoutBody(
+        conversationId: String,
+        productId: String,
+    ) = json.encodeToString(
+        MockProductCheckoutRequestDto(
+            conversationId = conversationId,
+            productId = productId,
+        )
+    ).toJsonRequestBody()
 
     private fun createMockCheckoutConfirmBody(request: MockCheckoutConfirmRequestDto) =
         json.encodeToString(request).toJsonRequestBody()

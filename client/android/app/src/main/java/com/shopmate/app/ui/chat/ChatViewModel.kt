@@ -49,6 +49,7 @@ class ChatViewModel(
     private var currentSessionId: String? = null
     private var preservingProductCardsForCurrentStream = false
     private var preservingExistingProductCardsForCurrentStream = false
+    private var isComparisonGenerationStream = false
     private var latestStreamProductCards: List<ProductCardUi> = emptyList()
     private var preStreamProductCards: List<ProductCardUi> = emptyList()
     private var voicePendingMessageId: String? = null
@@ -636,6 +637,7 @@ class ChatViewModel(
                 productCardsAnchorMessageId = snapshot.productCardsAnchorMessageId,
                 comparisonResults = snapshot.comparisonResults,
                 comparisonActions = snapshot.comparisonActions,
+                isComparisonGenerating = false,
                 activeCheckoutDraft = snapshot.activeCheckoutDraft,
                 composerText = "",
                 isSending = false,
@@ -827,6 +829,7 @@ class ChatViewModel(
         lastStreamRequest = streamRequest
         preservingProductCardsForCurrentStream = false
         preservingExistingProductCardsForCurrentStream = false
+        isComparisonGenerationStream = false
         latestStreamProductCards = emptyList()
         preStreamProductCards = _uiState.value.productCards
         lastCheckoutActionKey = null
@@ -855,8 +858,10 @@ class ChatViewModel(
             onVisibleTextChanged = ::updateStreamingAssistantText,
         )
         val shouldKeepProductCards = shouldKeepProductCardsForMessage(visibleMessage)
+        val isComparisonStream = isComparisonFollowUpMessage(visibleMessage)
         preservingProductCardsForCurrentStream = shouldKeepProductCards
-        preservingExistingProductCardsForCurrentStream = isComparisonFollowUpMessage(visibleMessage)
+        preservingExistingProductCardsForCurrentStream = isComparisonStream
+        isComparisonGenerationStream = isComparisonStream
 
         _uiState.update { state ->
             val (sessionId, historyConversations) = ensureCurrentSessionHistory(
@@ -881,6 +886,7 @@ class ChatViewModel(
                 productCardsAnchorMessageId = state.productCardsAnchorMessageId,
                 comparisonResults = state.comparisonResults,
                 comparisonActions = state.comparisonActions,
+                isComparisonGenerating = false,
                 historyConversations = historyConversations,
                 composerText = if (clearComposer) "" else state.composerText,
                 isSending = true,
@@ -919,7 +925,10 @@ class ChatViewModel(
 
     private fun applyStreamEvent(event: ChatStreamEvent) {
         when (event) {
-            is ChatStreamEvent.MessageDelta -> enqueueAssistantDelta(event.text)
+            is ChatStreamEvent.MessageDelta -> {
+                enqueueAssistantDelta(event.text)
+                markComparisonGeneratingIfNeeded()
+            }
             is ChatStreamEvent.ProductCards -> {
                 flushAssistantText()
                 val incomingProductCards = event.items.toProductCardUiList(imageUrlResolver)
@@ -950,6 +959,7 @@ class ChatViewModel(
 
             is ChatStreamEvent.ComparisonResult -> {
                 flushAssistantText()
+                isComparisonGenerationStream = false
                 _uiState.update { state ->
                     val assistantMessage = state.messages.lastOrNull { message ->
                         !message.fromUser
@@ -957,7 +967,7 @@ class ChatViewModel(
                     val comparison = event.result.toComparisonUi(
                         products = state.comparisonProductCandidates(),
                         assistantText = assistantMessage?.text.orEmpty(),
-                    ) ?: return@update state
+                    ) ?: return@update state.copy(isComparisonGenerating = false)
                     val action = ChatComparisonActionUi(
                         comparisonId = comparison.id,
                         title = comparison.title,
@@ -968,6 +978,7 @@ class ChatViewModel(
                     state.copy(
                         comparisonResults = state.comparisonResults.upsertComparison(comparison),
                         comparisonActions = state.comparisonActions.upsertComparisonAction(action),
+                        isComparisonGenerating = false,
                     ).also(::saveCurrentSession)
                 }
             }
@@ -983,6 +994,7 @@ class ChatViewModel(
                 _uiState.update { state ->
                     state.copy(
                         messages = state.messages.markAssistantDone(),
+                        isComparisonGenerating = false,
                         isSending = false,
                         errorMessage = if (event.shouldShowNoMatchError(
                                 productCards = state.productCards,
@@ -1007,6 +1019,7 @@ class ChatViewModel(
                 _uiState.update { state ->
                     state.copy(
                         messages = state.messages.markAssistantDone(),
+                        isComparisonGenerating = false,
                         isSending = false,
                         errorMessage = event.toDisplayMessage(),
                         canRetry = event.retryable,
@@ -1021,6 +1034,20 @@ class ChatViewModel(
 
     private fun enqueueAssistantDelta(text: String) {
         assistantTextRevealer?.enqueue(text)
+    }
+
+    private fun markComparisonGeneratingIfNeeded() {
+        if (!isComparisonGenerationStream) {
+            return
+        }
+
+        _uiState.update { state ->
+            if (state.isComparisonGenerating) {
+                state
+            } else {
+                state.copy(isComparisonGenerating = true)
+            }
+        }
     }
 
     private fun updateStreamingAssistantText(text: String) {
@@ -1128,6 +1155,7 @@ class ChatViewModel(
         _uiState.update { state ->
             state.copy(
                 messages = state.messages.markAssistantDone(),
+                isComparisonGenerating = false,
                 isSending = false,
                 errorMessage = error.toDisplayMessage(),
                 canRetry = true,
@@ -1144,6 +1172,7 @@ class ChatViewModel(
             } else {
                 state.copy(
                     messages = state.messages.markAssistantDone(),
+                    isComparisonGenerating = false,
                     isSending = false,
                     errorMessage = "导购连接已结束，请重试。",
                     canRetry = true,
@@ -1170,6 +1199,7 @@ class ChatViewModel(
     private fun clearStreamProductState() {
         preservingProductCardsForCurrentStream = false
         preservingExistingProductCardsForCurrentStream = false
+        isComparisonGenerationStream = false
         latestStreamProductCards = emptyList()
         preStreamProductCards = emptyList()
     }

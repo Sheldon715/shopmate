@@ -225,6 +225,7 @@ function createDraft(): PendingCheckoutDraft {
     id: "draft_1",
     conversationId: "checkout-demo-1",
     userKey: "demo-user",
+    source: "cart",
     status: "pending",
     address: {
       label: "默认地址",

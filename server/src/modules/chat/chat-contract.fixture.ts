@@ -211,6 +211,7 @@ const checkoutAction: ChatCheckoutActionPayload = {
   cartRefreshRequired: false,
   draft: {
     id: "draft_1",
+    source: "cart",
     status: "pending",
     address: {
       label: "默认地址",

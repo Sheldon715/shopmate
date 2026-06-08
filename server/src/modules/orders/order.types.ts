@@ -6,7 +6,7 @@ import type {
 } from "./checkout.types";
 
 export type OrderStatus = "mock_created" | "cancelled";
-export type OrderSource = "chat_agent" | "cart_button";
+export type OrderSource = "chat_agent" | "cart_button" | "buy_now";
 
 export interface OrderRow {
   id: string;

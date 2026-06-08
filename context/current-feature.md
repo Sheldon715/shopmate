@@ -1,4 +1,4 @@
-﻿# Current Feature: Android Loading Skeleton Polish
+# Current Feature: Android Product Card Rich Interaction
 
 ## 状态
 
@@ -6,54 +6,76 @@ Complete
 
 ## 目标
 
-- 新增共享 skeleton / pulse 组件，统一 Android 商品图、详情、购物车、checkout、对比等加载占位的视觉节奏。
-- 升级 `ShopMateProductImage` 的网络图片加载体验：加载中同尺寸占位、成功淡入、失败稳定回退本地 placeholder。
-- 收口商品详情、购物车、checkout、聊天商品卡和对比详情的 loading / empty / error 外观，避免空白、跳动、文字重叠和小屏溢出。
-- 保持现有业务状态机、API contract、SSE schema、后端和数据层不变，只做 Android UI 体验打磨。
-- 明确 skeleton 与 Lottie 边界：结构性加载使用 skeleton，聊天等待 / 语音 / 图片解释微动效继续归属 `android-state-lottie-feedback-spec.md`。
+- 为商品卡点击、加购按钮、对比页商品摘要、购物车商品行操作和详情页收藏按钮补充即时、克制、稳定的交互反馈。
+- 让商品卡加购按钮支持 `idle / loading / added / failed / disabled` 状态，成功与失败都以后端 Cart / Chat action 的真实结果为准。
+- 加购成功后短暂显示“已加入”或 check 状态，失败时展示轻量错误反馈，并保留现有错误提示 / retry 机制。
+- 商品详情页收藏只表达本地视觉状态，增加 scale / tint 过渡和轻量 bounce，不新增收藏 API，也不暗示后端持久化。
+- 对比页商品摘要卡、详情页底部“加入购物车 / 立即购买”和购物车数量 / 删除 / 全选 / checkout 操作纳入同一反馈模型。
+- 保持组件层只渲染状态，业务调用和真实 in-flight 状态由 ViewModel / 屏幕层维护。
+- 小屏下按钮宽高稳定、文案不溢出，disabled 商品卡不触发按压或加购。
 
 ## 待办清单
 
-- [x] 扫描 Android 现有 loading / empty / error 实现，重点检查 `ui/components`、`ui/chat`、`ui/product`、`ui/cart`、`ui/checkout`。
-- [x] 新增或收口共享 `ShopMateSkeleton` 组件，固定尺寸、颜色、圆角、pulse 节奏和无障碍语义。
-- [x] 升级 `ShopMateProductImage`，让商品图在 URL 为空、加载中、成功、失败四种状态下都保持同尺寸稳定表现。
-- [x] 统一商品详情页 loading / not found / error 状态，替换或收口 `ProductLoadingCard` 的视觉样式。
-- [x] 统一购物车页 loading / empty / error 状态，避免展示假金额或刷新时整页突兀跳变。
-- [x] 统一 checkout draft loading、提交中、失败 / 过期 fallback 和局部字段错误的稳定布局。
-- [x] 检查聊天商品卡、图片附件状态、语音状态和对比详情 fallback，确保结构性 skeleton 与已有状态 Lottie 各司其职。
-- [x] 如新增纯 helper / mapper，补 Android 单元测试；否则至少运行现有 Android 单测。
-- [x] 运行 Android 验证命令并记录结果：`.\gradlew.bat --no-daemon testDebugUnitTest`。
-- [x] 运行 Android Demo build 并记录结果：`.\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/`。
+- [x] 扫描 `ProductCard`、商品详情页、聊天推荐页、对比页、购物车页和相关 ViewModel / UI state 的现有加购与操作路径。
+- [x] 为 `ProductCard` 增加可复用的加购交互状态参数，避免把临时交互状态写入 `ProductCardUi`、后端 DTO 或 Chat / RAG contract。
+- [x] 实现商品卡 press scale、固定尺寸加购按钮，以及 `Idle / Loading / Added / Failed / Disabled` 的图标、文案、颜色和无障碍标签。
+- [x] 在聊天商品卡加购路径维护按 productId 区分的 loading / added / failed 状态，防止 loading 中重复提交，并确保不同商品互不影响。
+- [x] 为商品详情页底部加购 / 立即购买接入真实业务结果反馈，并为收藏按钮增加本地 scale / tint / bounce 视觉状态。
+- [x] 将对比详情页两个商品摘要卡的进入详情和加购反馈接入同一状态模型，确保两边互不串状态。
+- [x] 检查购物车数量加减、删除、全选和 checkout loading，不冻结整页、不重复提交、不出现旧金额闪烁。
+- [x] 补充可行的 Android 单元测试；若部分 Compose 视觉状态不适合单测，记录手动 Demo 验证路径。
+- [x] 运行 `cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest`。
+- [x] 运行 `cd client/android && .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/`。
+- [x] 如实现触及后端或 Chat contract，补跑 `cd server && npm.cmd test` 与 `cd server && npm.cmd run build`。本轮新增单品 checkout 后已补跑通过。
+- [x] 根据截图反馈修正聊天商品卡“加入购物车”按钮位置，避免按钮靠边或垂直位置不稳。
+- [x] 将商品详情右上角收藏选中态改为更明显的实心心形，并保留本地收藏视觉反馈边界。
+- [x] 拆分商品详情底部“加入购物车”和“立即购买”的交互状态，确保点击哪个按钮只有自身进入 loading / pressed / result 反馈。
+- [x] 将商品详情“立即购买”改为直接进入下单确认界面，不再只停留在加入购物车反馈。
+- [x] 替换当前系统 Toast 风格的加购提示为符合 ShopMate 主题的轻量浮层提示。
+- [x] 补齐对比请求在“正在核对商品”之后、对比页面生成前的 loading 气泡。
+- [x] 优化购物车数量加减 loading 表达，移除“更新中”文字，改为更轻的局部 loading 状态。
+- [x] 针对本轮验收反馈重跑 Android Kotlin 编译与相关单元测试。
+- [x] 购物车商品行支持点击进入对应商品详情页，同时不影响勾选、删除和数量加减控件。
+- [x] 商品详情页“立即购买”改为单品 checkout：不先写入购物车，不读取购物车已选多件，只生成当前商品 1 件的下单确认页。
+- [x] 商品详情右上角收藏位改为加购状态入口：购物车没有该商品时可点加购；购物车已有该商品时持续显示选中态且不可重复点击。
 
 ## 备注
 
-- Spec 来源：`context/feature/android-loading-skeleton-polish-spec.md`，对应开发顺序 `34.4` V1 商业 Demo 加载与骨架屏。
-- 实现范围限定在 Android UI：预计涉及 `ShopMateProductImage.kt`、`ProductCard.kt`、`ProductDetailScreen.kt`、`CartScreen.kt`、`CheckoutScreen.kt`、`ChatRecommendationScreen.kt`，可新增 `ShopMateSkeleton.kt`，必要时新增 `ShopMateStatusBlock.kt`。
-- 不修改后端、数据库、RAG、SSE event schema、Android network client / parser，也不改变 Product / Cart / Order / Chat API。
-- 不新增第三方 shimmer / placeholder 库，不用 Lottie 替代商品图、详情、购物车、checkout 等结构性 skeleton；聊天等待、语音和图片解释 / 搜索等忙碌反馈允许复用已有状态 Lottie，不为了演示人为延迟接口结果。
-- 骨架屏不得展示假商品、假金额、假订单号或“mock / fake / 模拟”等正式 UI 文案；用户可见错误需要可操作且不暴露 provider 原始错误、stack trace、API key 或完整 prompt。
-- 验收重点：主 Demo 路径无明显空白或突兀跳变；商品图片三态稳定；详情、购物车、checkout loading 风格统一；小屏不溢出、不重叠。
-- 实现记录：新增 `ShopMateSkeletonBlock` / `ShopMateSkeletonTextLine` 共享 pulse skeleton，未新增第三方依赖。
-- 实现记录：`ShopMateProductImage` 对网络图片加载中显示同尺寸 skeleton，成功淡入，失败回退本地 placeholder；空 URL 继续直接显示本地图。
-- 实现记录：商品详情 loading 改为 hero、推荐理由、规格和适用建议的结构骨架；购物车 loading 改为 3 个 item skeleton，并隐藏默认 `¥0` 合计；checkout draft 缺失 / 恢复路径增加稳定 fallback。
-- 实现记录：聊天图片 / 语音 busy 继续复用已有 `ShopMateLottieStateIndicator`；对比详情找不到数据时显示稳定返回聊天状态卡，不闪空白页。
-- 视觉调整记录：购物车空状态移除中部重复 Buddy，并根据反馈取消空购物车 Lottie / 图形，占位区域收口为标题、说明和返回按钮，保持页面更干净。
-- 视觉调整记录：移除购物车顶部精选推荐卡右侧 `>` 箭头，保留左侧 check 图标、标题和副标题，让卡片不再暗示可点击跳转。
-- 视觉修复记录：Home 键盘开合 Buddy morph 增加 settled keyboard state，键盘关闭回到大 Buddy 前不再先闪出原位置静态 Buddy；打开键盘时也避免顶部头像先闪一帧。
-- 测试调整记录：`ShopMateApiConfigTest` 默认 base URL 断言改为读取当前 `BuildConfig.SHOPMATE_API_BASE_URL`，兼容本地 debug Gradle property 覆盖。
-- 编译记录：`cd client/android; .\gradlew.bat --no-daemon :app:compileDebugKotlin` 通过。
-- 验证记录：`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 通过，输出 `BUILD SUCCESSFUL in 42s`。
-- 验证记录：`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过，输出 `BUILD SUCCESSFUL in 3m 13s`。
-- 验证记录：`git diff --check -- <feature-owned Android files> context/current-feature.md` 通过；仅提示 Windows line ending 将由 Git 转 CRLF。
-- 二次验证记录：空购物车 Lottie 尝试版曾通过 `:app:compileDebugKotlin` 和 `testDebugUnitTest`，但视觉反馈不采用，最终已删除该 raw Lottie 资源。
-- 三次验证记录：Home Buddy 键盘闪烁修复后，`cd client/android; .\gradlew.bat --no-daemon :app:compileDebugKotlin` 通过。
-- 三次验证记录：Home Buddy 键盘闪烁修复后，`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 通过，输出 `BUILD SUCCESSFUL in 1m 7s`。
-- 四次验证记录：最终取消空购物车 Lottie / 图形后，`cd client/android; .\gradlew.bat --no-daemon :app:compileDebugKotlin` 通过，输出 `BUILD SUCCESSFUL in 53s`。
-- 四次验证记录：最终取消空购物车 Lottie / 图形后，`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 通过，输出 `BUILD SUCCESSFUL in 1m 7s`。
-- 五次验证记录：移除购物车顶部精选推荐卡右侧箭头后，`cd client/android; .\gradlew.bat --no-daemon :app:compileDebugKotlin` 通过，输出 `BUILD SUCCESSFUL in 31s`。
-- 五次验证记录：`git diff --check -- client/android/app/src/main/java/com/shopmate/app/ui/cart/CartScreen.kt context/current-feature.md` 通过；仅提示 Windows line ending 将由 Git 转 CRLF。
-- 完成验证记录：`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 通过，输出 `BUILD SUCCESSFUL in 56s`。
-- 完成验证记录：`cd client/android; .\gradlew.bat --no-daemon --console=plain build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过，输出 `BUILD SUCCESSFUL in 48s`。
+- Spec 来源：`context/feature/android-product-card-rich-interaction-spec.md`。
+- 当前阶段只加载 tracker，不创建分支、不实现、不提交；开始实现时再执行 `feature start`。
+- 本 spec 不需要外部 research；实现前以本地 Android 现有代码路径为准。
+- 交互反馈不改变 Cart API、Chat SSE event schema、Product API、Order / checkout 后端。
+- 不新增收藏 API，不持久化收藏状态到后端，不在本地伪造购物车成功或订单成功。
+- 不引入 Lottie 或新的第三方动画库；本轮商品卡和按钮交互优先使用 Compose press / scale / tint / loading / check / error 状态。Lottie 仍保留在 Buddy 品牌动效和 AI / 语音 / 图片 busy 状态这类已规划场景中。
+- 所有商品事实、价格、库存、购物车成功和 checkout 成功继续以后端真实返回为准。
+- 实现记录：新增 `ProductAddCartState`，由 `CartViewModel` 按 productId 维护 `Loading / Added / Failed` transient 状态，成功 / 失败仍以 `CartRepository.addProduct` 真实结果为准。
+- 实现记录：`ProductCard` 增加 press scale / shadow 反馈和固定尺寸加购按钮状态；聊天商品卡、对比页商品摘要和商品详情底部按钮均消费同一状态 map。
+- 实现记录：商品详情收藏按钮增加本地 tint + spring bounce，并在选中后使用实心心形；购物车 item 操作 in-flight 时仅当前 item 降低强调，数量步进器中间显示迷你进度圈，checkout loading 保持不可重复提交。
+- 实现记录：本轮验收反馈补修中，商品卡加购按钮改为居中排版并微调位置；详情页“加入购物车”和“立即购买”使用独立状态，立即购买不再先加购，而是走单品 checkout draft 并跳转下单确认页。
+- 实现记录：加购结果提示从 Android Toast 改为 ShopMate 主题浮层；对比型追问在 preset 文案后到 `comparison_result` 到达前显示额外 loading 气泡。
+- 用户追加验收范围：购物车商品点击进详情；详情页立即购买必须只结算当前 1 件商品且不依赖购物车已选项；详情右上角入口按购物车是否已有商品决定可点 / 已选中锁定态。
+- 实现记录：后端新增 `POST /api/orders/mock-checkout/product`，为单品立即购买生成 `source=buy_now` 的 checkout draft；确认该 draft 时不校验当前购物车快照、不删除购物车商品，并新增 `0006_order_buy_now_source.sql` 放开订单来源约束。
+- 实现记录：Android `OrderApiClient / OrderRepository / CartViewModel` 新增 `createProductCheckout(productId)` 链路；详情页“立即购买”只请求当前商品 1 件，不调用 `CartRepository.addProduct`，购物车已有多件时也不会被带入本次 checkout。
+- 实现记录：购物车商品卡整卡可点击进入商品详情，勾选、删除、数量加减仍保留独立点击；从购物车进入详情后返回仍回到购物车。
+- 实现记录：商品详情右上角心形改为购物车状态入口，购物车无该商品时点击加购，已有该商品或刚加购成功后显示实心选中态并不重复提交。
+- 验证记录：`cd client/android; .\gradlew.bat --no-daemon :app:compileDebugKotlin` 通过。
+- 验证记录：`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.ui.cart.CartViewModelTest"` 通过。
+- 验证记录：`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 通过，输出 `BUILD SUCCESSFUL in 58s`。
+- 验证记录：首次运行 `cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 被工具超时截断，未得到 Gradle 失败日志或成功结论；检查无明显残留本次 build 进程后重跑。
+- 验证记录：`cd client/android; .\gradlew.bat --no-daemon --console=plain build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过，输出 `BUILD SUCCESSFUL in 36s`。
+- 验证记录：本轮补修首次并行运行 `:app:compileDebugKotlin` 与目标单测导致 Kotlin 增量缓存互相抢占，日志包含 cache / daemon 冲突；已执行 `cd client/android; .\gradlew.bat --stop` 和 `clean` 后改为串行验证。
+- 验证记录：`cd client/android; .\gradlew.bat --no-daemon :app:compileDebugKotlin --console=plain` 通过，输出 `BUILD SUCCESSFUL in 20s`。
+- 验证记录：`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.ui.cart.CartViewModelTest" --tests "com.shopmate.app.ui.chat.ChatViewModelTest" --console=plain` 通过，输出 `BUILD SUCCESSFUL in 25s`。
+- 验证记录：`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest --console=plain` 通过，输出 `BUILD SUCCESSFUL in 15s`。
+- 验证记录：`cd client/android; .\gradlew.bat --no-daemon --console=plain build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过，输出 `BUILD SUCCESSFUL in 1m 51s`。
+- 验证记录：`cd server; npm.cmd test -- order.service.test.ts pending-checkout.store.test.ts checkout-intent.service.test.ts` 通过，输出 3 个测试文件、19 个测试通过。
+- 验证记录：`cd server; npm.cmd run build` 通过。
+- 验证记录：`cd client/android; .\gradlew.bat --stop --console=plain` 后，`.\gradlew.bat --no-daemon :app:compileDebugKotlin --rerun-tasks --console=plain "-Dkotlin.compiler.execution.strategy=in-process"` 通过，输出 `BUILD SUCCESSFUL in 1m 14s`。
+- 验证记录：`cd client/android; .\gradlew.bat --no-daemon :app:testDebugUnitTest --tests com.shopmate.app.data.orders.OrderApiClientTest --tests com.shopmate.app.ui.cart.CartViewModelTest --tests com.shopmate.app.ui.checkout.CheckoutViewModelTest --console=plain "-Dkotlin.compiler.execution.strategy=in-process"` 通过，输出 `BUILD SUCCESSFUL in 1m 6s`。
+- 验证记录：`cd server; npm.cmd test` 全量通过，输出 55 个测试文件、412 个测试通过。
+- 验证记录：`cd client/android; .\gradlew.bat --no-daemon :app:testDebugUnitTest --console=plain "-Dkotlin.compiler.execution.strategy=in-process"` 全量通过，输出 `BUILD SUCCESSFUL in 33s`。
+- 验证记录：`cd client/android; .\gradlew.bat --no-daemon build --console=plain -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/ "-Dkotlin.compiler.execution.strategy=in-process"` 通过，输出 `BUILD SUCCESSFUL in 3m 15s`。
+- 用户验收反馈补修范围：商品卡加购按钮位置、详情收藏实心态、详情底部双按钮状态隔离、立即购买直达 checkout、主题化加购提示、对比生成 loading 气泡、购物车数量局部 loading。
 
 ## 历史记录
 - 初始化前后端技术栈骨架：完成 Android Kotlin + Jetpack Compose 与 Node.js + TypeScript + Express 最小工程初始化，补充 README 与 Git 忽略配置，并通过后端构建与 Android `assembleDebug` 验证。
@@ -140,3 +162,4 @@ Complete
 - Android Buddy Lottie Motion：新增 `ShopMateBuddyMotion`、Home 到 Chat 的 Buddy 视觉桥接、本地 Lottie raw 动效和 PNG fallback，聊天等待态顶部 Buddy 可切换 Thinking；补充过渡控制器单元测试，并通过 Android `testDebugUnitTest` 和带 demo HTTPS URL 的 build 验证。
 - Android State Lottie Feedback：新增统一 `ShopMateLottieStateIndicator`、4 个本地状态 Lottie 资源和 resource 映射测试，接入聊天等待、语音 listening / transcribing、图片解释 / 搜索 busy 状态；根据反馈优化语音条提示、上滑取消和动效占比，并将 Android app 名称与 launcher icon 更新为“抖选选”。通过 Android `testDebugUnitTest`、带 demo HTTPS URL 的 build 和 diff check 验证。
 - Android Home Prompt Carousel：将 Home prompt 从 4 条升级为 8 条可循环匀速滚动中文建议，覆盖推荐、预算、反选、图片找货、对比、购物车 checkout 等入口；统一 Home / 推荐页顶部按钮、composer、聊天气泡阅读尺度，修正键盘避让、顶部按钮亮斑、Buddy 透明头像与键盘开合 Lottie morph；新增 `MockShopMateDataTest`，并通过 Android `testDebugUnitTest` 与带 demo HTTPS URL 的 `build` 验证。
+- Android Loading Skeleton Polish：新增共享 skeleton / pulse 占位，统一商品图、商品详情、购物车、checkout 和对比页 loading / empty / fallback 视觉；调整购物车空状态、顶部推荐卡箭头和 Home Buddy 键盘开合闪烁，并通过 Android `testDebugUnitTest` 与带 demo HTTPS URL 的 `build` 验证。

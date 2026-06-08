@@ -1,5 +1,10 @@
 package com.shopmate.app.ui.product
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -18,11 +23,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,9 +41,12 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -56,6 +66,7 @@ import com.shopmate.app.ui.components.ShopMateSkeletonBlock
 import com.shopmate.app.ui.components.ShopMateSkeletonTextLine
 import com.shopmate.app.ui.components.ShopMateStatusMessage
 import com.shopmate.app.ui.components.scaledDp
+import com.shopmate.app.ui.model.ProductAddCartState
 import com.shopmate.app.ui.model.ProductDetailSpecUi
 import com.shopmate.app.ui.model.ProductDetailUi
 import com.shopmate.app.ui.theme.ShopMateGreen
@@ -73,6 +84,9 @@ fun ProductDetailScreen(
     onRetry: () -> Unit,
     onAddCartClick: () -> Unit,
     onBuyNowClick: () -> Unit,
+    productAddCartState: ProductAddCartState = ProductAddCartState.Idle,
+    productBuyNowState: ProductAddCartState = ProductAddCartState.Idle,
+    isProductInCart: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     ProductDetailScreenContent(
@@ -82,6 +96,9 @@ fun ProductDetailScreen(
         onRetry = onRetry,
         onAddCartClick = onAddCartClick,
         onBuyNowClick = onBuyNowClick,
+        productAddCartState = productAddCartState,
+        productBuyNowState = productBuyNowState,
+        isProductInCart = isProductInCart,
         modifier = modifier
     )
 }
@@ -94,10 +111,19 @@ private fun ProductDetailScreenContent(
     onRetry: () -> Unit,
     onAddCartClick: () -> Unit,
     onBuyNowClick: () -> Unit,
+    productAddCartState: ProductAddCartState = ProductAddCartState.Idle,
+    productBuyNowState: ProductAddCartState = ProductAddCartState.Idle,
+    isProductInCart: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val product = state.product
-    var isFavorite by rememberSaveable(product?.id) { mutableStateOf(false) }
+    val favoriteSelected = isProductInCart ||
+        productAddCartState == ProductAddCartState.Loading ||
+        productAddCartState == ProductAddCartState.Added
+    val favoriteEnabled = !isProductInCart &&
+        productAddCartState != ProductAddCartState.Loading &&
+        productAddCartState != ProductAddCartState.Added &&
+        productAddCartState != ProductAddCartState.Disabled
 
     BoxWithConstraints(
         modifier = modifier
@@ -186,8 +212,10 @@ private fun ProductDetailScreenContent(
                 } else {
                     ProductHeroCard(
                         product = product,
-                        isFavorite = isFavorite,
-                        onFavoriteClick = { isFavorite = !isFavorite },
+                        isFavorite = favoriteSelected,
+                        favoriteEnabled = favoriteEnabled,
+                        favoriteLoading = productAddCartState == ProductAddCartState.Loading,
+                        onFavoriteClick = onAddCartClick,
                         scale = scale,
                         modifier = Modifier
                             .offset(x = frameStart + 18f.s(), y = contentTop + 4f.s())
@@ -239,6 +267,8 @@ private fun ProductDetailScreenContent(
         if (product != null) {
             ProductDetailFooter(
                 scale = scale,
+                addCartState = productAddCartState,
+                buyNowState = productBuyNowState,
                 onAddCartClick = onAddCartClick,
                 onBuyNowClick = onBuyNowClick,
                 modifier = Modifier
@@ -275,6 +305,8 @@ private fun estimatedLineCount(
 private fun ProductHeroCard(
     product: ProductDetailUi,
     isFavorite: Boolean,
+    favoriteEnabled: Boolean,
+    favoriteLoading: Boolean,
     onFavoriteClick: () -> Unit,
     scale: Float,
     modifier: Modifier = Modifier
@@ -355,6 +387,8 @@ private fun ProductHeroCard(
 
         FavoriteButton(
             isFavorite = isFavorite,
+            enabled = favoriteEnabled,
+            isLoading = favoriteLoading,
             onClick = onFavoriteClick,
             scale = scale,
             modifier = Modifier
@@ -400,13 +434,49 @@ private fun FeaturedLabel(
 @Composable
 private fun FavoriteButton(
     isFavorite: Boolean,
+    enabled: Boolean,
+    isLoading: Boolean,
     onClick: () -> Unit,
     scale: Float,
     modifier: Modifier = Modifier
 ) {
+    val bounceScale = remember { Animatable(1f) }
+    var hasFavoriteInteraction by remember { mutableStateOf(false) }
+    val tintColor by animateColorAsState(
+        targetValue = if (isFavorite) ShopMateGreen else Color(0xFF9AA6AD),
+        label = "favorite-button-tint",
+    )
+    val backgroundColor by animateColorAsState(
+        targetValue = if (isFavorite) Color(0xFFE4F9EF) else Color.White.copy(alpha = 0.92f),
+        label = "favorite-button-background",
+    )
+
+    LaunchedEffect(isFavorite) {
+        if (!hasFavoriteInteraction) {
+            hasFavoriteInteraction = true
+            return@LaunchedEffect
+        }
+        bounceScale.snapTo(1f)
+        bounceScale.animateTo(
+            targetValue = 1.16f,
+            animationSpec = tween(durationMillis = 90),
+        )
+        bounceScale.animateTo(
+            targetValue = 1f,
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioMediumBouncy,
+                stiffness = Spring.StiffnessMediumLow,
+            ),
+        )
+    }
+
     ShopMateRoundedIconButton(
-        onClick = onClick,
-        backgroundColor = Color.White.copy(alpha = 0.92f),
+        onClick = {
+            if (enabled) {
+                onClick()
+            }
+        },
+        backgroundColor = backgroundColor,
         shape = RoundedCornerShape(
             topStart = 21f.scaledDp(scale),
             topEnd = 21f.scaledDp(scale),
@@ -414,14 +484,29 @@ private fun FavoriteButton(
             bottomEnd = 21f.scaledDp(scale)
         ),
         elevation = 12f.scaledDp(scale),
-        modifier = modifier
+        enabled = enabled || isFavorite,
+        showPressIndication = enabled,
+        modifier = modifier.graphicsLayer {
+            scaleX = bounceScale.value
+            scaleY = bounceScale.value
+        }
     ) {
-        Image(
-            painter = painterResource(id = R.drawable.ic_home_heart),
-            contentDescription = if (isFavorite) "取消收藏" else "收藏商品",
-            colorFilter = if (isFavorite) ColorFilter.tint(ShopMateGreen) else null,
-            modifier = Modifier.size(16f.scaledDp(scale))
-        )
+        if (isLoading) {
+            CircularProgressIndicator(
+                color = ShopMateGreen,
+                strokeWidth = 1.6f.scaledDp(scale),
+                modifier = Modifier.size(15f.scaledDp(scale))
+            )
+        } else {
+            Image(
+                painter = painterResource(
+                    id = if (isFavorite) R.drawable.ic_heart_filled else R.drawable.ic_home_heart,
+                ),
+                contentDescription = if (isFavorite) "已在购物车" else "加入购物车",
+                colorFilter = ColorFilter.tint(tintColor),
+                modifier = Modifier.size(if (isFavorite) 17f.scaledDp(scale) else 16f.scaledDp(scale))
+            )
+        }
     }
 }
 
@@ -681,11 +766,15 @@ private fun SuitabilityCard(
 @Composable
 private fun ProductDetailFooter(
     scale: Float,
+    addCartState: ProductAddCartState,
+    buyNowState: ProductAddCartState,
     onAddCartClick: () -> Unit,
     onBuyNowClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val footerShape = RoundedCornerShape(22f.scaledDp(scale))
+    val addCartSpec = addCartState.toDetailFooterAddCartSpec()
+    val buyNowSpec = buyNowState.toDetailFooterBuyNowSpec()
 
     Box(
         modifier = modifier
@@ -707,30 +796,47 @@ private fun ProductDetailFooter(
                 .offset(x = 8f.scaledDp(scale), y = 8f.scaledDp(scale))
                 .size(width = 153.333f.scaledDp(scale), height = 42f.scaledDp(scale))
                 .clip(ShopMatePillShape)
-                .background(Color(0xFFE9FBF3))
-                .clickable(role = Role.Button, onClick = onAddCartClick)
+                .background(addCartSpec.backgroundColor)
+                .border(0.667.dp, addCartSpec.borderColor, ShopMatePillShape)
+                .semantics { contentDescription = addCartSpec.contentDescription }
+                .clickable(
+                    enabled = addCartSpec.clickable,
+                    role = Role.Button,
+                    onClick = onAddCartClick,
+                )
         ) {
-            Image(
-                painter = painterResource(id = R.drawable.ic_cart),
-                contentDescription = null,
-                colorFilter = ColorFilter.tint(ShopMateGreen),
-                modifier = Modifier
-                    .offset(x = 35f.scaledDp(scale), y = 14.5f.scaledDp(scale))
-                    .size(13f.scaledDp(scale))
-            )
+            if (addCartSpec.showProgress) {
+                CircularProgressIndicator(
+                    color = addCartSpec.contentColor,
+                    strokeWidth = 1.6f.scaledDp(scale),
+                    modifier = Modifier
+                        .offset(x = addCartSpec.iconOffsetX.scaledDp(scale), y = 14.5f.scaledDp(scale))
+                        .size(13f.scaledDp(scale))
+                )
+            } else {
+                Image(
+                    painter = painterResource(id = addCartSpec.iconRes),
+                    contentDescription = null,
+                    colorFilter = ColorFilter.tint(addCartSpec.contentColor),
+                    modifier = Modifier
+                        .offset(x = addCartSpec.iconOffsetX.scaledDp(scale), y = 14.5f.scaledDp(scale))
+                        .size(13f.scaledDp(scale))
+                )
+            }
 
             Text(
-                text = "加入购物车",
-                color = ShopMateGreen,
+                text = addCartSpec.text,
+                color = addCartSpec.contentColor,
                 fontSize = (13f * scale).sp,
                 lineHeight = (17f * scale).sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 0.sp,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
-                    .offset(x = 55f.scaledDp(scale), y = 12.33f.scaledDp(scale))
-                    .width(72f.scaledDp(scale))
+                    .offset(x = addCartSpec.textOffsetX.scaledDp(scale), y = 12.33f.scaledDp(scale))
+                    .width(addCartSpec.textWidth.scaledDp(scale))
             )
         }
 
@@ -745,35 +851,225 @@ private fun ProductDetailFooter(
                 )
                 .clip(ShopMatePillShape)
                 .background(
-                    Brush.linearGradient(
-                        colors = listOf(ShopMateLightGreen, ShopMateGreen)
-                    )
+                    buyNowSpec.backgroundBrush
                 )
-                .clickable(role = Role.Button, onClick = onBuyNowClick)
+                .semantics { contentDescription = buyNowSpec.contentDescription }
+                .clickable(
+                    enabled = buyNowSpec.clickable,
+                    role = Role.Button,
+                    onClick = onBuyNowClick,
+                )
         ) {
             Text(
-                text = "立即购买",
-                color = Color.White,
+                text = buyNowSpec.text,
+                color = buyNowSpec.contentColor,
                 fontSize = (14f * scale).sp,
                 lineHeight = (18f * scale).sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 0.sp,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
-                    .offset(x = 50f.scaledDp(scale), y = 12f.scaledDp(scale))
-                    .width(72f.scaledDp(scale))
+                    .offset(x = buyNowSpec.textOffsetX.scaledDp(scale), y = 12f.scaledDp(scale))
+                    .width(buyNowSpec.textWidth.scaledDp(scale))
             )
 
-            Image(
-                painter = painterResource(id = R.drawable.ic_send),
-                contentDescription = null,
-                modifier = Modifier
-                    .offset(x = 117f.scaledDp(scale), y = 14f.scaledDp(scale))
-                    .size(14f.scaledDp(scale))
-            )
+            if (buyNowSpec.showProgress) {
+                CircularProgressIndicator(
+                    color = buyNowSpec.contentColor,
+                    strokeWidth = 1.6f.scaledDp(scale),
+                    modifier = Modifier
+                        .offset(x = buyNowSpec.iconOffsetX.scaledDp(scale), y = 14f.scaledDp(scale))
+                        .size(14f.scaledDp(scale))
+                )
+            } else {
+                Image(
+                    painter = painterResource(id = buyNowSpec.iconRes),
+                    contentDescription = null,
+                    colorFilter = ColorFilter.tint(buyNowSpec.contentColor),
+                    modifier = Modifier
+                        .offset(x = buyNowSpec.iconOffsetX.scaledDp(scale), y = 14f.scaledDp(scale))
+                        .size(14f.scaledDp(scale))
+                )
+            }
         }
     }
+}
+
+private data class DetailFooterActionSpec(
+    val text: String,
+    val contentDescription: String,
+    val iconRes: Int,
+    val backgroundColor: Color,
+    val backgroundBrush: Brush = Brush.linearGradient(listOf(backgroundColor, backgroundColor)),
+    val borderColor: Color = Color.Transparent,
+    val contentColor: Color,
+    val clickable: Boolean,
+    val iconOffsetX: Float,
+    val textOffsetX: Float,
+    val textWidth: Float,
+    val showProgress: Boolean = false,
+)
+
+private fun ProductAddCartState.toDetailFooterAddCartSpec(): DetailFooterActionSpec =
+    when (this) {
+        ProductAddCartState.Loading -> DetailFooterActionSpec(
+            text = "加入中",
+            contentDescription = "正在加入购物车",
+            iconRes = R.drawable.ic_cart,
+            backgroundColor = Color(0xFFE9FBF3),
+            borderColor = Color(0xFFCFF3E3),
+            contentColor = ShopMateGreen,
+            clickable = false,
+            iconOffsetX = 39f,
+            textOffsetX = 59f,
+            textWidth = 52f,
+            showProgress = true,
+        )
+
+        ProductAddCartState.Added -> DetailFooterActionSpec(
+            text = "已加入",
+            contentDescription = "已加入购物车",
+            iconRes = R.drawable.ic_cart_check,
+            backgroundColor = Color(0xFFDDF8EC),
+            borderColor = Color(0xFFB8EFD7),
+            contentColor = Color(0xFF16895E),
+            clickable = false,
+            iconOffsetX = 38f,
+            textOffsetX = 59f,
+            textWidth = 52f,
+        )
+
+        ProductAddCartState.Failed -> DetailFooterActionSpec(
+            text = "重试",
+            contentDescription = "加入购物车失败，点按重试",
+            iconRes = R.drawable.ic_cart,
+            backgroundColor = Color(0xFFFFF0EA),
+            borderColor = Color(0xFFFFD2C0),
+            contentColor = Color(0xFFB54B2A),
+            clickable = true,
+            iconOffsetX = 47f,
+            textOffsetX = 67f,
+            textWidth = 36f,
+        )
+
+        ProductAddCartState.Disabled -> DetailFooterActionSpec(
+            text = "暂不可选",
+            contentDescription = "暂不可选",
+            iconRes = R.drawable.ic_cart,
+            backgroundColor = Color(0xFFEFF2F2),
+            borderColor = Color(0xFFE1E7E7),
+            contentColor = Color(0xFF99A4AA),
+            clickable = false,
+            iconOffsetX = 31f,
+            textOffsetX = 51f,
+            textWidth = 72f,
+        )
+
+        ProductAddCartState.Idle -> DetailFooterActionSpec(
+            text = "加入购物车",
+            contentDescription = "加入购物车",
+            iconRes = R.drawable.ic_cart,
+            backgroundColor = Color(0xFFE9FBF3),
+            borderColor = Color.Transparent,
+            contentColor = ShopMateGreen,
+            clickable = true,
+            iconOffsetX = 35f,
+            textOffsetX = 55f,
+            textWidth = 72f,
+        )
+    }
+
+private fun ProductAddCartState.toDetailFooterBuyNowSpec(): DetailFooterActionSpec =
+    when (this) {
+        ProductAddCartState.Loading -> detailFooterBuyNowSpec(
+            text = "处理中",
+            contentDescription = "正在生成待确认订单",
+            clickable = false,
+            muted = true,
+            textOffsetX = 58f,
+            textWidth = 54f,
+            iconOffsetX = 113f,
+            iconRes = R.drawable.ic_cart,
+            showProgress = true,
+        )
+
+        ProductAddCartState.Added -> detailFooterBuyNowSpec(
+            text = "去确认",
+            contentDescription = "待确认订单已生成",
+            clickable = false,
+            muted = false,
+            textOffsetX = 60f,
+            textWidth = 54f,
+            iconOffsetX = 116f,
+            iconRes = R.drawable.ic_checkout_chevron_right,
+        )
+
+        ProductAddCartState.Failed -> detailFooterBuyNowSpec(
+            text = "重试下单",
+            contentDescription = "生成待确认订单失败，点按重试",
+            clickable = true,
+            muted = true,
+            textOffsetX = 54f,
+            textWidth = 64f,
+            iconOffsetX = 119f,
+            iconRes = R.drawable.ic_cart,
+        )
+
+        ProductAddCartState.Disabled -> detailFooterBuyNowSpec(
+            text = "暂不可选",
+            contentDescription = "暂不可选",
+            clickable = false,
+            muted = true,
+            textOffsetX = 52f,
+            textWidth = 72f,
+            iconOffsetX = 126f,
+            iconRes = R.drawable.ic_cart,
+        )
+
+        ProductAddCartState.Idle -> detailFooterBuyNowSpec(
+            text = "立即购买",
+            contentDescription = "立即购买，进入下单确认",
+            clickable = true,
+            muted = false,
+            textOffsetX = 50f,
+            textWidth = 72f,
+            iconOffsetX = 117f,
+            iconRes = R.drawable.ic_send,
+        )
+    }
+
+private fun detailFooterBuyNowSpec(
+    text: String,
+    contentDescription: String,
+    clickable: Boolean,
+    muted: Boolean,
+    textOffsetX: Float,
+    textWidth: Float,
+    iconOffsetX: Float,
+    iconRes: Int,
+    showProgress: Boolean = false,
+): DetailFooterActionSpec {
+    val colors = if (muted) {
+        listOf(Color(0xFFDDECE7), Color(0xFFD2E7DE))
+    } else {
+        listOf(ShopMateLightGreen, ShopMateGreen)
+    }
+
+    return DetailFooterActionSpec(
+        text = text,
+        contentDescription = contentDescription,
+        iconRes = iconRes,
+        backgroundColor = colors.first(),
+        backgroundBrush = Brush.linearGradient(colors),
+        contentColor = Color.White.copy(alpha = if (muted) 0.82f else 1f),
+        clickable = clickable,
+        iconOffsetX = iconOffsetX,
+        textOffsetX = textOffsetX,
+        textWidth = textWidth,
+        showProgress = showProgress,
+    )
 }
 
 @Composable

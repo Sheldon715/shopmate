@@ -6,7 +6,9 @@ import com.shopmate.app.data.cart.CartOperationError
 import com.shopmate.app.data.cart.CartRepository
 import com.shopmate.app.data.orders.OrderOperationError
 import com.shopmate.app.data.orders.OrderRepository
+import com.shopmate.app.ui.model.ProductAddCartState
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,6 +25,8 @@ class CartViewModel(
     private var loadJob: Job? = null
     private var operationJob: Job? = null
     private var checkoutJob: Job? = null
+    private val productAddJobs = mutableMapOf<String, Job>()
+    private val productBuyNowJobs = mutableMapOf<String, Job>()
     private var operationMessageSequence = 0L
 
     init {
@@ -44,11 +48,107 @@ class CartViewModel(
     }
 
     fun addProduct(productId: String) {
-        runCartOperation(
-            operationItemId = ADD_OPERATION_ID,
-            successMessage = "已加入购物车",
+        val normalizedProductId = productId.trim()
+        if (normalizedProductId.isEmpty()) {
+            publishProductAddFailure(productId, CartOperationError.InvalidProductId)
+            return
+        }
+        if (_uiState.value.productAddCartStates[normalizedProductId] == ProductAddCartState.Loading) {
+            return
+        }
+
+        productAddJobs[normalizedProductId]?.cancel()
+        _uiState.update { state ->
+            state.copy(
+                errorMessage = null,
+                canRetry = false,
+                productAddCartStates = state.productAddCartStates +
+                    (normalizedProductId to ProductAddCartState.Loading),
+            )
+        }
+        productAddJobs[normalizedProductId] = viewModelScope.launch {
+            val result = cartRepository.addProduct(normalizedProductId)
+            result.fold(
+                onSuccess = { content ->
+                    _uiState.update { state ->
+                        state.copy(
+                            items = content.items,
+                            summary = content.summary,
+                            isLoading = false,
+                            isRefreshing = false,
+                            errorMessage = null,
+                            canRetry = false,
+                            productAddCartStates = state.productAddCartStates +
+                                (normalizedProductId to ProductAddCartState.Added),
+                            operationMessage = "已加入购物车".toOperationMessage(),
+                        )
+                    }
+                    resetProductAddStateAfterDelay(normalizedProductId, PRODUCT_ADD_SUCCESS_FEEDBACK_MS)
+                },
+                onFailure = { error ->
+                    publishProductAddFailure(normalizedProductId, error)
+                    resetProductAddStateAfterDelay(normalizedProductId, PRODUCT_ADD_FAILURE_FEEDBACK_MS)
+                },
+            )
+            productAddJobs.remove(normalizedProductId)
+        }
+    }
+
+    fun buyNowProduct(productId: String) {
+        val normalizedProductId = productId.trim()
+        if (normalizedProductId.isEmpty()) {
+            publishProductBuyNowFailure(productId, CartOperationError.InvalidProductId)
+            return
+        }
+
+        val currentState = _uiState.value
+        if (
+            currentState.productBuyNowStates[normalizedProductId] == ProductAddCartState.Loading ||
+            currentState.productAddCartStates[normalizedProductId] == ProductAddCartState.Loading ||
+            currentState.isCheckoutDraftLoading
         ) {
-            cartRepository.addProduct(productId)
+            return
+        }
+
+        productBuyNowJobs[normalizedProductId]?.cancel()
+        checkoutJob?.cancel()
+        _uiState.update { state ->
+            state.copy(
+                errorMessage = null,
+                canRetry = false,
+                checkoutErrorMessage = null,
+                checkoutDraft = null,
+                isCheckoutDraftLoading = true,
+                productBuyNowStates = state.productBuyNowStates +
+                    (normalizedProductId to ProductAddCartState.Loading),
+            )
+        }
+        productBuyNowJobs[normalizedProductId] = viewModelScope.launch {
+            orderRepository.createProductCheckout(normalizedProductId).fold(
+                onSuccess = { draft ->
+                    _uiState.update { state ->
+                        state.copy(
+                            checkoutDraft = draft,
+                            isCheckoutDraftLoading = false,
+                            checkoutErrorMessage = null,
+                            productBuyNowStates = state.productBuyNowStates +
+                                (normalizedProductId to ProductAddCartState.Added),
+                        )
+                    }
+                    resetProductBuyNowStateAfterDelay(
+                        normalizedProductId,
+                        PRODUCT_ADD_SUCCESS_FEEDBACK_MS,
+                    )
+                },
+                onFailure = { error ->
+                    publishProductBuyNowFailure(normalizedProductId, error)
+                    resetProductBuyNowStateAfterDelay(
+                        normalizedProductId,
+                        PRODUCT_ADD_FAILURE_FEEDBACK_MS,
+                    )
+                },
+            )
+            productBuyNowJobs.remove(normalizedProductId)
         }
     }
 
@@ -251,6 +351,58 @@ class CartViewModel(
         }
     }
 
+    private fun publishProductAddFailure(productId: String, error: Throwable) {
+        val displayMessage = error.toDisplayMessage()
+        _uiState.update { state ->
+            state.copy(
+                isLoading = false,
+                isRefreshing = false,
+                errorMessage = displayMessage,
+                canRetry = error is CartOperationError.NetworkFailure,
+                productAddCartStates = if (productId.isBlank()) {
+                    state.productAddCartStates
+                } else {
+                    state.productAddCartStates + (productId to ProductAddCartState.Failed)
+                },
+                operationMessage = displayMessage.toOperationMessage(),
+            )
+        }
+    }
+
+    private fun publishProductBuyNowFailure(productId: String, error: Throwable) {
+        val displayMessage = error.toBuyNowDisplayMessage()
+        _uiState.update { state ->
+            state.copy(
+                isLoading = false,
+                isRefreshing = false,
+                isCheckoutDraftLoading = false,
+                checkoutErrorMessage = displayMessage,
+                errorMessage = displayMessage,
+                canRetry = error.isRetryableOperation(),
+                productBuyNowStates = if (productId.isBlank()) {
+                    state.productBuyNowStates
+                } else {
+                    state.productBuyNowStates + (productId to ProductAddCartState.Failed)
+                },
+                operationMessage = displayMessage.toOperationMessage(),
+            )
+        }
+    }
+
+    private suspend fun resetProductAddStateAfterDelay(productId: String, delayMs: Long) {
+        delay(delayMs)
+        _uiState.update { state ->
+            state.copy(productAddCartStates = state.productAddCartStates - productId)
+        }
+    }
+
+    private suspend fun resetProductBuyNowStateAfterDelay(productId: String, delayMs: Long) {
+        delay(delayMs)
+        _uiState.update { state ->
+            state.copy(productBuyNowStates = state.productBuyNowStates - productId)
+        }
+    }
+
     private fun String.toOperationMessage(): CartOperationMessage {
         operationMessageSequence += 1
         return CartOperationMessage(
@@ -260,8 +412,9 @@ class CartViewModel(
     }
 
     private companion object {
-        private const val ADD_OPERATION_ID = "cart-add-operation"
         private const val MAX_CART_QUANTITY = 99
+        private const val PRODUCT_ADD_SUCCESS_FEEDBACK_MS = 1000L
+        private const val PRODUCT_ADD_FAILURE_FEEDBACK_MS = 1500L
     }
 }
 
@@ -318,3 +471,13 @@ private fun Throwable.toCheckoutDisplayMessage(): String =
         is OrderOperationError.NetworkFailure -> "无法连接订单服务，请确认后端正在运行。"
         else -> "暂时无法创建订单。"
     }
+
+private fun Throwable.toBuyNowDisplayMessage(): String =
+    if (this is OrderOperationError) {
+        toCheckoutDisplayMessage()
+    } else {
+        toDisplayMessage()
+    }
+
+private fun Throwable.isRetryableOperation(): Boolean =
+    this is CartOperationError.NetworkFailure || this is OrderOperationError.NetworkFailure

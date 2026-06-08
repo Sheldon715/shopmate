@@ -1,9 +1,15 @@
 package com.shopmate.app.ui.components
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -14,8 +20,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -23,6 +32,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
@@ -36,6 +46,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.shopmate.app.R
+import com.shopmate.app.ui.model.ProductAddCartState
 import com.shopmate.app.ui.model.ProductCardUi
 import com.shopmate.app.ui.theme.ShopMateGreen
 import com.shopmate.app.ui.theme.ShopMatePillShape
@@ -49,6 +60,7 @@ fun ProductCard(
     product: ProductCardUi,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    addCartState: ProductAddCartState = ProductAddCartState.Idle,
     onClick: () -> Unit = {},
     onAddCartClick: () -> Unit = {}
 ) {
@@ -59,11 +71,27 @@ fun ProductCard(
 
         fun Float.s(): Dp = (this * scale).dp
 
+        val effectiveAddCartState = if (enabled) addCartState else ProductAddCartState.Disabled
+        val cardInteractionSource = remember { MutableInteractionSource() }
+        val isCardPressed by cardInteractionSource.collectIsPressedAsState()
+        val cardScale by animateFloatAsState(
+            targetValue = if (enabled && isCardPressed) 0.985f else 1f,
+            label = "product-card-press-scale",
+        )
+        val cardElevation by animateDpAsState(
+            targetValue = if (enabled && isCardPressed) 7f.s() else 12f.s(),
+            label = "product-card-press-elevation",
+        )
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .graphicsLayer {
+                    scaleX = cardScale
+                    scaleY = cardScale
+                }
                 .shadow(
-                    elevation = 12f.s(),
+                    elevation = cardElevation,
                     shape = RoundedCornerShape(22f.s()),
                     clip = false
                 )
@@ -75,6 +103,8 @@ fun ProductCard(
                     shape = RoundedCornerShape(22f.s())
                 )
                 .clickable(
+                    interactionSource = cardInteractionSource,
+                    indication = LocalIndication.current,
                     enabled = enabled,
                     role = Role.Button,
                     onClick = onClick
@@ -149,16 +179,17 @@ fun ProductCard(
 
                 AddCartButton(
                     enabled = enabled,
+                    state = effectiveAddCartState,
                     onClick = onAddCartClick,
                     scale = scale,
                     modifier = Modifier
                         .offset(
-                            x = if (enabled) 108.333f.s() else 120.333f.s(),
-                            y = 123.77f.s()
+                            x = 101.333f.s(),
+                            y = 120.9f.s()
                         )
                         .size(
-                            width = if (enabled) 101f.s() else 89f.s(),
-                            height = 30f.s()
+                            width = 108f.s(),
+                            height = 32f.s()
                         )
                 )
             }
@@ -215,52 +246,156 @@ private fun ProductTag(
 @Composable
 private fun AddCartButton(
     enabled: Boolean,
+    state: ProductAddCartState,
     onClick: () -> Unit,
     scale: Float,
     modifier: Modifier = Modifier
 ) {
+    val buttonSpec = state.toButtonSpec(enabled)
+    val buttonInteractionSource = remember { MutableInteractionSource() }
+    val isPressed by buttonInteractionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (buttonSpec.clickable && isPressed) 0.96f else 1f,
+        label = "product-add-cart-press-scale",
+    )
+    val backgroundColor by animateColorAsState(
+        targetValue = buttonSpec.backgroundColor,
+        label = "product-add-cart-background",
+    )
+    val contentColor by animateColorAsState(
+        targetValue = buttonSpec.contentColor,
+        label = "product-add-cart-content",
+    )
+
     Box(
         modifier = modifier
+            .graphicsLayer {
+                scaleX = pressScale
+                scaleY = pressScale
+            }
             .clip(ShopMatePillShape)
-            .background(if (enabled) Color(0xFFE8F9F2) else Color(0xFFEFF2F2))
+            .background(backgroundColor)
+            .border(
+                width = 0.667.dp,
+                color = buttonSpec.borderColor,
+                shape = ShopMatePillShape,
+            )
             .semantics {
-                contentDescription = if (enabled) "加入购物车" else "暂不可选"
+                contentDescription = buttonSpec.contentDescription
             }
             .clickable(
-                enabled = enabled,
+                interactionSource = buttonInteractionSource,
+                indication = LocalIndication.current,
+                enabled = buttonSpec.clickable,
                 role = Role.Button,
                 onClick = onClick
-            )
+            ),
+        contentAlignment = Alignment.Center,
     ) {
-        Image(
-            painter = painterResource(id = R.drawable.ic_add_cart),
-            contentDescription = null,
-            colorFilter = ColorFilter.tint(if (enabled) ShopMateGreen else Color(0xFFCDD4D7)),
-            modifier = Modifier
-                .offset(x = 10f.s(scale), y = 7.5f.s(scale))
-                .size(15f.s(scale))
-        )
-
-        Text(
-            text = if (enabled) "加入购物车" else "暂不可选",
-            color = if (enabled) ShopMateGreen else Color(0xFF99A4AA),
-            fontSize = (12f * scale).sp,
-            lineHeight = (16f * scale).sp,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            softWrap = false,
-            overflow = TextOverflow.Visible,
-            letterSpacing = 0.sp,
-            modifier = Modifier
-                .offset(
-                    x = if (enabled) 28f.s(scale) else 25.5f.s(scale),
-                    y = 6.8f.s(scale)
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(5f.s(scale)),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (state == ProductAddCartState.Loading) {
+                CircularProgressIndicator(
+                    color = contentColor,
+                    strokeWidth = 1.7f.s(scale),
+                    modifier = Modifier.size(13.5f.s(scale)),
                 )
-                .width(if (enabled) 65f.s(scale) else 55f.s(scale))
-        )
+            } else {
+                Image(
+                    painter = painterResource(id = buttonSpec.iconRes),
+                    contentDescription = null,
+                    colorFilter = ColorFilter.tint(contentColor),
+                    modifier = Modifier.size(15f.s(scale))
+                )
+            }
+
+            Text(
+                text = buttonSpec.text,
+                color = contentColor,
+                fontSize = (12f * scale).sp,
+                lineHeight = (16f * scale).sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Visible,
+                letterSpacing = 0.sp,
+                modifier = Modifier.width(buttonSpec.textWidth.s(scale))
+            )
+        }
     }
 }
+
+private data class AddCartButtonSpec(
+    val text: String,
+    val contentDescription: String,
+    val iconRes: Int,
+    val backgroundColor: Color,
+    val borderColor: Color,
+    val contentColor: Color,
+    val clickable: Boolean,
+    val textWidth: Float,
+)
+
+private fun ProductAddCartState.toButtonSpec(enabled: Boolean): AddCartButtonSpec =
+    when {
+        !enabled || this == ProductAddCartState.Disabled -> AddCartButtonSpec(
+            text = "暂不可选",
+            contentDescription = "暂不可选",
+            iconRes = R.drawable.ic_add_cart,
+            backgroundColor = Color(0xFFEFF2F2),
+            borderColor = Color(0xFFE1E7E7),
+            contentColor = Color(0xFF99A4AA),
+            clickable = false,
+            textWidth = 58f,
+        )
+
+        this == ProductAddCartState.Loading -> AddCartButtonSpec(
+            text = "加入中",
+            contentDescription = "正在加入购物车",
+            iconRes = R.drawable.ic_add_cart,
+            backgroundColor = Color(0xFFE8F9F2),
+            borderColor = Color(0xFFCFF3E3),
+            contentColor = ShopMateGreen,
+            clickable = false,
+            textWidth = 54f,
+        )
+
+        this == ProductAddCartState.Added -> AddCartButtonSpec(
+            text = "已加入",
+            contentDescription = "已加入购物车",
+            iconRes = R.drawable.ic_cart_check,
+            backgroundColor = Color(0xFFDDF8EC),
+            borderColor = Color(0xFFB8EFD7),
+            contentColor = Color(0xFF16895E),
+            clickable = false,
+            textWidth = 50f,
+        )
+
+        this == ProductAddCartState.Failed -> AddCartButtonSpec(
+            text = "重试",
+            contentDescription = "加入购物车失败，点按重试",
+            iconRes = R.drawable.ic_add_cart,
+            backgroundColor = Color(0xFFFFF0EA),
+            borderColor = Color(0xFFFFD2C0),
+            contentColor = Color(0xFFB54B2A),
+            clickable = true,
+            textWidth = 34f,
+        )
+
+        else -> AddCartButtonSpec(
+            text = "加入购物车",
+            contentDescription = "加入购物车",
+            iconRes = R.drawable.ic_add_cart,
+            backgroundColor = Color(0xFFE8F9F2),
+            borderColor = Color(0xFFCFF3E3),
+            contentColor = ShopMateGreen,
+            clickable = true,
+            textWidth = 65f,
+        )
+    }
 
 private const val DISABLED_CONTENT_ALPHA = 0.62f
 

@@ -73,6 +73,61 @@ describe("OrderService", () => {
     expect(draft.expiresAt).toBe("2026-06-06T00:15:00.000Z");
   });
 
+  it("creates product checkout with only the requested product", async () => {
+    const harness = createOrderHarness({
+      cart: createCartDto([
+        createCartItem({ id: "item_001", productId: "product_001", quantity: 2 }),
+        createCartItem({
+          id: "item_002",
+          productId: "product_002",
+          name: "轻透防晒乳",
+          priceCents: 12900,
+          subtotalCents: 12900,
+        }),
+      ]),
+      products: [
+        createProduct({ id: "product_001" }),
+        createProduct({
+          id: "product_002",
+          name: "轻透防晒乳",
+          category: "美妆护肤",
+          priceMinCents: 12900,
+          priceMaxCents: 15900,
+          basePriceCents: 12900,
+        }),
+      ],
+    });
+    const service = new OrderService(harness.dependencies, "demo-user");
+
+    const draft = await service.createProductCheckout({
+      conversationId: "buy-now-demo-1",
+      productId: " product_002 ",
+    });
+
+    expect(draft).toMatchObject({
+      id: "draft_1",
+      conversationId: "buy-now-demo-1",
+      source: "buy_now",
+      summary: {
+        itemCount: 1,
+        selectedCount: 1,
+        subtotalCents: 12900,
+        totalCents: 12900,
+      },
+    });
+    expect(draft.items).toEqual([
+      expect.objectContaining({
+        cartItemId: "buy-now:product_002",
+        productId: "product_002",
+        productName: "轻透防晒乳",
+        category: "美妆护肤",
+        quantity: 1,
+        unitPriceCents: 12900,
+        subtotalCents: 12900,
+      }),
+    ]);
+  });
+
   it("does not create pending checkout when no selected item is checkoutable", async () => {
     const harness = createOrderHarness({
       cart: createCartDto([
@@ -141,6 +196,45 @@ describe("OrderService", () => {
       totalCents: 19900,
       items: [{ productId: "product_001" }],
     });
+  });
+
+  it("confirms product checkout without cart snapshot cleanup", async () => {
+    const harness = createOrderHarness({
+      cart: createCartDto([
+        createCartItem({ id: "item_001", productId: "product_001", quantity: 2 }),
+      ]),
+      products: [createProduct({ id: "product_001" })],
+    });
+    const service = new OrderService(harness.dependencies, "demo-user");
+    const draft = await service.createProductCheckout({
+      conversationId: "buy-now-demo-1",
+      productId: "product_001",
+    });
+
+    harness.setCart(createCartDto([]));
+
+    const order = await service.confirmPendingCheckout(draft, "buy_now");
+
+    expect(harness.persistCalls).toHaveLength(1);
+    expect(harness.persistCalls[0]?.cartItems).toEqual([]);
+    expect(harness.persistCalls[0]?.input).toMatchObject({
+      source: "buy_now",
+      subtotalCents: 19900,
+      items: [
+        expect.objectContaining({
+          productId: "product_001",
+          quantity: 1,
+          subtotalCents: 19900,
+        }),
+      ],
+    });
+    expect(order.source).toBe("buy_now");
+    expect(order.items).toEqual([
+      expect.objectContaining({
+        productId: "product_001",
+        quantity: 1,
+      }),
+    ]);
   });
 
   it("confirms with edited shipping, selected delivery, and payment snapshots", async () => {
