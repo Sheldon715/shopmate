@@ -128,6 +128,7 @@ fun HomeChatEntryScreen(
     var keyboardBuddyMorphRequest by remember {
         mutableStateOf<KeyboardBuddyMorphRequest?>(null)
     }
+    var settledKeyboardBuddyVisibility by remember { mutableStateOf<Boolean?>(null) }
     val latestOnKeyboardAvatarVisibilityChange by rememberUpdatedState(
         onKeyboardAvatarVisibilityChange
     )
@@ -148,6 +149,10 @@ fun HomeChatEntryScreen(
         val imeBottom = WindowInsets.ime.getBottom(density)
         val isKeyboardVisible = imeBottom > 0
         val isBuddyMorphing = keyboardBuddyMorphRequest != null
+        val isKeyboardBuddySettling = settledKeyboardBuddyVisibility?.let { settled ->
+            settled != isKeyboardVisible
+        } ?: false
+        val hideStaticBuddyForMorph = isBuddyMorphing || isKeyboardBuddySettling
         val composerBottom = 18f.s()
         val composerTop = maxHeight - composerHeight - composerBottom
         val promptPanelHeight = 327f.s()
@@ -171,6 +176,7 @@ fun HomeChatEntryScreen(
             latestOnKeyboardAvatarVisibilityChange(isKeyboardVisible)
             if (!hasObservedKeyboardState) {
                 hasObservedKeyboardState = true
+                settledKeyboardBuddyVisibility = isKeyboardVisible
                 return@LaunchedEffect
             }
 
@@ -188,7 +194,7 @@ fun HomeChatEntryScreen(
         if (isKeyboardVisible) {
             KeyboardHeader(
                 scale = scale,
-                showBuddy = !isBuddyMorphing,
+                showBuddy = !hideStaticBuddyForMorph,
                 onMenuClick = {
                     isSidebarOpen = true
                     onMenuClick()
@@ -224,7 +230,7 @@ fun HomeChatEntryScreen(
 
             HeroMascot(
                 scale = scale,
-                showBuddy = !isBuddyMorphing,
+                showBuddy = !hideStaticBuddyForMorph,
             )
 
             PromptPanel(
@@ -245,6 +251,7 @@ fun HomeChatEntryScreen(
             onFinished = { request ->
                 if (keyboardBuddyMorphRequest == request) {
                     keyboardBuddyMorphRequest = null
+                    settledKeyboardBuddyVisibility = request.target == KeyboardBuddyMorphTarget.Avatar
                 }
             },
             modifier = Modifier.fillMaxSize(),

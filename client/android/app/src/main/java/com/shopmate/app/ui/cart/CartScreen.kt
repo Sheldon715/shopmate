@@ -22,7 +22,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -52,6 +51,8 @@ import com.shopmate.app.ui.components.ShopMateCircleIconButton
 import com.shopmate.app.ui.components.ShopMateElevatedSurface
 import com.shopmate.app.ui.components.ShopMateFigmaFrameWidth
 import com.shopmate.app.ui.components.ShopMateProductImage
+import com.shopmate.app.ui.components.ShopMateSkeletonBlock
+import com.shopmate.app.ui.components.ShopMateSkeletonTextLine
 import com.shopmate.app.ui.components.ShopMateStatusMessage
 import com.shopmate.app.ui.components.scaledDp
 import com.shopmate.app.ui.model.CartItemUi
@@ -217,6 +218,7 @@ fun CartScreen(
             checkoutEnabled = selectedCount > 0 &&
                 !state.isCheckoutDraftLoading,
             checkoutLoading = state.isCheckoutDraftLoading,
+            totalLoading = state.isLoading && cartLines.isEmpty(),
             onCheckoutClick = onCheckoutClick,
             onToggleAll = {
                 onToggleAll(!allSelected)
@@ -375,18 +377,6 @@ private fun CartFeatureCard(
                 .width(238f.s())
         )
 
-        Text(
-            text = ">",
-            color = Color(0xFF25303B),
-            fontSize = (18f * textScale).sp,
-            lineHeight = (18f * textScale).sp,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center,
-            letterSpacing = 0.sp,
-            modifier = Modifier
-                .offset(x = 318.667f.s(), y = 31f.s())
-                .size(16f.s())
-        )
     }
 }
 
@@ -678,6 +668,7 @@ private fun CartFooter(
     enabled: Boolean,
     checkoutEnabled: Boolean,
     checkoutLoading: Boolean,
+    totalLoading: Boolean,
     onCheckoutClick: () -> Unit,
     onToggleAll: () -> Unit,
     modifier: Modifier = Modifier
@@ -751,16 +742,23 @@ private fun CartFooter(
                     letterSpacing = 0.sp
                 )
 
-                Text(
-                    text = totalText,
-                    color = ShopMateTextPrimary,
-                    fontSize = (21f * scale).sp,
-                    lineHeight = (24f * scale).sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Clip,
-                    letterSpacing = 0.sp
-                )
+                if (totalLoading) {
+                    ShopMateSkeletonBlock(
+                        cornerRadius = 999.dp,
+                        modifier = Modifier.size(width = 76f.s(), height = 22f.s())
+                    )
+                } else {
+                    Text(
+                        text = totalText,
+                        color = ShopMateTextPrimary,
+                        fontSize = (21f * scale).sp,
+                        lineHeight = (24f * scale).sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Clip,
+                        letterSpacing = 0.sp
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.width(8f.s()))
@@ -779,7 +777,11 @@ private fun CartFooter(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = if (checkoutLoading) "准备中..." else "去结算 ($selectedCount)",
+                    text = when {
+                        totalLoading -> "加载中"
+                        checkoutLoading -> "准备中..."
+                        else -> "去结算 ($selectedCount)"
+                    },
                     color = Color.White.copy(alpha = if (checkoutEnabled) 1f else 0.72f),
                     fontSize = (14f * scale).sp,
                     lineHeight = (18f * scale).sp,
@@ -805,17 +807,8 @@ private fun EmptyCartState(
         contentAlignment = Alignment.Center
     ) {
         Box(
-            modifier = Modifier.size(width = 276f.s(), height = 196f.s())
+            modifier = Modifier.size(width = 276f.s(), height = 132f.s())
         ) {
-            Image(
-                painter = painterResource(id = R.drawable.cart_shopmate_buddy),
-                contentDescription = "Shopmate Buddy",
-                modifier = Modifier
-                    .offset(x = 103f.s(), y = 0.dp)
-                    .size(70f.s()),
-                contentScale = ContentScale.Fit
-            )
-
             Text(
                 text = "购物车还是空的",
                 color = ShopMateTextPrimary,
@@ -826,12 +819,12 @@ private fun EmptyCartState(
                 maxLines = 1,
                 letterSpacing = 0.sp,
                 modifier = Modifier
-                    .offset(x = 0.dp, y = 82f.s())
+                    .offset(x = 0.dp, y = 0.dp)
                     .width(276f.s())
             )
 
             Text(
-                text = "回到推荐页继续挑选，喜欢的商品会先放在这里。",
+                text = "逛到喜欢的商品，先放这里再一起结算。",
                 color = Color(0xFF6E7781),
                 fontSize = (13f * scale).sp,
                 lineHeight = (20f * scale).sp,
@@ -839,13 +832,13 @@ private fun EmptyCartState(
                 maxLines = 2,
                 letterSpacing = 0.sp,
                 modifier = Modifier
-                    .offset(x = 14f.s(), y = 116f.s())
+                    .offset(x = 14f.s(), y = 38f.s())
                     .width(248f.s())
             )
 
             Box(
                 modifier = Modifier
-                    .offset(x = 56f.s(), y = 164f.s())
+                    .offset(x = 56f.s(), y = 94f.s())
                     .size(width = 164f.s(), height = 38f.s())
                     .clip(ShopMatePillShape)
                     .background(Color(0xFFE9FBF3))
@@ -870,20 +863,81 @@ private fun CartLoadingState(
     scale: Float,
     modifier: Modifier = Modifier
 ) {
-    ShopMateElevatedSurface(
+    Column(
         modifier = modifier,
-        shape = RoundedCornerShape(22f.scaledDp(scale)),
-        elevation = 8f.scaledDp(scale)
+        verticalArrangement = Arrangement.spacedBy(14f.scaledDp(scale))
     ) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            CircularProgressIndicator(
-                color = ShopMateGreen,
-                modifier = Modifier.size(36f.scaledDp(scale))
+        repeat(3) {
+            CartItemSkeletonCard(
+                scale = scale,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(151.927f.scaledDp(scale))
             )
         }
+    }
+}
+
+@Composable
+private fun CartItemSkeletonCard(
+    scale: Float,
+    modifier: Modifier = Modifier
+) {
+    fun Float.s(): Dp = scaledDp(scale)
+
+    ShopMateElevatedSurface(
+        modifier = modifier,
+        shape = RoundedCornerShape(20f.s()),
+        elevation = 4f.s(),
+        backgroundColor = Color.White.copy(alpha = 0.96f),
+        borderColor = Color(0xFFF0F3F2)
+    ) {
+        ShopMateSkeletonBlock(
+            cornerRadius = 999.dp,
+            modifier = Modifier
+                .offset(x = 17f.s(), y = 61f.s())
+                .size(28f.s())
+        )
+        ShopMateSkeletonBlock(
+            cornerRadius = 18f.s(),
+            modifier = Modifier
+                .offset(x = 66f.s(), y = 27.29f.s())
+                .size(96f.s())
+        )
+        ShopMateSkeletonTextLine(
+            modifier = Modifier
+                .offset(x = 174f.s(), y = 18f.s())
+                .size(width = 126f.s(), height = 15f.s())
+        )
+        ShopMateSkeletonTextLine(
+            modifier = Modifier
+                .offset(x = 174f.s(), y = 42f.s())
+                .size(width = 104f.s(), height = 13f.s())
+        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6f.s()),
+            modifier = Modifier.offset(x = 174f.s(), y = 78f.s())
+        ) {
+            ShopMateSkeletonBlock(
+                cornerRadius = 999.dp,
+                modifier = Modifier.size(width = 52f.s(), height = 21f.s())
+            )
+            ShopMateSkeletonBlock(
+                cornerRadius = 999.dp,
+                modifier = Modifier.size(width = 48f.s(), height = 21f.s())
+            )
+        }
+        ShopMateSkeletonTextLine(
+            modifier = Modifier
+                .offset(x = 174f.s(), y = 114f.s())
+                .size(width = 58f.s(), height = 17f.s())
+        )
+        ShopMateSkeletonBlock(
+            cornerRadius = 999.dp,
+            modifier = Modifier
+                .offset(x = 239f.s(), y = 107.59f.s())
+                .size(width = 95.333f.s(), height = 28f.s())
+        )
     }
 }
 

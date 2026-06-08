@@ -52,6 +52,7 @@ import com.shopmate.app.ui.components.ShopMateFigmaFrameHeight
 import com.shopmate.app.ui.components.ShopMateFigmaFrameWidth
 import com.shopmate.app.ui.components.ShopMateProductImage
 import com.shopmate.app.ui.components.ShopMateRoundedIconButton
+import com.shopmate.app.ui.components.ShopMateStatusMessage
 import com.shopmate.app.ui.components.scaledDp
 import com.shopmate.app.ui.model.ComparisonCellUi
 import com.shopmate.app.ui.model.ComparisonHighlightUi
@@ -159,6 +160,70 @@ fun ProductComparisonScreen(
             elevation = 12f.s(),
             modifier = Modifier
                 .offset(x = frameStart + 337f.s(), y = headerTop + 3f.s())
+                .size(38f.s())
+                .zIndex(2f),
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.ic_cart),
+                contentDescription = "购物车",
+                modifier = Modifier.size(17f.s()),
+            )
+        }
+    }
+}
+
+@Composable
+fun ProductComparisonUnavailableScreen(
+    onBackClick: () -> Unit,
+    onCartClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxSize()
+            .shopMateScreenBackground(),
+    ) {
+        val scale = minOf(
+            maxWidth.value / ShopMateFigmaFrameWidth,
+            maxHeight.value / ShopMateFigmaFrameHeight,
+        )
+        val frameStart = ((maxWidth.value - ShopMateFigmaFrameWidth * scale) / 2f).dp
+
+        fun Float.s(): Dp = scaledDp(scale)
+
+        ShopMateStatusMessage(
+            title = "暂时无法打开对比",
+            message = "这组对比信息可能已更新，返回聊天后可以重新发起对比。",
+            actionText = "返回聊天",
+            onActionClick = onBackClick,
+            scale = scale,
+            modifier = Modifier
+                .offset(x = frameStart + 18f.s(), y = 238f.s())
+                .size(width = 352.667f.s(), height = 252f.s()),
+        )
+
+        ShopMateRoundedIconButton(
+            onClick = onBackClick,
+            backgroundColor = Color.White.copy(alpha = 0.94f),
+            elevation = 12f.s(),
+            modifier = Modifier
+                .offset(x = frameStart + 14f.s(), y = 39f.s())
+                .size(38f.s())
+                .zIndex(2f),
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.ic_back),
+                contentDescription = "返回聊天",
+                modifier = Modifier.size(16f.s()),
+            )
+        }
+
+        ShopMateRoundedIconButton(
+            onClick = onCartClick,
+            backgroundColor = Color.White.copy(alpha = 0.94f),
+            elevation = 12f.s(),
+            modifier = Modifier
+                .offset(x = frameStart + 337f.s(), y = 39f.s())
                 .size(38f.s())
                 .zIndex(2f),
         ) {

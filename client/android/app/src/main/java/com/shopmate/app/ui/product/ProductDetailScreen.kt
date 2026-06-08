@@ -18,7 +18,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -53,6 +52,8 @@ import com.shopmate.app.ui.components.ShopMateFigmaFrameHeight
 import com.shopmate.app.ui.components.ShopMateFigmaFrameWidth
 import com.shopmate.app.ui.components.ShopMateProductImage
 import com.shopmate.app.ui.components.ShopMateRoundedIconButton
+import com.shopmate.app.ui.components.ShopMateSkeletonBlock
+import com.shopmate.app.ui.components.ShopMateSkeletonTextLine
 import com.shopmate.app.ui.components.ShopMateStatusMessage
 import com.shopmate.app.ui.components.scaledDp
 import com.shopmate.app.ui.model.ProductDetailSpecUi
@@ -122,7 +123,11 @@ private fun ProductDetailScreenContent(
         val specTop = contentTop + 437.531f.s() + recommendationHeight + recommendationGap
         val suitabilityTop = specTop + 176f.s()
         val productBodyBottom = suitabilityTop + 95.188f.s()
-        val scrollBodyHeight = if (product == null) 430f.s() else productBodyBottom - contentTop
+        val scrollBodyHeight = if (product == null && !state.isLoading) {
+            430f.s()
+        } else {
+            productBodyBottom - contentTop
+        }
         val scrollContentHeight =
             (contentTop + scrollBodyHeight + footerHeight + footerBottom + 28f.s())
                 .coerceAtLeast(maxHeight + 1.dp)
@@ -140,11 +145,32 @@ private fun ProductDetailScreenContent(
                 )
             ) {
                 if (state.isLoading) {
-                    ProductLoadingCard(
+                    ProductHeroSkeletonCard(
                         scale = scale,
                         modifier = Modifier
-                            .offset(x = frameStart + 18f.s(), y = contentTop + 18f.s())
-                            .size(width = 352.667f.s(), height = 252f.s())
+                            .offset(x = frameStart + 18f.s(), y = contentTop + 4f.s())
+                            .size(width = 352.667f.s(), height = 419.531f.s())
+                    )
+
+                    RecommendationSkeletonCard(
+                        scale = scale,
+                        modifier = Modifier
+                            .offset(x = frameStart + 18f.s(), y = contentTop + 437.531f.s())
+                            .size(width = 352.667f.s(), height = recommendationHeight)
+                    )
+
+                    ProductSpecSkeletonCard(
+                        scale = scale,
+                        modifier = Modifier
+                            .offset(x = frameStart + 18f.s(), y = specTop)
+                            .size(width = 352.667f.s(), height = 162f.s())
+                    )
+
+                    SuitabilitySkeletonCard(
+                        scale = scale,
+                        modifier = Modifier
+                            .offset(x = frameStart + 18f.s(), y = suitabilityTop)
+                            .size(width = 352.667f.s(), height = 95.188f.s())
                     )
                 } else if (product == null) {
                     ProductDetailStatusCard(
@@ -751,7 +777,7 @@ private fun ProductDetailFooter(
 }
 
 @Composable
-private fun ProductLoadingCard(
+private fun ProductHeroSkeletonCard(
     scale: Float,
     modifier: Modifier = Modifier
 ) {
@@ -760,15 +786,145 @@ private fun ProductLoadingCard(
         shape = RoundedCornerShape(24f.scaledDp(scale)),
         elevation = 14f.scaledDp(scale)
     ) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            CircularProgressIndicator(
-                color = ShopMateGreen,
-                modifier = Modifier.size(36f.scaledDp(scale))
+        ShopMateSkeletonBlock(
+            cornerRadius = 20f.scaledDp(scale),
+            modifier = Modifier
+                .offset(x = 16f.scaledDp(scale), y = 16f.scaledDp(scale))
+                .size(width = 319.333f.scaledDp(scale), height = 238f.scaledDp(scale))
+        )
+        ShopMateSkeletonTextLine(
+            modifier = Modifier
+                .offset(x = 22f.scaledDp(scale), y = 282f.scaledDp(scale))
+                .size(width = 210f.scaledDp(scale), height = 18f.scaledDp(scale))
+        )
+        ShopMateSkeletonTextLine(
+            modifier = Modifier
+                .offset(x = 22f.scaledDp(scale), y = 313f.scaledDp(scale))
+                .size(width = 286f.scaledDp(scale), height = 13f.scaledDp(scale))
+        )
+        ShopMateSkeletonTextLine(
+            modifier = Modifier
+                .offset(x = 22f.scaledDp(scale), y = 336f.scaledDp(scale))
+                .size(width = 240f.scaledDp(scale), height = 13f.scaledDp(scale))
+        )
+        ShopMateSkeletonBlock(
+            cornerRadius = 999.dp,
+            modifier = Modifier
+                .offset(x = 22f.scaledDp(scale), y = 372f.scaledDp(scale))
+                .size(width = 126f.scaledDp(scale), height = 34f.scaledDp(scale))
+        )
+        ShopMateSkeletonBlock(
+            cornerRadius = 999.dp,
+            modifier = Modifier
+                .offset(x = 238f.scaledDp(scale), y = 372f.scaledDp(scale))
+                .size(width = 90f.scaledDp(scale), height = 34f.scaledDp(scale))
+        )
+    }
+}
+
+@Composable
+private fun RecommendationSkeletonCard(
+    scale: Float,
+    modifier: Modifier = Modifier
+) {
+    ProductSkeletonSurface(
+        scale = scale,
+        modifier = modifier
+    ) {
+        ShopMateSkeletonTextLine(
+            modifier = Modifier
+                .offset(x = 18f.scaledDp(scale), y = 18f.scaledDp(scale))
+                .size(width = 112f.scaledDp(scale), height = 16f.scaledDp(scale))
+        )
+        ShopMateSkeletonTextLine(
+            modifier = Modifier
+                .offset(x = 18f.scaledDp(scale), y = 52f.scaledDp(scale))
+                .size(width = 286f.scaledDp(scale), height = 13f.scaledDp(scale))
+        )
+        ShopMateSkeletonTextLine(
+            modifier = Modifier
+                .offset(x = 18f.scaledDp(scale), y = 76f.scaledDp(scale))
+                .size(width = 250f.scaledDp(scale), height = 13f.scaledDp(scale))
+        )
+        repeat(3) { index ->
+            ShopMateSkeletonTextLine(
+                modifier = Modifier
+                    .offset(
+                        x = 18f.scaledDp(scale),
+                        y = (112f + index * 28f).scaledDp(scale)
+                    )
+                    .size(width = (210f - index * 18f).scaledDp(scale), height = 12f.scaledDp(scale))
             )
         }
+    }
+}
+
+@Composable
+private fun ProductSpecSkeletonCard(
+    scale: Float,
+    modifier: Modifier = Modifier
+) {
+    ProductSkeletonSurface(
+        scale = scale,
+        modifier = modifier
+    ) {
+        ShopMateSkeletonTextLine(
+            modifier = Modifier
+                .offset(x = 18f.scaledDp(scale), y = 18f.scaledDp(scale))
+                .size(width = 92f.scaledDp(scale), height = 16f.scaledDp(scale))
+        )
+        repeat(4) { index ->
+            val column = index % 2
+            val row = index / 2
+            ShopMateSkeletonBlock(
+                cornerRadius = 14f.scaledDp(scale),
+                modifier = Modifier
+                    .offset(
+                        x = (18f + column * 162f).scaledDp(scale),
+                        y = (52f + row * 54f).scaledDp(scale)
+                    )
+                    .size(width = 144f.scaledDp(scale), height = 42f.scaledDp(scale))
+            )
+        }
+    }
+}
+
+@Composable
+private fun SuitabilitySkeletonCard(
+    scale: Float,
+    modifier: Modifier = Modifier
+) {
+    ProductSkeletonSurface(
+        scale = scale,
+        modifier = modifier
+    ) {
+        ShopMateSkeletonTextLine(
+            modifier = Modifier
+                .offset(x = 18f.scaledDp(scale), y = 18f.scaledDp(scale))
+                .size(width = 118f.scaledDp(scale), height = 16f.scaledDp(scale))
+        )
+        ShopMateSkeletonTextLine(
+            modifier = Modifier
+                .offset(x = 18f.scaledDp(scale), y = 52f.scaledDp(scale))
+                .size(width = 276f.scaledDp(scale), height = 13f.scaledDp(scale))
+        )
+    }
+}
+
+@Composable
+private fun ProductSkeletonSurface(
+    scale: Float,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    ShopMateElevatedSurface(
+        modifier = modifier,
+        shape = RoundedCornerShape(22f.scaledDp(scale)),
+        elevation = 8f.scaledDp(scale),
+        backgroundColor = Color.White.copy(alpha = 0.96f),
+        borderColor = Color(0xFFF0F3F2)
+    ) {
+        content()
     }
 }
 

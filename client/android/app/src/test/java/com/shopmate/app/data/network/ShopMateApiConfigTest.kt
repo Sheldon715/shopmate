@@ -1,5 +1,6 @@
 package com.shopmate.app.data.network
 
+import com.shopmate.app.BuildConfig
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import org.junit.Test
@@ -9,7 +10,8 @@ class ShopMateApiConfigTest {
     fun defaultConfigResolvesChatStreamPath() {
         val url = ShopMateApiConfig().resolve("api/chat/stream")
 
-        assertEquals("http://10.0.2.2:3000/api/chat/stream", url.toString())
+        val expectedUrl = BuildConfig.SHOPMATE_API_BASE_URL.trimEnd('/') + "/api/chat/stream"
+        assertEquals(expectedUrl, url.toString())
     }
 
     @Test

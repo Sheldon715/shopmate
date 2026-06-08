@@ -48,6 +48,8 @@ import androidx.compose.ui.unit.sp
 import com.shopmate.app.R
 import com.shopmate.app.ui.components.ShopMateCircleIconButton
 import com.shopmate.app.ui.components.ShopMateProductImage
+import com.shopmate.app.ui.components.ShopMateSkeletonBlock
+import com.shopmate.app.ui.components.ShopMateSkeletonTextLine
 import com.shopmate.app.ui.theme.ShopMateGreen
 import com.shopmate.app.ui.theme.ShopMateLightGreen
 import com.shopmate.app.ui.theme.ShopMatePillShape
@@ -142,10 +144,12 @@ fun CheckoutScreen(
                 onBackClick = onBackClick,
             )
 
-            if (draft == null) {
+            if (draft == null && state.errorMessage == null) {
+                CheckoutDraftSkeleton()
+            } else if (draft == null) {
                 CheckoutInlineMessage(
                     title = "订单信息不可用",
-                    message = "请返回购物车重新结算。"
+                    message = state.errorMessage ?: "请返回购物车重新结算。"
                 )
             } else {
                 CheckoutAddressCard(
@@ -193,6 +197,8 @@ fun CheckoutScreen(
             selectedCount = draft?.summary?.selectedCount ?: 0,
             submitting = state.isSubmitting,
             enabled = draft != null && !state.isSubmitting,
+            draftUnavailable = draft == null,
+            draftLoading = draft == null && state.errorMessage == null,
             onSubmitClick = onSubmitClick,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -850,6 +856,131 @@ private fun CheckoutItemsSection(items: List<CheckoutItemUi>) {
 }
 
 @Composable
+private fun CheckoutDraftSkeleton() {
+    CheckoutSection(title = "收货信息") {
+        ShopMateSkeletonTextLine(
+            modifier = Modifier.size(width = 164.dp, height = 16.dp)
+        )
+        ShopMateSkeletonTextLine(
+            modifier = Modifier.size(width = 276.dp, height = 13.dp)
+        )
+        ShopMateSkeletonBlock(
+            cornerRadius = 14.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(42.dp)
+        )
+    }
+
+    CheckoutSection(title = "商品清单") {
+        repeat(2) {
+            CheckoutItemSkeletonRow()
+        }
+    }
+
+    CheckoutSection(title = "配送方式") {
+        repeat(2) {
+            CheckoutOptionSkeletonRow()
+        }
+    }
+
+    CheckoutSection(title = "支付方式") {
+        repeat(2) {
+            CheckoutOptionSkeletonRow()
+        }
+    }
+
+    CheckoutSection(title = "金额明细") {
+        repeat(3) { index ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                ShopMateSkeletonTextLine(
+                    modifier = Modifier.size(width = 72.dp, height = 13.dp)
+                )
+                ShopMateSkeletonTextLine(
+                    modifier = Modifier.size(
+                        width = if (index == 2) 84.dp else 54.dp,
+                        height = if (index == 2) 18.dp else 13.dp,
+                    )
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CheckoutItemSkeletonRow() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(ShopMateSurfaceSoft)
+            .border(0.667.dp, Color(0xFFE8EFED), RoundedCornerShape(16.dp))
+            .padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        ShopMateSkeletonBlock(
+            cornerRadius = 14.dp,
+            modifier = Modifier.size(70.dp)
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(7.dp),
+        ) {
+            ShopMateSkeletonTextLine(
+                modifier = Modifier.size(width = 178.dp, height = 14.dp)
+            )
+            ShopMateSkeletonTextLine(
+                modifier = Modifier.size(width = 132.dp, height = 12.dp)
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                ShopMateSkeletonTextLine(
+                    modifier = Modifier.size(width = 54.dp, height = 14.dp)
+                )
+                ShopMateSkeletonTextLine(
+                    modifier = Modifier.size(width = 96.dp, height = 12.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CheckoutOptionSkeletonRow() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(ShopMateSurfaceSoft)
+            .border(0.667.dp, Color(0xFFE8EFED), RoundedCornerShape(16.dp))
+            .padding(horizontal = 12.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            ShopMateSkeletonTextLine(
+                modifier = Modifier.size(width = 128.dp, height = 14.dp)
+            )
+            ShopMateSkeletonTextLine(
+                modifier = Modifier.size(width = 168.dp, height = 12.dp)
+            )
+        }
+        ShopMateSkeletonTextLine(
+            modifier = Modifier.size(width = 54.dp, height = 13.dp)
+        )
+    }
+}
+
+@Composable
 private fun CheckoutItemRow(item: CheckoutItemUi) {
     Row(
         modifier = Modifier
@@ -1083,6 +1214,8 @@ private fun CheckoutSubmitBar(
     selectedCount: Int,
     submitting: Boolean,
     enabled: Boolean,
+    draftUnavailable: Boolean,
+    draftLoading: Boolean,
     onSubmitClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -1102,16 +1235,23 @@ private fun CheckoutSubmitBar(
                 lineHeight = 16.sp,
                 letterSpacing = 0.sp,
             )
-            Text(
-                text = totalText,
-                color = ShopMateTextPrimary,
-                fontSize = 23.sp,
-                lineHeight = 25.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                letterSpacing = 0.sp,
-            )
+            if (draftUnavailable) {
+                ShopMateSkeletonBlock(
+                    cornerRadius = 999.dp,
+                    modifier = Modifier.size(width = 92.dp, height = 24.dp)
+                )
+            } else {
+                Text(
+                    text = totalText,
+                    color = ShopMateTextPrimary,
+                    fontSize = 23.sp,
+                    lineHeight = 25.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    letterSpacing = 0.sp,
+                )
+            }
         }
         Box(
             modifier = Modifier
@@ -1136,7 +1276,11 @@ private fun CheckoutSubmitBar(
                 )
             } else {
                 Text(
-                    text = "提交订单 ($selectedCount)",
+                    text = when {
+                        draftLoading -> "加载中"
+                        draftUnavailable -> "不可提交"
+                        else -> "提交订单 ($selectedCount)"
+                    },
                     color = Color.White.copy(alpha = if (enabled) 1f else 0.72f),
                     fontSize = 14.sp,
                     lineHeight = 18.sp,

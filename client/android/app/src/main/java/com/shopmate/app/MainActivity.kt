@@ -35,6 +35,7 @@ import androidx.lifecycle.viewModelScope
 import com.shopmate.app.ui.cart.CartScreen
 import com.shopmate.app.ui.cart.CartViewModel
 import com.shopmate.app.ui.checkout.CheckoutScreen
+import com.shopmate.app.ui.checkout.CheckoutUiState
 import com.shopmate.app.ui.checkout.CheckoutViewModel
 import com.shopmate.app.ui.chat.ChatRecommendationScreen
 import com.shopmate.app.ui.chat.ChatSideEffect
@@ -44,6 +45,7 @@ import com.shopmate.app.ui.components.ShopMateBuddyTransitionController
 import com.shopmate.app.ui.components.ShopMateBuddyTransitionOverlay
 import com.shopmate.app.ui.components.ShopMateBuddyTransitionRequest
 import com.shopmate.app.ui.comparison.ProductComparisonScreen
+import com.shopmate.app.ui.comparison.ProductComparisonUnavailableScreen
 import com.shopmate.app.ui.home.HomeChatEntryScreen
 import com.shopmate.app.ui.model.HistoryConversationUi
 import com.shopmate.app.ui.onboarding.OnboardingScreen
@@ -425,9 +427,12 @@ class MainActivity : ComponentActivity() {
                         val comparison = comparisonId?.let(chatViewModel::findComparison)
 
                         if (comparison == null) {
-                            LaunchedEffect(comparisonId) {
-                                currentScreen = ShopMateScreen.ChatRecommendation
-                            }
+                            ProductComparisonUnavailableScreen(
+                                onBackClick = {
+                                    currentScreen = ShopMateScreen.ChatRecommendation
+                                },
+                                onCartClick = openCart,
+                            )
                         } else {
                             ProductComparisonScreen(
                                 comparison = comparison,
@@ -509,9 +514,40 @@ class MainActivity : ComponentActivity() {
                             chatUiState.activeCheckoutDraft?.draft?.id == checkoutScreen.draftId
 
                         if (draft == null) {
-                            LaunchedEffect(checkoutScreen.previousScreen) {
-                                currentScreen = checkoutScreen.previousScreen
-                            }
+                            CheckoutScreen(
+                                state = CheckoutUiState(
+                                    errorMessage = "待确认订单不可用，请返回购物车重新结算。"
+                                ),
+                                onBackClick = {
+                                    currentScreen = checkoutScreen.previousScreen
+                                },
+                                onRecipientChange = {},
+                                onPhoneChange = {},
+                                onAddressChange = {},
+                                onAddressEditClick = {},
+                                onAddressBookClick = {},
+                                onAddressPanelBack = {},
+                                onAddressAddClick = {},
+                                onSavedAddressClick = {},
+                                onSavedAddressEditClick = {},
+                                onAddressFormRecipientChange = {},
+                                onAddressFormPhoneChange = {},
+                                onAddressFormFullAddressChange = {},
+                                onAddressFormRegionChange = {},
+                                onAddressTagClick = {},
+                                onAddressSaveClick = {},
+                                onDeliveryMethodClick = {},
+                                onPaymentMethodClick = {},
+                                onSubmitClick = {},
+                                onReturnToCart = {
+                                    currentScreen = ShopMateScreen.Cart(
+                                        previousScreen = checkoutScreen.previousScreen
+                                    )
+                                },
+                                onReturnToChat = {
+                                    currentScreen = ShopMateScreen.ChatRecommendation
+                                },
+                            )
                         } else {
                             val checkoutViewModel: CheckoutViewModel = viewModel(
                                 key = "checkout-${draft.id}",
