@@ -246,7 +246,9 @@ private fun CartHeader(
         modifier = Modifier
             .offset(x = 18f.s(), y = 46f.s())
             .size(36f.s()),
-        iconSize = 18f.s()
+        iconSize = 18f.s(),
+        backgroundColor = Color.White,
+        showPressIndication = false,
     )
 
     Text(

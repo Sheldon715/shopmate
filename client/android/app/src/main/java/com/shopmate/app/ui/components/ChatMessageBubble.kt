@@ -30,7 +30,7 @@ import com.shopmate.app.ui.chat.ChatImageAttachmentUi
 fun ChatMessageBubble(
     text: String,
     fromUser: Boolean,
-    textScale: Float,
+    textScale: Float = 1f,
     modifier: Modifier = Modifier,
     imageAttachment: ChatImageAttachmentUi? = null,
 ) {
@@ -38,7 +38,7 @@ fun ChatMessageBubble(
         modifier = modifier
             .shadow(
                 elevation = 8.dp,
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(18.dp),
                 clip = false
             )
             .background(
@@ -49,19 +49,19 @@ fun ChatMessageBubble(
                 } else {
                     Brush.linearGradient(listOf(Color.White, Color.White))
                 },
-                shape = RoundedCornerShape(16.dp)
+                shape = RoundedCornerShape(18.dp)
             )
             .border(
                 width = if (fromUser) 0.dp else 0.667.dp,
                 color = if (fromUser) Color.Transparent else Color(0xFFF0F3F3),
-                shape = RoundedCornerShape(16.dp)
+                shape = RoundedCornerShape(18.dp)
             )
     ) {
         Column(
             modifier = Modifier
                 .padding(
-                    horizontal = if (fromUser) 14.dp else 12.dp,
-                    vertical = 10.dp,
+                    horizontal = if (fromUser) 15.dp else 13.dp,
+                    vertical = 11.dp,
                 )
         ) {
             imageAttachment?.let { attachment ->
@@ -78,8 +78,8 @@ fun ChatMessageBubble(
                 Text(
                     text = text,
                     color = if (fromUser) Color(0xFF275747) else Color(0xFF53606B),
-                    fontSize = (12f * textScale).sp,
-                    lineHeight = (18.6f * textScale).sp,
+                    fontSize = (13f * textScale).sp,
+                    lineHeight = (20.5f * textScale).sp,
                     letterSpacing = 0.sp,
                     overflow = TextOverflow.Clip,
                 )
@@ -117,8 +117,8 @@ private fun ChatBubbleImageAttachment(
             Text(
                 text = attachment.previewLabel,
                 color = if (fromUser) Color(0xFF275747) else Color(0xFF53606B),
-                fontSize = (11.5f * textScale).sp,
-                lineHeight = (15f * textScale).sp,
+                fontSize = (12f * textScale).sp,
+                lineHeight = (16f * textScale).sp,
                 letterSpacing = 0.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -132,7 +132,7 @@ private fun ChatBubbleImageAttachment(
                         ShopMateLottieStateIndicator(
                             state = indicatorState,
                             contentDescription = statusLabel,
-                            modifier = Modifier.size(18.dp),
+                            modifier = Modifier.size((18f * textScale).dp),
                         )
                     }
                     Text(
@@ -142,8 +142,8 @@ private fun ChatBubbleImageAttachment(
                         } else {
                             Color(0xFF65717C)
                         },
-                        fontSize = (10.5f * textScale).sp,
-                        lineHeight = (13.5f * textScale).sp,
+                        fontSize = (11f * textScale).sp,
+                        lineHeight = (14.5f * textScale).sp,
                         letterSpacing = 0.sp,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
@@ -169,21 +169,21 @@ private fun ChatImageAttachmentUi.stateIndicatorState(): ShopMateLottieState? =
 
 @Composable
 fun ChatTypingIndicatorBubble(
-    textScale: Float,
+    textScale: Float = 1f,
     modifier: Modifier = Modifier,
 ) {
     Box(
         modifier = modifier
             .shadow(
                 elevation = 8.dp,
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(18.dp),
                 clip = false,
             )
-            .background(Color.White, RoundedCornerShape(16.dp))
+            .background(Color.White, RoundedCornerShape(18.dp))
             .border(
                 width = 0.667.dp,
                 color = Color(0xFFF0F3F3),
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(18.dp),
             ),
         contentAlignment = Alignment.Center,
     ) {

@@ -32,7 +32,6 @@ import androidx.compose.ui.Modifier
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewModelScope
-import com.shopmate.app.data.mock.MockShopMateData
 import com.shopmate.app.ui.cart.CartScreen
 import com.shopmate.app.ui.cart.CartViewModel
 import com.shopmate.app.ui.checkout.CheckoutScreen
@@ -94,9 +93,15 @@ class MainActivity : ComponentActivity() {
                 var buddyTransitionRequest by remember {
                     mutableStateOf<ShopMateBuddyTransitionRequest?>(null)
                 }
+                var homeKeyboardAvatarVisible by remember { mutableStateOf(false) }
                 fun triggerHomeToChatBuddyTransition() {
                     if (currentScreen == ShopMateScreen.HomeChatEntry) {
                         buddyTransitionRequest = buddyTransitionController.trigger()
+                    }
+                }
+                fun triggerHomeToChatBuddyTransitionIfNeeded() {
+                    if (!homeKeyboardAvatarVisible) {
+                        triggerHomeToChatBuddyTransition()
                     }
                 }
                 fun cancelBuddyTransition() {
@@ -107,6 +112,9 @@ class MainActivity : ComponentActivity() {
                     if (currentScreen != ShopMateScreen.ChatRecommendation) {
                         cancelBuddyTransition()
                     }
+                    if (currentScreen != ShopMateScreen.HomeChatEntry) {
+                        homeKeyboardAvatarVisible = false
+                    }
                 }
                 val voiceController = remember(chatViewModel, appContainer.asrRepository) {
                     val voiceListener = object : AndroidSpeechVoiceInputController.Listener {
@@ -116,13 +124,13 @@ class MainActivity : ComponentActivity() {
 
                         override fun onTranscribing() {
                             chatViewModel.onVoiceTranscribing()
-                            triggerHomeToChatBuddyTransition()
+                            triggerHomeToChatBuddyTransitionIfNeeded()
                             currentScreen = ShopMateScreen.ChatRecommendation
                         }
 
                         override fun onTranscriptReady(transcript: String) {
                             chatViewModel.onVoiceTranscriptReady(transcript)
-                            triggerHomeToChatBuddyTransition()
+                            triggerHomeToChatBuddyTransitionIfNeeded()
                             currentScreen = ShopMateScreen.ChatRecommendation
                         }
 
@@ -290,8 +298,7 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                 }
-                val historyConversations =
-                    chatUiState.historyConversations + MockShopMateData.historyConversations
+                val historyConversations = chatUiState.historyConversations
                 val editableHistoryIds = chatViewModel.editableHistoryConversationIds()
                 val renameHistory: (String, String) -> Unit = { conversationId, title ->
                     chatViewModel.renameHistoryConversation(conversationId, title)
@@ -318,7 +325,7 @@ class MainActivity : ComponentActivity() {
                             currentChatState.selectedImage != null) &&
                         !currentChatState.isSending
                     ) {
-                        triggerHomeToChatBuddyTransition()
+                        triggerHomeToChatBuddyTransitionIfNeeded()
                         chatViewModel.sendMessage()
                         currentScreen = ShopMateScreen.ChatRecommendation
                     }
@@ -337,12 +344,6 @@ class MainActivity : ComponentActivity() {
                     cancelVoiceInput()
                     if (chatViewModel.openHistoryConversation(conversation.id)) {
                         currentScreen = ShopMateScreen.ChatRecommendation
-                    } else {
-                        currentScreen = when (conversation.id) {
-                            "history-commute-earbuds" -> ShopMateScreen.ChatRecommendation
-                            "history-sunscreen-compare" -> ShopMateScreen.ChatRecommendation
-                            else -> currentScreen
-                        }
                     }
                 }
 
@@ -369,6 +370,9 @@ class MainActivity : ComponentActivity() {
                         onImageRemoveClick = chatViewModel::clearSelectedImage,
                         onImageRetryClick = chatViewModel::retryImageSearch,
                         onCartClick = openCart,
+                        onKeyboardAvatarVisibilityChange = { visible ->
+                            homeKeyboardAvatarVisible = visible
+                        },
                         onNewChatClick = startNewChat,
                         onHistoryClick = openHistoryConversation,
                         editableConversationIds = editableHistoryIds,

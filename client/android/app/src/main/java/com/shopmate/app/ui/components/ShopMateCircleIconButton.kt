@@ -19,7 +19,8 @@ fun ShopMateCircleIconButton(
     iconSize: Dp,
     backgroundColor: Color = Color.White.copy(alpha = 0.78f),
     elevation: Dp = 8.dp,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    showPressIndication: Boolean = true,
 ) {
     ShopMateRoundedIconButton(
         onClick = onClick,
@@ -27,6 +28,7 @@ fun ShopMateCircleIconButton(
         shape = CircleShape,
         elevation = elevation,
         enabled = enabled,
+        showPressIndication = showPressIndication,
         modifier = modifier
     ) {
         Image(

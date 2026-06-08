@@ -1,4 +1,4 @@
-# Current Feature: Android State Lottie Feedback
+# Current Feature: Android Home Prompt Carousel
 
 ## 状态
 
@@ -6,54 +6,136 @@ Complete
 
 ## 目标
 
-- 为聊天等待、语音 listening / transcribing、图片解释 / 搜索等高频 busy 状态增加克制的 Lottie 微动效。
-- 新增统一的 `ShopMateLottieStateIndicator` 封装，复用本地 `res/raw` 动效资源，并提供 Compose / 静态 fallback。
-- 保留每个状态的用户可见文案、颜色或无障碍语义，避免只靠动画表达状态。
-- 保持业务状态、Chat SSE schema、ASR / image provider、购物车和 checkout contract 不变，不因动画延迟真实结果。
-- 明确 Lottie 只服务 AI / 语音 / 图片处理状态，不替代商品图、详情、购物车或 checkout skeleton。
+- 将 Home 下方固定 4 条 prompt suggestion 扩充为 7-8 条可滑动中文 prompt carousel。
+- 新 prompt 覆盖 ShopMate 当前真实能力：RAG 推荐、反选约束、商品对比、图片找货、购物车和 checkout，但不夸大支付 / 物流等未实现能力。
+- 保持现有 Home 结构和 ShopMate 白底、绿色强调、轻量卡片风格，不照搬参考图的 OK 气泡或社交聊天视觉。
+- 点击 prompt 只填入 composer 文本，不自动发送，也不触发购物车、checkout 或其他业务状态变更。
+- 小屏、键盘避让和图片附件场景下 prompt panel 尺寸稳定，不遮挡底部 `ChatComposer`。
 
 ## 待办清单
 
-- [x] 确认 `android-buddy-lottie-motion-spec.md` 已接入 Lottie Compose 与本地 raw resource 方案，避免重复依赖或重复封装。
-- [x] 新增 `ShopMateLottieStateIndicator` 与 `ShopMateLottieState`，完成 state -> raw resource / fallback 的集中映射。
-- [x] 新增或接入本地 raw 动效资源：AI thinking、voice listening、voice transcribing、image interpreting。
-- [x] 在聊天等待态接入 `AiThinking`，首个真实 `message_delta` 到达后停止动画并交给现有 streaming / typewriter 文本。
-- [x] 在 `ChatComposer` 语音 listening / transcribing 状态接入对应横向波形或 pulse 动效，权限拒绝和错误状态保持静态错误反馈。
-- [x] 在图片解释 / 搜索 busy 状态接入 `ImageInterpreting`，同时保留状态文案、失败重试和删除入口。
-- [x] 确认商品详情、购物车、checkout draft、商品图 loading 仍走 skeleton / 静态占位，不被 Lottie 替代。
-- [x] 补充必要的 Android 单元测试或 resource 映射测试；已有 ViewModel 只断言业务状态，不把 Lottie 当业务状态来源。
-- [x] 运行 `cd client/android` 后的 `.\gradlew.bat --no-daemon testDebugUnitTest`。
-- [x] 运行 `.\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/`，或记录真实失败原因。
+- [x] 扩展 `MockShopMateData.promptSuggestions` 到 7-8 条中文文案，覆盖推荐、反选、对比、图片找货、购物车 / checkout 等 Demo 能力。
+- [x] 在 `HomeChatEntryScreen.kt` 中将固定 prompt 区调整为固定高度可滚动列表，必要时拆出 `HomePromptCarousel.kt`。
+- [x] 为 prompt item 保留 ShopMate 风格的白底 / 浅绿反馈 / 图标视觉，并加入轻量 press / selected 反馈和可滚动提示。
+- [x] 确认 prompt 点击沿用现有行为：替换 composer 文本，不自动发送；busy 状态遵循现有 composer 规则。
+- [x] 如需扩展 `PromptSuggestionUi`，保留默认值并只使用现有 `ic_prompt_bag`、`ic_prompt_cart`、`ic_prompt_search`、`ic_prompt_camera` 等资源。
+- [ ] 检查 389x843 与 360x740 等小屏尺寸下列表、scrim、图片附件和 composer 不重叠、不溢出。
+- [x] 运行 `cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest`。
+- [x] 运行 `cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/`，或记录真实失败原因。
+- [x] 根据反馈微调真实聊天页消息气泡阅读尺度：仅放大 `ChatMessageBubble` / typing indicator 的文字和状态动效，不改商品卡、checkout 卡、composer 或后端 contract。
+- [x] 根据反馈先调一个真实聊天页样版：顶部 sidebar / cart / Buddy、底部语音 / 打字 composer 等比例小幅放大，整体与顶部 / 底部稍微拉开距离，并在 composer 下方加入淡色 AI 生成提示。
+- [x] 根据截图反馈修正 Home 标题框比例：上下圆角和内边距更均衡，避免标题 / 说明文字挤压或下半形状突兀。
+- [x] 将 Home prompt 自动滚动从逐条跳动改为连续匀速滚动，保留可手动滑动和循环滚动体验。
+- [x] 对齐 Home 主界面和推荐页的小字、顶部按钮、底部 composer 控件比例，让两页看起来属于同一套阅读尺度。
+- [x] 继续放大聊天气泡文字、typing indicator、composer 图标和输入文字，但不改变后端 contract 或商品卡数据结构。
+- [x] 修正 Home 键盘打开态：打字框聚焦 / IME 弹出时 Buddy、标题框和 prompt 列表暂时隐藏，键盘收起后自动恢复。
+- [x] 修正 Home 键盘打开态 composer 位置：输入栏贴近键盘上沿，不让 prompt / Buddy 被压在键盘上方形成拥挤空白。
+- [x] 移除 Home / 聊天页顶部圆形 icon button 内部浅色小圈 / 不规则亮斑，保持单层干净白色圆形按钮。
+- [x] 修正顶部 Buddy 头像圆形裁切，避免 PNG / Lottie 边缘看起来像八边形。
+- [x] 修正 Home / 推荐页键盘打开态回归：顶部保留侧边栏 / Buddy / 购物车按钮，输入框基于可见区域贴键盘上沿，不再重复扣减或遗漏 IME 高度。
+- [x] 将顶部 Buddy 头像改为透明背景独立显示，移除白色圆形框、圆形裁切和头像阴影。
+- [x] 统一 Home 键盘态和非键盘态顶部 sidebar / cart 横向位置，避免打开键盘时按钮轻微位移。
+- [x] 为 Home 键盘开合接入 Buddy Lottie morph：打开键盘从大 Buddy 过渡到顶部头像，关闭键盘从头像过渡回大 Buddy。
+- [x] Home 键盘态已经显示顶部 Buddy 头像时，发送消息不再重复触发 Home 到聊天页的缩头像转场。
+- [x] 微调推荐聊天页底部 composer：输入栏再上移一点，并让 AI 小字保持在输入栏下方接近底部的位置。
+- [x] 根据反馈修正推荐聊天页底部方向：composer 从上一版上移状态往下回落，贴近 AI 小字。
+- [x] 根据反馈将推荐聊天页 composer 再小幅下移，继续贴近 AI 小字。
+- [x] 根据反馈将推荐聊天页 composer 继续下移一档。
 
 ## 备注
 
-- Spec 来源：`context/feature/android-state-lottie-feedback-spec.md`。
-- 开发顺序：对应 `context/spec-implementation-order.md` 的 34.2，属于商业 Demo 体验打磨 V1 中的“状态 Lottie 微动效”。
-- 实现边界：只修改 Android UI / resource 层；不修改后端、Chat SSE schema、ASR provider、image search provider、Cart / Checkout API。
-- 依赖边界：优先复用 34.1 Buddy Lottie 已接入的 Lottie Compose 依赖和本地 raw resource 方式；不要新增远程 Lottie 加载或 LottieFiles SDK。
-- 行为边界：动画不得延迟 SSE、ASR、图片解释、购物车或 checkout 真实结果；进入非 busy、失败、权限拒绝或完成状态后必须停止动画。
-- 可访问性边界：每个动画状态必须有文本、颜色或 `contentDescription` / 语义 fallback；Lottie 加载失败时不能出现空白或不可点击状态。
-- 视觉边界：动效应小尺寸、透明背景、低饱和 ShopMate green / mint / soft gray；不用于按钮按压、业务成功提示、页面转场或商品 skeleton。
-- 验证重点：普通聊天等待、语音按住 / 转写、语音错误、图片解释 / 搜索失败、小屏语音条布局、低端设备或动画关闭时 fallback。
-- 实现记录：`client/android/app/build.gradle.kts` 已有 `com.airbnb.android:lottie-compose:6.7.1`，本 feature 未重复改 Gradle 依赖。
-- 实现记录：新增 `ShopMateLottieStateIndicator`，集中处理 `AiThinking`、`VoiceListening`、`VoiceTranscribing`、`ImageInterpreting` 的 raw resource 映射、循环播放、系统动画关闭 / Preview fallback 和语义描述。
-- 实现记录：新增 4 个本地 `res/raw` 状态动效资源：`shopmate_ai_thinking.json`、`shopmate_voice_wave_listening.json`、`shopmate_voice_wave_transcribing.json`、`shopmate_image_interpreting.json`；新增资源总量约 21KB，未接远程 Lottie。
-- 实现记录：聊天空白 streaming 占位气泡接入 `AiThinking`；真实文本到达后不再显示 continuation thinking 指示器，由现有 streaming / typewriter 文本承担展示。
-- 实现记录：`ChatComposer` 的语音 listening / transcribing 状态接入横向 Lottie 指示器，同时保留“松开发送”“正在转成文字”等用户可见文案；权限拒绝和错误状态不播放 Lottie。
-- 交互调整记录：根据反馈将语音 listening 的“松手发送 上滑取消”提示移到语音条上方低对比度胶囊内，语音条内部主要展示更宽的 Lottie 波形；transcribing 状态同样把“正在转成文字”放到条上方并让动效占据更多语音条空间。
-- 交互调整记录：语音 listening 增加上滑取消阈值，按住后向上滑出约 36dp 会触发 `onVoiceCancel()`；松手仍走原有发送 / 结束语音路径。
-- App 展示记录：根据反馈将 Android app 名称改为“抖选选”，并使用用户提供的绿色 Buddy 方图生成 `mipmap-mdpi` 到 `mipmap-xxxhdpi` 的 launcher / round launcher PNG 资源；`AndroidManifest.xml` 已改用 `@mipmap/ic_shopmate_launcher` 与 `@mipmap/ic_shopmate_launcher_round`。
-- 实现记录：图片解释 / 搜索 busy 状态在 composer preview 和用户气泡附件状态行显示 `ImageInterpreting` 小动效，同时保留状态文案、重试和删除入口；上传 / 失败 / 已选择不播放 Lottie。
-- 范围确认：本 feature 未修改后端、Chat SSE schema、ASR provider、image search provider、Cart / Checkout API；商品详情、购物车、checkout draft、商品图 loading 文件未进入本次实现 diff。
-- 测试记录：新增 `ShopMateLottieStateIndicatorTest`，覆盖 state -> raw resource 映射和图片 busy 状态到 `ImageInterpreting` 的映射。
-- 验证记录：`client/android/app/src/main/res/raw/shopmate_*.json` 全部通过 PowerShell `ConvertFrom-Json` 解析。
-- 验证记录：`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.ui.components.ShopMateLottieStateIndicatorTest"` 通过。
+- Spec 来源：`context/feature/android-home-prompt-carousel-spec.md`。
+- Scope：仅 Android Home prompt 入口体验；预计修改 `HomeChatEntryScreen.kt`、`MockShopMateData.kt`，仅在确有需要时修改 `PromptSuggestionUi.kt` 或新增 `HomePromptCarousel.kt`。
+- 不修改后端、Chat SSE contract、Cart / Checkout API、Lottie / Buddy 动效组件。
+- Prompt 文案优先使用 spec 中的 7-8 条建议，避免“全网最低价”“马上付款”“保证正品”等当前系统不能证明的承诺。
+- 不新增 Lottie、Pager 第三方库或复杂手势库；使用 Compose Foundation 的滚动能力和轻量 fade scrim 即可。
+- 验收重点：Home prompt 从静态 4 条升级为可滑动列表，点击只填入 composer，UI 不遮挡底部输入区，Android test / build 有真实记录。
+- 实现记录：`MockShopMateData.promptSuggestions` 已扩展为 8 条中文建议，覆盖推荐、预算、反选、家电、图片找货、对比、购物车 checkout 和不含酒精反选场景。
+- 实现记录：`PromptSuggestionUi` 增加 `categoryLabel` 与 `PromptSuggestionIconType` 默认字段，保留旧构造方式兼容；图标仍映射到现有 `ic_prompt_bag`、`ic_prompt_cart`、`ic_prompt_search`、`ic_prompt_camera`。
+- 实现记录：`HomeChatEntryScreen.kt` 将 prompt panel 内部改为固定高度 `LazyColumn`，首屏可见约 4 条，总量 8 条；顶部 / 底部使用轻量 fade scrim 暗示可滚动，没有新增显式使用说明文案。
+- 实现记录：prompt 点击只更新 composer 文本；发送中、语音 listening / transcribing / transcript ready、图片 uploading / interpreting / searching 时禁用 prompt 点击，避免 busy 状态下替换输入。
+- 视觉调整记录：根据反馈移除 prompt 区域外层大白色卡片 / 边框 / 阴影，让标题和 prompt row 更像浮在 Home 背景上；每条 prompt 保留半透明白底、圆角、轻阴影和选中态，避免完全散掉。
+- 视觉调整记录：底部 fade scrim 从 28dp 加厚到 72dp，并提高白雾不透明度，用来遮住第四条下半截，让可滚动状态更明显；顶部 scrim 也略加厚到 24dp。
+- 视觉调整记录：标题右侧加入复用 `ShopMateLottieStateIndicator(AiThinking)` 的小型动效胶囊，作为 Home prompt 区的轻量活力点缀；未新增 Lottie 资源或依赖。
+- 三次视觉调整记录：根据反馈将 Buddy 从 252x255.823 缩小到 232x235.5，并用一层浅背景渐变托住身体底边，减少“半截身体悬空”的感觉。
+- 三次视觉调整记录：prompt row 阴影从 3dp / 8dp 降到 1dp / 3dp，减少截图里出现的横向阴影条；底部 fade 从 72dp 收窄到 48dp，顶部 fade 从 24dp 收窄到 18dp，降低打字框附近的糊感。
+- 三次视觉调整记录：`selectedPromptId` 初始值改为 `null`，只有用户点击 prompt 后才显示绿色选中态。
+- 四次视觉调整记录：将标题区收成 326.667x94 的浅白圆角框，右侧 Lottie 胶囊改为更小的 38x22 贴边状态点，避免标题区显得厚重。
+- 四次视觉调整记录：Buddy 位置微调为 x=70 / y=204，尺寸回调到 246x249.7，让身体更贴近 prompt 标题框上沿，减少孤立悬空感。
+- 四次视觉调整记录：prompt row 改为 52dp 高的软胶囊，圆角 22dp、轻阴影 2dp，缩窄图标 / 标签间距并用单行省略，避免长 prompt 在小屏下挤压溢出。
+- 五次视觉调整记录：根据反馈将标题框继续缩小为 288.667x76 的不透明白底小卡，降低阴影和圆角尺寸，让标题区不再像一块厚重半透明浮层。
+- 五次视觉调整记录：prompt carousel 改为真实 Compose 循环滚动列表：`LazyColumn` 虚拟重复 prompt 数据并从中间段起步，滑到首尾附近后按同一 prompt 位置无感回到中间段，实现首尾相接。
+- 五次设计判断记录：prompt 是可点击真实文本列表，不使用 Lottie；Lottie 继续只用于右侧小状态胶囊和已有 busy 状态，避免把交互列表做成不可访问的假动画层。
+- 六次视觉调整记录：补上 prompt 自动滚动，每 2.2 秒自动推进一条；用户手动滑动时不抢滚动，仍保留首尾循环的无感回中间段逻辑。
+- 六次视觉调整记录：标题框再上移 10dp，缩窄到 264.667x72，降低阴影到 5dp，边框改为更淡的 `#F0F5F2`，让它更像轻量白色托盘。
+- 六次视觉调整记录：右侧 Lottie 状态胶囊微调为 33x20，并半露在标题框右上侧，减少“框内硬塞按钮”的笨重感。
+- 七次视觉调整计划：根据反馈微调 `ChatRecommendationScreen` 的消息气泡和字体阅读尺度，优先复用 `ChatMessageBubble` 现有 `textScale` 通道，避免把商品卡、订单草稿卡和输入栏一起放大。
+- 七次视觉调整记录：`ChatMessageBubble` / `ChatTypingIndicatorBubble` 的 `textScale` 增加默认值 1f，并让图片状态小动效跟随文字缩放；`ChatRecommendationScreen` 仅对消息气泡传入 `scale * 1.06f`，商品卡、对比入口、checkout 草稿卡和 composer 继续使用原页面 scale。
+- 八次视觉调整记录：`ShopMateTopActionBar` 与 `ChatComposer` 增加共享 `controlScale` 通道，让 sidebar、购物车、顶部 Buddy、底部语音 / 打字栏及内部图标 / 字体可等比例小幅放大。
+- 八次视觉调整记录：`ChatRecommendationScreen` 将顶部栏从 36dp 下移到 40dp，消息内容起点从 80dp 下移到 88dp，底部 composer 与屏幕底部距离从 18dp 增到 32dp，并在 composer 下方加入居中的淡色“内容由 AI 生成，仅供参考”提示。
+- 九次收尾记录：新增共享 `ShopMateReadableControlScale`，`ChatComposer` 与 `ShopMateTopActionBar` 默认使用同一阅读比例；`ChatRecommendationScreen` 移除 `ChatChromeReadableScale` / `ChatBubbleReadableScale` 单页常量，仅在外层用共享比例预留高度。
+- 九次收尾记录：`HomeChatEntryScreen` 顶部 sidebar / cart 圆形按钮和底部 composer 外层高度也接入共享阅读比例，screen 默认历史列表改为空，避免调用方遗漏参数时自动带入 mock history。
+- 九次收尾记录：`MainActivity` 不再将 `MockShopMateData.historyConversations` 拼入真实会话历史，也移除 `history-commute-earbuds` / `history-sunscreen-compare` 的 mock id 跳转 fallback；运行时侧边栏只展示 `ChatViewModel` 保存的真实会话。
+- 十次视觉调整记录：Home 标题框改为 302.667x84 的统一圆角白卡，标题 / 说明用垂直居中 Column 排版，右侧状态胶囊略放大并贴在标题卡右上侧，避免上下半形状不一致和文字挤压。
+- 十次视觉调整记录：prompt 自动滚动由 `delay + animateScrollToItem` 改成 `withFrameNanos + scrollBy` 的连续匀速滚动，速度按 `PROMPT_AUTO_SCROLL_SPEED_DP_PER_SECOND` 控制；用户拖拽时暂停自动滚动，仍保留虚拟循环列表回中间段逻辑。
+- 十次视觉调整记录：`ShopMateReadableControlScale` 从 1.06 调整到 1.10，Home 标题 / prompt 文案、顶部按钮、底部 composer、推荐页顶部栏和 AI 生成提示统一使用这套阅读比例。
+- 十次视觉调整记录：`ChatMessageBubble` 基础字号从 12sp 提到 13sp，圆角 / padding 和图片附件状态文字同步放大；typing indicator 的气泡圆角和动效尺寸继续跟随 `textScale`，不改商品卡、checkout 卡或后端 contract。
+- 十一次视觉调整记录：Home 入口页使用 `WindowInsets.ime` 判断键盘是否打开；IME 可见时暂时不渲染 `HeroMascot` 与 `PromptPanel`，让屏幕中部保持干净空白，键盘收起后 Buddy、标题框和 prompt 列表自动恢复。
+- 十一次视觉调整记录：Home composer 在键盘打开时改为按 IME bottom 手动定位到键盘上沿上方 12dp，并取消该状态下的 `navigationBarsPadding` 叠加；键盘关闭时保留原本底部位置和导航栏 padding。
+- 十二次视觉调整记录：Home / 聊天页顶部圆形按钮改为实白底，并仅对这些顶部大圆按钮关闭默认 ripple 亮斑，避免图标周围出现浅色不规则小圈；其他返回 / 删除类圆按钮保留原有点击反馈。
+- 十二次视觉调整记录：聊天页顶部 Buddy 头像外层增加白色圆形底和 `CircleShape` 裁切，Lottie / PNG 内容被限制在真实圆形头像内，避免透明边缘看起来像八边形。
+- 十三次视觉调整记录：根据 Android 官方键盘避让建议改为布局型处理：`MainActivity` 在 manifest 声明 `android:windowSoftInputMode="adjustResize"`，Home / 推荐页 composer 不再手算 IME 高度，而是锚定底部后交给 `navigationBarsPadding()` + `imePadding()` 处理键盘避让。
+- 十三次视觉调整记录：Home 键盘态保留侧边栏 / Buddy / 购物车顶部导航，只隐藏品牌文案、大 Buddy 和 prompt；推荐页消息列表也接入 `imePadding()`，让消息流和底部输入栏一起避开键盘。
+- 十四次视觉调整记录：顶部 Buddy 头像不再放进白色圆形头像框，也不做 `CircleShape` 裁切和圆形阴影；直接渲染透明背景的 `ShopMateBuddyMotion` / PNG fallback，让 Buddy 像参考图一样单独站在中间。
+- 十五次视觉调整记录：Home 键盘态顶部改用 `KeyboardHeader`，内部复用非键盘态同一个 `Header` 来渲染 sidebar / cart；Buddy 透明图作为居中叠层单独显示，避免键盘打开 / 关闭时左右按钮从全宽绝对定位切换到窄 Row 而产生轻微横向位移。
+- 十六次视觉调整记录：`ShopMateBuddyMotion` 支持同一段 Lottie 正放 / 倒放；Home 新增键盘开合 Buddy morph overlay，打开键盘时从大 Buddy 缩到顶部头像，关闭键盘时倒放回大 Buddy，过渡期间隐藏最终态 Buddy 避免重影。
+- 十六次视觉调整记录：Home 向 `MainActivity` 回传键盘头像可见状态；键盘态已经显示顶部头像时发送消息不再触发 Home 到聊天页的 Buddy 缩头像转场，避免重复动画。
+- 十七次视觉调整记录：推荐聊天页 `ChatComposer` 底部偏移从 32dp 调到 42dp，AI 小字改为接近底部的固定位置，让输入栏在小字上方留出更清楚的视觉间距；键盘态也随同一 bottom offset 略微上移。
+- 十八次视觉修正记录：上一版将推荐聊天页 `ChatComposer` 上移过多；根据反馈把 bottom offset 从 42dp 回落到 32dp，保留 AI 小字底部固定位置，让输入栏更贴近小字。
+- 十九次视觉修正记录：根据反馈将推荐聊天页 `ChatComposer` bottom offset 从 32dp 继续下调到 26dp，让输入栏再往下贴近 AI 小字；按用户要求未跑测试 / build。
+- 二十次视觉修正记录：根据反馈将推荐聊天页 `ChatComposer` bottom offset 从 26dp 继续下调到 20dp，让输入栏再往下贴近 AI 小字；按用户要求未跑测试 / build。
+- 测试记录：新增 `MockShopMateDataTest`，覆盖 Home prompt 数量、id 唯一、关键能力文案和 `PromptSuggestionUi` 默认兼容字段。
+- 验证记录：`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.data.mock.MockShopMateDataTest"` 通过。
 - 验证记录：`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 通过。
-- 验证记录：`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过，输出 `BUILD SUCCESSFUL in 1m 7s`。
-- 验证记录：`git diff --check -- <feature-owned Android files>` 通过；仅提示 Windows line ending 将由 Git 转 CRLF。
-- 验证记录：语音条提示调整后，`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 通过，输出 `SHOPMATE_TEST_DEBUG_UNIT_OK`。
-- 验证记录：语音条提示调整后，`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过，输出 `SHOPMATE_DEMO_BUILD_OK`。
-- 验证记录：App 名称 / launcher icon 接入后，`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 与 `.\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 均通过；`git diff --check -- <feature-owned Android files>` 仅提示 Windows line ending 将由 Git 转 CRLF。
+- 验证记录：`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过，输出 `BUILD SUCCESSFUL in 1m 8s`。
+- 验证记录：`git diff --check -- <feature-owned Android files> context/current-feature.md` 通过；仅提示 Windows line ending 将由 Git 转 CRLF。
+- 二次验证记录：视觉调整后，`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 通过。
+- 二次验证记录：视觉调整后，`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过，输出 `BUILD SUCCESSFUL in 1m 54s`。
+- 二次验证记录：视觉调整后，`git diff --check -- <feature-owned Android files> context/current-feature.md` 通过；仅提示 Windows line ending 将由 Git 转 CRLF。
+- 三次验证记录：Buddy / fade / prompt 阴影 / 初始选中态调整后，`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 通过。
+- 三次验证记录：Buddy / fade / prompt 阴影 / 初始选中态调整后，`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过，输出 `BUILD SUCCESSFUL in 1m 51s`。
+- 三次验证记录：Buddy / fade / prompt 阴影 / 初始选中态调整后，`git diff --check -- <feature-owned Android files> context/current-feature.md` 通过；仅提示 Windows line ending 将由 Git 转 CRLF。
+- 四次验证记录：标题框 / Buddy 贴边 / prompt 胶囊化调整后，`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 通过，输出 `BUILD SUCCESSFUL in 25s`。
+- 四次验证记录：标题框 / Buddy 贴边 / prompt 胶囊化调整后，`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过，输出 `BUILD SUCCESSFUL in 1m 44s`。
+- 五次验证记录：标题框不透明缩小 / prompt 循环滚动调整后，`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 通过，输出 `BUILD SUCCESSFUL in 24s`。
+- 五次验证记录：标题框不透明缩小 / prompt 循环滚动调整后，`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过，输出 `BUILD SUCCESSFUL in 1m 42s`。
+- 六次验证记录：prompt 自动滚动 / 标题框上移美化调整后，`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 通过，输出 `BUILD SUCCESSFUL in 25s`。
+- 六次验证记录：prompt 自动滚动 / 标题框上移美化调整后，`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过，输出 `BUILD SUCCESSFUL in 1m 11s`。
+- 七次验证记录：聊天气泡阅读尺度微调后，`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 通过。
+- 七次验证记录：聊天气泡阅读尺度微调后，`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过。
+- 八次验证记录：聊天页顶部 / 底部控件和 AI 提示调整后，`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 通过，输出 `BUILD SUCCESSFUL in 26s`。
+- 八次验证记录：聊天页顶部 / 底部控件和 AI 提示调整后，`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过。
+- 九次验证记录：共享阅读比例 / 运行时 mock history 清理后，`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 通过，输出 `BUILD SUCCESSFUL in 28s`。
+- 九次验证记录：共享阅读比例 / 运行时 mock history 清理后，`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过，输出 `BUILD SUCCESSFUL in 1m 31s`。
+- 九次验证记录：`git diff --check -- <feature-owned Android files>` 通过；仅提示 Windows line ending 将由 Git 转 CRLF。
+- 十次验证记录：标题框均衡 / prompt 匀速滚动 / 阅读尺度调整后，`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 通过。
+- 十次验证记录：标题框均衡 / prompt 匀速滚动 / 阅读尺度调整后，`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过。
+- 十一次验证记录：Home 键盘打开态隐藏 Buddy / prompt 并重定位 composer 后，`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 通过，输出 `BUILD SUCCESSFUL in 22s`。
+- 十一次验证记录：Home 键盘打开态隐藏 Buddy / prompt 并重定位 composer 后，`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过。
+- 十二次验证记录：顶部圆形按钮亮斑 / Buddy 头像圆形裁切调整后，`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 通过。
+- 十二次验证记录：顶部圆形按钮亮斑 / Buddy 头像圆形裁切调整后，`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过，输出 `BUILD SUCCESSFUL in 1m 33s`。
+- 十三次验证记录：Home / 推荐页键盘态改为官方 `adjustResize` + `imePadding` 布局模式后，`cd client/android; .\gradlew.bat --no-daemon :app:compileDebugKotlin` 通过，输出 `BUILD SUCCESSFUL in 13s`；仍需真机截图确认视觉位置。
+- 十四次验证记录：顶部 Buddy 透明背景调整后，`cd client/android; .\gradlew.bat --no-daemon :app:compileDebugKotlin` 通过，输出 `BUILD SUCCESSFUL in 11s`。
+- 十五次验证记录：Home 键盘态顶部左右按钮位置对齐调整后，`cd client/android; .\gradlew.bat --no-daemon :app:compileDebugKotlin` 通过，输出 `BUILD SUCCESSFUL in 11s`。
+- 十六次验证记录：Home 键盘开合 Buddy morph / 发送跳过重复缩头像调整后，`cd client/android; .\gradlew.bat --no-daemon :app:compileDebugKotlin` 通过，输出 `BUILD SUCCESSFUL in 18s`。
+- 十六次验证记录：`git diff --check -- client/android/app/src/main/java/com/shopmate/app/ui/components/ShopMateBuddyMotion.kt client/android/app/src/main/java/com/shopmate/app/ui/home/HomeChatEntryScreen.kt client/android/app/src/main/java/com/shopmate/app/MainActivity.kt` 通过；仅提示 Windows line ending 将由 Git 转 CRLF。
+- 十七次验证记录：推荐聊天页底部 composer / AI 小字位置微调后，`cd client/android; .\gradlew.bat --no-daemon :app:compileDebugKotlin` 通过，输出 `BUILD SUCCESSFUL in 12s`。
+- 十七次验证记录：`git diff --check -- client/android/app/src/main/java/com/shopmate/app/ui/chat/ChatRecommendationScreen.kt` 通过；仅提示 Windows line ending 将由 Git 转 CRLF。
+- 十八次验证记录：推荐聊天页 composer 下移贴近 AI 小字修正后，`cd client/android; .\gradlew.bat --no-daemon :app:compileDebugKotlin` 通过，输出 `BUILD SUCCESSFUL in 12s`。
+- 十八次验证记录：`git diff --check -- client/android/app/src/main/java/com/shopmate/app/ui/chat/ChatRecommendationScreen.kt context/current-feature.md` 通过；仅提示 Windows line ending 将由 Git 转 CRLF。
+- 完成验证记录：`cd client/android; .\gradlew.bat --no-daemon testDebugUnitTest` 通过，输出 `BUILD SUCCESSFUL in 16s`。
+- 完成验证记录：`cd client/android; .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api.example.com/` 通过，输出 `BUILD SUCCESSFUL in 1m 11s`。
+- 待人工确认：尚未在 Android Studio Preview / 真机上逐项查看 389x843、360x740、键盘和图片附件场景的视觉重叠情况。
 
 ## 历史记录
 - 初始化前后端技术栈骨架：完成 Android Kotlin + Jetpack Compose 与 Node.js + TypeScript + Express 最小工程初始化，补充 README 与 Git 忽略配置，并通过后端构建与 Android `assembleDebug` 验证。
@@ -138,3 +220,4 @@ Complete
 - Android Chat Checkout Draft Card：新增 Android 聊天订单草稿卡片，解析 `checkoutAction.draft`，支持草稿创建 / 更新 / 取消 / 过期 / 失败 / 提交状态展示，卡片可进入 `CheckoutScreen(draftId)` 并通过聊天确认或取消下单；通过 Android `testDebugUnitTest` 和带 demo HTTPS URL 的 build 验证。
 - Checkout Realtime SSE Event：新增独立 `checkout_action` SSE event，Android 可在 `done` 前同步 checkout draft 状态并对 `done.checkoutAction` 去重；同时修复下单成功后草稿卡残留和购物车合计金额截断问题。通过后端 test / build、Android `testDebugUnitTest`、带 demo HTTPS URL 的 Android build 和本地 Chat SSE smoke 验证。
 - Android Buddy Lottie Motion：新增 `ShopMateBuddyMotion`、Home 到 Chat 的 Buddy 视觉桥接、本地 Lottie raw 动效和 PNG fallback，聊天等待态顶部 Buddy 可切换 Thinking；补充过渡控制器单元测试，并通过 Android `testDebugUnitTest` 和带 demo HTTPS URL 的 build 验证。
+- Android State Lottie Feedback：新增统一 `ShopMateLottieStateIndicator`、4 个本地状态 Lottie 资源和 resource 映射测试，接入聊天等待、语音 listening / transcribing、图片解释 / 搜索 busy 状态；根据反馈优化语音条提示、上滑取消和动效占比，并将 Android app 名称与 launcher icon 更新为“抖选选”。通过 Android `testDebugUnitTest`、带 demo HTTPS URL 的 build 和 diff check 验证。

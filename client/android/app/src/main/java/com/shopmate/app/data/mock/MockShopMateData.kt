@@ -10,6 +10,7 @@ import com.shopmate.app.ui.model.HistoryConversationUi
 import com.shopmate.app.ui.model.ProductCardUi
 import com.shopmate.app.ui.model.ProductDetailUi
 import com.shopmate.app.ui.model.ProductDetailSpecUi
+import com.shopmate.app.ui.model.PromptSuggestionIconType
 import com.shopmate.app.ui.model.PromptSuggestionUi
 
 object MockShopMateData {
@@ -43,20 +44,52 @@ object MockShopMateData {
 
     val promptSuggestions = listOf(
         PromptSuggestionUi(
-            id = "prompt-oily-skincare",
-            title = "推荐适合油皮的护肤品"
+            id = "prompt-oily-sunscreen",
+            title = "推荐适合油皮的清爽防晒",
+            categoryLabel = "推荐",
+            iconType = PromptSuggestionIconType.Bag,
         ),
         PromptSuggestionUi(
             id = "prompt-earbuds-under-200",
-            title = "200 元以内的蓝牙耳机"
+            title = "200 元以内通勤蓝牙耳机",
+            categoryLabel = "预算",
+            iconType = PromptSuggestionIconType.Search,
         ),
         PromptSuggestionUi(
-            id = "prompt-compare-products",
-            title = "帮我对比这两款商品"
+            id = "prompt-comfort-earbuds",
+            title = "找一款不入耳、久戴舒服的耳机",
+            categoryLabel = "反选",
+            iconType = PromptSuggestionIconType.Search,
+        ),
+        PromptSuggestionUi(
+            id = "prompt-dorm-appliance",
+            title = "推荐宿舍好用的小家电",
+            categoryLabel = "家电",
+            iconType = PromptSuggestionIconType.Bag,
         ),
         PromptSuggestionUi(
             id = "prompt-image-search",
-            title = "拍照找同款"
+            title = "拍照找同款或相似商品",
+            categoryLabel = "图片",
+            iconType = PromptSuggestionIconType.Camera,
+        ),
+        PromptSuggestionUi(
+            id = "prompt-compare-recommendations",
+            title = "帮我对比刚刚推荐的两款",
+            categoryLabel = "对比",
+            iconType = PromptSuggestionIconType.Search,
+        ),
+        PromptSuggestionUi(
+            id = "prompt-cart-checkout",
+            title = "把购物车里想买的商品生成订单",
+            categoryLabel = "订单",
+            iconType = PromptSuggestionIconType.Cart,
+        ),
+        PromptSuggestionUi(
+            id = "prompt-alcohol-free-sunscreen",
+            title = "推荐不含酒精的防晒霜",
+            categoryLabel = "成分",
+            iconType = PromptSuggestionIconType.Bag,
         )
     )
 

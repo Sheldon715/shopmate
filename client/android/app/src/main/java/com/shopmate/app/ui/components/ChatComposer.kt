@@ -72,6 +72,7 @@ fun ChatComposer(
     voiceInputState: VoiceInputUiState = VoiceInputUiState.Idle,
     voiceEnabled: Boolean = true,
     onVoiceCancel: () -> Unit = {},
+    controlScale: Float = ShopMateReadableControlScale,
 ) {
     var inputMode by rememberSaveable { mutableStateOf(ComposerInputMode.Text) }
 
@@ -97,7 +98,8 @@ fun ChatComposer(
         onVoiceCancel = onVoiceCancel,
         modifier = modifier,
         shadowElevation = shadowElevation,
-        sendEnabled = sendEnabled
+        sendEnabled = sendEnabled,
+        controlScale = controlScale,
     )
 }
 
@@ -119,7 +121,8 @@ private fun ChatComposerContent(
     onVoiceCancel: () -> Unit,
     modifier: Modifier = Modifier,
     shadowElevation: Dp = 10.dp,
-    sendEnabled: Boolean = value.isNotBlank()
+    sendEnabled: Boolean = value.isNotBlank(),
+    controlScale: Float = ShopMateReadableControlScale,
 ) {
     val effectiveInputMode = if (imageAttachment != null) {
         ComposerInputMode.Text
@@ -129,6 +132,7 @@ private fun ChatComposerContent(
             else -> ComposerInputMode.Voice
         }
     }
+    fun Float.cs(): Dp = (this * controlScale).dp
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -140,23 +144,25 @@ private fun ChatComposerContent(
                 onRemoveClick = onImageRemoveClick,
                 onRetryClick = onImageRetryClick,
                 shadowElevation = shadowElevation,
+                controlScale = controlScale,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(52.dp)
+                    .height(52f.cs())
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(8f.cs()))
         }
 
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(ComposerHeight),
+                .height(ComposerHeightValue.cs()),
             verticalAlignment = Alignment.CenterVertically
         ) {
             InputModeToggleButton(
                 inputMode = effectiveInputMode,
                 shadowElevation = shadowElevation,
+                controlScale = controlScale,
                 onClick = {
                     if (effectiveInputMode == ComposerInputMode.Text) {
                         onInputModeChange(ComposerInputMode.Voice)
@@ -167,7 +173,7 @@ private fun ChatComposerContent(
                 }
             )
 
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(8f.cs()))
 
             when (effectiveInputMode) {
                 ComposerInputMode.Text -> {
@@ -178,16 +184,18 @@ private fun ChatComposerContent(
                             !sendEnabledStatusBusy(imageAttachment),
                         onImagePickClick = onImagePickClick,
                         shadowElevation = shadowElevation,
+                        controlScale = controlScale,
                         modifier = Modifier
                             .weight(1f)
-                            .height(ComposerHeight)
+                            .height(ComposerHeightValue.cs())
                     )
 
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(8f.cs()))
 
                     SendButton(
                         enabled = sendEnabled,
                         shadowElevation = shadowElevation,
+                        controlScale = controlScale,
                         onClick = onSend
                     )
                 }
@@ -199,9 +207,10 @@ private fun ChatComposerContent(
                     onPressEnd = onVoicePressEnd,
                     onPressCancel = onVoiceCancel,
                     shadowElevation = shadowElevation,
+                    controlScale = controlScale,
                     modifier = Modifier
                         .weight(1f)
-                        .height(ComposerHeight)
+                        .height(ComposerHeightValue.cs())
                 )
             }
         }
@@ -212,8 +221,10 @@ private fun ChatComposerContent(
 private fun InputModeToggleButton(
     inputMode: ComposerInputMode,
     shadowElevation: Dp,
+    controlScale: Float,
     onClick: () -> Unit
 ) {
+    fun Float.cs(): Dp = (this * controlScale).dp
     val icon = if (inputMode == ComposerInputMode.Text) {
         R.drawable.ic_mic
     } else {
@@ -227,7 +238,7 @@ private fun InputModeToggleButton(
 
     Box(
         modifier = Modifier
-            .size(ComposerToggleSize)
+            .size(ComposerToggleSizeValue.cs())
             .then(pillShadowModifier(shadowElevation))
             .clip(ShopMatePillShape)
             .background(Color.White, ShopMatePillShape)
@@ -242,7 +253,7 @@ private fun InputModeToggleButton(
         Image(
             painter = painterResource(id = icon),
             contentDescription = contentDescription,
-            modifier = Modifier.size(ComposerToggleIconSize)
+            modifier = Modifier.size(ComposerToggleIconSizeValue.cs())
         )
     }
 }
@@ -253,15 +264,17 @@ private fun ComposerImagePreview(
     onRemoveClick: () -> Unit,
     onRetryClick: () -> Unit,
     shadowElevation: Dp,
+    controlScale: Float,
     modifier: Modifier = Modifier,
 ) {
+    fun Float.cs(): Dp = (this * controlScale).dp
     Row(
         modifier = modifier
             .then(pillShadowModifier(shadowElevation))
             .clip(ComposerPreviewShape)
             .background(Color.White, ComposerPreviewShape)
             .border(1.dp, Color(0xFFEDF2F1), ComposerPreviewShape)
-            .padding(start = 8.dp, top = 6.dp, end = 8.dp, bottom = 6.dp),
+            .padding(start = 8f.cs(), top = 6f.cs(), end = 8f.cs(), bottom = 6f.cs()),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         AsyncImage(
@@ -269,12 +282,12 @@ private fun ComposerImagePreview(
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier
-                .size(40.dp)
+                .size(40f.cs())
                 .clip(ComposerPreviewImageShape)
                 .background(Color(0xFFF3F7F5), ComposerPreviewImageShape),
         )
 
-        Spacer(modifier = Modifier.width(10.dp))
+        Spacer(modifier = Modifier.width(10f.cs()))
 
         Column(
             modifier = Modifier.weight(1f),
@@ -283,8 +296,8 @@ private fun ComposerImagePreview(
             Text(
                 text = attachment.previewLabel,
                 color = Color(0xFF394852),
-                fontSize = 12.sp,
-                lineHeight = 15.sp,
+                fontSize = (12f * controlScale).sp,
+                lineHeight = (15f * controlScale).sp,
                 letterSpacing = 0.sp,
                 maxLines = 1,
             )
@@ -295,8 +308,8 @@ private fun ComposerImagePreview(
                 } else {
                     Color(0xFF7A8791)
                 },
-                fontSize = 10.5.sp,
-                lineHeight = 13.sp,
+                fontSize = (10.5f * controlScale).sp,
+                lineHeight = (13f * controlScale).sp,
                 letterSpacing = 0.sp,
                 maxLines = 1,
             )
@@ -307,8 +320,8 @@ private fun ComposerImagePreview(
                 state = indicatorState,
                 contentDescription = attachment.previewStatusText(),
                 modifier = Modifier
-                    .padding(horizontal = 6.dp)
-                    .size(24.dp),
+                    .padding(horizontal = 6f.cs())
+                    .size(24f.cs()),
             )
         }
 
@@ -316,11 +329,11 @@ private fun ComposerImagePreview(
             Text(
                 text = "重试",
                 color = ShopMateGreen,
-                fontSize = 12.sp,
-                lineHeight = 15.sp,
+                fontSize = (12f * controlScale).sp,
+                lineHeight = (15f * controlScale).sp,
                 letterSpacing = 0.sp,
                 modifier = Modifier
-                    .padding(horizontal = 8.dp)
+                    .padding(horizontal = 8f.cs())
                     .clickable(role = Role.Button, onClick = onRetryClick),
             )
         }
@@ -329,10 +342,10 @@ private fun ComposerImagePreview(
             painter = painterResource(id = R.drawable.ic_cart_delete),
             contentDescription = "移除图片",
             modifier = Modifier
-                .size(22.dp)
+                .size(22f.cs())
                 .clip(ShopMatePillShape)
                 .clickable(role = Role.Button, onClick = onRemoveClick)
-                .padding(4.dp),
+                .padding(4f.cs()),
             alpha = 0.72f,
         )
     }
@@ -371,8 +384,10 @@ private fun TextInputSurface(
     imagePickEnabled: Boolean,
     onImagePickClick: () -> Unit,
     shadowElevation: Dp,
+    controlScale: Float,
     modifier: Modifier = Modifier
 ) {
+    fun Float.cs(): Dp = (this * controlScale).dp
     Row(
         modifier = modifier
             .then(pillShadowModifier(shadowElevation))
@@ -385,7 +400,7 @@ private fun TextInputSurface(
                 color = Color(0xFFEDF2F1),
                 shape = ShopMatePillShape
             )
-            .padding(start = 16.dp, top = 5.dp, end = 10.dp, bottom = 5.dp),
+            .padding(start = 16f.cs(), top = 5f.cs(), end = 10f.cs(), bottom = 5f.cs()),
         verticalAlignment = Alignment.CenterVertically
     ) {
         BasicTextField(
@@ -394,21 +409,21 @@ private fun TextInputSurface(
             singleLine = true,
             textStyle = TextStyle(
                 color = Color(0xFF53606B),
-                fontSize = 15.sp,
-                lineHeight = 20.sp,
+                fontSize = (15f * controlScale).sp,
+                lineHeight = (20f * controlScale).sp,
                 letterSpacing = 0.sp
             ),
             modifier = Modifier
                 .weight(1f)
-                .padding(horizontal = 2.dp),
+                .padding(horizontal = 2f.cs()),
             decorationBox = { innerTextField ->
                 Box(contentAlignment = Alignment.CenterStart) {
                     if (value.isEmpty()) {
                         Text(
                             text = "发消息",
                             color = Color(0xFFA3ADB6),
-                            fontSize = 15.sp,
-                            lineHeight = 20.sp,
+                            fontSize = (15f * controlScale).sp,
+                            lineHeight = (20f * controlScale).sp,
                             letterSpacing = 0.sp
                         )
                     }
@@ -417,11 +432,12 @@ private fun TextInputSurface(
             }
         )
 
-        Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(8f.cs()))
 
         InlineImagePickButton(
             enabled = imagePickEnabled,
             onClick = onImagePickClick,
+            controlScale = controlScale,
         )
     }
 }
@@ -430,10 +446,12 @@ private fun TextInputSurface(
 private fun InlineImagePickButton(
     enabled: Boolean,
     onClick: () -> Unit,
+    controlScale: Float,
 ) {
+    fun Float.cs(): Dp = (this * controlScale).dp
     Box(
         modifier = Modifier
-            .size(28.dp)
+            .size(28f.cs())
             .clip(ShopMatePillShape)
             .clickable(
                 enabled = enabled,
@@ -445,7 +463,7 @@ private fun InlineImagePickButton(
         Image(
             painter = painterResource(id = R.drawable.ic_image),
             contentDescription = "选择图片",
-            modifier = Modifier.size(18.dp),
+            modifier = Modifier.size(18f.cs()),
             alpha = if (enabled) 0.82f else 0.35f,
         )
     }
@@ -459,8 +477,10 @@ private fun VoiceInputSurface(
     onPressEnd: () -> Unit,
     onPressCancel: () -> Unit,
     shadowElevation: Dp,
+    controlScale: Float,
     modifier: Modifier = Modifier
 ) {
+    fun Float.cs(): Dp = (this * controlScale).dp
     val isListening = voiceInputState is VoiceInputUiState.Listening
     val isTranscribing = voiceInputState is VoiceInputUiState.Transcribing
     val label = when (voiceInputState) {
@@ -500,7 +520,7 @@ private fun VoiceInputSurface(
         else -> null
     }
     val cancelDragDistancePx = with(LocalDensity.current) {
-        VoiceCancelDragDistance.toPx()
+        VoiceCancelDragDistanceValue.cs().toPx()
     }
     var pressStarted by remember { mutableStateOf(false) }
 
@@ -511,16 +531,17 @@ private fun VoiceInputSurface(
         busyHintText?.let { hintText ->
             VoiceInputHintChip(
                 text = hintText,
+                controlScale = controlScale,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .offset(y = (-28).dp),
+                    .offset(y = (-28f).cs()),
             )
         }
 
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(ComposerHeight)
+                .height(ComposerHeightValue.cs())
                 .then(pillShadowModifier(shadowElevation))
                 .clip(ShopMatePillShape)
                 .background(
@@ -611,14 +632,14 @@ private fun VoiceInputSurface(
                     contentDescription = accessibilityState,
                     modifier = Modifier
                         .fillMaxWidth(0.76f)
-                        .height(34.dp),
+                        .height(34f.cs()),
                 )
             } else {
                 Text(
                     text = label,
                     color = if (enabled) Color(0xFF172331) else Color(0xFF9AA2AD),
-                    fontSize = 15.sp,
-                    lineHeight = 20.sp,
+                    fontSize = (15f * controlScale).sp,
+                    lineHeight = (20f * controlScale).sp,
                     letterSpacing = 0.sp
                 )
             }
@@ -629,20 +650,22 @@ private fun VoiceInputSurface(
 @Composable
 private fun VoiceInputHintChip(
     text: String,
+    controlScale: Float,
     modifier: Modifier = Modifier,
 ) {
+    fun Float.cs(): Dp = (this * controlScale).dp
     Text(
         text = text,
         color = Color(0xFF65717C),
-        fontSize = 11.5.sp,
-        lineHeight = 14.sp,
+        fontSize = (11.5f * controlScale).sp,
+        lineHeight = (14f * controlScale).sp,
         letterSpacing = 0.sp,
         maxLines = 1,
         modifier = modifier
             .clip(ShopMatePillShape)
             .background(Color.White.copy(alpha = 0.88f), ShopMatePillShape)
             .border(1.dp, Color(0xFFE8EFED), ShopMatePillShape)
-            .padding(horizontal = 10.dp, vertical = 4.dp),
+            .padding(horizontal = 10f.cs(), vertical = 4f.cs()),
     )
 }
 
@@ -650,11 +673,13 @@ private fun VoiceInputHintChip(
 private fun SendButton(
     enabled: Boolean,
     shadowElevation: Dp,
+    controlScale: Float,
     onClick: () -> Unit
 ) {
+    fun Float.cs(): Dp = (this * controlScale).dp
     Box(
         modifier = Modifier
-            .size(ComposerToggleSize)
+            .size(ComposerToggleSizeValue.cs())
             .then(pillShadowModifier(shadowElevation))
             .clip(ShopMatePillShape)
             .background(
@@ -678,7 +703,7 @@ private fun SendButton(
         Image(
             painter = painterResource(id = R.drawable.ic_send),
             contentDescription = "发送",
-            modifier = Modifier.size(ComposerToggleIconSize),
+            modifier = Modifier.size(ComposerToggleIconSizeValue.cs()),
             alpha = if (enabled) 1f else 0.5f
         )
     }
@@ -700,12 +725,12 @@ private enum class ComposerInputMode {
     Voice
 }
 
-private val ComposerHeight = 44.dp
-private val ComposerToggleSize = 38.dp
-private val ComposerToggleIconSize = 16.dp
+private const val ComposerHeightValue = 44f
+private const val ComposerToggleSizeValue = 38f
+private const val ComposerToggleIconSizeValue = 16f
 private val ComposerPreviewShape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp)
 private val ComposerPreviewImageShape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
-private val VoiceCancelDragDistance = 36.dp
+private const val VoiceCancelDragDistanceValue = 36f
 
 @Preview(
     name = "Chat composer - disabled send",

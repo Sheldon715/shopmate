@@ -5,11 +5,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -27,9 +25,13 @@ fun ShopMateTopActionBar(
     modifier: Modifier = Modifier,
     showCenterBuddy: Boolean = true,
     centerBuddyMotionState: ShopMateBuddyMotionState = ShopMateBuddyMotionState.Idle,
-    buttonBackgroundColor: Color = Color.White.copy(alpha = 0.78f)
+    buttonBackgroundColor: Color = Color.White,
+    controlScale: Float = ShopMateReadableControlScale,
 ) {
     fun Float.s(): Dp = (this * scale).dp
+    val controlSize = 38f * controlScale
+    val iconSize = 16f * controlScale
+    val controlOffset = (controlSize - 38f) / 2f
 
     if (!showCenterBuddy) {
         Row(
@@ -40,18 +42,20 @@ fun ShopMateTopActionBar(
                 icon = leftIcon,
                 contentDescription = leftContentDescription,
                 onClick = onLeftClick,
-                modifier = Modifier.size(38f.s()),
-                iconSize = 16f.s(),
-                backgroundColor = buttonBackgroundColor
+                modifier = Modifier.size(controlSize.s()),
+                iconSize = iconSize.s(),
+                backgroundColor = buttonBackgroundColor,
+                showPressIndication = false,
             )
             Spacer(modifier = Modifier.weight(1f))
             ShopMateCircleIconButton(
                 icon = rightIcon,
                 contentDescription = rightContentDescription,
                 onClick = onRightClick,
-                modifier = Modifier.size(38f.s()),
-                iconSize = 16f.s(),
-                backgroundColor = buttonBackgroundColor
+                modifier = Modifier.size(controlSize.s()),
+                iconSize = iconSize.s(),
+                backgroundColor = buttonBackgroundColor,
+                showPressIndication = false,
             )
         }
         return
@@ -63,10 +67,11 @@ fun ShopMateTopActionBar(
             contentDescription = leftContentDescription,
             onClick = onLeftClick,
             modifier = Modifier
-                .offset(x = 14f.s(), y = 3f.s())
-                .size(38f.s()),
-            iconSize = 16f.s(),
-            backgroundColor = buttonBackgroundColor
+                .offset(x = (14f - controlOffset).s(), y = (3f - controlOffset).s())
+                .size(controlSize.s()),
+            iconSize = iconSize.s(),
+            backgroundColor = buttonBackgroundColor,
+            showPressIndication = false,
         )
 
         ShopMateBuddyMotion(
@@ -74,13 +79,8 @@ fun ShopMateTopActionBar(
             fallbackRes = R.drawable.sidebar_shopmate_buddy,
             contentDescription = "Shopmate Buddy",
             modifier = Modifier
-                .offset(x = 175.33f.s(), y = 3f.s())
-                .size(38f.s())
-                .shadow(
-                    elevation = 8f.s(),
-                    shape = CircleShape,
-                    clip = false
-                ),
+                .offset(x = (175.33f - controlOffset).s(), y = (3f - controlOffset).s())
+                .size(controlSize.s()),
         )
 
         ShopMateCircleIconButton(
@@ -88,10 +88,11 @@ fun ShopMateTopActionBar(
             contentDescription = rightContentDescription,
             onClick = onRightClick,
             modifier = Modifier
-                .offset(x = 332.67f.s(), y = 3f.s())
-                .size(38f.s()),
-            iconSize = 16f.s(),
-            backgroundColor = buttonBackgroundColor
+                .offset(x = (332.67f - controlOffset).s(), y = (3f - controlOffset).s())
+                .size(controlSize.s()),
+            iconSize = iconSize.s(),
+            backgroundColor = buttonBackgroundColor,
+            showPressIndication = false,
         )
     }
 }

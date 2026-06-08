@@ -43,19 +43,20 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.shopmate.app.R
-import com.shopmate.app.data.mock.MockShopMateData
 import com.shopmate.app.ui.components.ChatComposer
 import com.shopmate.app.ui.components.ChatMessageBubble
 import com.shopmate.app.ui.components.ChatTypingIndicatorBubble
 import com.shopmate.app.ui.components.ProductCard
 import com.shopmate.app.ui.components.ShopMateBuddyMotionState
 import com.shopmate.app.ui.components.ShopMateFigmaFrameWidth
+import com.shopmate.app.ui.components.ShopMateReadableControlScale
 import com.shopmate.app.ui.components.ShopMateStatusMessage
 import com.shopmate.app.ui.components.ShopMateTopActionBar
 import com.shopmate.app.ui.components.scaledDp
@@ -66,6 +67,9 @@ import com.shopmate.app.ui.theme.ShopMateGreen
 import com.shopmate.app.ui.theme.ShopMateLightGreen
 import com.shopmate.app.ui.theme.ShopMateTheme
 import com.shopmate.app.ui.theme.shopMateScreenBackground
+
+private const val CHAT_COMPOSER_BOTTOM_OFFSET = 20f
+private const val CHAT_AI_NOTICE_TOP_FROM_BOTTOM = 26f
 
 @Composable
 fun ChatRecommendationScreen(
@@ -88,7 +92,7 @@ fun ChatRecommendationScreen(
     onCheckoutCancelClick: () -> Unit,
     onCheckoutSubmitClick: () -> Unit,
     onHistoryClick: (HistoryConversationUi) -> Unit,
-    historyConversations: List<HistoryConversationUi> = MockShopMateData.historyConversations,
+    historyConversations: List<HistoryConversationUi> = emptyList(),
     editableConversationIds: Set<String> = emptySet(),
     onRenameHistory: (String, String) -> Unit = { _, _ -> },
     onDeleteHistory: (String) -> Unit = {},
@@ -105,14 +109,16 @@ fun ChatRecommendationScreen(
 
         fun Float.s(): Dp = scaledDp(scale)
 
-        val headerTop = 36f.s()
-        val contentTop = 80f.s()
-        val composerHeight = if (state.selectedImage != null) 104f.s() else 44f.s()
-        val composerBottom = 18f.s()
+        val headerTop = 40f.s()
+        val contentTop = 88f.s()
+        val composerHeightValue = if (state.selectedImage != null) 104f else 44f
+        val composerHeight = (composerHeightValue * ShopMateReadableControlScale).s()
+        val composerBottom = CHAT_COMPOSER_BOTTOM_OFFSET.s()
         val composerTop = maxHeight - composerHeight - composerBottom
-        val topScrimHeight = 84f.s()
-        val bottomScrimTop = composerTop - 28f.s()
-        val scrollBottomPadding = (maxHeight - bottomScrimTop) + 18f.s()
+        val aiNoticeTop = maxHeight - CHAT_AI_NOTICE_TOP_FROM_BOTTOM.s()
+        val topScrimHeight = 92f.s()
+        val bottomScrimTop = composerTop - 34f.s()
+        val scrollBottomPadding = (maxHeight - bottomScrimTop) + 22f.s()
 
         val listState = rememberLazyListState()
         val shouldAutoScroll by remember {
@@ -163,6 +169,8 @@ fun ChatRecommendationScreen(
             onCheckoutSubmitClick = onCheckoutSubmitClick,
             modifier = Modifier
                 .fillMaxSize()
+                .navigationBarsPadding()
+                .imePadding()
                 .clipToBounds(),
         )
 
@@ -233,11 +241,26 @@ fun ChatRecommendationScreen(
             sendEnabled = (state.composerText.isNotBlank() || state.selectedImage != null) &&
                 !state.isSending,
             modifier = Modifier
-                .offset(x = 18f.s(), y = composerTop)
-                .imePadding()
+                .align(Alignment.BottomStart)
+                .padding(start = 18f.s(), bottom = composerBottom)
                 .navigationBarsPadding()
+                .imePadding()
                 .size(width = 352.667f.s(), height = composerHeight)
                 .zIndex(2f),
+        )
+
+        Text(
+            text = "内容由 AI 生成，仅供参考",
+            color = Color(0xFF7B8790).copy(alpha = 0.52f),
+            fontSize = (10.8f * scale * ShopMateReadableControlScale).sp,
+            lineHeight = (13.5f * scale * ShopMateReadableControlScale).sp,
+            letterSpacing = 0.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .offset(x = 0.dp, y = aiNoticeTop)
+                .fillMaxWidth()
+                .zIndex(2f)
+                .padding(horizontal = 18f.s()),
         )
 
         SidebarHistoryDrawer(
@@ -280,6 +303,7 @@ private fun ChatStreamList(
     modifier: Modifier = Modifier,
 ) {
     fun Float.s(): Dp = scaledDp(scale)
+    val bubbleTextScale = scale * ShopMateReadableControlScale
     val messageIds = remember(state.messages) {
         state.messages.map { message -> message.id }.toSet()
     }
@@ -299,7 +323,7 @@ private fun ChatStreamList(
                     ChatMessageBubble(
                         text = "说说你想买什么，我会从商品库里帮你筛选合适选择。",
                         fromUser = false,
-                        textScale = scale,
+                        textScale = bubbleTextScale,
                         modifier = Modifier
                             .padding(start = 16f.s(), end = 18f.s())
                             .align(Alignment.CenterStart)
@@ -321,6 +345,7 @@ private fun ChatStreamList(
                 ChatMessageItem(
                     message = message,
                     scale = scale,
+                    bubbleTextScale = bubbleTextScale,
                     modifier = Modifier.align(
                         if (message.fromUser) Alignment.End else Alignment.Start,
                     ),
@@ -687,13 +712,14 @@ private fun ComparisonEntryList(
 private fun ChatMessageItem(
     message: ChatMessageUi,
     scale: Float,
+    bubbleTextScale: Float,
     modifier: Modifier = Modifier,
 ) {
     fun Float.s(): Dp = scaledDp(scale)
 
     if (message.isTypingPlaceholder()) {
         ChatTypingIndicatorBubble(
-            textScale = scale,
+            textScale = bubbleTextScale,
             modifier = modifier
                 .padding(start = 16f.s())
                 .size(width = 66f.s(), height = 34f.s()),
@@ -702,7 +728,7 @@ private fun ChatMessageItem(
         ChatMessageBubble(
             text = message.displayText(),
             fromUser = message.fromUser,
-            textScale = scale,
+            textScale = bubbleTextScale,
             imageAttachment = message.imageAttachment,
             modifier = modifier
                 .padding(

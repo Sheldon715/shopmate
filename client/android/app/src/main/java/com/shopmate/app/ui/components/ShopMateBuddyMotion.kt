@@ -33,6 +33,7 @@ fun ShopMateBuddyMotion(
     contentDescription: String? = null,
     fallbackContentScale: ContentScale = ContentScale.Fit,
     iterations: Int = defaultBuddyMotionIterations(state),
+    reverseLottieProgress: Boolean = false,
     lottieEnabled: Boolean = shouldRenderLottieMotion(),
 ) {
     Box(modifier = modifier) {
@@ -55,7 +56,7 @@ fun ShopMateBuddyMotion(
 
             LottieAnimation(
                 composition = composition,
-                progress = { progress },
+                progress = { if (reverseLottieProgress) 1f - progress else progress },
                 modifier = Modifier.fillMaxSize(),
             )
         }
