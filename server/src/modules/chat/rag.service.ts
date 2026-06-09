@@ -98,6 +98,14 @@ import type {
   PopularQueryCacheVersionReader,
 } from "./popular-query-cache-version.service";
 import { StreamingJsonAnswerExtractor } from "./streaming-json-answer-extractor";
+import {
+  createPostFilterTrace,
+  createRagDebugTrace,
+} from "./rag-debug-trace";
+import type {
+  RagFailureType,
+  RagTracePostFilter,
+} from "./rag-debug-trace.types";
 
 export interface RagVectorSearchClient {
   search(input: {
@@ -233,6 +241,12 @@ interface RetrievalSelectionMetadata {
   queryRewriteTimedOut?: boolean;
 }
 
+interface RetrievalDebugEvidence {
+  vectorHits: VectorSearchHit[];
+  vectorTopK: number;
+  vectorError?: unknown;
+}
+
 type RetrievalPipelineResult =
   | {
       status: "cache_hit";
@@ -244,6 +258,7 @@ type RetrievalPipelineResult =
       queryRewrite: QueryRewriteResult;
       candidates: RetrievedProductCandidate[];
       metadata: RetrievalSelectionMetadata;
+      debug: RetrievalDebugEvidence;
       cacheable?: boolean;
     }
   | {
@@ -251,6 +266,7 @@ type RetrievalPipelineResult =
       queryRewrite: QueryRewriteResult;
       candidates: [];
       metadata: RetrievalSelectionMetadata;
+      debug: RetrievalDebugEvidence;
       cacheable: false;
     };
 
@@ -269,6 +285,7 @@ type RetrievalSearchResult =
       queryRewrite: QueryRewriteResult;
       candidates: RetrievedProductCandidate[];
       metadata: RetrievalSelectionMetadata;
+      debug: RetrievalDebugEvidence;
       cacheable?: boolean;
     };
 
@@ -276,6 +293,7 @@ interface RetrievalSearchErrorResult {
   status: "error";
   queryRewrite: QueryRewriteResult;
   metadata: RetrievalSelectionMetadata;
+  debug: RetrievalDebugEvidence;
   error: unknown;
 }
 
@@ -630,7 +648,7 @@ export class RagChatService {
       return this.withContextMemory(memoryResolution, retrieval.result);
     }
 
-    const { queryRewrite, candidates, metadata } = retrieval;
+    const { queryRewrite, candidates, metadata, debug } = retrieval;
     input.timing?.mark("retrieval_plan_selected");
 
     if (retrieval.status === "fallback" || candidates.length === 0) {
@@ -644,6 +662,7 @@ export class RagChatService {
         cacheable: retrieval.cacheable,
         question,
         request: input,
+        debug,
       });
     }
 
@@ -651,10 +670,16 @@ export class RagChatService {
       candidates.map((candidate) => candidate.productId),
     );
     input.timing?.mark("product_lookup_done");
+    const contextsBeforePostFilter = createRetrievedContexts(candidates, products);
     const contexts = filterContextsByNegativeConstraints(
-      createRetrievedContexts(candidates, products),
+      contextsBeforePostFilter,
       negativeConstraints,
     );
+    const postFilter = createPostFilterTrace({
+      beforeProductIds: contextsBeforePostFilter.map((context) => context.product.id),
+      afterProductIds: contexts.map((context) => context.product.id),
+      removedReason: "negative_constraint",
+    });
 
     if (contexts.length === 0) {
       return this.answerNoCandidates({
@@ -665,6 +690,10 @@ export class RagChatService {
         cacheable: retrieval.cacheable,
         question,
         request: input,
+        debug,
+        products,
+        postFilter,
+        failureType: "negative_post_filter_failure",
       });
     }
 
@@ -703,27 +732,39 @@ export class RagChatService {
       );
 
       if (recommendedProductIds.length === 0) {
+        const result = this.withContextMemory(
+            memoryResolution,
+            this.withDebugTrace({
+              result: createRetrievedFallbackResult(
+                contexts,
+                maxRecommendedProducts,
+                "NO_VALID_PRODUCT_IDS",
+                queryRewrite,
+                metadata,
+                this.publicImageBaseUrl,
+              ),
+              request: input,
+              question,
+              memoryResolution,
+              queryRewrite,
+              retrievalMetadata: metadata,
+              debug,
+              products,
+              postFilter,
+              failureType: "answer_grounding_failure",
+            }),
+          );
+
         return this.popularQueryCacheCoordinator.write(
           retrieval.cacheInput,
-          this.withContextMemory(
-            memoryResolution,
-            createRetrievedFallbackResult(
-              contexts,
-              maxRecommendedProducts,
-              "NO_VALID_PRODUCT_IDS",
-              queryRewrite,
-              metadata,
-              this.publicImageBaseUrl,
-            ),
-          ),
+          result,
         );
       }
 
-      return this.popularQueryCacheCoordinator.write(
-        retrieval.cacheInput,
-        this.withContextMemory(
-          memoryResolution,
-          createSuccessResult(
+      const result = this.withContextMemory(
+        memoryResolution,
+        this.withDebugTrace({
+          result: createSuccessResult(
             compactAnswer(parsed.answer),
             recommendedProductIds,
             contexts,
@@ -731,25 +772,52 @@ export class RagChatService {
             metadata,
             this.publicImageBaseUrl,
           ),
-        ),
+          request: input,
+          question,
+          memoryResolution,
+          queryRewrite,
+          retrievalMetadata: metadata,
+          debug,
+          products,
+          postFilter,
+        }),
+      );
+
+      return this.popularQueryCacheCoordinator.write(
+        retrieval.cacheInput,
+        result,
       );
     } catch (error) {
       rethrowIfAborted(input.abortSignal, error);
+      const fallbackReason =
+        error instanceof RagLlmOutputParseError ? "LLM_INVALID_OUTPUT" : "LLM_ERROR";
+      const result = this.withContextMemory(
+        memoryResolution,
+        this.withDebugTrace({
+          result: createRetrievedFallbackResult(
+              contexts,
+              maxRecommendedProducts,
+              fallbackReason,
+              queryRewrite,
+              metadata,
+              this.publicImageBaseUrl,
+            ),
+          request: input,
+          question,
+          memoryResolution,
+          queryRewrite,
+          retrievalMetadata: metadata,
+          debug,
+          products,
+          postFilter,
+          failureType: "answer_grounding_failure",
+          notes: [`RAG answer generation fallback: ${fallbackReason}`],
+        }),
+      );
+
       return this.popularQueryCacheCoordinator.write(
         retrieval.cacheInput,
-        this.withContextMemory(
-          memoryResolution,
-          createRetrievedFallbackResult(
-            contexts,
-            maxRecommendedProducts,
-            error instanceof RagLlmOutputParseError
-              ? "LLM_INVALID_OUTPUT"
-              : "LLM_ERROR",
-            queryRewrite,
-            metadata,
-            this.publicImageBaseUrl,
-          ),
-        ),
+        result,
       );
     }
   }
@@ -761,7 +829,14 @@ export class RagChatService {
     retrievalMetadata?: RetrievalSelectionMetadata;
     cacheable?: boolean;
     question: string;
-    request: Pick<RagChatRequest, "requestId" | "abortSignal">;
+    request: Pick<
+      RagChatRequest,
+      "requestId" | "abortSignal" | "debugTrace" | "topK"
+    >;
+    debug: RetrievalDebugEvidence;
+    products?: readonly Product[];
+    postFilter?: RagTracePostFilter;
+    failureType?: RagFailureType;
   }): Promise<RagChatResult> {
     const noCandidatesResponse =
       await this.ragResponseGenerationService.generateNoCandidatesResponse({
@@ -774,11 +849,22 @@ export class RagChatService {
     throwIfAborted(input.request.abortSignal);
     const result = this.withContextMemory(
       input.memoryResolution,
-      createNoCandidatesResult(
-        noCandidatesResponse.answer,
-        input.queryRewrite,
-        input.retrievalMetadata,
-      ),
+      this.withDebugTrace({
+        result: createNoCandidatesResult(
+          noCandidatesResponse.answer,
+          input.queryRewrite,
+          input.retrievalMetadata,
+        ),
+        request: input.request,
+        question: input.question,
+        memoryResolution: input.memoryResolution,
+        queryRewrite: input.queryRewrite,
+        retrievalMetadata: input.retrievalMetadata,
+        debug: input.debug,
+        products: input.products,
+        postFilter: input.postFilter,
+        failureType: input.failureType,
+      }),
     );
 
     return noCandidatesResponse.generatedByLlm
@@ -831,6 +917,14 @@ export class RagChatService {
           status: "error" as const,
           queryRewrite: originalQueryRewrite,
           metadata: { retrievalStrategy: "original_query" as const },
+          debug: {
+            vectorHits: [],
+            vectorTopK: resolveTraceVectorTopK(
+              input.request.topK,
+              input.negativeConstraints,
+            ),
+            vectorError: error,
+          },
           error,
         },
       }),
@@ -987,13 +1081,14 @@ export class RagChatService {
         await this.popularQueryCacheCoordinator.delete(cacheInput);
       }
 
+      const vectorTopK = resolveTraceVectorTopK(
+        input.request.topK,
+        input.negativeConstraints,
+      );
       const hits = await this.vectorSearch.search({
         query: input.queryRewrite.query,
         filters: input.memoryResolution.filters,
-        topK: resolveVectorSearchTopK(
-          input.request.topK,
-          input.negativeConstraints,
-        ),
+        topK: vectorTopK,
         abortSignal: input.request.abortSignal,
       });
       throwIfAborted(input.request.abortSignal);
@@ -1006,6 +1101,10 @@ export class RagChatService {
         queryRewrite: input.queryRewrite,
         candidates: dedupeVectorHits(hits, this.maxSnippetsPerProduct),
         metadata: input.metadata,
+        debug: {
+          vectorHits: hits,
+          vectorTopK,
+        },
       };
     } catch (error) {
       rethrowIfAborted(input.request.abortSignal, error);
@@ -1014,6 +1113,14 @@ export class RagChatService {
         status: "error",
         queryRewrite: input.queryRewrite,
         metadata: input.metadata,
+        debug: {
+          vectorHits: [],
+          vectorTopK: resolveTraceVectorTopK(
+            input.request.topK,
+            input.negativeConstraints,
+          ),
+          vectorError: error,
+        },
         error,
       };
     }
@@ -1024,7 +1131,7 @@ export class RagChatService {
     queryRewrite: QueryRewriteResult,
     metadata: RetrievalSelectionMetadata,
   ): RetrievalPipelineResult {
-    if (result.status === "cache_hit" && result.result) {
+    if (result.status === "cache_hit") {
       return {
         status: "cache_hit",
         result: result.result,
@@ -1042,6 +1149,7 @@ export class RagChatService {
           queryRewriteTimedOut:
             metadata.queryRewriteTimedOut ?? result.metadata.queryRewriteTimedOut,
         },
+        debug: result.debug,
         cacheable: result.cacheable,
       };
     }
@@ -1054,6 +1162,7 @@ export class RagChatService {
         ...metadata,
         retrievalStrategy: "fallback",
       },
+      debug: result.debug,
       cacheable: false,
     };
   }
@@ -1166,6 +1275,60 @@ export class RagChatService {
     return contextMemory
       ? { ...result, contextMemory }
       : result;
+  }
+
+  private withDebugTrace(input: {
+    result: RagChatResult;
+    request: Pick<
+      RagChatRequest,
+      "requestId" | "debugTrace" | "topK"
+    >;
+    question: string;
+    memoryResolution: ReturnType<ChatContextMemoryService["resolve"]>;
+    queryRewrite: QueryRewriteResult;
+    retrievalMetadata?: RetrievalSelectionMetadata;
+    debug: RetrievalDebugEvidence;
+    products?: readonly Product[];
+    postFilter?: RagTracePostFilter;
+    failureType?: RagFailureType;
+    notes?: readonly string[];
+  }): RagChatResult {
+    if (!input.request.debugTrace) {
+      return input.result;
+    }
+
+    return {
+      ...input.result,
+      debugTrace: createRagDebugTrace({
+        requestId: input.request.requestId,
+        generatedAt: this.now().toISOString(),
+        originalQuery: input.question,
+        baseRetrievalQuery:
+          input.queryRewrite.baseQuery
+          ?? input.memoryResolution.retrievalQuery,
+        retrievalQuery: input.queryRewrite.query,
+        retrievalStrategy: input.retrievalMetadata?.retrievalStrategy,
+        queryRewriteStatus: input.queryRewrite.status,
+        queryRewriteReason:
+          input.queryRewrite.reason ?? input.queryRewrite.fallbackReason,
+        filters: input.memoryResolution.filters,
+        negativeConstraints: input.memoryResolution.negativeConstraints,
+        vectorHits: input.debug.vectorHits,
+        vectorTopK: input.debug.vectorTopK,
+        vectorError: input.debug.vectorError,
+        products: input.products,
+        postFilter: input.postFilter,
+        finalSelection: {
+          selectedProductIds: input.result.recommendedProductIds,
+          productCardIds: input.result.productCards.map((card) => card.id),
+          fallbackUsed: input.result.fallbackUsed,
+          fallbackReason: input.result.fallbackReason,
+          answer: input.result.answer,
+        },
+        failureType: input.failureType,
+        notes: input.notes,
+      }),
+    };
   }
 
   private async answerComparison(
@@ -3043,4 +3206,12 @@ function resolveVectorSearchTopK(
     requestedTopK ?? 0,
     DEFAULT_NEGATIVE_CONSTRAINT_TOP_K,
   );
+}
+
+function resolveTraceVectorTopK(
+  requestedTopK: number | undefined,
+  negativeConstraints: readonly NegativeConstraint[],
+): number {
+  return resolveVectorSearchTopK(requestedTopK, negativeConstraints)
+    ?? getEnv().ragTopK;
 }

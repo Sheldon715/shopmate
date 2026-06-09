@@ -1,0 +1,176 @@
+[
+  {
+    "caseId": "oil-skin-cleanser-paraphrases",
+    "capability": "paraphrase_consistency",
+    "queries": [
+      "适合油皮的洗面奶",
+      "混油皮日常洁面乳",
+      "控油洁面推荐"
+    ],
+    "filters": {
+      "category": "美妆护肤",
+      "subCategory": "洁面",
+      "availableOnly": true
+    },
+    "expectedProductIdsAny": ["p_beauty_011"],
+    "expectedCategory": "美妆护肤",
+    "expectedSubCategory": "洁面",
+    "expectedNoResult": false,
+    "notes": "观察洁面子类目稳定召回和 paraphrase consistency。"
+  },
+  {
+    "caseId": "alcohol-free-sunscreen-paraphrases",
+    "capability": "negative_constraint",
+    "queries": [
+      "不含酒精防晒",
+      "敏感肌避开酒精防晒",
+      "不要乙醇成分防晒"
+    ],
+    "filters": {
+      "category": "美妆护肤",
+      "subCategory": "防晒",
+      "availableOnly": true,
+      "avoidTerms": ["酒精"]
+    },
+    "expectedProductIdsAny": ["p_beauty_006", "p_beauty_023"],
+    "expectedCategory": "美妆护肤",
+    "expectedSubCategory": "防晒",
+    "expectedNoResult": false,
+    "forbidden": {
+      "riskTerms": ["酒精"],
+      "terms": ["酒精"]
+    },
+    "notes": "验证负向事实 metadata 与 product facts 过滤。"
+  },
+  {
+    "caseId": "not-in-ear-earbuds-paraphrases",
+    "capability": "negative_constraint",
+    "queries": [
+      "不要入耳式耳机",
+      "不想要塞耳朵的耳机",
+      "半入耳蓝牙耳机"
+    ],
+    "filters": {
+      "category": "数码电子",
+      "subCategory": "真无线耳机",
+      "availableOnly": true,
+      "avoidTerms": ["入耳"]
+    },
+    "expectedProductIdsAny": [],
+    "expectedCategory": "数码电子",
+    "expectedSubCategory": "真无线耳机",
+    "expectedNoResult": false,
+    "forbidden": {
+      "wearingStyles": ["in_ear"],
+      "terms": ["入耳"]
+    },
+    "notes": "验证佩戴形态约束不要错误屏蔽半入耳或开放式。"
+  },
+  {
+    "caseId": "cheap-earbuds-no-result-paraphrases",
+    "capability": "data_gap",
+    "queries": [
+      "200以内蓝牙耳机",
+      "一百多无线耳机",
+      "学生党低预算耳机"
+    ],
+    "filters": {
+      "category": "数码电子",
+      "subCategory": "真无线耳机",
+      "maxPriceCents": 20000,
+      "availableOnly": true
+    },
+    "expectedProductIdsAny": [],
+    "expectedCategory": "数码电子",
+    "expectedSubCategory": "真无线耳机",
+    "expectedNoResult": true,
+    "notes": "当前商品库没有该价格带真无线耳机，应正确 no-result。"
+  },
+  {
+    "caseId": "dorm-small-appliance-paraphrases",
+    "capability": "use_case",
+    "queries": [
+      "宿舍小电器",
+      "一人食省空间小家电",
+      "租房小容量厨房电器"
+    ],
+    "filters": {
+      "category": "家用电器",
+      "availableOnly": true
+    },
+    "expectedProductIdsAny": [
+      "p_home_airfryer_001",
+      "p_home_water_001",
+      "p_home_water_003",
+      "p_home_air_004",
+      "p_home_washer_004"
+    ],
+    "expectedCategory": "家用电器",
+    "expectedSubCategory": null,
+    "expectedNoResult": false,
+    "notes": "验证 use-case 查询能稳定命中宿舍/小空间小家电。"
+  },
+  {
+    "caseId": "quiet-dorm-keyboard-paraphrases",
+    "capability": "use_case",
+    "queries": [
+      "宿舍安静键盘",
+      "不吵室友的键盘",
+      "低噪办公键盘"
+    ],
+    "filters": {
+      "category": "办公学习",
+      "subCategory": "办公外设",
+      "availableOnly": true
+    },
+    "expectedProductIdsAny": [
+      "p_office_keyboard_001",
+      "p_office_keyboard_002",
+      "p_office_keyboard_003"
+    ],
+    "expectedCategory": "办公学习",
+    "expectedSubCategory": "办公外设",
+    "expectedNoResult": false,
+    "notes": "验证口语化 use-case 对键盘候选稳定召回。"
+  },
+  {
+    "caseId": "air-purifier-budget-paraphrases",
+    "capability": "budget_filter",
+    "queries": [
+      "1000以内空气净化器",
+      "千元内空气护理",
+      "预算不高的空气净化器"
+    ],
+    "filters": {
+      "category": "家用电器",
+      "subCategory": "空气护理",
+      "maxPriceCents": 100000,
+      "availableOnly": true
+    },
+    "expectedProductIdsAny": ["p_home_air_001", "p_home_air_003"],
+    "expectedCategory": "家用电器",
+    "expectedSubCategory": "空气护理",
+    "expectedNoResult": false,
+    "notes": "验证预算 + 类目 hard filter。"
+  },
+  {
+    "caseId": "running-shoes-under-500-no-result",
+    "capability": "data_gap",
+    "queries": [
+      "500以内轻量跑鞋",
+      "300左右跑步鞋",
+      "便宜耐穿跑鞋"
+    ],
+    "filters": {
+      "category": "服饰运动",
+      "subCategory": "跑步鞋",
+      "maxPriceCents": 50000,
+      "availableOnly": true
+    },
+    "expectedProductIdsAny": [],
+    "expectedCategory": "服饰运动",
+    "expectedSubCategory": "跑步鞋",
+    "expectedNoResult": true,
+    "notes": "当前商品库该价位跑步鞋存在数据缺口，应正确 no-result。"
+  }
+]

@@ -6,6 +6,7 @@ import type {
   VectorSearchFilters,
   VectorSearchHitMetadata,
 } from "../vector/vector-search.types";
+import type { RagDebugTrace } from "./rag-debug-trace.types";
 import type { ChatContextMemorySummary } from "./chat-context-memory.types";
 import type { CartActionResult, CartCommandFallbackReason } from "./cart-command.types";
 import type { ChatTimingEntry, ChatTimingTracker } from "./chat-timing";
@@ -125,6 +126,7 @@ export interface RagChatRequest {
   requestId?: string;
   abortSignal?: AbortSignal;
   timing?: ChatTimingTracker;
+  debugTrace?: boolean;
 }
 
 export interface RetrievedProductContext {
@@ -169,6 +171,7 @@ export interface RagChatResult {
   cartAction?: CartActionResult;
   checkoutAction?: CheckoutActionResult;
   comparisonResult?: ChatComparisonResultPayload;
+  debugTrace?: RagDebugTrace;
 }
 
 export interface ChatStreamWriter {
