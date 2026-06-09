@@ -26,12 +26,47 @@ describe("ClarificationService", () => {
     });
   });
 
+  it("creates a clarification candidate for broad running-shoe recommendation", () => {
+    const decision = service.decide({
+      question: "跑鞋推荐",
+    });
+
+    expect(decision).toEqual({
+      needsClarification: true,
+      missingSlots: ["use_case", "priority", "budget"],
+    });
+  });
+
+  it.each([
+    "跑鞋",
+    "推荐一款跑步鞋",
+    "运动鞋推荐",
+    "帮我看看训练鞋",
+    "想买真无线耳机",
+    "降噪耳机有什么推荐",
+  ])("creates a clarification candidate for broad paraphrase: %s", (question) => {
+    const decision = service.decide({ question });
+
+    expect(decision.needsClarification).toBe(true);
+    expect(decision.missingSlots.length).toBeGreaterThan(0);
+  });
+
   it("does not ask again when the question already has budget or priority", () => {
     expect(
       service.decide({
         question: "推荐 3000 元以内拍照好的手机",
       }).needsClarification,
     ).toBe(false);
+  });
+
+  it("does not count words inside the product category as filled preference slots", () => {
+    expect(service.decide({ question: "推荐一款跑步鞋" })).toEqual({
+      needsClarification: true,
+      missingSlots: ["use_case", "priority", "budget"],
+    });
+
+    expect(service.decide({ question: "推荐跑鞋，日常慢跑用" }).needsClarification)
+      .toBe(false);
   });
 
   it("does not ask when conversation memory already has usable constraints", () => {

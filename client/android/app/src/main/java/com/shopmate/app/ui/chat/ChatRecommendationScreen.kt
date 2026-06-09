@@ -138,6 +138,7 @@ fun ChatRecommendationScreen(
             state.messages.size,
             state.messages.lastOrNull()?.text,
             state.productCards.size,
+            state.productCardGroups.size,
             state.comparisonActions.size,
             state.isComparisonGenerating,
             state.comparisonResults.size,
@@ -329,7 +330,12 @@ private fun ChatStreamList(
         ),
         verticalArrangement = Arrangement.spacedBy(10f.s()),
     ) {
-        if (state.messages.isEmpty() && state.productCards.isEmpty() && state.errorMessage == null) {
+        if (
+            state.messages.isEmpty() &&
+            state.productCards.isEmpty() &&
+            state.productCardGroups.isEmpty() &&
+            state.errorMessage == null
+        ) {
             item(key = "empty-message") {
                 Box(modifier = Modifier.fillMaxWidth()) {
                     ChatMessageBubble(
@@ -384,7 +390,19 @@ private fun ChatStreamList(
                     )
                 }
 
-                if (message.id == state.productCardsAnchorMessageId) {
+                val productCardGroup = state.productCardGroups.firstOrNull { group ->
+                    group.anchorMessageId == message.id
+                }
+
+                if (productCardGroup != null) {
+                    ProductCardList(
+                        products = productCardGroup.products,
+                        scale = scale,
+                        onProductClick = onProductClick,
+                        onAddCartClick = onAddCartClick,
+                        productAddCartStates = productAddCartStates,
+                    )
+                } else if (message.id == state.productCardsAnchorMessageId) {
                     ProductCardList(
                         products = state.productCards,
                         scale = scale,
@@ -428,7 +446,7 @@ private fun ChatStreamList(
             }
         }
 
-        if (state.productCardsAnchorMessageId == null) {
+        if (state.productCardsAnchorMessageId == null && state.productCardGroups.isEmpty()) {
             item(key = "unanchored-product-cards") {
                 ProductCardList(
                     products = state.productCards,

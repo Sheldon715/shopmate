@@ -1,5 +1,6 @@
 import { MAX_CART_QUANTITY, MIN_CART_QUANTITY } from "../cart/cart.service";
 import type { CartDto, CartItemDto } from "../cart/cart.types";
+import { buildProductDisplayName } from "../products/product-display-copy";
 import type { Product } from "../products/product.types";
 import type {
   CartCommandAction,
@@ -390,6 +391,7 @@ function productMatchesName(product: Product, target: string): boolean {
   const candidates = [
     product.id,
     product.name,
+    buildProductDisplayName(product),
     product.brand,
     product.category,
     product.subCategory ?? "",

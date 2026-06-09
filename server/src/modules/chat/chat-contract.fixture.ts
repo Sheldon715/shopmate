@@ -87,17 +87,22 @@ const successDone: ChatDonePayload = {
   },
 };
 
+const emptyAnswerFallbackMessageDelta: ChatMessageDeltaPayload = {
+  text: "这次没有确认到可靠的库内推荐。你可以补充预算、用途或偏好，我再继续筛选。",
+  index: 0,
+};
+
 const emptyAnswerFallbackProductCards: ChatProductCardsPayload = {
-  items: [fallbackHeadphonesCard],
+  items: [],
 };
 
 const emptyAnswerFallbackDone: ChatDonePayload = {
-  recommendedProductIds: ["product_002"],
+  recommendedProductIds: [],
   fallbackUsed: true,
   fallbackReason: "LLM_ERROR",
   retrieval: {
     candidateCount: 2,
-    returnedProductIds: ["product_002"],
+    returnedProductIds: [],
   },
 };
 
@@ -376,8 +381,9 @@ export const chatContractFixtures = {
   },
   emptyAnswerFallback: {
     name: "empty answer fallback",
-    description: "No message delta, fallback product cards, and done.",
+    description: "A fallback message, empty product cards, and done.",
     events: [
+      { eventName: "message_delta", payload: emptyAnswerFallbackMessageDelta },
       { eventName: "product_cards", payload: emptyAnswerFallbackProductCards },
       { eventName: "done", payload: emptyAnswerFallbackDone },
     ],

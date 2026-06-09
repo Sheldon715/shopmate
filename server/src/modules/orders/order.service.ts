@@ -6,6 +6,7 @@ import { mapCartToDto } from "../cart/cart.mapper";
 import { DEMO_CART_USER_KEY } from "../cart/cart.service";
 import type { CartDto, CartItemDto } from "../cart/cart.types";
 import { isProductAvailable } from "../products/product-availability";
+import { buildProductDisplayName } from "../products/product-display-copy";
 import { findActiveProductsByIds } from "../products/product.repository";
 import type { Product } from "../products/product.types";
 import {
@@ -504,7 +505,7 @@ function mapProductToPendingCheckoutItem(product: Product): PendingCheckoutItem 
   return {
     cartItemId: `buy-now:${product.id}`,
     productId: product.id,
-    productName: product.name,
+    productName: buildProductDisplayName(product),
     brand: product.brand,
     category: product.category,
     unitPriceCents: product.priceMinCents,

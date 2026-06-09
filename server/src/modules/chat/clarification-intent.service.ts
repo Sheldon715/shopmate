@@ -10,6 +10,7 @@ import {
   normalizeLlmText,
   parseJsonObject,
   stripCodeFence,
+  tryParseJsonObject,
 } from "./llm-output-utils";
 
 export interface ClarificationIntentDetectInput
@@ -71,13 +72,13 @@ export class ClarificationIntentService {
       const intent = parseClarificationIntentOutput(response.text);
 
       if (!intent.needsClarification) {
-        return NO_CLARIFICATION;
+        return this.createRequiredClarificationDecision(input, candidate);
       }
 
       const question = normalizeQuestion(intent.question);
 
       if (!question) {
-        return NO_CLARIFICATION;
+        return this.createRequiredClarificationDecision(input, candidate);
       }
 
       return {
@@ -90,7 +91,57 @@ export class ClarificationIntentService {
       };
     } catch (error) {
       rethrowIfAborted(input.abortSignal, error);
-      return NO_CLARIFICATION;
+      const fallbackQuestion = createSlotFallbackQuestion(
+        candidate.missingSlots,
+      );
+
+      return fallbackQuestion
+        ? {
+            needsClarification: true,
+            question: fallbackQuestion,
+            missingSlots: candidate.missingSlots,
+          }
+        : NO_CLARIFICATION;
+    }
+  }
+
+  private async createRequiredClarificationDecision(
+    input: ClarificationIntentDetectInput,
+    candidate: ClarificationDecision,
+  ): Promise<ClarificationDecision> {
+    const forcedQuestion = await this.generateRequiredClarificationQuestion(
+      input,
+      candidate,
+    );
+    const question = forcedQuestion
+      ?? createSlotFallbackQuestion(candidate.missingSlots);
+
+    return question
+      ? {
+          needsClarification: true,
+          question,
+          missingSlots: candidate.missingSlots,
+        }
+      : NO_CLARIFICATION;
+  }
+
+  private async generateRequiredClarificationQuestion(
+    input: ClarificationIntentDetectInput,
+    candidate: ClarificationDecision,
+  ): Promise<string | undefined> {
+    try {
+      const response = await this.llmClient.generate({
+        messages: buildRequiredClarificationQuestionPrompt(input, candidate),
+        temperature: 0,
+        maxCompletionTokens: CLARIFICATION_INTENT_MAX_COMPLETION_TOKENS,
+        requestId: input.requestId,
+        abortSignal: input.abortSignal,
+      });
+
+      return normalizeQuestion(parseQuestionOutput(response.text));
+    } catch (error) {
+      rethrowIfAborted(input.abortSignal, error);
+      return undefined;
     }
   }
 }
@@ -107,12 +158,42 @@ function buildClarificationIntentPrompt(
         "判断用户当前这句话是否因为信息不足，需要先追问，再进入商品检索。",
         "如果需要澄清，请生成一句自然、简短、移动端友好的中文反问。",
         "不要推荐具体商品，不要决定 productId，不要输出商品卡片。",
-        "true 的例子：推荐一款手机、推荐护肤品、有什么跑鞋、鞋、手机。",
+        "只要用户只说了宽泛品类和普通推荐意图，且没有预算、用途、人群或偏好，就必须输出 true。",
+        "不要把“推荐”“帮我推荐”“有什么”本身理解成用户接受宽泛推荐；这些只是普通购物意图。",
+        "true 的例子：推荐一款手机、手机推荐、推荐护肤品、跑鞋推荐、跑步鞋、训练鞋、运动鞋推荐、鞋子推荐、蓝牙耳机推荐、真无线耳机、有什么跑鞋、鞋、手机。",
         "false 的例子：推荐 3000 元以内拍照好的手机、适合油皮的洗面奶、先给我几个看看、随便推荐一个。",
         "如果问题已有预算、使用场景、人群、品牌、功效或用户明确接受宽泛推荐，输出 false。",
         "missing_slots 只能包含 budget、use_case、priority、audience。",
         "clarification_question 必须是一句话，不超过 70 个中文字符。",
         '只输出 JSON object，例如 {"needs_clarification":true,"clarification_question":"你更看重拍照、续航、预算还是性价比？","missing_slots":["budget","priority"]}。',
+      ].join("\n"),
+    },
+    {
+      role: "user",
+      content: JSON.stringify({
+        message: input.question,
+        candidateMissingSlots: candidate.missingSlots,
+        contextMemory: summarizeContextMemory(input.contextMemory),
+        filters: input.filters ?? {},
+      }),
+    },
+  ];
+}
+
+function buildRequiredClarificationQuestionPrompt(
+  input: ClarificationIntentDetectInput,
+  candidate: ClarificationDecision,
+): LlmGenerateRequest["messages"] {
+  return [
+    {
+      role: "system",
+      content: [
+        "你是 ShopMate 的澄清问题生成器。",
+        "上游规则已经确认：用户只给了宽泛购物品类，信息不足，必须先追问再检索。",
+        "请根据缺失槽位生成一句自然、简短、移动端友好的中文反问。",
+        "不要推荐具体商品，不要输出商品卡片，不要输出解释过程。",
+        "clarification_question 必须是一句话，不超过 70 个中文字符。",
+        '只输出 JSON object，例如 {"clarification_question":"你主要用于跑步训练、日常通勤还是比赛？预算大概多少？"}。',
       ].join("\n"),
     },
     {
@@ -168,6 +249,17 @@ function parseQuestion(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
+function parseQuestionOutput(rawText: string): string | undefined {
+  const text = stripCodeFence(rawText).trim();
+  const payload = tryParseJsonObject(text);
+
+  if (payload) {
+    return parseQuestion(payload.clarification_question);
+  }
+
+  return text.startsWith("{") ? undefined : text;
+}
+
 function parseMissingSlots(value: unknown): ClarificationSlot[] | undefined {
   if (!Array.isArray(value)) {
     return undefined;
@@ -190,6 +282,28 @@ function normalizeQuestion(value: string | undefined): string | undefined {
     maxChars: 70,
     truncateSuffix: "？",
   });
+}
+
+function createSlotFallbackQuestion(
+  slots: readonly ClarificationSlot[],
+): string | undefined {
+  const labels = slots.flatMap((slot) => {
+    switch (slot) {
+      case "budget":
+        return ["预算"];
+      case "use_case":
+        return ["使用场景"];
+      case "priority":
+        return ["更看重的性能或特点"];
+      case "audience":
+        return ["使用人群"];
+    }
+  });
+  const uniqueLabels = [...new Set(labels)];
+
+  return uniqueLabels.length > 0
+    ? `请补充${uniqueLabels.join("、")}，我再帮你筛更合适的商品。`
+    : undefined;
 }
 
 function isClarificationSlot(value: unknown): value is ClarificationSlot {

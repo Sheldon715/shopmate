@@ -394,7 +394,9 @@ private fun CartItemCard(
 ) {
     fun Float.s(): Dp = scaledDp(scale)
 
+    val unitPriceText = line.item.product.priceText
     val subtotalText = line.item.subtotalText
+    val showSubtotal = line.quantity > 1 && subtotalText != unitPriceText
     val isEnabled = line.item.available && !line.inFlight
 
     ShopMateElevatedSurface(
@@ -489,17 +491,33 @@ private fun CartItemCard(
         }
 
         Text(
-            text = subtotalText,
+            text = unitPriceText,
             color = ShopMateTextPrimary.copy(alpha = if (line.inFlight) 0.62f else 1f),
             fontSize = (16f * textScale).sp,
             lineHeight = (20.667f * textScale).sp,
             fontWeight = FontWeight.Bold,
             maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             letterSpacing = 0.sp,
             modifier = Modifier
                 .offset(x = 174f.s(), y = 111f.s())
                 .width(62f.s())
         )
+
+        if (showSubtotal) {
+            Text(
+                text = "小计 $subtotalText",
+                color = Color(0xFF7A858F).copy(alpha = if (line.inFlight) 0.58f else 1f),
+                fontSize = (10.5f * textScale).sp,
+                lineHeight = (13f * textScale).sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                letterSpacing = 0.sp,
+                modifier = Modifier
+                    .offset(x = 174f.s(), y = 132.2f.s())
+                    .width(152f.s())
+            )
+        }
 
         QuantityStepper(
             quantity = line.quantity,
@@ -775,8 +793,9 @@ private fun CartFooter(
                         lineHeight = (24f * scale).sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
-                        overflow = TextOverflow.Clip,
-                        letterSpacing = 0.sp
+                        overflow = TextOverflow.Ellipsis,
+                        letterSpacing = 0.sp,
+                        modifier = Modifier.width(88f.s())
                     )
                 }
             }

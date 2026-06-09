@@ -13,7 +13,7 @@ class ProductDetailMapperTest {
         val ui = productDto().toProductDetailUi()
 
         assertEquals("product_001", ui.id)
-        assertEquals("通勤蓝牙耳机 A", ui.name)
+        assertEquals("通勤蓝牙耳机", ui.name)
         assertEquals("¥179-219", ui.priceText)
         assertEquals("数码电子 / 耳机", ui.categoryText)
         assertEquals("示例品牌", ui.brandText)
@@ -52,6 +52,114 @@ class ProductDetailMapperTest {
         assertFalse(ui.recommendationReason.contains(ui.highlights.first()))
         assertTrue(ui.highlights.any { value -> value.contains("夜间肌底修护") })
         assertTrue(ui.suitedForText.contains("局部测试") || ui.suitedForText.contains("过敏"))
+    }
+
+    @Test
+    fun usesGroundedRecommendationReasonFromBackendWhenPresent() {
+        val ui = productDto(
+            recommendationReason = "推荐理由：适合学生党通勤训练，轻便耐穿。",
+            pros = listOf("适合学生党通勤训练", "轻便耐穿", "鞋面透气"),
+        ).toProductDetailUi()
+
+        assertEquals("适合学生党通勤训练，轻便耐穿。", ui.recommendationReason)
+        assertFalse(ui.recommendationReason.contains("推荐理由：推荐理由"))
+        assertFalse(ui.recommendationReason.contains("示例品牌"))
+        assertFalse(ui.highlights.any { value -> value.contains("适合学生党通勤训练") })
+        assertFalse(ui.highlights.any { value -> value.contains("轻便耐穿") })
+        assertTrue(ui.highlights.any { value -> value.contains("鞋面透气") })
+    }
+
+    @Test
+    fun filtersDatasetHousekeepingCopyOutOfDetailRecommendationContent() {
+        val dirtyCopies = listOf(
+            "本数据集保留真实品牌与产品名",
+            "便于后续查找对应商品图片和构建商品详情页",
+            "导购信息经过脱敏和结构化整理",
+            "价格、SKU、评论和 FAQ 为比赛数据集模拟内容，不代表实时售价或真实用户反馈",
+        )
+        val ui = productDto(
+            recommendationReason = "推荐理由：适合炖汤，小容量，宿舍友好。",
+            pros = dirtyCopies + listOf("适合炖汤", "小容量"),
+            recommendWhen = listOf("适合炖汤", "小容量"),
+            attributes = mapOf(
+                "适用人群" to listOf("租房党", "早餐需求用户"),
+                "使用场景" to listOf("早餐制作", "一人食"),
+                "核心卖点" to dirtyCopies + listOf("适合炖汤", "小容量", "宿舍友好"),
+            ),
+            marketingDescription = "小熊 DDZ-C06A1 电炖盅 是真实品牌 小熊 旗下的家用电器/厨房小电商品，本数据集保留真实品牌与产品名，便于后续查找对应商品图片和构建商品详情页。导购信息经过脱敏和结构化整理，主要卖点包括适合炖汤、小容量、宿舍友好，适合早餐制作、一人食。价格、SKU、评论和 FAQ 为比赛数据集模拟内容，不代表实时售价或真实用户反馈。",
+        ).toProductDetailUi()
+
+        assertEquals("适合炖汤，小容量，宿舍友好。", ui.recommendationReason)
+        val displayCopies = listOf(ui.recommendationReason, ui.description, ui.suitedForText) +
+            ui.highlights +
+            ui.specs.map { spec -> spec.value }
+        dirtyCopies.forEach { dirtyCopy ->
+            assertFalse(displayCopies.any { value -> value.contains(dirtyCopy) })
+        }
+        assertTrue(ui.highlights.any { value -> value.contains("早餐制作") || value.contains("一人食") })
+    }
+
+    @Test
+    fun preservesLongGroundedRecommendationReasonFromBackend() {
+        val reason = "推荐理由：适合油皮或混合皮在夏季使用，适合追求自然妆感的人群，50ml容量刚好满足日常通勤或短途旅行需求。"
+        val ui = productDto(
+            recommendationReason = reason,
+            pros = listOf("专为易敏肌设计", "50ml容量适合通勤或短途旅行"),
+            attributes = mapOf(
+                "适用人群" to listOf("日常护肤用户", "关注肤感的人群"),
+                "使用场景" to listOf("日常护理", "换季护理"),
+                "核心卖点" to listOf("清爽控油", "轻薄不油腻"),
+            ),
+        ).toProductDetailUi()
+
+        assertEquals(
+            "适合油皮或混合皮在夏季使用，适合追求自然妆感的人群，50ml容量刚好满足日常通勤或短途旅行需求。",
+            ui.recommendationReason,
+        )
+    }
+
+    @Test
+    fun mapsRawCatalogSeoTitleToConciseDetailDisplayNameAndFiltersTitleEchoHighlights() {
+        val ui = productDto(
+            name = "安热沙金灿倍护防晒乳高倍防水防汗清爽户外面部身体防晒",
+            brand = "安热沙",
+            category = "美妆护肤",
+            subCategory = "防晒",
+            recommendationReason = "推荐理由：适合户外爱好者、通勤族及易出汗人群，防水配方需用卸妆产品清洁。",
+            pros = listOf("安热沙金灿倍护防晒乳", "遇水增强技术", "SPF50+ PA++++高倍防护"),
+            recommendWhen = listOf("安热沙金灿倍护防晒乳", "户外通勤"),
+            attributes = mapOf(
+                "适用人群" to listOf("户外爱好者", "通勤族"),
+                "使用场景" to listOf("户外防晒", "日常上班"),
+                "核心卖点" to listOf("安热沙金灿倍护防晒乳", "遇水增强技术", "质地清爽不油腻"),
+            ),
+        ).toProductDetailUi()
+
+        assertEquals("安热沙金灿倍护防晒乳", ui.name)
+        assertFalse(ui.highlights.any { value -> value == "安热沙金灿倍护防晒乳" })
+        assertTrue(ui.highlights.any { value -> value.contains("遇水增强") })
+    }
+
+    @Test
+    fun mapsShortBrandTitleWithImmediateProductTypeToConciseDetailDisplayName() {
+        val ui = productDto(
+            name = "小熊电炖盅适合炖汤小容量宿舍友好早餐制作一人食",
+            brand = "小熊",
+            category = "家用电器",
+            subCategory = "厨房小电",
+            recommendationReason = "推荐理由：适合炖汤，小容量，宿舍友好。",
+            pros = listOf("小熊电炖盅", "适合炖汤", "小容量"),
+            recommendWhen = listOf("早餐制作", "一人食"),
+            attributes = mapOf(
+                "适用人群" to listOf("租房党", "早餐需求"),
+                "使用场景" to listOf("早餐制作", "一人食"),
+                "核心卖点" to listOf("小熊电炖盅", "适合炖汤", "小容量"),
+            ),
+        ).toProductDetailUi()
+
+        assertEquals("小熊电炖盅", ui.name)
+        assertFalse(ui.highlights.any { value -> value == "小熊电炖盅" })
+        assertTrue(ui.highlights.any { value -> value.contains("早餐制作") || value.contains("一人食") })
     }
 
     @Test
@@ -126,8 +234,14 @@ class ProductDetailMapperTest {
     }
 
     private fun productDto(
+        name: String = "通勤蓝牙耳机 A",
+        brand: String = "示例品牌",
+        category: String = "数码电子",
+        subCategory: String = "耳机",
         pros: List<String> = listOf("续航稳定", "半入耳轻盈"),
         recommendWhen: List<String> = listOf("通勤"),
+        recommendationReason: String? = null,
+        marketingDescription: String = "适合通勤和日常使用。轻巧佩戴，通话清晰。",
         attributes: Map<String, List<String>> = mapOf(
             "适用人群" to listOf("通勤用户", "办公用户"),
             "使用场景" to listOf("通勤", "办公"),
@@ -138,16 +252,17 @@ class ProductDetailMapperTest {
     ): ProductDetailDto =
         ProductDetailDto(
             id = "product_001",
-            name = "通勤蓝牙耳机 A",
-            brand = "示例品牌",
-            category = "数码电子",
-            subCategory = "耳机",
+            name = name,
+            brand = brand,
+            category = category,
+            subCategory = subCategory,
             priceCents = 19900,
             priceRangeCents = PriceRangeCentsDto(min = 17900, max = 21900),
             currency = "CNY",
             tags = listOf("通勤", "蓝牙", "轻巧", "办公", "长续航"),
             available = true,
-            marketingDescription = "适合通勤和日常使用。轻巧佩戴，通话清晰。",
+            recommendationReason = recommendationReason,
+            marketingDescription = marketingDescription,
             skus = listOf(
                 ProductSkuDto(
                     skuId = "sku_001",

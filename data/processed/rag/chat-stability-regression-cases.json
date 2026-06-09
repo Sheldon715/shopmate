@@ -1,0 +1,338 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Chat / RAG / Android stability regression matrix. Each bug is represented as behavior invariants with seed, paraphrase, and holdout variants to reduce overfitting to screenshot text.",
+  "cases": [
+    {
+      "caseId": "broad_footwear_requires_clarification",
+      "priority": "p0",
+      "layers": ["intent", "contract"],
+      "sourceBugRefs": ["9", "search_failure"],
+      "invariant": "Broad footwear or running-shoe recommendation requests without budget, usage scenario, audience, or priority must ask a clarification question before retrieval; product_cards and recommendedProductIds must be empty.",
+      "expectedOutcome": "needs_clarification",
+      "automatedCheck": "clarification_candidate",
+      "variants": [
+        {
+          "id": "seed_running_shoes",
+          "split": "seed",
+          "text": "跑鞋推荐"
+        },
+        {
+          "id": "seed_terse_running_shoes",
+          "split": "seed",
+          "text": "跑鞋"
+        },
+        {
+          "id": "paraphrase_running_footwear",
+          "split": "paraphrase",
+          "text": "推荐一款跑步鞋"
+        },
+        {
+          "id": "paraphrase_sports_shoes",
+          "split": "paraphrase",
+          "text": "运动鞋推荐"
+        },
+        {
+          "id": "holdout_training_shoes",
+          "split": "holdout",
+          "text": "帮我看看训练鞋"
+        }
+      ]
+    },
+    {
+      "caseId": "broad_earbuds_requires_clarification",
+      "priority": "p1",
+      "layers": ["intent", "contract"],
+      "sourceBugRefs": ["4", "9"],
+      "invariant": "Broad earbud requests without budget or usage preference should clarify instead of immediately searching or returning generic no-result text.",
+      "expectedOutcome": "needs_clarification",
+      "automatedCheck": "clarification_candidate",
+      "variants": [
+        {
+          "id": "seed_bluetooth_earbuds",
+          "split": "seed",
+          "text": "蓝牙耳机推荐"
+        },
+        {
+          "id": "paraphrase_earbuds",
+          "split": "paraphrase",
+          "text": "推荐耳机"
+        },
+        {
+          "id": "paraphrase_noise_canceling",
+          "split": "paraphrase",
+          "text": "降噪耳机有什么推荐"
+        },
+        {
+          "id": "holdout_wireless_earbuds",
+          "split": "holdout",
+          "text": "想买真无线耳机"
+        }
+      ]
+    },
+    {
+      "caseId": "fallback_answer_never_shows_unrelated_cards",
+      "priority": "p0",
+      "layers": ["generation", "contract", "retrieval"],
+      "sourceBugRefs": ["3", "6", "home_prompt"],
+      "invariant": "If assistant text says no reliable recommendation, no matching products, invalid model output, or LLM error, product_cards, recommendedProductIds, and retrieval.returnedProductIds must be empty unless a structured comparison fallback explicitly owns the cards.",
+      "expectedOutcome": "no_result_no_cards",
+      "automatedCheck": "rag_fallback_contract",
+      "variants": [
+        {
+          "id": "seed_appliance_beauty_mismatch",
+          "split": "seed",
+          "text": "推荐一款小容量省空间，适配宿舍使用的一人食小家电"
+        },
+        {
+          "id": "paraphrase_dorm_appliance",
+          "split": "paraphrase",
+          "text": "宿舍一人用的小家电，有省空间的吗"
+        },
+        {
+          "id": "holdout_small_kitchen",
+          "split": "holdout",
+          "text": "租房用，小容量厨房小电推荐"
+        }
+      ]
+    },
+    {
+      "caseId": "no_candidates_answer_is_complete_and_actionable",
+      "priority": "p0",
+      "layers": ["generation", "streaming", "android_ui"],
+      "sourceBugRefs": ["2", "4", "search_failure"],
+      "invariant": "No-candidates answers must be complete sentences that explain the missing constraint or catalog gap and offer a next step; they must not end with dangling words or punctuation.",
+      "expectedOutcome": "complete_no_result_text",
+      "automatedCheck": "no_candidates_completeness",
+      "variants": [
+        {
+          "id": "seed_low_budget_earbuds",
+          "split": "seed",
+          "text": "1000元以下的蓝牙耳机有哪些？"
+        },
+        {
+          "id": "seed_running_budget_followup",
+          "split": "seed",
+          "text": "300左右，好穿耐用"
+        },
+        {
+          "id": "paraphrase_student_earbuds",
+          "split": "paraphrase",
+          "text": "500元以内，适合学生党的蓝牙耳机"
+        },
+        {
+          "id": "holdout_cheap_running_shoes",
+          "split": "holdout",
+          "text": "300块内耐穿的跑步鞋"
+        }
+      ]
+    },
+    {
+      "caseId": "recommendation_reason_uses_user_fit_not_brand_template",
+      "priority": "p1",
+      "layers": ["generation", "product_mapping", "android_ui"],
+      "sourceBugRefs": ["1", "5", "6"],
+      "invariant": "Product recommendation reasons must include user-fit facts such as audience, scenario, advantage, constraint match, or trade-off; brand plus category plus availability is not enough.",
+      "expectedOutcome": "grounded_reasons",
+      "automatedCheck": "reason_quality",
+      "variants": [
+        {
+          "id": "seed_one_person_appliance",
+          "split": "seed",
+          "text": "小容量省空间，宿舍一人食小家电"
+        },
+        {
+          "id": "paraphrase_oily_cleanser",
+          "split": "paraphrase",
+          "text": "推荐一款适合油皮的洗面奶"
+        },
+        {
+          "id": "holdout_dorm_keyboard",
+          "split": "holdout",
+          "text": "宿舍用安静一点的键盘"
+        }
+      ]
+    },
+    {
+      "caseId": "history_product_cards_remain_anchored",
+      "priority": "p0",
+      "layers": ["android_ui", "contract", "conversation_memory"],
+      "sourceBugRefs": ["8", "9"],
+      "invariant": "Sending a new message must not remove product cards, detail entry points, or comparison/add-to-cart anchors from previous assistant messages.",
+      "expectedOutcome": "ui_history_cards_persist",
+      "automatedCheck": "android_viewmodel_history_anchor",
+      "variants": [
+        {
+          "id": "seed_running_then_keyboard",
+          "split": "seed",
+          "text": "推荐一款跑鞋 -> 500元以内，适合学生党的机械键盘"
+        },
+        {
+          "id": "paraphrase_cleanser_then_earbuds",
+          "split": "paraphrase",
+          "text": "推荐油皮洗面奶 -> 蓝牙耳机推荐"
+        },
+        {
+          "id": "holdout_appliance_then_followup",
+          "split": "holdout",
+          "text": "一人食小家电 -> 还有别的吗"
+        }
+      ]
+    },
+    {
+      "caseId": "same_prompt_same_conversation_stays_consistent",
+      "priority": "p1",
+      "layers": ["conversation_memory", "query_rewrite", "cache", "retrieval"],
+      "sourceBugRefs": ["9"],
+      "invariant": "Repeating the same or semantically equivalent request in one conversation should keep the same behavior class and compatible constraints; it must not drift from clarification to unrelated no-result or unrelated product cards.",
+      "expectedOutcome": "stable_behavior_class",
+      "automatedCheck": "chat_sse_smoke",
+      "variants": [
+        {
+          "id": "seed_repeat_running_shoes",
+          "split": "seed",
+          "text": "推荐一款跑鞋 -> 推荐一款跑鞋"
+        },
+        {
+          "id": "paraphrase_repeat_earbuds",
+          "split": "paraphrase",
+          "text": "蓝牙耳机推荐 -> 推荐耳机"
+        },
+        {
+          "id": "holdout_repeat_sunscreen",
+          "split": "holdout",
+          "text": "防晒别太油 -> 有没有清爽防晒"
+        }
+      ]
+    },
+    {
+      "caseId": "checkout_first_product_routes_to_checkout_action",
+      "priority": "p0",
+      "layers": ["cart_checkout", "intent", "contract"],
+      "sourceBugRefs": ["4"],
+      "invariant": "After a valid recommendation, natural-language checkout commands such as ordering the first product must route to checkoutAction or a target clarification; they must not fall through to ordinary RAG no-candidates.",
+      "expectedOutcome": "checkout_action_or_target_clarification",
+      "automatedCheck": "checkout_action_routing",
+      "variants": [
+        {
+          "id": "seed_order_first_product",
+          "split": "seed",
+          "text": "下单第一款商品"
+        },
+        {
+          "id": "paraphrase_buy_first",
+          "split": "paraphrase",
+          "text": "就买第一个"
+        },
+        {
+          "id": "holdout_checkout_previous_first",
+          "split": "holdout",
+          "text": "把刚才第一款拿去结算"
+        }
+      ]
+    },
+    {
+      "caseId": "cart_total_uses_backend_selected_total",
+      "priority": "p1",
+      "layers": ["android_ui", "cart_checkout", "contract"],
+      "sourceBugRefs": ["2"],
+      "invariant": "Cart footer total must display backend summary.selectedTotalCents for selected items and leave enough width for five-digit CNY amounts.",
+      "expectedOutcome": "cart_total_matches_backend",
+      "automatedCheck": "android_cart_mapper",
+      "variants": [
+        {
+          "id": "seed_12_items_4_products",
+          "split": "seed",
+          "text": "selected 12 items across 4 products with total 2512 CNY"
+        },
+        {
+          "id": "paraphrase_large_quantity",
+          "split": "paraphrase",
+          "text": "selected quantity changes after plus/minus operations"
+        },
+        {
+          "id": "holdout_partial_selected",
+          "split": "holdout",
+          "text": "some cart items unselected while footer remains visible"
+        }
+      ]
+    },
+    {
+      "caseId": "product_text_surfaces_are_readable",
+      "priority": "p1",
+      "layers": ["android_ui", "product_mapping"],
+      "sourceBugRefs": ["5", "6"],
+      "invariant": "Product card titles should allow at least two readable lines, and detail recommendation reasons should render complete bullets without duplicating the product name as a reason.",
+      "expectedOutcome": "readable_product_text",
+      "automatedCheck": "android_ui_mapper",
+      "variants": [
+        {
+          "id": "seed_long_running_shoe_name",
+          "split": "seed",
+          "text": "特步一八零六代专业版碳板竞速跑鞋"
+        },
+        {
+          "id": "paraphrase_long_earbud_name",
+          "split": "paraphrase",
+          "text": "Apple AirPods Pro 3 心率监测版 主动降噪真无线蓝牙耳机"
+        },
+        {
+          "id": "holdout_long_sunscreen_name",
+          "split": "holdout",
+          "text": "理肤泉特护清盈防晒乳高倍防晒清爽控油版"
+        }
+      ]
+    },
+    {
+      "caseId": "home_prompt_paths_have_reliable_explanations",
+      "priority": "p0",
+      "layers": ["home_prompt", "generation", "contract", "data_coverage"],
+      "sourceBugRefs": ["6", "home_prompt"],
+      "invariant": "Home prompt entries must lead to a reliable explanation, a clarification, or a truthful catalog-gap no-result; they must not show cards under a no-reliable-explanation answer.",
+      "expectedOutcome": "home_prompt_reliable_or_truthful",
+      "automatedCheck": "chat_sse_smoke",
+      "variants": [
+        {
+          "id": "seed_home_earbuds",
+          "split": "seed",
+          "text": "找一款不入耳、久戴舒服的耳机"
+        },
+        {
+          "id": "paraphrase_home_negative",
+          "split": "paraphrase",
+          "text": "推荐防晒霜，但不要含酒精"
+        },
+        {
+          "id": "holdout_home_checkout",
+          "split": "holdout",
+          "text": "帮我把购物车里选中的商品下单"
+        }
+      ]
+    },
+    {
+      "caseId": "data_coverage_is_reported_not_hidden",
+      "priority": "p2",
+      "layers": ["data_coverage", "retrieval", "generation"],
+      "sourceBugRefs": ["4", "search_failure"],
+      "invariant": "If the catalog lacks a category or price band, the assistant should state the catalog gap and ask whether to broaden constraints; the product data or Home prompt should be updated if the demo requires the scenario.",
+      "expectedOutcome": "truthful_catalog_gap_or_data_upgrade",
+      "automatedCheck": "manual_data_audit",
+      "variants": [
+        {
+          "id": "seed_elder_phone",
+          "split": "seed",
+          "text": "帮我推荐一款手机，适合老年人使用，预算1000-2000"
+        },
+        {
+          "id": "paraphrase_low_running_shoes",
+          "split": "paraphrase",
+          "text": "300块左右，好穿耐用的跑鞋"
+        },
+        {
+          "id": "holdout_low_earbuds",
+          "split": "holdout",
+          "text": "500以内，学生党蓝牙耳机"
+        }
+      ]
+    }
+  ]
+}

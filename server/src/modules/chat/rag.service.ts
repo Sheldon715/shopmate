@@ -13,6 +13,7 @@ import type { CartDto, CartItemDto } from "../cart/cart.types";
 import type { LlmClient, LlmGenerateRequest } from "../llm/llm.types";
 import { createLlmClient } from "../llm/openai-compatible-chat.client";
 import { mapProductToCardDto } from "../products/product.mapper";
+import { buildProductDisplayName } from "../products/product-display-copy";
 import {
   findActiveProductsByIds,
   findProducts,
@@ -479,6 +480,7 @@ export class RagChatService {
       shortHistory: input.shortHistory,
       cartSnapshot,
       pendingCheckout,
+      recentProductIds,
       requestId: input.requestId,
       abortSignal: input.abortSignal,
     });
@@ -492,6 +494,7 @@ export class RagChatService {
           question,
           conversationId: input.conversationId,
           cartSnapshot,
+          recentProductIds,
           intent: checkoutIntent,
           pendingCheckout,
           requestId: input.requestId,
@@ -1786,7 +1789,7 @@ export class RagChatService {
         type: "add",
         status: "success",
         productId: resolvedTarget.product.id,
-        productName: resolvedTarget.product.name,
+        productName: buildProductDisplayName(resolvedTarget.product),
         quantity: detection.quantity,
         message: "已加入购物车",
       };
@@ -2519,6 +2522,21 @@ function createRetrievedFallbackResult(
   retrievalMetadata?: RetrievalSelectionMetadata,
   publicImageBaseUrl?: string,
 ): RagChatResult {
+  if (shouldSuppressRetrievedFallbackCards(fallbackReason, contexts)) {
+    return {
+      answer: createMinimalRagFallbackAnswer(fallbackReason),
+      recommendedProductIds: [],
+      productCards: [],
+      fallbackUsed: true,
+      fallbackReason,
+      retrieval: {
+        ...createRetrievalFields(queryRewrite, retrievalMetadata),
+        candidateCount: contexts.length,
+        returnedProductIds: [],
+      },
+    };
+  }
+
   const products = contexts
     .slice(0, maxRecommendedProducts)
     .map((context) => context.product);
@@ -2528,7 +2546,7 @@ function createRetrievedFallbackResult(
   const recommendedProductIds = products.map((product) => product.id);
 
   return {
-    answer: createMinimalRagFallbackAnswer(fallbackReason),
+    answer: createRetrievedFallbackAnswer(fallbackReason, productCards),
     recommendedProductIds,
     productCards,
     fallbackUsed: true,
@@ -2539,6 +2557,41 @@ function createRetrievedFallbackResult(
       returnedProductIds: recommendedProductIds,
     },
   };
+}
+
+function shouldSuppressRetrievedFallbackCards(
+  fallbackReason: Exclude<
+    RagChatFallbackReason,
+    "COMPARISON_TARGET_CLARIFICATION"
+  >,
+  contexts: readonly RetrievedProductContext[],
+): boolean {
+  if (fallbackReason === "LLM_ERROR" || fallbackReason === "LLM_INVALID_OUTPUT") {
+    return contexts.length === 0;
+  }
+
+  return (
+    fallbackReason === "NO_VALID_PRODUCT_IDS"
+  );
+}
+
+function createRetrievedFallbackAnswer(
+  fallbackReason: Exclude<
+    RagChatFallbackReason,
+    "COMPARISON_TARGET_CLARIFICATION"
+  >,
+  productCards: readonly ReturnType<typeof mapProductToCardDto>[],
+): string {
+  if (
+    (fallbackReason === "LLM_ERROR" || fallbackReason === "LLM_INVALID_OUTPUT")
+    && productCards.length > 0
+  ) {
+    return productCards.length === 1
+      ? "先为你保留 1 款库内相关商品，推荐理由以商品事实为准，可查看详情再确认。"
+      : `先为你保留 ${productCards.length} 款库内相关商品，推荐理由以商品事实为准，可查看详情再确认。`;
+  }
+
+  return createMinimalRagFallbackAnswer(fallbackReason);
 }
 
 function createSuccessResult(
@@ -2878,7 +2931,7 @@ function mapCartAddErrorToAction(
       type: "add",
       status: "unavailable",
       productId: product.id,
-      productName: product.name,
+      productName: buildProductDisplayName(product),
       quantity,
       message: "这款商品当前不可加购，可以看看其他推荐商品。",
     };
@@ -2889,7 +2942,7 @@ function mapCartAddErrorToAction(
       type: "add",
       status: "not_found",
       productId: product.id,
-      productName: product.name,
+      productName: buildProductDisplayName(product),
       quantity,
       message: "这款商品不存在或已下架，可以看看其他推荐商品。",
     };
@@ -2899,7 +2952,7 @@ function mapCartAddErrorToAction(
     type: "add",
     status: "failed",
     productId: product.id,
-    productName: product.name,
+    productName: buildProductDisplayName(product),
     quantity,
     message: "暂时没能加入购物车，请稍后再试。",
   };

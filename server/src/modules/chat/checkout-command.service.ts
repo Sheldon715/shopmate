@@ -33,6 +33,7 @@ export interface CheckoutCommandExecuteInput {
   question: string;
   conversationId?: string;
   cartSnapshot?: CartDto;
+  recentProductIds?: string[];
   intent: Extract<CheckoutIntentDetection, { isCheckoutIntent: true }>;
   pendingCheckout: PendingCheckoutLookup;
   requestId?: string;
@@ -108,9 +109,51 @@ export class CheckoutCommandService {
   private async startCheckout(
     input: CheckoutCommandExecuteInput,
   ): Promise<RagChatResult> {
+    if (input.intent.targetScope === "recent_recommendation") {
+      return this.startRecentRecommendationCheckout(input);
+    }
+
     try {
       throwIfAborted(input.abortSignal);
       const draft = await this.orderService.createPendingCheckout({
+        conversationId: input.conversationId,
+      });
+      throwIfAborted(input.abortSignal);
+      this.pendingCheckoutStore.save(draft);
+
+      return this.createResult(input, {
+        checkoutAction: checkoutActionFromDraft(
+          "start_checkout",
+          "draft_created",
+          draft,
+        ),
+        draft,
+      });
+    } catch (error) {
+      return this.createFailureResult(input, "start_checkout", error);
+    }
+  }
+
+  private async startRecentRecommendationCheckout(
+    input: CheckoutCommandExecuteInput,
+  ): Promise<RagChatResult> {
+    const productId = resolveRecentRecommendationProductId(
+      input.intent,
+      input.recentProductIds ?? [],
+    );
+
+    if (!productId) {
+      return createCheckoutTargetClarificationResult({
+        answer: input.intent.clarificationQuestion
+          ?? "你想下单哪一款？可以说“下单第一款”或先点商品详情确认。",
+        candidateCount: input.recentProductIds?.length ?? 0,
+      });
+    }
+
+    try {
+      throwIfAborted(input.abortSignal);
+      const draft = await this.orderService.createProductCheckout({
+        productId,
         conversationId: input.conversationId,
       });
       throwIfAborted(input.abortSignal);
@@ -409,6 +452,41 @@ function checkoutActionFromDraft(
     cartRefreshRequired: false,
     draft: mapPendingCheckoutDraftToSnapshot(draft),
     changedFields,
+  };
+}
+
+function resolveRecentRecommendationProductId(
+  intent: Extract<CheckoutIntentDetection, { isCheckoutIntent: true }>,
+  recentProductIds: string[],
+): string | undefined {
+  const ordinal = intent.targetOrdinal;
+
+  if (!ordinal) {
+    return undefined;
+  }
+
+  return recentProductIds[ordinal - 1]?.trim() || undefined;
+}
+
+function createCheckoutTargetClarificationResult(input: {
+  answer: string;
+  candidateCount: number;
+}): RagChatResult {
+  return {
+    answer: input.answer,
+    recommendedProductIds: [],
+    productCards: [],
+    fallbackUsed: false,
+    retrieval: {
+      candidateCount: input.candidateCount,
+      returnedProductIds: [],
+    },
+    checkoutAction: {
+      type: "start_checkout",
+      status: "needs_confirmation",
+      selectedCount: 0,
+      totalCents: 0,
+    },
   };
 }
 

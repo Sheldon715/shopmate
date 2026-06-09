@@ -30,6 +30,7 @@ data class ProductDetailDto(
     val ratingAvg: Double? = null,
     val tags: List<String> = emptyList(),
     val available: Boolean = false,
+    val recommendationReason: String? = null,
     val marketingDescription: String? = null,
     val skus: List<ProductSkuDto> = emptyList(),
     val attributes: Map<String, List<String>> = emptyMap(),

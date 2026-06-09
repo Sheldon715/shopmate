@@ -1,5 +1,6 @@
 import type { LlmMessage } from "../llm/llm.types";
 import { isProductAvailable } from "../products/product-availability";
+import { buildProductDisplayName } from "../products/product-display-copy";
 import type { ChatContextMemorySummary } from "./chat-context-memory.types";
 import type {
   ChatHistoryMessage,
@@ -157,9 +158,11 @@ function formatCandidate(
   index: number,
 ): string {
   const product = candidate.product;
+  const displayName = buildProductDisplayName(product);
   const lines = [
     `${index}. product_id: ${product.id}`,
-    `   name: ${product.name}`,
+    `   name: ${displayName}`,
+    `   raw_name: ${product.name}`,
     `   brand: ${product.brand}`,
     `   category: ${product.category}`,
     `   sub_category: ${product.subCategory ?? "无"}`,

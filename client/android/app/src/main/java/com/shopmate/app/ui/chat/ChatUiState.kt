@@ -40,6 +40,11 @@ data class ChatComparisonActionUi(
     val anchorMessageId: String,
 )
 
+data class ChatProductCardGroupUi(
+    val anchorMessageId: String,
+    val products: List<ProductCardUi>,
+)
+
 data class ChatCheckoutDraftCardUi(
     val draft: CheckoutDraftUi,
     val status: ChatCheckoutDraftStatusUi,
@@ -61,6 +66,7 @@ data class ChatUiState(
     val messages: List<ChatMessageUi> = emptyList(),
     val productCards: List<ProductCardUi> = emptyList(),
     val productCardsAnchorMessageId: String? = null,
+    val productCardGroups: List<ChatProductCardGroupUi> = emptyList(),
     val comparisonResults: List<ComparisonUi> = emptyList(),
     val comparisonActions: List<ChatComparisonActionUi> = emptyList(),
     val isComparisonGenerating: Boolean = false,

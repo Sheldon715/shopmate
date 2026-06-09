@@ -1,5 +1,6 @@
 import { rethrowIfAborted } from "../../lib/abort";
 import type { LlmClient, LlmGenerateRequest } from "../llm/llm.types";
+import { buildProductDisplayName } from "../products/product-display-copy";
 import type { Product } from "../products/product.types";
 import type { ChatContextMemorySummary } from "./chat-context-memory.types";
 import type { ChatHistoryMessage } from "./chat.types";
@@ -512,7 +513,8 @@ function summarizeProductContext(
 
   return {
     product_id: product.id,
-    name: product.name,
+    name: buildProductDisplayName(product),
+    rawName: product.name,
     brand: product.brand,
     cat: product.category,
     subCat: product.subCategory,

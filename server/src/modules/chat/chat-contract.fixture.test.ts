@@ -24,6 +24,7 @@ describe("chat contract fixtures", () => {
       "done",
     ]);
     expect(eventNames(chatContractFixtures.emptyAnswerFallback.events)).toEqual([
+      "message_delta",
       "product_cards",
       "done",
     ]);

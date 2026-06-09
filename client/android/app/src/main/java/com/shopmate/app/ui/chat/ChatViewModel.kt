@@ -180,6 +180,7 @@ class ChatViewModel(
                 messages = nextMessages,
                 productCards = currentState.productCards,
                 productCardsAnchorMessageId = currentState.productCardsAnchorMessageId,
+                productCardGroups = currentState.productCardGroups,
                 comparisonResults = currentState.comparisonResults,
                 comparisonActions = currentState.comparisonActions,
                 activeCheckoutDraft = currentState.activeCheckoutDraft,
@@ -635,6 +636,7 @@ class ChatViewModel(
                 messages = snapshot.messages,
                 productCards = snapshot.productCards,
                 productCardsAnchorMessageId = snapshot.productCardsAnchorMessageId,
+                productCardGroups = snapshot.productCardGroups,
                 comparisonResults = snapshot.comparisonResults,
                 comparisonActions = snapshot.comparisonActions,
                 isComparisonGenerating = false,
@@ -713,6 +715,7 @@ class ChatViewModel(
     private fun ChatUiState.hasActiveConversation(): Boolean =
         messages.any { message -> !message.isVoiceTranscribing } ||
             productCards.isNotEmpty() ||
+            productCardGroups.isNotEmpty() ||
             comparisonActions.isNotEmpty() ||
             activeCheckoutDraft != null ||
             isSending
@@ -730,6 +733,7 @@ class ChatViewModel(
             messages = snapshotMessages,
             productCards = state.productCards,
             productCardsAnchorMessageId = state.productCardsAnchorMessageId,
+            productCardGroups = state.productCardGroups,
             comparisonResults = state.comparisonResults,
             comparisonActions = state.comparisonActions,
             activeCheckoutDraft = state.activeCheckoutDraft,
@@ -787,6 +791,7 @@ class ChatViewModel(
         val messages: List<ChatMessageUi>,
         val productCards: List<ProductCardUi>,
         val productCardsAnchorMessageId: String?,
+        val productCardGroups: List<ChatProductCardGroupUi>,
         val comparisonResults: List<com.shopmate.app.ui.model.ComparisonUi>,
         val comparisonActions: List<ChatComparisonActionUi>,
         val activeCheckoutDraft: ChatCheckoutDraftCardUi?,
@@ -831,7 +836,7 @@ class ChatViewModel(
         preservingExistingProductCardsForCurrentStream = false
         isComparisonGenerationStream = false
         latestStreamProductCards = emptyList()
-        preStreamProductCards = _uiState.value.productCards
+        preStreamProductCards = _uiState.value.latestVisibleProductCards()
         lastCheckoutActionKey = null
         val recentProductIds = preStreamProductCards.map { product -> product.id }
         voicePendingMessageId = null
@@ -874,6 +879,7 @@ class ChatViewModel(
                 messages = history + userMessage + assistantMessage.copy(isStreaming = false),
                 productCards = nextProductCards,
                 productCardsAnchorMessageId = state.productCardsAnchorMessageId,
+                productCardGroups = state.productCardGroups,
                 comparisonResults = state.comparisonResults,
                 comparisonActions = state.comparisonActions,
                 activeCheckoutDraft = state.activeCheckoutDraft,
@@ -884,6 +890,7 @@ class ChatViewModel(
                 messages = history + userMessage + assistantMessage,
                 productCards = nextProductCards,
                 productCardsAnchorMessageId = state.productCardsAnchorMessageId,
+                productCardGroups = state.productCardGroups,
                 comparisonResults = state.comparisonResults,
                 comparisonActions = state.comparisonActions,
                 isComparisonGenerating = false,
@@ -937,21 +944,45 @@ class ChatViewModel(
                     val lastAssistantId = state.messages.lastOrNull { message ->
                         !message.fromUser
                     }?.id
+                    val shouldKeepPreviousCards =
+                        (preservingExistingProductCardsForCurrentStream ||
+                            preservingProductCardsForCurrentStream) &&
+                            state.productCards.isNotEmpty()
                     val nextProductCards =
-                        if (preservingExistingProductCardsForCurrentStream && state.productCards.isNotEmpty()) {
-                            state.productCards
-                        } else if (preservingProductCardsForCurrentStream && incomingProductCards.isEmpty()) {
+                        if (shouldKeepPreviousCards || incomingProductCards.isEmpty()) {
                             state.productCards
                         } else {
                             incomingProductCards
                         }
-                    state.copy(
-                        productCards = nextProductCards,
-                        productCardsAnchorMessageId = if (preservingProductCardsForCurrentStream) {
+                    val nextAnchorMessageId =
+                        if (shouldKeepPreviousCards || incomingProductCards.isEmpty()) {
                             state.productCardsAnchorMessageId
+                        } else if (preservingProductCardsForCurrentStream) {
+                            state.productCardsAnchorMessageId ?: lastAssistantId
                         } else {
                             lastAssistantId
-                        },
+                        }
+                    val nextProductCardGroups =
+                        if (
+                            incomingProductCards.isNotEmpty() &&
+                            nextAnchorMessageId != null &&
+                            !shouldKeepPreviousCards &&
+                            !preservingExistingProductCardsForCurrentStream &&
+                            !preservingProductCardsForCurrentStream
+                        ) {
+                            state.productCardGroups.upsertProductCardGroup(
+                                ChatProductCardGroupUi(
+                                    anchorMessageId = nextAnchorMessageId,
+                                    products = incomingProductCards,
+                                ),
+                            )
+                        } else {
+                            state.productCardGroups
+                        }
+                    state.copy(
+                        productCards = nextProductCards,
+                        productCardsAnchorMessageId = nextAnchorMessageId,
+                        productCardGroups = nextProductCardGroups,
                     )
                         .also(::saveCurrentSession)
                 }
@@ -1067,9 +1098,16 @@ class ChatViewModel(
     }
 
     private fun ChatUiState.comparisonProductCandidates(): List<ProductCardUi> =
-        (latestStreamProductCards + productCards + preStreamProductCards + comparisonResults.flatMap { comparison ->
+        (latestStreamProductCards + productCards + preStreamProductCards + productCardGroups.flatMap { group ->
+            group.products
+        } + comparisonResults.flatMap { comparison ->
             comparison.products
         }).dedupeProductCardsById()
+
+    private fun ChatUiState.latestVisibleProductCards(): List<ProductCardUi> =
+        productCardGroups.firstOrNull()?.products
+            ?.takeIf { products -> products.isNotEmpty() }
+            ?: productCards
 
     private fun emitCartActionSideEffect(cartAction: ChatCartActionDto?) {
         if (cartAction == null || cartAction.status != CART_ACTION_SUCCESS_STATUS) {
@@ -1270,6 +1308,11 @@ private fun List<ChatComparisonActionUi>.upsertComparisonAction(
     action: ChatComparisonActionUi,
 ): List<ChatComparisonActionUi> =
     listOf(action) + filterNot { item -> item.comparisonId == action.comparisonId }
+
+private fun List<ChatProductCardGroupUi>.upsertProductCardGroup(
+    group: ChatProductCardGroupUi,
+): List<ChatProductCardGroupUi> =
+    listOf(group) + filterNot { item -> item.anchorMessageId == group.anchorMessageId }
 
 private fun List<ProductCardUi>.dedupeProductCardsById(): List<ProductCardUi> {
     val seen = mutableSetOf<String>()

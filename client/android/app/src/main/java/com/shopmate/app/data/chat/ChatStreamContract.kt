@@ -16,6 +16,7 @@ data class ChatProductCardDto(
     val ratingAvg: Double? = null,
     val tags: List<String> = emptyList(),
     val available: Boolean,
+    val recommendationReason: String? = null,
 )
 
 @Serializable

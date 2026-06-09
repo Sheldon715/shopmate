@@ -35,22 +35,37 @@ describe("ClarificationIntentService", () => {
     });
   });
 
-  it("does not clarify when the LLM says the broad candidate can proceed", async () => {
+  it("asks LLM to generate a question when broad intent is misclassified as no clarification", async () => {
+    const requests: LlmGenerateRequest[] = [];
     const service = new ClarificationIntentService({
       llmClient: new MockLlmClient({
-        response: createLlmResponse(JSON.stringify({
-          needs_clarification: false,
-          missing_slots: [],
-        })),
+        handler: (request) => {
+          requests.push(request);
+
+          return createLlmResponse(JSON.stringify(
+            requests.length === 1
+              ? {
+                  needs_clarification: false,
+                  missing_slots: [],
+                }
+              : {
+                  clarification_question: "你更看重拍照、续航还是预算？我按你的重点来筛。",
+                },
+          ));
+        },
       }),
     });
 
     await expect(service.decide({
       question: "推荐一款手机",
     })).resolves.toEqual({
-      needsClarification: false,
-      missingSlots: [],
+      needsClarification: true,
+      question: "你更看重拍照、续航还是预算？我按你的重点来筛。",
+      missingSlots: ["budget", "priority"],
     });
+    expect(requests).toHaveLength(2);
+    expect(requests[1]?.messages.map((message) => message.content).join("\n"))
+      .toContain("澄清问题生成器");
   });
 
   it("sends terse broad categories to LLM clarification intent", async () => {
@@ -81,22 +96,95 @@ describe("ClarificationIntentService", () => {
     });
   });
 
-  it("does not clarify if LLM omits the user-facing question", async () => {
+  it("treats broad running-shoe recommendations as clarification candidates", async () => {
+    let llmRequest: LlmGenerateRequest | undefined;
     const service = new ClarificationIntentService({
       llmClient: new MockLlmClient({
-        response: createLlmResponse(JSON.stringify({
-          needs_clarification: true,
-          missing_slots: ["budget", "priority"],
-        })),
+        handler: (request) => {
+          llmRequest = request;
+          return createLlmResponse(JSON.stringify({
+            needs_clarification: true,
+            clarification_question: "你主要用于日常慢跑、训练还是比赛？预算大概多少？",
+            missing_slots: ["use_case", "priority", "budget"],
+          }));
+        },
+      }),
+    });
+
+    const result = await service.decide({
+      question: "跑鞋推荐",
+    });
+
+    const promptText = llmRequest?.messages
+      .map((message) => message.content)
+      .join("\n");
+    expect(promptText).toContain("跑鞋推荐");
+    expect(promptText).toContain('"message":"跑鞋推荐"');
+    expect(result).toEqual({
+      needsClarification: true,
+      question: "你主要用于日常慢跑、训练还是比赛？预算大概多少？",
+      missingSlots: ["use_case", "priority", "budget"],
+    });
+  });
+
+  it("uses a slot fallback question when required clarification text generation is invalid", async () => {
+    let requestCount = 0;
+    const service = new ClarificationIntentService({
+      llmClient: new MockLlmClient({
+        handler: () => {
+          requestCount += 1;
+
+          return createLlmResponse(JSON.stringify(
+            requestCount === 1
+              ? {
+                  needs_clarification: false,
+                  missing_slots: [],
+                }
+              : {},
+          ));
+        },
+      }),
+    });
+
+    await expect(service.decide({
+      question: "跑鞋推荐",
+    })).resolves.toEqual({
+      needsClarification: true,
+      question: "请补充使用场景、更看重的性能或特点、预算，我再帮你筛更合适的商品。",
+      missingSlots: ["use_case", "priority", "budget"],
+    });
+    expect(requestCount).toBe(2);
+  });
+
+  it("generates a required question if LLM confirms clarification but omits the user-facing question", async () => {
+    let requestCount = 0;
+    const service = new ClarificationIntentService({
+      llmClient: new MockLlmClient({
+        handler: () => {
+          requestCount += 1;
+
+          return createLlmResponse(JSON.stringify(
+            requestCount === 1
+              ? {
+                  needs_clarification: true,
+                  missing_slots: ["budget", "priority"],
+                }
+              : {
+                  clarification_question: "你更看重拍照、续航还是预算？我按你的重点来筛。",
+                },
+          ));
+        },
       }),
     });
 
     await expect(service.decide({
       question: "推荐一款手机",
     })).resolves.toEqual({
-      needsClarification: false,
-      missingSlots: [],
+      needsClarification: true,
+      question: "你更看重拍照、续航还是预算？我按你的重点来筛。",
+      missingSlots: ["budget", "priority"],
     });
+    expect(requestCount).toBe(2);
   });
 
   it("does not call LLM when rules do not find a broad clarification candidate", async () => {
@@ -118,7 +206,7 @@ describe("ClarificationIntentService", () => {
     expect(result.needsClarification).toBe(false);
   });
 
-  it("falls back to no clarification when LLM output is invalid", async () => {
+  it("uses a slot fallback question when LLM output is invalid", async () => {
     const service = new ClarificationIntentService({
       llmClient: new MockLlmClient({
         response: createLlmResponse("{ nope"),
@@ -128,12 +216,52 @@ describe("ClarificationIntentService", () => {
     await expect(service.decide({
       question: "推荐一款手机",
     })).resolves.toEqual({
-      needsClarification: false,
-      missingSlots: [],
+      needsClarification: true,
+      question: "请补充预算、更看重的性能或特点，我再帮你筛更合适的商品。",
+      missingSlots: ["budget", "priority"],
     });
   });
 
-  it("falls back to no clarification when LLM is unavailable", async () => {
+  it.each([
+    {
+      question: "跑鞋",
+      missingSlots: ["use_case", "priority", "budget"],
+      questionText: "请补充使用场景、更看重的性能或特点、预算，我再帮你筛更合适的商品。",
+    },
+    {
+      question: "推荐一款跑步鞋",
+      missingSlots: ["use_case", "priority", "budget"],
+      questionText: "请补充使用场景、更看重的性能或特点、预算，我再帮你筛更合适的商品。",
+    },
+    {
+      question: "帮我看看训练鞋",
+      missingSlots: ["use_case", "priority", "budget"],
+      questionText: "请补充使用场景、更看重的性能或特点、预算，我再帮你筛更合适的商品。",
+    },
+    {
+      question: "想买真无线耳机",
+      missingSlots: ["budget", "priority", "use_case"],
+      questionText: "请补充预算、更看重的性能或特点、使用场景，我再帮你筛更合适的商品。",
+    },
+  ])("uses invariant fallback for broad paraphrase when LLM is invalid: $question", async ({
+    question,
+    missingSlots,
+    questionText,
+  }) => {
+    const service = new ClarificationIntentService({
+      llmClient: new MockLlmClient({
+        response: createLlmResponse("{ nope"),
+      }),
+    });
+
+    await expect(service.decide({ question })).resolves.toEqual({
+      needsClarification: true,
+      question: questionText,
+      missingSlots,
+    });
+  });
+
+  it("uses a slot fallback question when LLM is unavailable", async () => {
     const service = new ClarificationIntentService({
       llmClient: new MockLlmClient({
         error: new LlmError("provider down", {
@@ -145,8 +273,9 @@ describe("ClarificationIntentService", () => {
     await expect(service.decide({
       question: "推荐一款手机",
     })).resolves.toEqual({
-      needsClarification: false,
-      missingSlots: [],
+      needsClarification: true,
+      question: "请补充预算、更看重的性能或特点，我再帮你筛更合适的商品。",
+      missingSlots: ["budget", "priority"],
     });
   });
 

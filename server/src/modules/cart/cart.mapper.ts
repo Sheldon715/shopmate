@@ -1,5 +1,6 @@
 import { resolvePublicProductImagePath } from "../images/image.service";
 import { isProductAvailable } from "../products/product-availability";
+import { buildProductDisplayName } from "../products/product-display-copy";
 import type { Product } from "../products/product.types";
 import type { CartDto, CartItemDto, CartItemRecord, CartItemRow } from "./cart.types";
 
@@ -42,7 +43,7 @@ export function mapCartToDto(
     return [{
       id: item.id,
       productId: product.id,
-      name: product.name,
+      name: buildProductDisplayName(product),
       brand: product.brand,
       category: product.category,
       priceCents,

@@ -387,6 +387,8 @@ class ChatViewModelTest {
         assertFalse(state.messages.last().isStreaming)
         assertEquals("product_001", state.productCards.single().id)
         assertEquals(state.messages.last().id, state.productCardsAnchorMessageId)
+        assertEquals(state.messages.last().id, state.productCardGroups.single().anchorMessageId)
+        assertEquals("product_001", state.productCardGroups.single().products.single().id)
         assertEquals(null, state.errorMessage)
     }
 
@@ -435,6 +437,175 @@ class ChatViewModelTest {
         assertEquals(answer, state.messages.last().text)
         assertEquals(state.messages.last().id, state.productCardsAnchorMessageId)
         assertEquals("product_001", state.productCards.single().id)
+        assertEquals(state.messages.last().id, state.productCardGroups.single().anchorMessageId)
+    }
+
+    @Test
+    fun emptyProductCardsFromLaterMessageDoNotRemovePreviousRecommendationCards() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("推荐一款跑鞋")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        repository.events.emit(ChatStreamEvent.MessageDelta("为你推荐这款跑鞋。", 0))
+        repository.events.emit(ChatStreamEvent.ProductCards(listOf(productDto(id = "shoe_001", name = "专业竞速跑鞋"))))
+        repository.events.emit(
+            ChatStreamEvent.Done(
+                recommendedProductIds = listOf("shoe_001"),
+                fallbackUsed = false,
+                fallbackReason = null,
+                retrieval = ChatRetrievalDto(candidateCount = 1),
+            ),
+        )
+        advanceUntilIdle()
+
+        val originalAnchor = viewModel.uiState.value.productCardsAnchorMessageId
+
+        viewModel.onComposerTextChange("500 元以内，适合学生党的机械键盘")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        repository.events.emit(ChatStreamEvent.MessageDelta("当前商品库暂时没有匹配结果。", 0))
+        repository.events.emit(ChatStreamEvent.ProductCards(emptyList()))
+        repository.events.emit(
+            ChatStreamEvent.Done(
+                recommendedProductIds = emptyList(),
+                fallbackUsed = true,
+                fallbackReason = "NO_CANDIDATES",
+                retrieval = ChatRetrievalDto(candidateCount = 0),
+            ),
+        )
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(listOf("shoe_001"), state.productCards.map { product -> product.id })
+        assertEquals(originalAnchor, state.productCardsAnchorMessageId)
+        assertEquals(listOf(originalAnchor), state.productCardGroups.map { group -> group.anchorMessageId })
+        assertEquals(listOf("shoe_001"), state.productCardGroups.single().products.map { product -> product.id })
+        assertEquals("当前商品库暂时没有匹配结果。", state.messages.last().text)
+    }
+
+    @Test
+    fun checkoutAfterEmptyProductCardsStillUsesLatestVisibleRecommendationCards() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("推荐一款适合油皮的洗面奶")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        repository.events.emit(ChatStreamEvent.MessageDelta("这款洁面适合油皮日常清洁。", 0))
+        repository.events.emit(
+            ChatStreamEvent.ProductCards(
+                listOf(productDto(id = "cleanser_001", name = "控油洁面乳")),
+            ),
+        )
+        repository.events.emit(
+            ChatStreamEvent.Done(
+                recommendedProductIds = listOf("cleanser_001"),
+                fallbackUsed = false,
+                fallbackReason = null,
+                retrieval = ChatRetrievalDto(candidateCount = 1),
+            ),
+        )
+        advanceUntilIdle()
+
+        viewModel.onComposerTextChange("这个适合我吗")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        repository.events.emit(ChatStreamEvent.MessageDelta("适合油皮日常清洁，可以先看容量和成分。", 0))
+        repository.events.emit(ChatStreamEvent.ProductCards(emptyList()))
+        repository.events.emit(
+            ChatStreamEvent.Done(
+                recommendedProductIds = emptyList(),
+                fallbackUsed = false,
+                fallbackReason = null,
+                retrieval = ChatRetrievalDto(candidateCount = 0),
+            ),
+        )
+        advanceUntilIdle()
+
+        viewModel.onComposerTextChange("帮我下单一下")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf("cleanser_001"),
+            repository.recentProductIdCalls.last(),
+        )
+    }
+
+    @Test
+    fun multipleRecommendationTurnsKeepEachProductCardGroupAnchoredAndLatestCardsForFollowUp() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("推荐一款适合油皮的洗面奶")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        repository.events.emit(ChatStreamEvent.MessageDelta("这款洁面适合油皮日常清洁。", 0))
+        repository.events.emit(
+            ChatStreamEvent.ProductCards(
+                listOf(productDto(id = "cleanser_001", name = "控油洁面乳")),
+            ),
+        )
+        repository.events.emit(
+            ChatStreamEvent.Done(
+                recommendedProductIds = listOf("cleanser_001"),
+                fallbackUsed = false,
+                fallbackReason = null,
+                retrieval = ChatRetrievalDto(candidateCount = 1),
+            ),
+        )
+        advanceUntilIdle()
+        val cleanserAnchor = requireNotNull(viewModel.uiState.value.productCardsAnchorMessageId)
+
+        viewModel.onComposerTextChange("再推荐一款通勤耳机")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        repository.events.emit(ChatStreamEvent.MessageDelta("这款耳机更适合通勤降噪。", 0))
+        repository.events.emit(
+            ChatStreamEvent.ProductCards(
+                listOf(productDto(id = "earbud_001", name = "通勤降噪耳机")),
+            ),
+        )
+        repository.events.emit(
+            ChatStreamEvent.Done(
+                recommendedProductIds = listOf("earbud_001"),
+                fallbackUsed = false,
+                fallbackReason = null,
+                retrieval = ChatRetrievalDto(candidateCount = 1),
+            ),
+        )
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        val earbudAnchor = requireNotNull(state.productCardsAnchorMessageId)
+        assertNotEquals(cleanserAnchor, earbudAnchor)
+        assertEquals(listOf("earbud_001"), state.productCards.map { product -> product.id })
+        assertEquals(
+            mapOf(
+                cleanserAnchor to listOf("cleanser_001"),
+                earbudAnchor to listOf("earbud_001"),
+            ),
+            state.productCardGroups.associate { group ->
+                group.anchorMessageId to group.products.map { product -> product.id }
+            },
+        )
+
+        viewModel.onComposerTextChange("下单第一款商品")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf("earbud_001"),
+            repository.recentProductIdCalls.last(),
+        )
     }
 
     @Test

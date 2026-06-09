@@ -6,6 +6,7 @@ import {
   mapProductToDetailDto,
   moneyToCents,
 } from "./product.mapper";
+import { buildProductDisplayName } from "./product-display-copy";
 import type { Product } from "./product.types";
 
 function createNormalizedProduct(): NormalizedProduct {
@@ -83,8 +84,8 @@ function createNormalizedProduct(): NormalizedProduct {
   };
 }
 
-function createProduct(): Product {
-  return {
+function createProduct(overrides: Partial<Product> = {}): Product {
+  const product: Product = {
     id: "prod_cleanser_001",
     status: "active",
     name: "清透控油洁面乳",
@@ -159,6 +160,11 @@ function createProduct(): Product {
         sortOrder: 0,
       },
     ],
+  };
+
+  return {
+    ...product,
+    ...overrides,
   };
 }
 
@@ -235,7 +241,234 @@ describe("mapProductToCardDto", () => {
       ratingAvg: 4.7,
       tags: ["控油", "温和"],
       available: true,
+      recommendationReason: "推荐理由：油皮日常洁面，适合油皮，适合混油。",
     });
+  });
+
+  it("builds recommendation reasons from fit facts instead of brand/category templates", () => {
+    const card = mapProductToCardDto(createProduct({
+      brand: "示例品牌",
+      category: "美妆护肤",
+      subCategory: "洁面",
+      recommendWhen: ["油皮日常洁面", "夏天早晚清洁"],
+      attributes: {
+        skin_type: ["油皮"],
+      },
+      pros: ["洗后不紧绷"],
+      visualTags: ["控油"],
+    }));
+
+    expect(card.recommendationReason).toContain("油皮日常洁面");
+    expect(card.recommendationReason).toContain("适合油皮");
+    expect(card.recommendationReason).not.toContain("示例品牌 · 美妆护肤");
+    expect(card.recommendationReason).not.toContain("当前可选");
+  });
+
+  it("keeps caution facts out of recommendation reasons", () => {
+    const card = mapProductToCardDto(createProduct({
+      recommendWhen: ["通勤久戴"],
+      attributes: {
+        "适用人群": ["学生党"],
+        "注意事项": ["过敏人群谨慎选择"],
+        "不适合": ["专业竞技跑者"],
+      },
+      pros: ["轻便耐穿"],
+      visualTags: [],
+    }));
+
+    expect(card.recommendationReason).toContain("通勤久戴");
+    expect(card.recommendationReason).toContain("适合学生党");
+    expect(card.recommendationReason).not.toContain("过敏");
+    expect(card.recommendationReason).not.toContain("专业竞技跑者");
+  });
+
+  it("uses marketing facts when structured fields only contain placeholder facts", () => {
+    const card = mapProductToCardDto(createProduct({
+      name: "珊珂洗颜专科绵润泡沫洁面乳",
+      brand: "珊珂",
+      recommendWhen: ["功效描述明确", "适用场景清楚"],
+      attributes: {
+        "适用人群": ["日常护肤用户", "关注肤感的人群"],
+        "使用场景": ["日常护理"],
+        "核心卖点": ["功效描述明确", "便于按肤质筛选"],
+      },
+      pros: ["功效描述明确", "适用场景清楚"],
+      visualTags: ["美妆护肤", "洁面", "主图"],
+      marketingDescription:
+        "珊珂洗颜专科绵润泡沫洁面乳主打绵密细腻的泡沫清洁体验，核心添加蚕丝蛋白精华与双重透明质酸，既能深入毛孔带走油脂污垢，又能在清洁后留下水润保护膜。适合中性、混合性皮肤日常使用。",
+    }));
+
+    expect(card.recommendationReason).toContain("主打绵密细腻的泡沫清洁体验");
+    expect(card.recommendationReason).toContain("深入毛孔带走油脂污垢");
+    expect(card.recommendationReason).not.toContain("珊珂洗颜专科");
+    expect(card.recommendationReason).not.toContain("功效描述明确");
+    expect(card.recommendationReason).not.toContain("适用场景清楚");
+    expect(card.recommendationReason).not.toContain("日常护肤用户");
+  });
+
+  it("keeps dataset housekeeping copy out of recommendation reasons", () => {
+    const dirtyCopies = [
+      "本数据集保留真实品牌与产品名",
+      "便于后续查找对应商品图片和构建商品详情页",
+      "导购信息经过脱敏和结构化整理",
+      "价格、SKU、评论和 FAQ 为比赛数据集模拟内容，不代表实时售价或真实用户反馈",
+    ];
+    const card = mapProductToCardDto(createProduct({
+      name: "小熊电炖盅",
+      brand: "小熊",
+      category: "家用电器",
+      subCategory: "厨房小电",
+      recommendWhen: dirtyCopies,
+      attributes: {
+        "核心卖点": dirtyCopies,
+      },
+      pros: dirtyCopies,
+      visualTags: ["家用电器", "厨房小电", "主图"],
+      marketingDescription:
+        "小熊 DDZ-C06A1 电炖盅 是真实品牌 小熊 旗下的家用电器/厨房小电商品，本数据集保留真实品牌与产品名，便于后续查找对应商品图片和构建商品详情页。导购信息经过脱敏和结构化整理，主要卖点包括适合炖汤、小容量、宿舍友好，适合早餐制作、一人食。价格、SKU、评论和 FAQ 为比赛数据集模拟内容，不代表实时售价或真实用户反馈。",
+    }));
+
+    expect(card.recommendationReason).toContain("适合炖汤");
+    expect(card.recommendationReason).toContain("小容量");
+    expect(card.recommendationReason).not.toContain("本数据集");
+    expect(card.recommendationReason).not.toContain("真实品牌");
+    expect(card.recommendationReason).not.toContain("后续查找");
+    expect(card.recommendationReason).not.toContain("脱敏");
+    expect(card.recommendationReason).not.toContain("模拟内容");
+  });
+
+  it("maps raw catalog SEO titles to concise display names across categories", () => {
+    const examples: Array<{
+      product: Product;
+      displayName: string;
+    }> = [
+      {
+        product: createProduct({
+          name: "巴黎欧莱雅新多重防护隔离露水感轻薄高倍防晒修护提亮",
+          brand: "巴黎欧莱雅",
+          category: "美妆护肤",
+          subCategory: "防晒",
+          marketingDescription:
+            "巴黎欧莱雅新多重防护隔离露，主打水感轻薄质地，上脸瞬间推开成膜。",
+        }),
+        displayName: "巴黎欧莱雅新多重防护隔离露",
+      },
+      {
+        product: createProduct({
+          name: "安热沙金灿倍护防晒乳高倍防水防汗清爽户外面部身体防晒",
+          brand: "安热沙",
+          category: "美妆护肤",
+          subCategory: "防晒",
+          marketingDescription:
+            "安热沙金灿倍护防晒乳（经典金瓶）是户外防晒的明星产品，核心采用品牌特有的Aqua Booster EX遇水增强技术。",
+        }),
+        displayName: "安热沙金灿倍护防晒乳",
+      },
+      {
+        product: createProduct({
+          name: "小熊多功能早餐机",
+          brand: "小熊",
+          category: "家用电器",
+          subCategory: "厨房小电",
+          marketingDescription:
+            "小熊 DSL-A02W1 多功能早餐机 是真实品牌 小熊 旗下的家用电器/厨房小电商品。",
+        }),
+        displayName: "小熊多功能早餐机",
+      },
+      {
+        product: createProduct({
+          name: "小熊电炖盅适合炖汤小容量宿舍友好早餐制作一人食",
+          brand: "小熊",
+          category: "家用电器",
+          subCategory: "厨房小电",
+          marketingDescription:
+            "小熊电炖盅，适合炖汤、小容量、宿舍友好，适合早餐制作、一人食。",
+        }),
+        displayName: "小熊电炖盅",
+      },
+      {
+        product: createProduct({
+          name: "兰蔻眼霜淡纹紧致抗初老清爽保湿适用熬夜人群",
+          brand: "兰蔻",
+          category: "美妆护肤",
+          subCategory: "眼霜",
+          marketingDescription:
+            "兰蔻眼霜主打淡纹紧致，适合熬夜后的眼周护理。",
+        }),
+        displayName: "兰蔻眼霜",
+      },
+      {
+        product: createProduct({
+          name: "苹果手机十七专业版十九代专业芯片全网通旗舰手机",
+          brand: "Apple 苹果",
+          category: "数码电子",
+          subCategory: "智能手机",
+          marketingDescription:
+            "苹果手机十七专业版是高性能旗舰手机，适合重度影像和创作用户。",
+        }),
+        displayName: "苹果手机十七专业版",
+      },
+    ];
+
+    for (const example of examples) {
+      const card = mapProductToCardDto(example.product);
+
+      expect(card.name).toBe(example.displayName);
+      expect(card.name.length).toBeLessThanOrEqual(20);
+      expect(card.name).not.toMatch(/高倍|修护提亮|防水防汗|专业芯片/u);
+    }
+  });
+
+  it("does not reuse the product title as recommendation facts", () => {
+    const card = mapProductToCardDto(createProduct({
+      name: "巴黎欧莱雅新多重防护隔离露水感轻薄高倍防晒修护提亮",
+      brand: "巴黎欧莱雅",
+      category: "美妆护肤",
+      subCategory: "防晒",
+      recommendWhen: ["巴黎欧莱雅新多重防护隔离露", "适合清爽肤感"],
+      pros: ["巴黎欧莱雅新多重防护隔离露", "水感轻薄质地"],
+      attributes: {
+        "核心卖点": ["巴黎欧莱雅新多重防护隔离露", "上脸瞬间推开成膜"],
+      },
+      marketingDescription:
+        "巴黎欧莱雅新多重防护隔离露，主打水感轻薄质地，上脸瞬间推开成膜，无厚重黏腻感。",
+    }));
+
+    expect(card.name).toBe("巴黎欧莱雅新多重防护隔离露");
+    expect(card.recommendationReason).toContain("适合清爽肤感");
+    expect(card.recommendationReason).toContain("水感轻薄质地");
+    expect(card.recommendationReason).not.toContain("推荐理由：巴黎欧莱雅新多重防护隔离露");
+  });
+
+  it("does not fall back to a marketing summary that repeats the title", () => {
+    const card = mapProductToCardDto(createProduct({
+      name: "小熊电炖盅适合炖汤小容量宿舍友好早餐制作一人食",
+      brand: "小熊",
+      category: "家用电器",
+      subCategory: "厨房小电",
+      recommendWhen: [],
+      pros: [],
+      attributes: {},
+      visualTags: ["家用电器", "厨房小电"],
+      marketingDescription:
+        "小熊电炖盅适合炖汤小容量宿舍友好早餐制作一人食。",
+    }));
+
+    expect(card.name).toBe("小熊电炖盅");
+    expect(card.recommendationReason).not.toContain("小熊电炖盅");
+    expect(card.recommendationReason).toBe("推荐理由：库内有货，可结合预算和使用场景继续比较。");
+  });
+});
+
+describe("buildProductDisplayName", () => {
+  it("falls back to a concise raw title when no type marker is available", () => {
+    expect(buildProductDisplayName(createProduct({
+      name: "某品牌超级长长长长长长长商品标题测试样例",
+      brand: "某品牌",
+      category: "其他",
+      subCategory: "其他",
+      marketingDescription: "",
+    }))).toHaveLength(20);
   });
 });
 

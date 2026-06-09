@@ -26,8 +26,8 @@ export interface GeneratedNoCandidatesResponse {
   generatedByLlm: boolean;
 }
 
-const RAG_RESPONSE_MAX_COMPLETION_TOKENS = 160;
-const MAX_RAG_FALLBACK_ANSWER_CHARS = 90;
+const RAG_RESPONSE_MAX_COMPLETION_TOKENS = 220;
+const MAX_RAG_FALLBACK_ANSWER_CHARS = 140;
 
 export class RagResponseGenerationService {
   private readonly llmClient: LlmClient;
@@ -56,7 +56,7 @@ export class RagResponseGenerationService {
       const answer = normalizeAnswer(parseAnswerOutput(response.text)
         ?? parsePlainTextAnswer(response.text));
 
-      return answer
+      return answer && isLikelyCompleteAnswer(answer)
         ? { answer, generatedByLlm: true }
         : {
             answer: createMinimalRagFallbackAnswer("NO_CANDIDATES"),
@@ -80,12 +80,12 @@ export function createMinimalRagFallbackAnswer(
 ): string {
   switch (fallbackReason) {
     case "NO_CANDIDATES":
-      return "当前商品库没有找到匹配结果。";
+      return "当前商品库没有找到匹配结果。你可以放宽预算、补充用途或功能偏好，我再继续筛选。";
     case "LLM_ERROR":
     case "LLM_INVALID_OUTPUT":
-      return "这次没有生成可靠推荐说明。";
+      return "这次没有确认到可靠的库内推荐。你可以补充预算、用途或偏好，我再继续筛选。";
     case "NO_VALID_PRODUCT_IDS":
-      return "这次没有生成可靠的商品选择。";
+      return "这次没有确认到符合需求的库内商品。你可以补充预算、用途或放宽条件，我再继续筛选。";
     case "NEEDS_CLARIFICATION":
       return "需要补充更多信息。";
     case "CART_TARGET_MISSING":
@@ -112,7 +112,7 @@ function buildNoCandidatesPrompt(
         "优先围绕用户已经说出的预算、品类、用途、品牌或偏好继续追问或建议放宽条件。",
         "不能推荐具体商品、品牌、价格、库存、优惠、物流或库外商品。",
         "不能把无结果说成推荐结果，不能输出商品卡片、JSON 或 markdown。",
-        "只输出最终要展示给用户的一到两句话，不超过 90 个中文字符。",
+        "只输出最终要展示给用户的一到两句话，不超过 140 个中文字符。",
       ].join("\n"),
     },
     {
@@ -156,4 +156,9 @@ function normalizeAnswer(value: string | undefined): string | undefined {
   return normalizeLlmText(value, {
     maxChars: MAX_RAG_FALLBACK_ANSWER_CHARS,
   });
+}
+
+function isLikelyCompleteAnswer(value: string): boolean {
+  return !/(您|你|我|请|可以|或者|以及|并且|而且|如果|，|、|；|：|,|;|:)$/u
+    .test(value.trim());
 }

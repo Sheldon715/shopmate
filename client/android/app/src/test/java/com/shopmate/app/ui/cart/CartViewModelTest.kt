@@ -60,6 +60,19 @@ class CartViewModelTest {
     }
 
     @Test
+    fun initKeepsUnitPriceAndSubtotalSeparateForMultiQuantityItems() = runTest {
+        val repository = FakeCartRepository(Result.success(cartContent()))
+        val viewModel = CartViewModel(repository, FakeOrderRepository())
+
+        advanceUntilIdle()
+
+        val item = viewModel.uiState.value.items.single()
+        assertEquals("¥199", item.product.priceText)
+        assertEquals("¥398", item.subtotalText)
+        assertEquals("¥398", viewModel.uiState.value.summary.selectedTotalText)
+    }
+
+    @Test
     fun addProductUpdatesStateFromRepository() = runTest {
         val repository = FakeCartRepository(Result.success(cartContent()))
         val viewModel = CartViewModel(repository, FakeOrderRepository())

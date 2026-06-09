@@ -10,7 +10,7 @@ private const val MAX_DETAIL_HIGHLIGHTS = 3
 private const val MAX_DETAIL_SPECS = 4
 private const val MAX_HIGHLIGHT_CHARS = 34
 private const val MAX_REASON_CORE_CHARS = 28
-private const val MAX_REASON_CHARS = 50
+private const val MAX_REASON_CHARS = 96
 private const val MAX_SPEC_VALUE_CHARS = 32
 private const val MAX_DESCRIPTION_CHARS = 120
 
@@ -19,6 +19,7 @@ private val ClauseBreakRegex = Regex("[，,：:]")
 private val WhitespaceRegex = Regex("\\s+")
 private val ParentheticalRegex = Regex("[（(][^）)]{1,30}[）)]")
 private val LeadingCopyPrefixRegex = Regex("^(推荐理由|亮点|适合|谨慎选择)[:：]\\s*")
+private val LeadingMarketingPrefixRegex = Regex("^(主要卖点包括|核心特点包括|它的核心特点包括)\\s*")
 private val TemplateCopyMarkers = listOf(
     "功效描述明确",
     "适用场景清楚",
@@ -26,6 +27,26 @@ private val TemplateCopyMarkers = listOf(
     "希望获得医疗效果",
     "不应替代医疗建议",
     "商品详情页数据",
+    "数据说明",
+    "本商品数据",
+    "本数据集",
+    "真实品牌",
+    "真实用户反馈",
+    "产品名",
+    "后续查找",
+    "对应商品图片",
+    "构建商品详情页",
+    "导购信息经过",
+    "脱敏",
+    "结构化整理",
+    "课程 Demo",
+    "课程Demo",
+    "检索实验",
+    "最终展示",
+    "PostgreSQL",
+    "比赛数据集",
+    "模拟内容",
+    "不代表实时售价",
     "页面 mock",
     "测试数据",
     "口味信息明确",
@@ -36,6 +57,8 @@ private val TemplateCopyMarkers = listOf(
     "SKU 选择较多",
     "适合参数比较",
     "看过来",
+    "如果用户属于",
+    "推荐时需要结合限制条件",
 )
 private val CautionCopyMarkers = listOf(
     "不适合",
@@ -62,7 +85,12 @@ fun ProductDetailDto.toProductDetailUi(
 ): ProductDetailUi =
     ProductDetailUi(
         id = id,
-        name = name.ifBlank { "未命名商品" },
+        name = cleanProductDisplayName(
+            rawName = name,
+            brand = brand,
+            category = category,
+            subCategory = subCategory,
+        ),
         priceText = formatProductPrice(),
         imageRes = resolveProductImageRes(),
         categoryText = listOfNotNull(
@@ -90,6 +118,11 @@ private fun ProductDetailDto.formatProductPrice(): String {
 }
 
 private fun ProductDetailDto.buildRecommendationReason(): String {
+    recommendationReason
+        ?.toCleanDisplayCopy()
+        ?.takeIf { value -> value.isNotBlank() && value.isPositiveProductCopy() }
+        ?.let { value -> return value.shortenForSentence(MAX_REASON_CHARS).ensureSentence() }
+
     val firstHighlight = buildHighlights().firstOrNull()
     val productSnippet = marketingDescription
         ?.toReadableClauses()
@@ -140,8 +173,17 @@ private fun ProductDetailDto.buildProductFallbackReason(): String {
 }
 
 private fun ProductDetailDto.buildHighlights(): List<String> {
+    val reasonCopy = recommendationReason?.toCleanDisplayCopy()
+    val displayName = cleanProductDisplayName(
+        rawName = name,
+        brand = brand,
+        category = category,
+        subCategory = subCategory,
+    )
     val highlights = buildPositiveCandidates(includeMarketingDescription = true)
         .map { value -> value.shortCopy(MAX_HIGHLIGHT_CHARS) }
+        .filter { value -> !value.isSameCopyAs(reasonCopy) }
+        .filter { value -> !value.isTitleEchoCopy(rawName = name, displayName = displayName, brand = brand) }
         .distinctByNormalized()
         .take(MAX_DETAIL_HIGHLIGHTS)
     return highlights.ifEmpty { listOf("暂无更多商品亮点") }
@@ -299,6 +341,7 @@ private fun String.toCleanDisplayCopy(): String =
         .replace("不应替代医疗建议", "")
         .trim()
         .replace(LeadingCopyPrefixRegex, "")
+        .replace(LeadingMarketingPrefixRegex, "")
         .trim(' ', '。', '；', ';')
 
 private fun String.toCompactSpecValue(): String {
@@ -399,6 +442,38 @@ private fun String?.isSameCopyAs(other: String?): Boolean {
     val right = other.toCleanDisplayCopy().lowercase(Locale.US).trim()
     return left == right || left.contains(right) || right.contains(left)
 }
+
+private fun String.isTitleEchoCopy(
+    rawName: String,
+    displayName: String,
+    brand: String?,
+): Boolean {
+    val value = normalizeDisplayFact()
+    if (value.length < 5) return false
+
+    val candidates = listOf(rawName, displayName, brand.orEmpty())
+        .map { candidate -> candidate.normalizeDisplayFact() }
+        .filter { candidate -> candidate.length >= 4 }
+
+    return candidates.any { candidate ->
+        value == candidate ||
+            value.startsWith(candidate) ||
+            (
+                value.length >= 8 &&
+                    value.length >= candidate.length * 0.6f &&
+                    candidate.startsWith(value)
+                )
+    }
+}
+
+private fun String.normalizeDisplayFact(): String =
+    toCleanDisplayCopy()
+        .removePrefix("适合")
+        .replace(WhitespaceRegex, "")
+        .replace("。", "")
+        .replace("，", "")
+        .replace(",", "")
+        .trim()
 
 private fun Iterable<String>.distinctByNormalized(): List<String> =
     distinctBy { value -> value.lowercase(Locale.US).trim() }

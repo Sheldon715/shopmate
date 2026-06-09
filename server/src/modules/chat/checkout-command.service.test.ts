@@ -48,6 +48,87 @@ describe("CheckoutCommandService", () => {
     expect(harness.persistCalls).toHaveLength(0);
   });
 
+  it("creates a buy-now draft from a recent recommendation ordinal", async () => {
+    const harness = createCommandHarness();
+
+    const result = await harness.service.execute({
+      question: "下单第一款商品",
+      conversationId: "checkout-demo-1",
+      cartSnapshot: createCartDto([]),
+      recentProductIds: ["product_002", "product_003"],
+      intent: createIntent("start_checkout", {
+        targetScope: "recent_recommendation",
+        targetOrdinal: 1,
+      }),
+      pendingCheckout: { status: "missing" },
+    });
+
+    expect(result).toMatchObject({
+      answer: "请确认本次订单。",
+      checkoutAction: {
+        type: "start_checkout",
+        status: "draft_created",
+        draftId: "draft_1",
+        draft: {
+          source: "buy_now",
+          items: [{
+            productId: "product_002",
+            quantity: 1,
+          }],
+        },
+      },
+      retrieval: {
+        candidateCount: 1,
+        returnedProductIds: ["product_002"],
+      },
+    });
+    expect(harness.store.get({
+      conversationId: "checkout-demo-1",
+      userKey: "demo-user",
+    })).toMatchObject({
+      status: "found",
+      draft: {
+        source: "buy_now",
+        items: [{ productId: "product_002" }],
+      },
+    });
+  });
+
+  it("asks for a checkout target when recent recommendation ordinal is unavailable", async () => {
+    const harness = createCommandHarness();
+
+    const result = await harness.service.execute({
+      question: "把刚才第一款拿去结算",
+      conversationId: "checkout-demo-1",
+      cartSnapshot: createCartDto([]),
+      recentProductIds: [],
+      intent: createIntent("start_checkout", {
+        targetScope: "recent_recommendation",
+        targetOrdinal: 1,
+        clarificationQuestion: "你想下单哪一款？",
+      }),
+      pendingCheckout: { status: "missing" },
+    });
+
+    expect(result).toMatchObject({
+      answer: "你想下单哪一款？",
+      productCards: [],
+      fallbackUsed: false,
+      retrieval: {
+        candidateCount: 0,
+        returnedProductIds: [],
+      },
+      checkoutAction: {
+        type: "start_checkout",
+        status: "needs_confirmation",
+      },
+    });
+    expect(harness.store.get({
+      conversationId: "checkout-demo-1",
+      userKey: "demo-user",
+    })).toEqual({ status: "missing" });
+  });
+
   it("updates address on an existing draft without creating an order", async () => {
     const harness = createCommandHarness();
     await harness.service.execute({

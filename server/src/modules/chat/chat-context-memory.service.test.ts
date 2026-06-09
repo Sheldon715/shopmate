@@ -153,6 +153,36 @@ describe("ChatContextMemoryService", () => {
     });
   });
 
+  it("parses numeric and Chinese budget ranges using the upper bound as max price", () => {
+    const service = createService();
+
+    const compactRange = service.resolve({
+      conversationId: "phone-session-range-1",
+      question: "帮我推荐一款手机 适合老年人使用 预算1000-2000",
+    });
+    const toRange = service.resolve({
+      conversationId: "phone-session-range-2",
+      question: "手机价位 1000 到 2000 元",
+    });
+    const chineseRange = service.resolve({
+      conversationId: "phone-session-range-3",
+      question: "预算一千到两千，适合老人用",
+    });
+
+    expect(compactRange.filters).toMatchObject({
+      minPriceCents: 100000,
+      maxPriceCents: 200000,
+    });
+    expect(toRange.filters).toMatchObject({
+      minPriceCents: 100000,
+      maxPriceCents: 200000,
+    });
+    expect(chineseRange.filters).toMatchObject({
+      minPriceCents: 100000,
+      maxPriceCents: 200000,
+    });
+  });
+
   it("stores pending clarification metadata and clears it on the next normal commit", () => {
     const service = createService();
     const broadRequest = service.resolve({
@@ -197,6 +227,10 @@ describe("ChatContextMemoryService", () => {
       conversationId: "phone-session",
       question: "推荐手机",
     });
+    const smallAppliance = service.resolve({
+      conversationId: "small-appliance-session",
+      question: "推荐宿舍好用的小家电",
+    });
 
     expect(headphones.filters).toMatchObject({
       category: "数码电子",
@@ -209,6 +243,66 @@ describe("ChatContextMemoryService", () => {
       category: "数码电子",
       subCategory: "智能手机",
     });
+    expect(smallAppliance.filters).toMatchObject({
+      category: "家用电器",
+      subCategory: "厨房小电",
+    });
+  });
+
+  it("lets a new explicit category override stale skincare memory", () => {
+    const service = createService();
+
+    service.commit(
+      service.resolve({
+        conversationId: "category-switch-session",
+        question: "推荐油皮夏天用的防晒",
+      }),
+      ["p_beauty_023"],
+    );
+    const switched = service.resolve({
+      conversationId: "category-switch-session",
+      question: "推荐宿舍好用的小家电",
+    });
+
+    expect(switched.retrievalQuery).toContain("推荐宿舍好用的小家电");
+    expect(switched.retrievalQuery).toContain("家用电器");
+    expect(switched.retrievalQuery).toContain("厨房小电");
+    expect(switched.retrievalQuery).not.toContain("美妆护肤");
+    expect(switched.retrievalQuery).not.toContain("防晒");
+    expect(switched.filters).toMatchObject({
+      category: "家用电器",
+      subCategory: "厨房小电",
+    });
+  });
+
+  it("maps cleanser wording to the cleanser subcategory without over-constraining generic skincare", () => {
+    const service = createService();
+
+    const cleanserSeed = service.resolve({
+      conversationId: "cleanser-session-seed",
+      question: "推荐一款适合油皮的洗面奶",
+    });
+    const cleanserParaphrase = service.resolve({
+      conversationId: "cleanser-session-paraphrase",
+      question: "找个混油皮日常用的洁面乳",
+    });
+    const skincare = service.resolve({
+      conversationId: "skincare-session",
+      question: "推荐护肤品",
+    });
+
+    expect(cleanserSeed.filters).toMatchObject({
+      category: "美妆护肤",
+      subCategory: "洁面",
+    });
+    expect(cleanserParaphrase.filters).toMatchObject({
+      category: "美妆护肤",
+      subCategory: "洁面",
+    });
+    expect(skincare.filters).toMatchObject({
+      category: "美妆护肤",
+    });
+    expect(skincare.filters?.subCategory).toBeUndefined();
   });
 
   it("clears stale subcategory memory when a new category has no subcategory", () => {

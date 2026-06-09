@@ -1,6 +1,7 @@
 import { rethrowIfAborted } from "../../lib/abort";
 import type { CartDto } from "../cart/cart.types";
 import type { LlmClient, LlmGenerateRequest } from "../llm/llm.types";
+import { buildProductDisplayName } from "../products/product-display-copy";
 import type { Product } from "../products/product.types";
 import type {
   CartActionResult,
@@ -93,7 +94,7 @@ function buildCartActionResponsePrompt(
         recentProducts: input.recentProducts.map((product, index) => ({
           ordinal: index + 1,
           id: product.id,
-          name: product.name,
+          name: buildProductDisplayName(product),
           brand: product.brand,
           category: product.category,
         })),

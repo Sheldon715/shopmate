@@ -133,15 +133,15 @@ fun ProductCard(
                 Text(
                     text = product.name,
                     color = ShopMateTextPrimary.disabledAware(enabled),
-                    fontSize = (14f * scale).sp,
-                    lineHeight = (18.9f * scale).sp,
+                    fontSize = (13.6f * scale).sp,
+                    lineHeight = (17.2f * scale).sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.sp,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
-                        .offset(y = 1f.s())
-                        .size(width = 209.333f.s(), height = 18.896f.s())
+                        .offset(y = 0.5f.s())
+                        .size(width = 209.333f.s(), height = 34.4f.s())
                 )
 
                 Text(
@@ -153,13 +153,13 @@ fun ProductCard(
                     letterSpacing = 0.sp,
                     maxLines = 1,
                     modifier = Modifier
-                        .offset(y = 24.9f.s())
+                        .offset(y = 40.8f.s())
                         .size(width = 209.333f.s(), height = 16f.s())
                 )
 
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(6f.s()),
-                    modifier = Modifier.offset(y = 48.9f.s())
+                    modifier = Modifier.offset(y = 62.8f.s())
                 ) {
                     product.tags.take(2).forEach { tag ->
                         ProductTag(
@@ -173,14 +173,14 @@ fun ProductCard(
                 Text(
                     text = product.recommendationReason,
                     color = Color(0xFF5F6975).disabledAware(enabled),
-                    fontSize = (12f * scale).sp,
-                    lineHeight = (19.44f * scale).sp,
+                    fontSize = (11.5f * scale).sp,
+                    lineHeight = (16.4f * scale).sp,
                     letterSpacing = 0.sp,
                     maxLines = 2,
-                    overflow = TextOverflow.Clip,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
-                        .offset(y = 75.9f.s())
-                        .size(width = 209.333f.s(), height = 38.875f.s())
+                        .offset(y = 86.8f.s())
+                        .size(width = 209.333f.s(), height = 32.8f.s())
                 )
 
                 AddCartButton(
@@ -191,7 +191,7 @@ fun ProductCard(
                     modifier = Modifier
                         .offset(
                             x = 101.333f.s(),
-                            y = 120.9f.s()
+                            y = 121.2f.s()
                         )
                         .size(
                             width = 108f.s(),

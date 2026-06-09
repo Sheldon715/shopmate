@@ -126,6 +126,7 @@ export interface ProductCardDto {
   ratingAvg: number | null;
   tags: string[];
   available: boolean;
+  recommendationReason?: string;
 }
 
 export interface ProductDetailDto extends ProductCardDto {

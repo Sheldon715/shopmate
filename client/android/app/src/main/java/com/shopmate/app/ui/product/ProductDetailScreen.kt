@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -292,13 +293,13 @@ private fun ProductDetailScreenContent(
 }
 
 private fun ProductDetailUi.recommendationCardHeight(scale: Float): Dp {
-    val reasonLines = estimatedLineCount(recommendationReason, charsPerLine = 24, maxLines = 2)
+    val reasonLines = estimatedLineCount(recommendationReason, charsPerLine = 15, maxLines = 7)
     val highlightLines = highlights.take(3).sumOf { highlight ->
-        estimatedLineCount(highlight, charsPerLine = 25, maxLines = 2)
+        estimatedLineCount(highlight, charsPerLine = 20, maxLines = 2)
     }
-    val baseHeight = 86f + reasonLines * 21.45f + highlightLines * 18.6f +
+    val baseHeight = 106f + reasonLines * 21.45f + highlightLines * 20.2f +
         (highlights.take(3).size.coerceAtLeast(1) - 1) * 8f
-    return baseHeight.coerceIn(166f, 268f).scaledDp(scale)
+    return baseHeight.coerceIn(184f, 372f).scaledDp(scale)
 }
 
 private fun estimatedLineCount(
@@ -324,9 +325,9 @@ private fun ProductHeroCard(
     val cardShape = RoundedCornerShape(24f.scaledDp(scale))
     var titleLineCount by remember(product.name) { mutableStateOf(1) }
     val hasWrappedTitle = titleLineCount > 1
-    val titleTop = if (hasWrappedTitle) 305f else 307f
-    val priceTop = if (hasWrappedTitle) 363f else 343f
-    val tagsTop = if (hasWrappedTitle) 397f else 383f
+    val titleTop = if (hasWrappedTitle) 302f else 307f
+    val priceTop = if (hasWrappedTitle) 360f else 343f
+    val tagsTop = if (hasWrappedTitle) 392f else 381f
 
     ShopMateElevatedSurface(
         modifier = modifier,
@@ -397,10 +398,16 @@ private fun ProductHeroCard(
 
         Row(
             horizontalArrangement = Arrangement.spacedBy(6f.scaledDp(scale)),
-            modifier = Modifier.offset(x = 16f.scaledDp(scale), y = tagsTop.scaledDp(scale))
+            modifier = Modifier
+                .offset(x = 16f.scaledDp(scale), y = tagsTop.scaledDp(scale))
+                .width(319.333f.scaledDp(scale))
         ) {
             product.tags.take(2).forEach { tag ->
-                DetailTag(text = tag, scale = scale)
+                DetailTag(
+                    text = tag,
+                    scale = scale,
+                    modifier = Modifier.widthIn(max = 92f.scaledDp(scale)),
+                )
             }
         }
 
@@ -543,6 +550,7 @@ private fun DetailTag(
         fontWeight = FontWeight.Bold,
         letterSpacing = 0.sp,
         maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
         modifier = modifier
             .clip(ShopMatePillShape)
             .background(Color(0xFFE8F9F2))
@@ -568,11 +576,11 @@ private fun RecommendationReasonCard(
     ) {
         val reasonLines = estimatedLineCount(
             product.recommendationReason,
-            charsPerLine = 24,
-            maxLines = 2
+            charsPerLine = 15,
+            maxLines = 7
         )
-        val reasonHeight = (reasonLines * 21.45f).scaledDp(scale)
-        var highlightTop = 60f + reasonLines * 21.45f + 10f
+        val reasonHeight = (reasonLines * 21.45f + 4f).scaledDp(scale)
+        var highlightTop = 66f + reasonLines * 21.45f + 18f
 
         Box(
             modifier = Modifier
@@ -606,20 +614,19 @@ private fun RecommendationReasonCard(
             fontSize = (13f * scale).sp,
             lineHeight = (21.45f * scale).sp,
             letterSpacing = 0.sp,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
+            maxLines = reasonLines,
             modifier = Modifier
-                .offset(x = 16f.scaledDp(scale), y = 58f.scaledDp(scale))
+                .offset(x = 16f.scaledDp(scale), y = 64f.scaledDp(scale))
                 .size(width = 320f.scaledDp(scale), height = reasonHeight)
         )
 
         product.highlights.take(3).forEach { highlight ->
             val highlightLines = estimatedLineCount(
                 text = highlight,
-                charsPerLine = 25,
+                charsPerLine = 20,
                 maxLines = 2
             )
-            val highlightHeight = highlightLines * 18.6f
+            val highlightHeight = highlightLines * 20.2f
             HighlightRow(
                 text = highlight,
                 scale = scale,
@@ -659,7 +666,7 @@ private fun HighlightRow(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier
                 .offset(x = 18f.scaledDp(scale), y = 0.dp)
-                .width(296f.scaledDp(scale))
+                .width(292f.scaledDp(scale))
         )
     }
 }

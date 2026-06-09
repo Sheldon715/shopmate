@@ -147,6 +147,175 @@ describe("CheckoutIntentService", () => {
     });
   });
 
+  it("parses LLM recent recommendation checkout target when ordinal wording is indirect", async () => {
+    let llmRequest: LlmGenerateRequest | undefined;
+    const service = new CheckoutIntentService({
+      llmClient: new MockLlmClient({
+        handler: (request) => {
+          llmRequest = request;
+          return createLlmResponse(JSON.stringify({
+            is_checkout_intent: true,
+            action: "start_checkout",
+            address_text: null,
+            checkout_patch: null,
+            target_scope: "recent_recommendation",
+            target_ordinal: 1,
+            confidence: "high",
+            needs_confirmation: false,
+            clarification_question: null,
+          }));
+        },
+      }),
+    });
+
+    const result = await service.detect({
+      question: "把刚才推荐里排在最前面的拿去结算",
+      recentProductIds: ["product_001", "product_002"],
+    });
+
+    expect(llmRequest?.messages[0]?.content).toContain("recent_recommendation");
+    expect(llmRequest?.messages[1]?.content).toContain("\"recentRecommendations\"");
+    expect(result).toMatchObject({
+      isCheckoutIntent: true,
+      action: "start_checkout",
+      targetScope: "recent_recommendation",
+      targetOrdinal: 1,
+      confidence: "high",
+      needsConfirmation: false,
+    });
+  });
+
+  it.each([
+    "下单第一款商品",
+    "就买第一个",
+    "把刚才第一款拿去结算",
+  ])("uses deterministic recent checkout ordinal without LLM: %s", async (question) => {
+    let llmCalled = false;
+    const service = new CheckoutIntentService({
+      llmClient: new MockLlmClient({
+        handler: () => {
+          llmCalled = true;
+          return createLlmResponse(JSON.stringify({
+            is_checkout_intent: false,
+          }));
+        },
+      }),
+    });
+
+    const result = await service.detect({
+      question,
+      recentProductIds: ["product_001", "product_002"],
+    });
+
+    expect(llmCalled).toBe(false);
+    expect(result).toMatchObject({
+      isCheckoutIntent: true,
+      action: "start_checkout",
+      targetScope: "recent_recommendation",
+      targetOrdinal: 1,
+      confidence: "high",
+      needsConfirmation: false,
+    });
+  });
+
+  it.each([
+    "帮我下单一下",
+    "下单这个",
+    "直接买这款",
+  ])("uses the only recent recommendation as checkout target: %s", async (question) => {
+    let llmCalled = false;
+    const service = new CheckoutIntentService({
+      llmClient: new MockLlmClient({
+        handler: () => {
+          llmCalled = true;
+          return createLlmResponse(JSON.stringify({
+            is_checkout_intent: false,
+          }));
+        },
+      }),
+    });
+
+    const result = await service.detect({
+      question,
+      recentProductIds: ["product_001"],
+    });
+
+    expect(llmCalled).toBe(false);
+    expect(result).toMatchObject({
+      isCheckoutIntent: true,
+      action: "start_checkout",
+      targetScope: "recent_recommendation",
+      targetOrdinal: 1,
+      confidence: "high",
+      needsConfirmation: false,
+    });
+  });
+
+  it("does not auto-target vague checkout wording when multiple recommendations are visible", async () => {
+    const service = new CheckoutIntentService({
+      llmClient: new MockLlmClient({
+        response: createLlmResponse(JSON.stringify({
+          is_checkout_intent: true,
+          action: "start_checkout",
+          address_text: null,
+          checkout_patch: null,
+          target_scope: "recent_recommendation",
+          target_ordinal: null,
+          confidence: "low",
+          needs_confirmation: true,
+          clarification_question: "你想下单哪一款？",
+        })),
+      }),
+    });
+
+    await expect(service.detect({
+      question: "帮我下单一下",
+      recentProductIds: ["product_001", "product_002"],
+    })).resolves.toMatchObject({
+      isCheckoutIntent: true,
+      action: "start_checkout",
+      targetScope: "recent_recommendation",
+      confidence: "low",
+      needsConfirmation: true,
+      clarificationQuestion: "你想下单哪一款？",
+    });
+  });
+
+  it("does not auto-target single recommendations for checkout questions", async () => {
+    const service = new CheckoutIntentService({
+      llmClient: new MockLlmClient({
+        response: createLlmResponse(JSON.stringify({
+          is_checkout_intent: false,
+        })),
+      }),
+    });
+
+    await expect(service.detect({
+      question: "下单流程是什么？",
+      recentProductIds: ["product_001"],
+    })).resolves.toEqual({ isCheckoutIntent: false });
+  });
+
+  it("does not treat quantity purchase wording as a deterministic ordinal checkout", async () => {
+    let llmCalled = false;
+    const service = new CheckoutIntentService({
+      llmClient: new MockLlmClient({
+        handler: () => {
+          llmCalled = true;
+          return createLlmResponse(JSON.stringify({
+            is_checkout_intent: false,
+          }));
+        },
+      }),
+    });
+
+    await expect(service.detect({
+      question: "买一台手机",
+      recentProductIds: ["product_001"],
+    })).resolves.toEqual({ isCheckoutIntent: false });
+    expect(llmCalled).toBe(false);
+  });
+
   it("omits absent shipping fields when parsing partial checkout patches", async () => {
     const service = new CheckoutIntentService({
       llmClient: new MockLlmClient({

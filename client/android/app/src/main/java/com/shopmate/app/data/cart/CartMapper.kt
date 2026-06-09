@@ -1,6 +1,7 @@
 package com.shopmate.app.data.cart
 
 import com.shopmate.app.data.network.ShopMateImageUrlResolver
+import com.shopmate.app.data.products.cleanProductDisplayName
 import com.shopmate.app.data.products.formatCnyCentsText
 import com.shopmate.app.data.products.resolveProductPlaceholder
 import com.shopmate.app.ui.cart.CartContentUi
@@ -23,7 +24,12 @@ private fun CartItemDto.toCartItemUi(
         id = id,
         product = ProductCardUi(
             id = productId,
-            name = name.ifBlank { "未命名商品" },
+            name = cleanProductDisplayName(
+                rawName = name,
+                brand = brand,
+                category = category,
+                subCategory = tags.firstOrNull(),
+            ),
             priceText = priceText.ifBlank { formatCnyCentsText(priceCents) },
             imageRes = resolveProductImageRes(),
             tags = tags.filter { tag -> tag.isNotBlank() }.take(MAX_CART_TAGS),

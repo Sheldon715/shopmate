@@ -57,12 +57,26 @@ const CATEGORY_HINTS = [
     subCategory: "真无线耳机",
   },
   {
+    terms: ["小家电", "厨房小电", "早餐机", "电炖盅", "电饭煲", "一人食小家电"],
+    category: "家用电器",
+    subCategory: "厨房小电",
+  },
+  {
+    terms: ["家电", "家用电器"],
+    category: "家用电器",
+  },
+  {
     terms: ["防晒霜", "防晒"],
     category: "美妆护肤",
     subCategory: "防晒",
   },
   {
-    terms: ["洗面奶", "洁面", "护肤"],
+    terms: ["洗面奶", "洁面乳", "洁面膏", "洁面泡沫", "洁面啫喱", "洁面"],
+    category: "美妆护肤",
+    subCategory: "洁面",
+  },
+  {
+    terms: ["护肤品", "护肤"],
     category: "美妆护肤",
   },
   {
@@ -309,13 +323,14 @@ function mergeFilters(
 
 function extractConstraints(question: string): ChatContextConstraints {
   const categoryHint = findCategoryHint(question);
+  const budgetRange = extractBudgetRangeCents(question);
 
   return pruneConstraints({
     category: categoryHint?.category,
     subCategory: categoryHint?.subCategory,
     brand: undefined,
-    minPriceCents: extractMinPriceCents(question),
-    maxPriceCents: extractMaxPriceCents(question),
+    minPriceCents: budgetRange?.minPriceCents ?? extractMinPriceCents(question),
+    maxPriceCents: budgetRange?.maxPriceCents ?? extractMaxPriceCents(question),
     preferenceTerms: PREFERENCE_TERMS.filter((term) => question.includes(term)),
     avoidTerms: [],
   });
@@ -361,6 +376,52 @@ function categoryTermMatches(question: string, term: string): boolean {
 
 function normalizeTerseQuery(question: string): string {
   return question.replace(/[\s，。！？!?、,.]/gu, "");
+}
+
+function extractBudgetRangeCents(question: string): {
+  minPriceCents: number;
+  maxPriceCents: number;
+} | undefined {
+  const valuePattern = String.raw`(\d{1,6}|[一二三四五六七八九十百千万两〇零]{1,12})`;
+  const rangePatterns = [
+    new RegExp(
+      String.raw`(?:预算|价位|价格|预算大概|预算大约|预算约)\s*`
+      + valuePattern
+      + String.raw`\s*(?:-|~|－|—|到|至|和|跟|与)\s*`
+      + valuePattern
+      + String.raw`\s*(?:元|块)?`,
+      "u",
+    ),
+    new RegExp(
+      valuePattern
+      + String.raw`\s*(?:-|~|－|—|到|至)\s*`
+      + valuePattern
+      + String.raw`\s*(?:元|块)\s*(?:预算|价位|价格)?`,
+      "u",
+    ),
+  ];
+
+  for (const pattern of rangePatterns) {
+    const match = pattern.exec(question);
+
+    if (!match) {
+      continue;
+    }
+
+    const first = parsePriceYuan(match[1] ?? "");
+    const second = parsePriceYuan(match[2] ?? "");
+
+    if (first === undefined || second === undefined) {
+      continue;
+    }
+
+    return {
+      minPriceCents: Math.min(first, second) * 100,
+      maxPriceCents: Math.max(first, second) * 100,
+    };
+  }
+
+  return undefined;
 }
 
 function extractMaxPriceCents(question: string): number | undefined {

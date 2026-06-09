@@ -10,6 +10,9 @@ export type CheckoutIntentAction =
 export type CheckoutIntentConfidence = "high" | "medium" | "low";
 
 export type CheckoutActionType = Exclude<CheckoutIntentAction, "unknown">;
+export type CheckoutTargetScope =
+  | "selected_cart_items"
+  | "recent_recommendation";
 
 export type CheckoutActionStatus =
   | "draft_created"
@@ -139,7 +142,8 @@ export type CheckoutIntentDetection =
       action: CheckoutIntentAction;
       addressText?: string;
       checkoutPatch?: CheckoutPatchInput;
-      targetScope: "selected_cart_items";
+      targetScope: CheckoutTargetScope;
+      targetOrdinal?: number;
       confidence: CheckoutIntentConfidence;
       needsConfirmation: boolean;
       clarificationQuestion?: string;
