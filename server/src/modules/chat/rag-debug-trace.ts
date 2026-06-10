@@ -8,6 +8,7 @@ import type { NegativeConstraint } from "./negative-constraint.types";
 import type {
   RagDebugTrace,
   RagFailureType,
+  RagTraceLlmLanes,
   RagTraceNegativeConstraint,
   RagTracePostFilter,
   RagTraceProductLookup,
@@ -17,6 +18,7 @@ import type {
 export interface RagDebugTraceInput {
   requestId?: string;
   generatedAt: string;
+  llm?: RagTraceLlmLanes;
   originalQuery: string;
   baseRetrievalQuery: string;
   retrievalQuery: string;
@@ -65,6 +67,7 @@ export function createRagDebugTrace(input: RagDebugTraceInput): RagDebugTrace {
     traceId: createTraceId(input),
     requestId: optionalNonEmpty(input.requestId),
     generatedAt: input.generatedAt,
+    llm: input.llm ? sanitizeLlmLanes(input.llm) : undefined,
     originalQuery: sanitizeText(input.originalQuery, MAX_NOTE_CHARS),
     baseRetrievalQuery: sanitizeText(input.baseRetrievalQuery, MAX_NOTE_CHARS),
     retrievalQuery: sanitizeText(input.retrievalQuery, MAX_NOTE_CHARS),
@@ -128,6 +131,26 @@ export function createPostFilterTrace(input: {
 
 export function sanitizeTraceTextForTest(value: string): string {
   return sanitizeText(value, 10_000);
+}
+
+function sanitizeLlmLanes(llm: RagTraceLlmLanes): RagTraceLlmLanes {
+  return {
+    decisionPrimary: sanitizeLlmLaneModel(llm.decisionPrimary),
+    decisionFallback: llm.decisionFallback
+      ? sanitizeLlmLaneModel(llm.decisionFallback)
+      : undefined,
+    answer: sanitizeLlmLaneModel(llm.answer),
+  };
+}
+
+function sanitizeLlmLaneModel(
+  model: RagTraceLlmLanes["decisionPrimary"],
+): RagTraceLlmLanes["decisionPrimary"] {
+  return {
+    enabled: model.enabled,
+    provider: sanitizeText(model.provider, MAX_NOTE_CHARS),
+    model: model.model ? sanitizeText(model.model, MAX_NOTE_CHARS) : undefined,
+  };
 }
 
 function createTraceId(input: RagDebugTraceInput): string {

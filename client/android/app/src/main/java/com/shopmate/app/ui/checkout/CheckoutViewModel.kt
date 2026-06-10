@@ -281,8 +281,12 @@ class CheckoutViewModel(
 }
 
 private fun CheckoutDraftUi.toInitialState(): CheckoutUiState =
-    createInitialSavedAddresses(this).let { savedAddresses ->
-        val selectedAddress = savedAddresses.firstOrNull()
+    this.savedAddresses.ifEmpty { createInitialSavedAddresses(this) }.let { savedAddresses ->
+        val selectedAddress = savedAddresses.firstOrNull { savedAddress ->
+            savedAddress.fullAddress == address.fullAddress
+                || combineAddressParts(savedAddress.region, savedAddress.fullAddress) == address.fullAddress
+        } ?: savedAddresses.firstOrNull { address -> address.isDefault }
+            ?: savedAddresses.firstOrNull()
         CheckoutUiState(
             draft = this,
             editableShipping = selectedAddress?.toShippingInput() ?: CheckoutShippingInputUi(

@@ -1,11 +1,17 @@
 import { getDatabasePool } from "../../lib/db/pool";
 import { getEnv } from "../../lib/env";
+import { createLlmLaneClients } from "../llm/llm-lanes";
 import { findProductById, findProducts } from "./product.repository";
 import {
   mapProductToCardDto,
   mapProductToDetailDto,
 } from "./product.mapper";
+import {
+  ProductDisplayCopyGenerationService,
+  type ProductDisplayCopyGenerator,
+} from "./product-display-copy-generation.service";
 import type {
+  Product,
   ProductCardDto,
   ProductDetailDto,
   ProductListQuery,
@@ -14,6 +20,12 @@ import type {
 export const PRODUCT_QUERY_DEFAULT_LIMIT = 20;
 export const PRODUCT_QUERY_MAX_LIMIT = 50;
 export const PRODUCT_QUERY_MAX_OFFSET = 1000;
+
+export interface ProductDetailOptions {
+  displayCopyGenerator?: ProductDisplayCopyGenerator;
+}
+
+let defaultDisplayCopyGenerator: ProductDisplayCopyGenerator | undefined;
 
 export class ProductQueryError extends Error {
   readonly code = "INVALID_PRODUCT_QUERY";
@@ -145,6 +157,7 @@ export async function listProducts(
 
 export async function getProductDetail(
   productId: string,
+  options: ProductDetailOptions = {},
 ): Promise<ProductDetailDto> {
   const product = await findProductById(getDatabasePool(), productId);
 
@@ -152,7 +165,40 @@ export async function getProductDetail(
     throw new ProductNotFoundError(productId);
   }
 
+  const generatedCopy = await tryGenerateProductDetailCopy(
+    product,
+    options.displayCopyGenerator ?? getDefaultDisplayCopyGenerator(),
+  );
+
   return mapProductToDetailDto(product, {
     publicImageBaseUrl: getEnv().publicImageBaseUrl,
+    recommendationReason: generatedCopy?.detailReason ?? generatedCopy?.cardReason,
+    recommendationHighlights: generatedCopy?.detailHighlights,
   });
+}
+
+function getDefaultDisplayCopyGenerator(): ProductDisplayCopyGenerator {
+  if (!defaultDisplayCopyGenerator) {
+    defaultDisplayCopyGenerator = new ProductDisplayCopyGenerationService({
+      llmClient: createLlmLaneClients().answer,
+    });
+  }
+
+  return defaultDisplayCopyGenerator;
+}
+
+async function tryGenerateProductDetailCopy(
+  product: Product,
+  generator: ProductDisplayCopyGenerator,
+) {
+  try {
+    const copies = await generator.generate({
+      products: [product],
+      surface: "product_detail",
+    });
+
+    return copies.get(product.id);
+  } catch {
+    return undefined;
+  }
 }

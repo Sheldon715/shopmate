@@ -11,9 +11,18 @@ import {
 } from "../cart/cart.service";
 import type { CartDto, CartItemDto } from "../cart/cart.types";
 import type { LlmClient, LlmGenerateRequest } from "../llm/llm.types";
-import { createLlmClient } from "../llm/openai-compatible-chat.client";
+import {
+  createLlmLaneClients,
+  createLlmLaneMetadata,
+  type LlmLaneMetadata,
+} from "../llm/llm-lanes";
 import { mapProductToCardDto } from "../products/product.mapper";
 import { buildProductDisplayName } from "../products/product-display-copy";
+import {
+  ProductDisplayCopyGenerationService,
+  type ProductDisplayCopy,
+  type ProductDisplayCopyGenerator,
+} from "../products/product-display-copy-generation.service";
 import {
   findActiveProductsByIds,
   findProducts,
@@ -169,6 +178,10 @@ export type RagResponseGenerator = Pick<
   "generateNoCandidatesResponse"
 >;
 export type RagQueryRewriter = Pick<QueryRewriteService, "rewrite">;
+export type RagProductDisplayCopyGenerator = Pick<
+  ProductDisplayCopyGenerator,
+  "generate"
+>;
 
 export interface RagChatServiceOptions {
   vectorSearch?: RagVectorSearchClient;
@@ -190,6 +203,7 @@ export interface RagChatServiceOptions {
   checkoutResponseService?: CheckoutResponseService;
   ragResponseGenerationService?: RagResponseGenerator;
   queryRewriteService?: RagQueryRewriter;
+  productDisplayCopyGenerator?: RagProductDisplayCopyGenerator;
   popularQueryCacheCoordinator?: PopularQueryCacheCoordinator;
   popularQueryCache?: PopularQueryCache;
   popularQueryCacheVersionReader?: PopularQueryCacheVersionReader;
@@ -300,9 +314,9 @@ interface RetrievalSearchErrorResult {
 const DEFAULT_MAX_RECOMMENDED_PRODUCTS = 3;
 const DEFAULT_MAX_SNIPPETS_PER_PRODUCT = 2;
 const DEFAULT_NEGATIVE_CONSTRAINT_TOP_K = 20;
-const RAG_LLM_MAX_COMPLETION_TOKENS = 320;
+const RAG_LLM_MAX_COMPLETION_TOKENS = 520;
 const QUERY_REWRITE_VERSION = "query-rewrite-v1";
-const MAX_CHAT_ANSWER_CHARS = 72;
+const MAX_CHAT_ANSWER_CHARS = 140;
 const CART_ACTIVE_PRODUCT_LOOKUP_LIMIT = 8;
 const COMPARISON_ACTIVE_PRODUCT_LOOKUP_LIMIT = 4;
 const COMPARISON_CATEGORY_SEARCH_TOP_K = 8;
@@ -324,6 +338,9 @@ export class RagChatService {
   private readonly productReader: RagProductReader;
   private readonly cartWriter: RagCartWriter;
   private readonly llmClient: LlmClient;
+  private readonly decisionLlmClient: LlmClient;
+  private readonly answerLlmClient: LlmClient;
+  private readonly llmLaneMetadata?: LlmLaneMetadata;
   private readonly now: () => Date;
   private readonly contextMemoryService: ChatContextMemoryService;
   private readonly clarificationService: ClarificationService;
@@ -338,6 +355,7 @@ export class RagChatService {
   private readonly checkoutCommandService: RagCheckoutCommandRunner;
   private readonly ragResponseGenerationService: RagResponseGenerator;
   private readonly queryRewriteService: RagQueryRewriter;
+  private readonly productDisplayCopyGenerator?: RagProductDisplayCopyGenerator;
   private readonly popularQueryCacheCoordinator: PopularQueryCacheCoordinator;
   private readonly maxSnippetsPerProduct: number;
   private readonly defaultMaxRecommendedProducts: number;
@@ -347,7 +365,15 @@ export class RagChatService {
     this.vectorSearch = options.vectorSearch ?? new VectorSearchService();
     this.productReader = options.productReader ?? createDefaultProductReader();
     this.cartWriter = options.cartWriter ?? new CartService();
-    this.llmClient = options.llmClient ?? createLlmClient();
+    const laneClients = options.llmClient
+      ? { decision: options.llmClient, answer: options.llmClient }
+      : createLlmLaneClients();
+    this.llmLaneMetadata = options.llmClient
+      ? undefined
+      : createLlmLaneMetadata();
+    this.decisionLlmClient = laneClients.decision;
+    this.answerLlmClient = laneClients.answer;
+    this.llmClient = options.llmClient ?? this.answerLlmClient;
     this.now = options.now ?? (() => new Date());
     this.contextMemoryService =
       options.contextMemoryService
@@ -357,52 +383,63 @@ export class RagChatService {
     this.clarificationIntentService =
       options.clarificationIntentService
       ?? new ClarificationIntentService({
-        llmClient: this.llmClient,
+        decisionLlmClient: this.decisionLlmClient,
+        answerLlmClient: this.answerLlmClient,
         clarificationService: this.clarificationService,
       });
     this.negativeConstraintIntentService =
       options.negativeConstraintIntentService
       ?? new NegativeConstraintIntentService({
-        llmClient: this.llmClient,
+        llmClient: this.decisionLlmClient,
       });
     this.comparisonIntentService =
       options.comparisonIntentService
       ?? new ComparisonIntentService({
-        llmClient: this.llmClient,
+        decisionLlmClient: this.decisionLlmClient,
+        answerLlmClient: this.answerLlmClient,
       });
     this.comparisonGenerationService =
       options.comparisonGenerationService
       ?? new ComparisonGenerationService({
-        llmClient: this.llmClient,
+        llmClient: this.answerLlmClient,
       });
     this.cartCommandService =
       options.cartCommandService ?? new CartCommandService();
     this.cartCommandIntentService =
       options.cartCommandIntentService
       ?? new CartCommandIntentService({
-        llmClient: this.llmClient,
+        llmClient: this.decisionLlmClient,
         cartCommandService: this.cartCommandService,
       });
     this.cartActionResponseService =
       options.cartActionResponseService
-      ?? new CartActionResponseService({ llmClient: this.llmClient });
+      ?? new CartActionResponseService({ llmClient: this.answerLlmClient });
     this.checkoutIntentService =
       options.checkoutIntentService
       ?? new CheckoutIntentService({
-        llmClient: this.llmClient,
+        llmClient: this.decisionLlmClient,
       });
     this.checkoutCommandService =
       options.checkoutCommandService
       ?? new CheckoutCommandService({
         checkoutResponseService: options.checkoutResponseService
-          ?? new CheckoutResponseService({ llmClient: this.llmClient }),
+          ?? new CheckoutResponseService({ llmClient: this.answerLlmClient }),
       });
     this.ragResponseGenerationService =
       options.ragResponseGenerationService
-      ?? new RagResponseGenerationService({ llmClient: this.llmClient });
+      ?? new RagResponseGenerationService({ llmClient: this.answerLlmClient });
     this.queryRewriteService =
       options.queryRewriteService
-      ?? new QueryRewriteService({ llmClient: this.llmClient });
+      ?? new QueryRewriteService({ llmClient: this.decisionLlmClient });
+    this.productDisplayCopyGenerator =
+      options.productDisplayCopyGenerator
+      ?? (
+        options.llmClient
+          ? undefined
+          : new ProductDisplayCopyGenerationService({
+              llmClient: this.answerLlmClient,
+            })
+      );
     this.popularQueryCacheCoordinator =
       options.popularQueryCacheCoordinator
       ?? new PopularQueryCacheCoordinator({
@@ -418,7 +455,7 @@ export class RagChatService {
   }
 
   async answer(input: RagChatRequest): Promise<RagChatResult> {
-    return withImageSearchMetadata(
+    return this.withResponseMetadata(
       input.imageSearch,
       await this.answerInternal(input),
     );
@@ -429,7 +466,7 @@ export class RagChatService {
     writer: ChatStreamWriter,
   ): Promise<void> {
     const options: RagAnswerExecutionOptions = { streamWriter: writer };
-    const result = withImageSearchMetadata(
+    const result = this.withResponseMetadata(
       input.imageSearch,
       await this.answerInternal(input, options),
     );
@@ -437,6 +474,16 @@ export class RagChatService {
     await writeRagResultToStream(writer, result, {
       skipMessageDeltas: options.messageDeltasWritten === true,
     });
+  }
+
+  private withResponseMetadata(
+    imageSearch: ChatImageSearchMetadata | undefined,
+    result: RagChatResult,
+  ): RagChatResult {
+    return withLlmLaneMetadata(
+      this.llmLaneMetadata,
+      withImageSearchMetadata(imageSearch, result),
+    );
   }
 
   private async answerInternal(
@@ -735,13 +782,17 @@ export class RagChatService {
         const result = this.withContextMemory(
             memoryResolution,
             this.withDebugTrace({
-              result: createRetrievedFallbackResult(
+              result: await this.createRetrievedFallbackResult(
                 contexts,
                 maxRecommendedProducts,
                 "NO_VALID_PRODUCT_IDS",
                 queryRewrite,
                 metadata,
-                this.publicImageBaseUrl,
+                {
+                  userQuestion: question,
+                  requestId: input.requestId,
+                  abortSignal: input.abortSignal,
+                },
               ),
               request: input,
               question,
@@ -764,13 +815,17 @@ export class RagChatService {
       const result = this.withContextMemory(
         memoryResolution,
         this.withDebugTrace({
-          result: createSuccessResult(
+          result: await this.createSuccessResult(
             compactAnswer(parsed.answer),
             recommendedProductIds,
             contexts,
             queryRewrite,
             metadata,
-            this.publicImageBaseUrl,
+            {
+              userQuestion: question,
+              requestId: input.requestId,
+              abortSignal: input.abortSignal,
+            },
           ),
           request: input,
           question,
@@ -794,13 +849,17 @@ export class RagChatService {
       const result = this.withContextMemory(
         memoryResolution,
         this.withDebugTrace({
-          result: createRetrievedFallbackResult(
+          result: await this.createRetrievedFallbackResult(
               contexts,
               maxRecommendedProducts,
               fallbackReason,
               queryRewrite,
               metadata,
-              this.publicImageBaseUrl,
+              {
+                userQuestion: question,
+                requestId: input.requestId,
+                abortSignal: input.abortSignal,
+              },
             ),
           request: input,
           question,
@@ -1059,17 +1118,19 @@ export class RagChatService {
         throwIfAborted(input.request.abortSignal);
 
         if (cacheHitProducts.length === cacheHit.recommendedProductIds.length) {
+          const productCards = await this.mapProductsToCards(cacheHitProducts, {
+            userQuestion: input.question,
+            requestId: input.request.requestId,
+            abortSignal: input.request.abortSignal,
+            surface: "chat_card",
+          });
           input.request.timing?.mark(input.doneMarkName);
           return {
             status: "cache_hit",
             result: createCacheHitResult(
               cacheHit,
               cacheHitProducts,
-              cacheHitProducts.map((product) =>
-                mapProductToCardDto(product, {
-                  publicImageBaseUrl: this.publicImageBaseUrl,
-                })
-              ),
+              productCards,
             ),
             cacheInput,
             queryRewrite: input.queryRewrite,
@@ -1302,6 +1363,7 @@ export class RagChatService {
       debugTrace: createRagDebugTrace({
         requestId: input.request.requestId,
         generatedAt: this.now().toISOString(),
+        llm: this.llmLaneMetadata,
         originalQuery: input.question,
         baseRetrievalQuery:
           input.queryRewrite.baseQuery
@@ -1390,8 +1452,14 @@ export class RagChatService {
     }
 
     const contexts = targetResolution.contexts.slice(0, COMPARISON_PRODUCT_COUNT);
-    const productCards = this.mapProductsToCards(
+    const productCards = await this.mapProductsToCards(
       contexts.map((context) => context.product),
+      {
+        userQuestion: request.question,
+        requestId: request.requestId,
+        abortSignal: request.abortSignal,
+        surface: "comparison",
+      },
     );
     const recommendedProductIds = productCards.map((card) => card.id);
     const baseRetrieval = {
@@ -1425,7 +1493,7 @@ export class RagChatService {
         generated,
         query: request.question,
         contexts,
-        publicImageBaseUrl: this.publicImageBaseUrl,
+        productCards,
       });
     } catch (error) {
       rethrowIfAborted(request.abortSignal, error);
@@ -1777,7 +1845,12 @@ export class RagChatService {
       request.abortSignal,
     );
     throwIfAborted(request.abortSignal);
-    let productCards = this.mapProductsToCards(products);
+    let productCards = await this.mapProductsToCards(products, {
+      userQuestion: request.question,
+      requestId: request.requestId,
+      abortSignal: request.abortSignal,
+      surface: "chat_card",
+    });
     let recommendedProductIds = productCards.map((card) => card.id);
     const createResult = async (input: {
       cartAction: CartActionResult;
@@ -1849,7 +1922,12 @@ export class RagChatService {
 
       if (activeProducts.length > 0) {
         products = activeProducts;
-        productCards = this.mapProductsToCards(products);
+        productCards = await this.mapProductsToCards(products, {
+          userQuestion: request.question,
+          requestId: request.requestId,
+          abortSignal: request.abortSignal,
+          surface: "chat_card",
+        });
         recommendedProductIds = productCards.map((card) => card.id);
         resolvedTarget = this.cartCommandService.resolveTarget({
           detection,
@@ -2029,12 +2107,155 @@ export class RagChatService {
     }
   }
 
-  private mapProductsToCards(
+  private async mapProductsToCards(
     products: Product[],
-  ): ReturnType<typeof mapProductToCardDto>[] {
-    return products.map((product) =>
-      mapProductToCardDto(product, { publicImageBaseUrl: this.publicImageBaseUrl })
+    options: {
+      userQuestion?: string;
+      surface?: "chat_card" | "product_detail" | "comparison";
+      requestId?: string;
+      abortSignal?: AbortSignal;
+    } = {},
+  ): Promise<ReturnType<typeof mapProductToCardDto>[]> {
+    const copies = await this.tryGenerateProductDisplayCopies(
+      products,
+      options,
     );
+
+    return products.map((product) =>
+      mapProductToCardDto(product, {
+        publicImageBaseUrl: this.publicImageBaseUrl,
+        recommendationReason:
+          copies.get(product.id)?.cardReason
+          ?? copies.get(product.id)?.detailReason,
+      })
+    );
+  }
+
+  private async tryGenerateProductDisplayCopies(
+    products: Product[],
+    options: {
+      userQuestion?: string;
+      surface?: "chat_card" | "product_detail" | "comparison";
+      requestId?: string;
+      abortSignal?: AbortSignal;
+    },
+  ): Promise<Map<string, ProductDisplayCopy>> {
+    if (!this.productDisplayCopyGenerator || products.length === 0) {
+      return new Map();
+    }
+
+    try {
+      throwIfAborted(options.abortSignal);
+      const copies = await this.productDisplayCopyGenerator.generate({
+        products,
+        userQuestion: options.userQuestion,
+        surface: options.surface ?? "chat_card",
+        requestId: options.requestId,
+        abortSignal: options.abortSignal,
+      });
+      throwIfAborted(options.abortSignal);
+
+      return copies;
+    } catch (error) {
+      rethrowIfAborted(options.abortSignal, error);
+      return new Map();
+    }
+  }
+
+  private async createRetrievedFallbackResult(
+    contexts: RetrievedProductContext[],
+    maxRecommendedProducts: number,
+    fallbackReason: Exclude<
+      RagChatFallbackReason,
+      "COMPARISON_TARGET_CLARIFICATION"
+    >,
+    queryRewrite: QueryRewriteResult | undefined,
+    retrievalMetadata: RetrievalSelectionMetadata | undefined,
+    options: {
+      userQuestion?: string;
+      requestId?: string;
+      abortSignal?: AbortSignal;
+    },
+  ): Promise<RagChatResult> {
+    if (shouldSuppressRetrievedFallbackCards(fallbackReason, contexts)) {
+      return {
+        answer: createMinimalRagFallbackAnswer(fallbackReason),
+        recommendedProductIds: [],
+        productCards: [],
+        fallbackUsed: true,
+        fallbackReason,
+        retrieval: {
+          ...createRetrievalFields(queryRewrite, retrievalMetadata),
+          candidateCount: contexts.length,
+          returnedProductIds: [],
+        },
+      };
+    }
+
+    const products = contexts
+      .slice(0, maxRecommendedProducts)
+      .map((context) => context.product);
+    const productCards = await this.mapProductsToCards(products, {
+      userQuestion: options.userQuestion,
+      requestId: options.requestId,
+      abortSignal: options.abortSignal,
+      surface: "chat_card",
+    });
+    const recommendedProductIds = products.map((product) => product.id);
+
+    return {
+      answer: createRetrievedFallbackAnswer(fallbackReason, productCards),
+      recommendedProductIds,
+      productCards,
+      fallbackUsed: true,
+      fallbackReason,
+      retrieval: {
+        ...createRetrievalFields(queryRewrite, retrievalMetadata),
+        candidateCount: contexts.length,
+        returnedProductIds: recommendedProductIds,
+      },
+    };
+  }
+
+  private async createSuccessResult(
+    answer: string,
+    recommendedProductIds: string[],
+    contexts: RetrievedProductContext[],
+    queryRewrite: QueryRewriteResult | undefined,
+    retrievalMetadata: RetrievalSelectionMetadata | undefined,
+    options: {
+      userQuestion?: string;
+      requestId?: string;
+      abortSignal?: AbortSignal;
+    },
+  ): Promise<RagChatResult> {
+    const productsById = new Map(
+      contexts.map((context) => [context.product.id, context.product]),
+    );
+    const products = recommendedProductIds.flatMap((productId) => {
+      const product = productsById.get(productId);
+
+      return product ? [product] : [];
+    });
+    const productCards = await this.mapProductsToCards(products, {
+      userQuestion: options.userQuestion,
+      requestId: options.requestId,
+      abortSignal: options.abortSignal,
+      surface: "chat_card",
+    });
+    const returnedProductIds = productCards.map((card) => card.id);
+
+    return {
+      answer,
+      recommendedProductIds: returnedProductIds,
+      productCards,
+      fallbackUsed: false,
+      retrieval: {
+        ...createRetrievalFields(queryRewrite, retrievalMetadata),
+        candidateCount: contexts.length,
+        returnedProductIds,
+      },
+    };
   }
 
   private async answerCartManagementCommand(input: {
@@ -2395,6 +2616,23 @@ function withImageSearchMetadata(
   };
 }
 
+function withLlmLaneMetadata(
+  llm: LlmLaneMetadata | undefined,
+  result: RagChatResult,
+): RagChatResult {
+  if (!llm) {
+    return result;
+  }
+
+  return {
+    ...result,
+    retrieval: {
+      ...result.retrieval,
+      llm,
+    },
+  };
+}
+
 function chunkMessageDelta(answer: string, chunkSize = 100): string[] {
   if (chunkSize < 1 || !Number.isInteger(chunkSize)) {
     throw new Error("chunkSize must be a positive integer.");
@@ -2674,54 +2912,6 @@ function createNoCandidatesResult(
   };
 }
 
-function createRetrievedFallbackResult(
-  contexts: RetrievedProductContext[],
-  maxRecommendedProducts: number,
-  fallbackReason: Exclude<
-    RagChatFallbackReason,
-    "COMPARISON_TARGET_CLARIFICATION"
-  >,
-  queryRewrite?: QueryRewriteResult,
-  retrievalMetadata?: RetrievalSelectionMetadata,
-  publicImageBaseUrl?: string,
-): RagChatResult {
-  if (shouldSuppressRetrievedFallbackCards(fallbackReason, contexts)) {
-    return {
-      answer: createMinimalRagFallbackAnswer(fallbackReason),
-      recommendedProductIds: [],
-      productCards: [],
-      fallbackUsed: true,
-      fallbackReason,
-      retrieval: {
-        ...createRetrievalFields(queryRewrite, retrievalMetadata),
-        candidateCount: contexts.length,
-        returnedProductIds: [],
-      },
-    };
-  }
-
-  const products = contexts
-    .slice(0, maxRecommendedProducts)
-    .map((context) => context.product);
-  const productCards = products.map((product) =>
-    mapProductToCardDto(product, { publicImageBaseUrl })
-  );
-  const recommendedProductIds = products.map((product) => product.id);
-
-  return {
-    answer: createRetrievedFallbackAnswer(fallbackReason, productCards),
-    recommendedProductIds,
-    productCards,
-    fallbackUsed: true,
-    fallbackReason,
-    retrieval: {
-      ...createRetrievalFields(queryRewrite, retrievalMetadata),
-      candidateCount: contexts.length,
-      returnedProductIds: recommendedProductIds,
-    },
-  };
-}
-
 function shouldSuppressRetrievedFallbackCards(
   fallbackReason: Exclude<
     RagChatFallbackReason,
@@ -2750,45 +2940,11 @@ function createRetrievedFallbackAnswer(
     && productCards.length > 0
   ) {
     return productCards.length === 1
-      ? "先为你保留 1 款库内相关商品，推荐理由以商品事实为准，可查看详情再确认。"
-      : `先为你保留 ${productCards.length} 款库内相关商品，推荐理由以商品事实为准，可查看详情再确认。`;
+      ? "我先把这款库内相关商品列出来，具体参数和限制以卡片与详情页为准。"
+      : `我先把这 ${productCards.length} 款库内相关商品列出来，具体参数和限制以卡片与详情页为准。`;
   }
 
   return createMinimalRagFallbackAnswer(fallbackReason);
-}
-
-function createSuccessResult(
-  answer: string,
-  recommendedProductIds: string[],
-  contexts: RetrievedProductContext[],
-  queryRewrite?: QueryRewriteResult,
-  retrievalMetadata?: RetrievalSelectionMetadata,
-  publicImageBaseUrl?: string,
-): RagChatResult {
-  const productsById = new Map(
-    contexts.map((context) => [context.product.id, context.product]),
-  );
-  const products = recommendedProductIds.flatMap((productId) => {
-    const product = productsById.get(productId);
-
-    return product ? [product] : [];
-  });
-  const productCards = products.map((product) =>
-    mapProductToCardDto(product, { publicImageBaseUrl })
-  );
-  const returnedProductIds = productCards.map((card) => card.id);
-
-  return {
-    answer,
-    recommendedProductIds: returnedProductIds,
-    productCards,
-    fallbackUsed: false,
-    retrieval: {
-      ...createRetrievalFields(queryRewrite, retrievalMetadata),
-      candidateCount: contexts.length,
-      returnedProductIds,
-    },
-  };
 }
 
 function createRetrievalFields(
@@ -2860,21 +3016,16 @@ function createComparisonSuccessResult(input: {
   generated: GeneratedComparisonOutput;
   query: string;
   contexts: RetrievedProductContext[];
-  publicImageBaseUrl?: string;
+  productCards: ReturnType<typeof mapProductToCardDto>[];
 }): RagChatResult {
-  const productsById = new Map(
-    input.contexts.map((context) => [context.product.id, context.product]),
+  const cardsById = new Map(
+    input.productCards.map((card) => [card.id, card]),
   );
-  const products = input.generated.products.flatMap((product) => {
-    const found = productsById.get(product.productId);
+  const productCards = input.generated.products.flatMap((product) => {
+    const found = cardsById.get(product.productId);
 
     return found ? [found] : [];
   });
-  const productCards = products.map((product) =>
-    mapProductToCardDto(product, {
-      publicImageBaseUrl: input.publicImageBaseUrl,
-    })
-  );
   const returnedProductIds = productCards.map((card) => card.id);
   const comparisonResult: ChatComparisonResultPayload = {
     id: createComparisonResultId(input.query, returnedProductIds),
@@ -2920,16 +3071,16 @@ function createComparisonFallbackResult(input: {
   fallbackReason: Extract<RagChatFallbackReason, "LLM_ERROR" | "LLM_INVALID_OUTPUT">;
   retrieval: RagChatResult["retrieval"];
 }): RagChatResult {
-  const fallbackAnswer = "对比结论生成不稳定，先展示两款商品的库内基础事实。";
+  const fallbackAnswer = "我先按库内商品事实整理了这两款的核心差异，方便你继续看详情。";
   const comparisonResult: ChatComparisonResultPayload = {
     id: createComparisonResultId(input.query, input.recommendedProductIds),
-    title: "基础事实对比",
+    title: "商品核心差异对比",
     query: input.query,
     productIds: input.recommendedProductIds,
     dimensions: createFallbackComparisonDimensions(input.contexts),
     recommendedProductId: null,
     conclusion: fallbackAnswer,
-    highlights: [],
+    highlights: createFallbackComparisonHighlights(input.contexts),
   };
 
   return {
@@ -2970,8 +3121,13 @@ function createFallbackComparisonDimensions(
     },
     {
       id: "facts",
-      label: "库内事实",
+      label: "核心亮点",
       cells: cellsFor(formatComparisonFact),
+    },
+    {
+      id: "fit",
+      label: "适用场景",
+      cells: cellsFor(formatComparisonFit),
     },
   ];
 }
@@ -2992,14 +3148,60 @@ function formatCurrencyCents(value: number, currency: string): string {
 }
 
 function formatComparisonFact(product: Product): string {
-  const fact =
-    product.pros[0]
-    ?? product.recommendWhen[0]
-    ?? product.marketingDescription
-    ?? product.knowledgeText
-    ?? "暂无更多结构化事实。";
+  const fact = firstUsefulComparisonCopy([
+    ...product.pros,
+    ...product.recommendWhen,
+    ...Object.values(product.attributes).flat(),
+    product.marketingDescription,
+    product.knowledgeText,
+  ]);
 
-  return fact.trim().slice(0, FALLBACK_COMPARISON_FACT_MAX_CHARS);
+  return fact ?? "暂无更多结构化亮点。";
+}
+
+function formatComparisonFit(product: Product): string {
+  const fact = firstUsefulComparisonCopy([
+    ...product.recommendWhen,
+    ...(product.attributes["使用场景"] ?? []),
+    ...(product.attributes["适用人群"] ?? []),
+  ]);
+
+  return fact ?? "可结合预算、参数和使用场景继续比较。";
+}
+
+function createFallbackComparisonHighlights(
+  contexts: RetrievedProductContext[],
+): ChatComparisonResultPayload["highlights"] {
+  return contexts
+    .slice(0, COMPARISON_PRODUCT_COUNT)
+    .map((context) => ({
+      productId: context.product.id,
+      label: buildProductDisplayName(context.product),
+      text: formatComparisonFact(context.product),
+    }));
+}
+
+function firstUsefulComparisonCopy(values: Array<string | undefined>): string | undefined {
+  return values
+    .map((value) => cleanComparisonFact(value ?? ""))
+    .find((value) => value.length > 0);
+}
+
+function cleanComparisonFact(value: string): string {
+  const cleaned = value
+    .replace(/^推荐理由[:：]\s*/u, "")
+    .replace(/^(主要卖点包括|核心特点包括|它的核心特点包括)\s*/u, "")
+    .replace(/[。；;,.，\s]+$/u, "")
+    .trim();
+
+  if (
+    cleaned.length === 0
+    || /(?:本数据集|比赛数据集|模拟内容|真实用户反馈|不代表实时售价|SKU|FAQ|PostgreSQL)/iu.test(cleaned)
+  ) {
+    return "";
+  }
+
+  return cleaned.slice(0, FALLBACK_COMPARISON_FACT_MAX_CHARS);
 }
 
 function createCartCommandResult(input: {

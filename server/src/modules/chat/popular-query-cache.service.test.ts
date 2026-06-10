@@ -5,7 +5,10 @@ import {
   PopularQueryCacheService,
   createCacheHitResult,
 } from "./popular-query-cache.service";
-import { buildPopularQueryDataVersion } from "./popular-query-cache-version.service";
+import {
+  buildPopularQueryDataVersion,
+  buildPopularQueryModelVersion,
+} from "./popular-query-cache-version.service";
 
 describe("PopularQueryCacheService", () => {
   it("canonicalizes query whitespace, case, and filter key order", () => {
@@ -49,6 +52,96 @@ describe("PopularQueryCacheService", () => {
     );
     expect(cache.buildKey(baseInput)).not.toBe(
       cache.buildKey({ ...baseInput, visibleBoundary: "locale=zh-CN" }),
+    );
+  });
+
+  it("changes the key when any LLM lane model changes", () => {
+    const cache = new PopularQueryCacheService();
+    const baseInput = createReadInput({
+      modelVersion: buildPopularQueryModelVersion({
+        decisionPrimary: {
+          enabled: true,
+          provider: "openai",
+          model: "gpt-5.4-mini",
+        },
+        decisionFallback: {
+          enabled: true,
+          provider: "openai",
+          model: "gpt-5.4",
+        },
+        answer: {
+          enabled: true,
+          provider: "openai",
+          model: "gpt-5.4-mini",
+        },
+      }),
+    });
+
+    expect(cache.buildKey(baseInput)).not.toBe(
+      cache.buildKey({
+        ...baseInput,
+        modelVersion: buildPopularQueryModelVersion({
+          decisionPrimary: {
+            enabled: true,
+            provider: "openai",
+            model: "gpt-5.4",
+          },
+          decisionFallback: {
+            enabled: true,
+            provider: "openai",
+            model: "gpt-5.4",
+          },
+          answer: {
+            enabled: true,
+            provider: "openai",
+            model: "gpt-5.4-mini",
+          },
+        }),
+      }),
+    );
+    expect(cache.buildKey(baseInput)).not.toBe(
+      cache.buildKey({
+        ...baseInput,
+        modelVersion: buildPopularQueryModelVersion({
+          decisionPrimary: {
+            enabled: true,
+            provider: "openai",
+            model: "gpt-5.4-mini",
+          },
+          decisionFallback: {
+            enabled: true,
+            provider: "openai",
+            model: "gpt-5.4-mini",
+          },
+          answer: {
+            enabled: true,
+            provider: "openai",
+            model: "gpt-5.4-mini",
+          },
+        }),
+      }),
+    );
+    expect(cache.buildKey(baseInput)).not.toBe(
+      cache.buildKey({
+        ...baseInput,
+        modelVersion: buildPopularQueryModelVersion({
+          decisionPrimary: {
+            enabled: true,
+            provider: "openai",
+            model: "gpt-5.4-mini",
+          },
+          decisionFallback: {
+            enabled: true,
+            provider: "openai",
+            model: "gpt-5.4",
+          },
+          answer: {
+            enabled: true,
+            provider: "openai",
+            model: "gpt-5.4",
+          },
+        }),
+      }),
     );
   });
 

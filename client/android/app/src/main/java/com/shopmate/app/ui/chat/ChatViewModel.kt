@@ -1155,7 +1155,7 @@ class ChatViewModel(
         if (!isDuplicate) {
             lastCheckoutActionKey = actionKey
             _uiState.update { state ->
-                val nextCheckoutDraft = if (checkoutAction.status == CHECKOUT_ORDER_CREATED_STATUS) {
+                val nextCheckoutDraft = if (checkoutAction.clearsActiveCheckoutDraft()) {
                     null
                 } else {
                     checkoutAction.toCheckoutDraftCardUi(
@@ -1344,6 +1344,10 @@ private fun ChatCheckoutActionDto.dedupeKey(): String =
         type,
     ).joinToString("|")
 
+private fun ChatCheckoutActionDto.clearsActiveCheckoutDraft(): Boolean =
+    status in CHECKOUT_DRAFT_TERMINAL_STATUSES ||
+        status == "failed" && type in CHECKOUT_FAILED_ACTION_CLEAR_TYPES
+
 private fun String?.orKeyPart(): String =
     this?.trim()?.takeIf { value -> value.isNotBlank() } ?: "_"
 
@@ -1407,6 +1411,16 @@ private val CLARIFICATION_FALLBACK_REASONS = setOf(
 )
 private const val CART_ACTION_SUCCESS_STATUS = "success"
 private const val CHECKOUT_ORDER_CREATED_STATUS = "order_created"
+private val CHECKOUT_DRAFT_TERMINAL_STATUSES = setOf(
+    CHECKOUT_ORDER_CREATED_STATUS,
+    "cancelled",
+    "expired",
+    "empty_cart",
+)
+private val CHECKOUT_FAILED_ACTION_CLEAR_TYPES = setOf(
+    "confirm_checkout",
+    "cancel_checkout",
+)
 private val CART_REFRESH_ACTION_TYPES = setOf(
     "add",
     "remove",

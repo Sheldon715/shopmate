@@ -260,6 +260,28 @@ class ChatStreamEventParserTest {
                       "phoneMasked": "138****0000",
                       "fullAddress": "UNSW Village 6 栋 302"
                     },
+                    "savedAddresses": [
+                      {
+                        "id": "saved-address-default",
+                        "label": "默认地址",
+                        "recipient": "ShopMate Demo 用户",
+                        "phoneMasked": "138****0000",
+                        "fullAddress": "ShopMate 收货点",
+                        "region": "ShopMate 演示配送区",
+                        "tag": "默认",
+                        "isDefault": true
+                      },
+                      {
+                        "id": "saved-address-campus",
+                        "label": "学校宿舍",
+                        "recipient": "ShopMate Demo 用户",
+                        "phoneMasked": "138****0000",
+                        "fullAddress": "UNSW Village 6 栋 302",
+                        "region": "ShopMate 演示配送区",
+                        "tag": "宿舍",
+                        "isDefault": false
+                      }
+                    ],
                     "items": [],
                     "summary": {
                       "itemCount": 1,
@@ -293,6 +315,8 @@ class ChatStreamEventParserTest {
         assertEquals("draft_1", checkoutAction.draftId)
         assertEquals(19900, checkoutAction.totalCents)
         assertEquals("UNSW Village 6 栋 302", checkoutAction.draft?.address?.fullAddress)
+        assertEquals("saved-address-campus", checkoutAction.draft?.savedAddresses?.last()?.id)
+        assertEquals("宿舍", checkoutAction.draft?.savedAddresses?.last()?.tag)
     }
 
     @Test

@@ -92,10 +92,23 @@ export interface RagTraceFinalSelection {
   answerPreview?: string;
 }
 
+export interface RagTraceLlmLaneModel {
+  enabled: boolean;
+  provider: string;
+  model?: string;
+}
+
+export interface RagTraceLlmLanes {
+  decisionPrimary: RagTraceLlmLaneModel;
+  decisionFallback?: RagTraceLlmLaneModel;
+  answer: RagTraceLlmLaneModel;
+}
+
 export interface RagDebugTrace {
   traceId: string;
   requestId?: string;
   generatedAt: string;
+  llm?: RagTraceLlmLanes;
   originalQuery: string;
   baseRetrievalQuery: string;
   retrievalQuery: string;

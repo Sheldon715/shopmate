@@ -153,6 +153,39 @@ describe("ChatContextMemoryService", () => {
     });
   });
 
+  it("clears stale budget memory when the user says to ignore the old price", () => {
+    const service = createService();
+
+    service.commit(
+      service.resolve({
+        conversationId: "earbud-session",
+        question: "200 元以内通勤蓝牙耳机",
+      }),
+      [],
+    );
+
+    const cleared = service.resolve({
+      conversationId: "earbud-session",
+      question: "不用管200元，要音质好的",
+    });
+    const raised = service.resolve({
+      conversationId: "earbud-session",
+      question: "1500呢",
+    });
+
+    expect(cleared.filters).toMatchObject({
+      category: "数码电子",
+      subCategory: "真无线耳机",
+    });
+    expect(cleared.filters?.maxPriceCents).toBeUndefined();
+    expect(cleared.retrievalQuery).toContain("音质");
+    expect(raised.filters).toMatchObject({
+      category: "数码电子",
+      subCategory: "真无线耳机",
+      maxPriceCents: 150000,
+    });
+  });
+
   it("parses numeric and Chinese budget ranges using the upper bound as max price", () => {
     const service = createService();
 

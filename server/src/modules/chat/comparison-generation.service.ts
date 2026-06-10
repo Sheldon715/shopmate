@@ -75,7 +75,7 @@ const COMPARISON_GENERATION_MAX_COMPLETION_TOKENS = 2000;
 const COMPARISON_GENERATION_TIMEOUT_MS = 45_000;
 const COMPARISON_PRODUCT_COUNT = 2;
 const MAX_DIMENSIONS = 6;
-const MIN_DIMENSIONS = 4;
+const MIN_DIMENSIONS = 2;
 const MAX_HIGHLIGHTS = 6;
 const MAX_ANSWER_CHARS = 110;
 const MAX_TITLE_CHARS = 48;
@@ -161,7 +161,7 @@ function buildComparisonGenerationPrompt(
         "输出 JSON object，不要 markdown 或解释文字。",
         "answer <=110 中文字符；title <=48；conclusion <=240。",
         "comparison.products 必须刚好 2 个，product_id 只能来自 allowlistProductIds。",
-        "dimensions 必须生成 4-6 行，少于 4 行会被判无效；每行 cells 覆盖两款商品。",
+        "dimensions 目标生成 4-6 行；如果 facts 不足，也至少生成 2 行有事实支撑的完整维度，不要编造补齐。",
         "每个 cell 需要写具体差异事实和适用判断，<=150 字，不要只写短标签。",
         "优先覆盖用户问题相关维度，再补充价格、核心功效/参数、适用场景、限制/注意点等有事实支撑的维度。",
         "维度、单元格、高亮和结论必须围绕用户问题，不能套固定品类模板，不能只写短标签。",
@@ -193,7 +193,7 @@ function buildComparisonGenerationPrompt(
             ],
             dimensions: {
               type: "array",
-              minItems: 4,
+              minItems: 2,
               maxItems: 6,
               items: {
                 id: "string",
@@ -230,14 +230,18 @@ export function parseComparisonGenerationOutput(
   let payload: Record<string, unknown>;
 
   try {
-    payload = parseJsonObject(stripCodeFence(rawText));
+    payload = parseComparisonJsonObject(rawText);
   } catch {
     throw new ComparisonGenerationOutputError(
       "comparison generation output must be a valid JSON object.",
     );
   }
 
-  const comparison = payload.comparison;
+  const comparison =
+    payload.comparison
+    ?? payload.comparison_result
+    ?? payload.comparisonResult
+    ?? payload;
 
   if (!comparison || typeof comparison !== "object" || Array.isArray(comparison)) {
     throw new ComparisonGenerationOutputError(
@@ -253,50 +257,81 @@ export function parseComparisonGenerationOutput(
   }
 
   const allowlist = new Set(allowlistProductIds);
-  const answer = normalizeRequiredText(payload.answer, {
-    fieldName: "answer",
-    maxChars: MAX_ANSWER_CHARS,
-  });
-  const products = parseProducts(comparisonRecord.products, allowlist);
+  const products = parseProducts(
+    comparisonRecord.products,
+    allowlist,
+    allowlistProductIds,
+  );
   const productIds = products.map((product) => product.productId);
+  const dimensions = parseDimensions(comparisonRecord.dimensions, productIds);
   const productIdSet = new Set(productIds);
-  const dimensions = parseDimensions(comparisonRecord.dimensions, productIdSet);
-  const conclusion = normalizeRequiredText(comparisonRecord.conclusion, {
-    fieldName: "conclusion",
-    maxChars: MAX_CONCLUSION_CHARS,
-  });
+  const rawAnswer = payload.answer ?? comparisonRecord.answer;
+  const conclusion = normalizeOptionalText(
+    pickRecordValue(comparisonRecord, ["conclusion", "summary"]),
+    MAX_CONCLUSION_CHARS,
+  ) ?? normalizeOptionalText(rawAnswer, MAX_CONCLUSION_CHARS)
+    ?? "两款商品各有侧重，可按上面的事实维度继续判断。";
+  const answer = normalizeOptionalText(
+    rawAnswer,
+    MAX_ANSWER_CHARS,
+  ) ?? normalizeLlmText(conclusion, { maxChars: MAX_ANSWER_CHARS }) ?? conclusion;
 
   return {
     answer,
-    title: normalizeRequiredText(comparisonRecord.title, {
-      fieldName: "title",
-      maxChars: MAX_TITLE_CHARS,
-    }),
+    title: normalizeOptionalText(
+      pickRecordValue(comparisonRecord, ["title", "comparisonTitle"]),
+      MAX_TITLE_CHARS,
+    ) ?? "商品对比",
     products,
     dimensions,
     recommendedProductId: parseRecommendedProductId(
-      comparisonRecord.recommended_product_id,
+      pickRecordValue(comparisonRecord, [
+        "recommended_product_id",
+        "recommendedProductId",
+      ]),
       productIdSet,
     ),
     conclusion,
-    highlights: parseHighlights(comparisonRecord.highlights, productIdSet),
+    highlights: parseHighlights(
+      pickRecordValue(comparisonRecord, ["highlights", "keyHighlights"]),
+      productIdSet,
+    ),
   };
+}
+
+function parseComparisonJsonObject(rawText: string): Record<string, unknown> {
+  const normalized = stripCodeFence(rawText);
+
+  try {
+    return parseJsonObject(normalized);
+  } catch {
+    const jsonObject = extractLikelyJsonObject(normalized);
+
+    if (jsonObject) {
+      return parseJsonObject(jsonObject);
+    }
+
+    throw new Error("LLM output must be a JSON object.");
+  }
+}
+
+function extractLikelyJsonObject(text: string): string | undefined {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+
+  return start >= 0 && end > start ? text.slice(start, end + 1) : undefined;
 }
 
 function parseProducts(
   value: unknown,
   allowlist: Set<string>,
+  allowlistProductIds: string[],
 ): ComparisonProductOutput[] {
   if (!Array.isArray(value)) {
-    throw new ComparisonGenerationOutputError(
-      "comparison products must be an array.",
-    );
-  }
-
-  if (value.length !== COMPARISON_PRODUCT_COUNT) {
-    throw new ComparisonGenerationOutputError(
-      "comparison output must include exactly two products.",
-    );
+    return allowlistProductIds.map((productId) => ({
+      productId,
+      displayLabel: productId,
+    }));
   }
 
   const products: ComparisonProductOutput[] = [];
@@ -308,10 +343,28 @@ function parseProducts(
     }
 
     const record = item as Record<string, unknown>;
-    const productId = parseAllowedProductId(record.product_id, allowlist);
-    const displayLabel = normalizeLlmText(parseOptionalString(record.display_label), {
-      maxChars: MAX_LABEL_CHARS,
-    });
+    const rawProductId = pickRecordValue(record, [
+      "product_id",
+      "productId",
+      "id",
+    ]);
+    const productId = parseAllowedProductId(
+      rawProductId,
+      allowlist,
+    );
+
+    if (rawProductId !== undefined && !productId) {
+      throw new ComparisonGenerationOutputError(
+        "comparison products must use allowlisted product ids.",
+      );
+    }
+
+    const displayLabel = normalizeLlmText(
+      parseOptionalString(
+        pickRecordValue(record, ["display_label", "displayLabel", "label", "name"]),
+      ),
+      { maxChars: MAX_LABEL_CHARS },
+    ) || productId;
 
     if (!productId || !displayLabel || seen.has(productId)) {
       continue;
@@ -321,18 +374,19 @@ function parseProducts(
     products.push({ productId, displayLabel });
   }
 
-  if (products.length !== COMPARISON_PRODUCT_COUNT) {
-    throw new ComparisonGenerationOutputError(
-      "comparison output must include exactly two valid products.",
-    );
+  if (products.length === COMPARISON_PRODUCT_COUNT) {
+    return products;
   }
 
-  return products;
+  return allowlistProductIds.map((productId) => ({
+    productId,
+    displayLabel: productId,
+  }));
 }
 
 function parseDimensions(
   value: unknown,
-  productIdSet: Set<string>,
+  productIds: string[],
 ): ComparisonDimensionOutput[] {
   if (!Array.isArray(value)) {
     throw new ComparisonGenerationOutputError(
@@ -342,25 +396,33 @@ function parseDimensions(
 
   const dimensions: ComparisonDimensionOutput[] = [];
   const seen = new Set<string>();
+  const productIdSet = new Set(productIds);
 
-  for (const item of value.slice(0, MAX_DIMENSIONS)) {
+  for (const item of value) {
+    if (dimensions.length >= MAX_DIMENSIONS) {
+      break;
+    }
+
     if (!item || typeof item !== "object" || Array.isArray(item)) {
       continue;
     }
 
     const record = item as Record<string, unknown>;
-    const id = normalizeLlmText(parseOptionalString(record.id), {
-      maxChars: MAX_LABEL_CHARS,
-    });
-    const label = normalizeLlmText(parseOptionalString(record.label), {
-      maxChars: MAX_LABEL_CHARS,
-    });
+    const rawId = normalizeOptionalText(record.id, MAX_LABEL_CHARS);
+    const label = normalizeOptionalText(
+      pickRecordValue(record, ["label", "dimension", "name", "title"]),
+      MAX_LABEL_CHARS,
+    ) ?? rawId;
+    const id = rawId || createDimensionId(label, dimensions.length + 1);
 
     if (!id || !label || seen.has(id)) {
       continue;
     }
 
-    const cells = parseCells(record.cells, productIdSet);
+    const cells = parseCells(
+      record.cells ?? createCellsFromDimensionRecord(record, productIds),
+      productIds,
+    );
 
     if (cells.length !== productIdSet.size) {
       continue;
@@ -381,24 +443,62 @@ function parseDimensions(
 
 function parseCells(
   value: unknown,
-  productIdSet: Set<string>,
+  productIds: string[],
 ): ComparisonCellOutput[] {
   if (!Array.isArray(value)) {
+    if (value && typeof value === "object") {
+      return parseCells(
+        createCellsFromDimensionRecord(
+          value as Record<string, unknown>,
+          productIds,
+        ),
+        productIds,
+      );
+    }
+
     return [];
   }
 
   const cellsByProductId = new Map<string, ComparisonCellOutput>();
+  const productIdSet = new Set(productIds);
 
-  for (const item of value) {
+  for (const [index, item] of value.entries()) {
+    if (typeof item === "string") {
+      const productId = productIds[index];
+      const cellValue = normalizeLlmText(item, {
+        maxChars: MAX_CELL_VALUE_CHARS,
+      });
+
+      if (productId && cellValue && !cellsByProductId.has(productId)) {
+        cellsByProductId.set(productId, {
+          productId,
+          value: cellValue,
+        });
+      }
+
+      continue;
+    }
+
     if (!item || typeof item !== "object" || Array.isArray(item)) {
       continue;
     }
 
     const record = item as Record<string, unknown>;
-    const productId = parseAllowedProductId(record.product_id, productIdSet);
-    const cellValue = normalizeLlmText(parseOptionalString(record.value), {
-      maxChars: MAX_CELL_VALUE_CHARS,
-    });
+    const rawProductId = pickRecordValue(record, [
+      "product_id",
+      "productId",
+      "id",
+    ]);
+    const explicitProductId = parseAllowedProductId(rawProductId, productIdSet);
+    const productId = rawProductId === undefined
+      ? productIds[index]
+      : explicitProductId;
+    const cellValue = normalizeLlmText(
+      parseOptionalString(
+        pickRecordValue(record, ["value", "text", "summary", "content"]),
+      ),
+      { maxChars: MAX_CELL_VALUE_CHARS },
+    );
 
     if (!productId || !cellValue || cellsByProductId.has(productId)) {
       continue;
@@ -407,11 +507,11 @@ function parseCells(
     cellsByProductId.set(productId, {
       productId,
       value: cellValue,
-      highlight: record.highlight === true ? true : undefined,
+      highlight: parseOptionalBoolean(record.highlight) ? true : undefined,
     });
   }
 
-  const orderedCells = [...productIdSet].flatMap((productId) => {
+  const orderedCells = productIds.flatMap((productId) => {
     const cell = cellsByProductId.get(productId);
 
     return cell ? [cell] : [];
@@ -444,13 +544,20 @@ function parseHighlights(
     }
 
     const record = item as Record<string, unknown>;
-    const productId = parseAllowedProductId(record.product_id, productIdSet);
-    const label = normalizeLlmText(parseOptionalString(record.label), {
-      maxChars: MAX_LABEL_CHARS,
-    });
-    const text = normalizeLlmText(parseOptionalString(record.text), {
-      maxChars: MAX_HIGHLIGHT_TEXT_CHARS,
-    });
+    const productId = parseAllowedProductId(
+      pickRecordValue(record, ["product_id", "productId", "id"]),
+      productIdSet,
+    );
+    const label = normalizeLlmText(
+      parseOptionalString(pickRecordValue(record, ["label", "title", "name"])),
+      { maxChars: MAX_LABEL_CHARS },
+    );
+    const text = normalizeLlmText(
+      parseOptionalString(
+        pickRecordValue(record, ["text", "value", "summary", "content"]),
+      ),
+      { maxChars: MAX_HIGHLIGHT_TEXT_CHARS },
+    );
 
     if (!productId || !label || !text) {
       continue;
@@ -486,24 +593,11 @@ function parseAllowedProductId(
   return productId && allowlist.has(productId) ? productId : undefined;
 }
 
-function normalizeRequiredText(
+function normalizeOptionalText(
   value: unknown,
-  input: {
-    fieldName: string;
-    maxChars: number;
-  },
-): string {
-  const normalized = normalizeLlmText(parseOptionalString(value), {
-    maxChars: input.maxChars,
-  });
-
-  if (!normalized) {
-    throw new ComparisonGenerationOutputError(
-      `comparison output must include ${input.fieldName}.`,
-    );
-  }
-
-  return normalized;
+  maxChars: number,
+): string | undefined {
+  return normalizeLlmText(parseOptionalString(value), { maxChars });
 }
 
 function summarizeProductContext(
@@ -614,4 +708,60 @@ function truncateProductFact(value: string): string {
 
 function parseOptionalString(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
+}
+
+function parseOptionalBoolean(value: unknown): boolean {
+  return value === true || value === "true" || value === 1;
+}
+
+function pickRecordValue(
+  record: Record<string, unknown>,
+  keys: string[],
+): unknown {
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(record, key)) {
+      return record[key];
+    }
+  }
+
+  return undefined;
+}
+
+function createDimensionId(label: string | undefined, index: number): string {
+  const normalized = label
+    ?.toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, "_")
+    .replace(/^_+|_+$/gu, "");
+
+  return normalized || `dimension_${index}`;
+}
+
+function createCellsFromDimensionRecord(
+  record: Record<string, unknown>,
+  productIds: string[],
+): Array<Record<string, unknown>> {
+  const directValues = productIds.map((productId) => record[productId]);
+
+  if (directValues.every((value) => typeof value === "string")) {
+    return productIds.map((productId, index) => ({
+      product_id: productId,
+      value: directValues[index],
+    }));
+  }
+
+  const first = parseOptionalString(
+    pickRecordValue(record, ["first", "left", "product1", "product_1"]),
+  );
+  const second = parseOptionalString(
+    pickRecordValue(record, ["second", "right", "product2", "product_2"]),
+  );
+
+  if (first && second) {
+    return [
+      { product_id: productIds[0], value: first },
+      { product_id: productIds[1], value: second },
+    ];
+  }
+
+  return [];
 }

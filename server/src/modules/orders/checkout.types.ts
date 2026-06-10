@@ -26,10 +26,14 @@ export type CheckoutActionStatus =
   | "failed";
 
 export interface MockShippingAddress {
+  id?: string;
   label: string;
   recipient: string;
   phoneMasked: string;
   fullAddress: string;
+  region?: string;
+  tag?: string;
+  isDefault?: boolean;
 }
 
 export interface CheckoutSummary {
@@ -77,6 +81,7 @@ export interface CheckoutShippingPatchInput {
   recipient?: string;
   phone?: string;
   fullAddress?: string;
+  savedAddressId?: string;
 }
 
 export interface CheckoutPatchInput {
@@ -110,6 +115,7 @@ export interface PendingCheckoutDraft {
   source: PendingCheckoutSource;
   status: "pending";
   address: MockShippingAddress;
+  savedAddresses?: MockShippingAddress[];
   items: PendingCheckoutItem[];
   summary: CheckoutSummary;
   selectedDeliveryMethod: CheckoutDeliverySnapshot;
@@ -126,6 +132,7 @@ export interface CheckoutDraftSnapshot {
   source: PendingCheckoutSource;
   status: "pending";
   address: MockShippingAddress;
+  savedAddresses?: MockShippingAddress[];
   items: PendingCheckoutItem[];
   summary: CheckoutSummary;
   selectedDeliveryMethod: CheckoutDeliverySnapshot;

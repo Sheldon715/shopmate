@@ -17,10 +17,20 @@ export function createDatabasePool(options: DatabasePoolOptions = {}): Pool {
   });
 
   pool.on("error", (error) => {
-    console.error("Unexpected PostgreSQL idle client error:", error);
+    console.warn("PostgreSQL idle client disconnected:", {
+      name: error.name,
+      message: error.message,
+      code: getErrorCode(error),
+    });
   });
 
   return pool;
+}
+
+function getErrorCode(error: Error): string | undefined {
+  const candidate = error as Error & { code?: unknown };
+
+  return typeof candidate.code === "string" ? candidate.code : undefined;
 }
 
 export function getDatabasePool(): Pool {

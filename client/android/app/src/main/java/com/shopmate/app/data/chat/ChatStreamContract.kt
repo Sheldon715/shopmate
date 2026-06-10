@@ -79,6 +79,10 @@ data class ChatCheckoutAddressDto(
     val recipient: String,
     val phoneMasked: String,
     val fullAddress: String,
+    val id: String? = null,
+    val region: String? = null,
+    val tag: String? = null,
+    val isDefault: Boolean? = null,
 )
 
 @Serializable
@@ -93,6 +97,7 @@ data class ChatCheckoutDraftDto(
     val deliveryOptions: List<ChatCheckoutDeliveryMethodDto> = emptyList(),
     val paymentOptions: List<ChatCheckoutPaymentMethodDto> = emptyList(),
     val expiresAt: String,
+    val savedAddresses: List<ChatCheckoutAddressDto> = emptyList(),
 )
 
 @Serializable

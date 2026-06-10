@@ -1795,6 +1795,40 @@ class ChatViewModelTest {
     }
 
     @Test
+    fun cancelledCheckoutActionClearsActiveCheckoutDraft() = runTest {
+        val repository = FakeChatRepository()
+        val viewModel = ChatViewModel(repository)
+
+        viewModel.onComposerTextChange("帮我结算购物车")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+        repository.emitCheckoutDone(
+            ChatCheckoutActionDto(
+                type = "start_checkout",
+                status = "draft_created",
+                draftId = "draft_1",
+                draft = checkoutDraftDto(),
+            ),
+        )
+        advanceUntilIdle()
+        assertNotNull(viewModel.uiState.value.activeCheckoutDraft)
+
+        viewModel.onComposerTextChange("取消下单")
+        viewModel.sendMessage()
+        advanceUntilIdle()
+        repository.emitCheckoutDone(
+            ChatCheckoutActionDto(
+                type = "cancel_checkout",
+                status = "cancelled",
+            ),
+        )
+        advanceUntilIdle()
+
+        assertEquals(null, viewModel.uiState.value.activeCheckoutDraft)
+        assertFalse(viewModel.openActiveCheckoutDraft("draft_1"))
+    }
+
+    @Test
     fun submittedCheckoutActionUsesNestedOrderForSideEffectsAndClearsDraft() = runTest {
         val repository = FakeChatRepository()
         val viewModel = ChatViewModel(repository)

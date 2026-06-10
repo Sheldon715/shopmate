@@ -72,6 +72,23 @@ const successDone: ChatDonePayload = {
   retrieval: {
     candidateCount: 3,
     returnedProductIds: ["product_001"],
+    llm: {
+      decisionPrimary: {
+        enabled: true,
+        provider: "openai",
+        model: "gpt-5.4-mini",
+      },
+      decisionFallback: {
+        enabled: true,
+        provider: "openai",
+        model: "gpt-5.4",
+      },
+      answer: {
+        enabled: true,
+        provider: "openai",
+        model: "gpt-5.4-mini",
+      },
+    },
   },
   contextMemory: {
     conversationId: "local-chat-session-1",

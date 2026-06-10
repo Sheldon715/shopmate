@@ -9,8 +9,8 @@ private const val MAX_DETAIL_TAGS = 4
 private const val MAX_DETAIL_HIGHLIGHTS = 3
 private const val MAX_DETAIL_SPECS = 4
 private const val MAX_HIGHLIGHT_CHARS = 34
-private const val MAX_REASON_CORE_CHARS = 28
-private const val MAX_REASON_CHARS = 96
+private const val MAX_REASON_CORE_CHARS = 48
+private const val MAX_REASON_CHARS = 120
 private const val MAX_SPEC_VALUE_CHARS = 32
 private const val MAX_DESCRIPTION_CHARS = 120
 
@@ -46,7 +46,14 @@ private val TemplateCopyMarkers = listOf(
     "PostgreSQL",
     "比赛数据集",
     "模拟内容",
+    "SKU",
+    "sku",
+    "FAQ",
+    "faq",
+    "评论",
+    "实时售价",
     "不代表实时售价",
+    "不代表真实用户反馈",
     "页面 mock",
     "测试数据",
     "口味信息明确",
@@ -82,15 +89,18 @@ private val CautionCopyMarkers = listOf(
 
 fun ProductDetailDto.toProductDetailUi(
     imageUrlResolver: ShopMateImageUrlResolver? = null,
-): ProductDetailUi =
-    ProductDetailUi(
+): ProductDetailUi {
+    val displayName = cleanProductDisplayName(
+        rawName = name,
+        brand = brand,
+        category = category,
+        subCategory = subCategory,
+    )
+    val recommendationReason = buildRecommendationReason()
+
+    return ProductDetailUi(
         id = id,
-        name = cleanProductDisplayName(
-            rawName = name,
-            brand = brand,
-            category = category,
-            subCategory = subCategory,
-        ),
+        name = displayName,
         priceText = formatProductPrice(),
         imageRes = resolveProductImageRes(),
         categoryText = listOfNotNull(
@@ -99,13 +109,14 @@ fun ProductDetailDto.toProductDetailUi(
         ).joinToString(" / ").ifBlank { "商品" },
         brandText = brand.orEmpty().ifBlank { "品牌信息待补充" },
         tags = tags.filter { tag -> tag.isNotBlank() }.take(MAX_DETAIL_TAGS),
-        recommendationReason = buildRecommendationReason(),
+        recommendationReason = recommendationReason,
         description = buildDescription(),
-        highlights = buildHighlights(),
+        highlights = buildHighlights(excludeReason = recommendationReason),
         specs = buildSpecs(),
         suitedForText = buildSuitabilityText(),
         imageUrl = imageUrlResolver?.resolve(imagePath),
     )
+}
 
 private fun ProductDetailDto.formatProductPrice(): String {
     return formatProductPriceRangeText(
@@ -123,23 +134,14 @@ private fun ProductDetailDto.buildRecommendationReason(): String {
         ?.takeIf { value -> value.isNotBlank() && value.isPositiveProductCopy() }
         ?.let { value -> return value.shortenForSentence(MAX_REASON_CHARS).ensureSentence() }
 
-    val firstHighlight = buildHighlights().firstOrNull()
-    val productSnippet = marketingDescription
-        ?.toReadableClauses()
-        ?.filter { clause ->
-            clause.isPositiveProductCopy() &&
-                !clause.isTitleLikeProductIntro(name = name, brand = brand) &&
-                !clause.isSameCopyAs(firstHighlight)
-        }
-        ?.map { clause -> clause.shortCopy(MAX_REASON_CORE_CHARS) }
-        ?.firstOrNull { clause -> clause.isNotBlank() && !clause.isSameCopyAs(firstHighlight) }
+    val productSnippet = buildMarketingRecommendationSnippet()
     val scenario = attributes["使用场景"].orEmpty().toSpecValues().firstOrNull()
         ?: recommendWhen.toPositiveValues().firstOrNull()
     val audience = attributes["适用人群"].orEmpty().toSpecValues().firstOrNull()
 
     val reason = when {
         productSnippet != null && scenario != null ->
-            "$productSnippet，适合${scenario}时重点比较"
+            mergeReasonWithScenario(productSnippet, scenario)
 
         productSnippet != null -> productSnippet
 
@@ -161,6 +163,40 @@ private fun ProductDetailDto.buildRecommendationReason(): String {
         ?: buildProductFallbackReason()
 }
 
+private fun mergeReasonWithScenario(
+    productSnippet: String,
+    scenario: String,
+): String =
+    if (productSnippet.contains(scenario) || productSnippet.contains("适合")) {
+        productSnippet
+    } else {
+        "$productSnippet，适合$scenario"
+    }
+
+private fun ProductDetailDto.buildMarketingRecommendationSnippet(): String? {
+    val sentenceSnippet = marketingDescription
+        ?.toReadableSentences()
+        ?.filter { sentence ->
+            sentence.isPositiveProductCopy() &&
+                !sentence.isTitleLikeProductIntro(name = name, brand = brand)
+        }
+        ?.map { sentence -> sentence.shortenForSentence(MAX_REASON_CHARS) }
+        ?.firstOrNull { sentence -> sentence.isNotBlank() }
+
+    if (sentenceSnippet != null) {
+        return sentenceSnippet
+    }
+
+    return marketingDescription
+        ?.toReadableClauses()
+        ?.filter { clause ->
+            clause.isPositiveProductCopy() &&
+                !clause.isTitleLikeProductIntro(name = name, brand = brand)
+        }
+        ?.map { clause -> clause.shortCopy(MAX_REASON_CORE_CHARS) }
+        ?.firstOrNull { clause -> clause.isNotBlank() }
+}
+
 private fun ProductDetailDto.buildProductFallbackReason(): String {
     val brandText = brand.orEmpty().ifBlank { "这款商品" }
     val categoryText = listOfNotNull(category, subCategory)
@@ -172,8 +208,20 @@ private fun ProductDetailDto.buildProductFallbackReason(): String {
     return "$brandText · $categoryText，$availabilityText，可以结合价格、规格和适用场景继续比较。"
 }
 
-private fun ProductDetailDto.buildHighlights(): List<String> {
-    val reasonCopy = recommendationReason?.toCleanDisplayCopy()
+private fun ProductDetailDto.buildHighlights(excludeReason: String? = null): List<String> {
+    val reasonCopy = (excludeReason ?: recommendationReason)?.toCleanDisplayCopy()
+    val generatedHighlights = recommendationHighlights
+        .mapNotNull { value -> value.toCleanDisplayCopy() }
+        .map { value -> value.shortCopy(MAX_HIGHLIGHT_CHARS) }
+        .filter { value -> value.isPositiveProductCopy() }
+        .filter { value -> !value.isSameCopyAs(reasonCopy) }
+        .distinctByNormalized()
+        .take(MAX_DETAIL_HIGHLIGHTS)
+
+    if (generatedHighlights.isNotEmpty()) {
+        return generatedHighlights
+    }
+
     val displayName = cleanProductDisplayName(
         rawName = name,
         brand = brand,
@@ -438,8 +486,8 @@ private fun String.isTitleLikeProductIntro(name: String, brand: String?): Boolea
 
 private fun String?.isSameCopyAs(other: String?): Boolean {
     if (this.isNullOrBlank() || other.isNullOrBlank()) return false
-    val left = toCleanDisplayCopy().lowercase(Locale.US).trim()
-    val right = other.toCleanDisplayCopy().lowercase(Locale.US).trim()
+    val left = orEmpty().normalizeDisplayFact().lowercase(Locale.US).trim()
+    val right = other.orEmpty().normalizeDisplayFact().lowercase(Locale.US).trim()
     return left == right || left.contains(right) || right.contains(left)
 }
 

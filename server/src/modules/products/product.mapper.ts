@@ -19,6 +19,8 @@ import type {
 
 export interface ProductMapperOptions {
   publicImageBaseUrl?: string;
+  recommendationReason?: string;
+  recommendationHighlights?: string[];
 }
 
 function toJsonValue(value: unknown): JsonValue {
@@ -269,7 +271,9 @@ export function mapProductToCardDto(
     ratingAvg: product.ratingAvg,
     tags: product.visualTags,
     available: isProductAvailable(product),
-    recommendationReason: buildProductCardRecommendationReason(product),
+    recommendationReason:
+      options.recommendationReason
+      ?? buildProductCardRecommendationReason(product),
   };
 }
 
@@ -289,6 +293,9 @@ export function mapProductToDetailDto(
     reviewSummary: product.reviewSummary,
     officialFaq: product.officialFaq,
     contentBlocks: product.contentBlocks,
+    ...(options.recommendationHighlights
+      ? { recommendationHighlights: options.recommendationHighlights }
+      : {}),
   };
 }
 
@@ -549,7 +556,14 @@ function isWeakCategoryFact(value: string, product: Product): boolean {
     "PostgreSQL",
     "比赛数据集",
     "模拟内容",
+    "SKU",
+    "sku",
+    "FAQ",
+    "faq",
+    "评论",
+    "实时售价",
     "不代表实时售价",
+    "不代表真实用户反馈",
     "价格、SKU",
     "商品详情页数据",
     "如果用户属于",

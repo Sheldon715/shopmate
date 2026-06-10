@@ -5,7 +5,8 @@
     "queries": [
       "适合油皮的洗面奶",
       "混油皮日常洁面乳",
-      "控油洁面推荐"
+      "控油洁面推荐",
+      "油皮早晚清洁用什么洗面奶"
     ],
     "filters": {
       "category": "美妆护肤",
@@ -16,7 +17,7 @@
     "expectedCategory": "美妆护肤",
     "expectedSubCategory": "洁面",
     "expectedNoResult": false,
-    "notes": "观察洁面子类目稳定召回和 paraphrase consistency。"
+    "notes": "Seed/paraphrase/holdout 覆盖油皮洁面。事实依据：p_beauty_011 为 active 美妆护肤/洁面，描述包含泡沫清洁、日常洁面、温和清洁。"
   },
   {
     "caseId": "alcohol-free-sunscreen-paraphrases",
@@ -24,7 +25,8 @@
     "queries": [
       "不含酒精防晒",
       "敏感肌避开酒精防晒",
-      "不要乙醇成分防晒"
+      "不要乙醇成分防晒",
+      "防晒霜别带酒精的"
     ],
     "filters": {
       "category": "美妆护肤",
@@ -40,7 +42,7 @@
       "riskTerms": ["酒精"],
       "terms": ["酒精"]
     },
-    "notes": "验证负向事实 metadata 与 product facts 过滤。"
+    "notes": "Seed/paraphrase/holdout 覆盖防晒负向成分。事实依据：p_beauty_006 / p_beauty_023 为 active 防晒，E1 negative metadata 标记未冲突；p_beauty_010 作为酒精风险候选应被排除。"
   },
   {
     "caseId": "not-in-ear-earbuds-paraphrases",
@@ -48,23 +50,26 @@
     "queries": [
       "不要入耳式耳机",
       "不想要塞耳朵的耳机",
-      "半入耳蓝牙耳机"
+      "半入耳蓝牙耳机",
+      "戴久不想胀耳的无线耳机"
     ],
     "filters": {
       "category": "数码电子",
       "subCategory": "真无线耳机",
       "availableOnly": true,
-      "avoidTerms": ["入耳"]
+      "avoidTerms": ["入耳"],
+      "excludeWearingStyles": ["in_ear"]
     },
-    "expectedProductIdsAny": [],
+    "expectedProductIdsAny": ["p_digital_007"],
     "expectedCategory": "数码电子",
     "expectedSubCategory": "真无线耳机",
     "expectedNoResult": false,
     "forbidden": {
       "wearingStyles": ["in_ear"],
+      "productIds": ["p_digital_018"],
       "terms": ["入耳"]
     },
-    "notes": "验证佩戴形态约束不要错误屏蔽半入耳或开放式。"
+    "notes": "Seed/paraphrase/holdout 覆盖佩戴形态反选。事实依据：p_digital_007 为 active 真无线耳机且 attributes 佩戴形态=半入耳式；p_digital_018 为入耳式，应被排除。"
   },
   {
     "caseId": "cheap-earbuds-no-result-paraphrases",
@@ -72,7 +77,8 @@
     "queries": [
       "200以内蓝牙耳机",
       "一百多无线耳机",
-      "学生党低预算耳机"
+      "学生党低预算耳机",
+      "两百块以内的真无线"
     ],
     "filters": {
       "category": "数码电子",
@@ -84,7 +90,7 @@
     "expectedCategory": "数码电子",
     "expectedSubCategory": "真无线耳机",
     "expectedNoResult": true,
-    "notes": "当前商品库没有该价格带真无线耳机，应正确 no-result。"
+    "notes": "Seed/paraphrase/holdout 覆盖低价耳机 data gap。事实依据：active 真无线耳机仅 p_digital_007 1499-1699、p_digital_018 1799-2299，当前无 200 元以内商品。"
   },
   {
     "caseId": "dorm-small-appliance-paraphrases",
@@ -92,7 +98,9 @@
     "queries": [
       "宿舍小电器",
       "一人食省空间小家电",
-      "租房小容量厨房电器"
+      "租房小容量厨房电器",
+      "宿舍能用的小家电",
+      "单人早餐小电器"
     ],
     "filters": {
       "category": "家用电器",
@@ -111,7 +119,7 @@
     "expectedCategory": "家用电器",
     "expectedSubCategory": null,
     "expectedNoResult": false,
-    "notes": "验证 use-case 查询能稳定命中宿舍/小空间小家电。"
+    "notes": "Seed/paraphrase/holdout 覆盖宿舍/一人食/租房小空间。事实依据：expected ids 均为 active 家用电器，厨房小电含一人食/租房/小容量，其他既有 expected 覆盖宿舍或小空间生活电器。"
   },
   {
     "caseId": "quiet-dorm-keyboard-paraphrases",
@@ -119,7 +127,9 @@
     "queries": [
       "宿舍安静键盘",
       "不吵室友的键盘",
-      "低噪办公键盘"
+      "低噪办公键盘",
+      "宿舍打字别太吵",
+      "图书馆键盘推荐"
     ],
     "filters": {
       "category": "办公学习",
@@ -134,7 +144,7 @@
     "expectedCategory": "办公学习",
     "expectedSubCategory": "办公外设",
     "expectedNoResult": false,
-    "notes": "验证口语化 use-case 对键盘候选稳定召回。"
+    "notes": "Seed/paraphrase/holdout 覆盖宿舍低噪键盘。事实依据：三款 expected 均为 active 办公学习/办公外设，商品文本包含宿舍、低噪、静音或键盘事实。"
   },
   {
     "caseId": "air-purifier-budget-paraphrases",
@@ -142,7 +152,8 @@
     "queries": [
       "1000以内空气净化器",
       "千元内空气护理",
-      "预算不高的空气净化器"
+      "预算不高的空气净化器",
+      "卧室用便宜一点的净化器"
     ],
     "filters": {
       "category": "家用电器",
@@ -154,7 +165,7 @@
     "expectedCategory": "家用电器",
     "expectedSubCategory": "空气护理",
     "expectedNoResult": false,
-    "notes": "验证预算 + 类目 hard filter。"
+    "notes": "Seed/paraphrase/holdout 覆盖预算 + 空气护理。事实依据：p_home_air_001 799-894、p_home_air_003 699-782，均为 active 空气护理且低于 1000 元。"
   },
   {
     "caseId": "running-shoes-under-500-no-result",
@@ -162,7 +173,9 @@
     "queries": [
       "500以内轻量跑鞋",
       "300左右跑步鞋",
-      "便宜耐穿跑鞋"
+      "便宜耐穿跑鞋",
+      "三百以内运动鞋",
+      "学生党便宜跑步鞋"
     ],
     "filters": {
       "category": "服饰运动",
@@ -174,6 +187,511 @@
     "expectedCategory": "服饰运动",
     "expectedSubCategory": "跑步鞋",
     "expectedNoResult": true,
-    "notes": "当前商品库该价位跑步鞋存在数据缺口，应正确 no-result。"
+    "notes": "Seed/paraphrase/holdout 覆盖低价跑鞋 data gap。事实依据：active 跑步鞋 p_clothes_007/008/009/010 价格均高于 500 元，当前无 500 元以内跑鞋。"
+  },
+  {
+    "caseId": "sunscreen-oily-commute-paraphrases",
+    "capability": "use_case",
+    "queries": [
+      "油皮通勤防晒",
+      "上班路上用清爽防晒",
+      "不想油腻的防晒霜",
+      "夏天通勤防晒推荐"
+    ],
+    "filters": {
+      "category": "美妆护肤",
+      "subCategory": "防晒",
+      "availableOnly": true
+    },
+    "expectedProductIdsAny": ["p_beauty_006", "p_beauty_023"],
+    "expectedCategory": "美妆护肤",
+    "expectedSubCategory": "防晒",
+    "expectedNoResult": false,
+    "notes": "新增 E2。事实依据：p_beauty_006 描述适合油皮/混油皮、清爽肤感和日常通勤；p_beauty_023 描述清爽控油、易敏肌和通勤/短途场景。"
+  },
+  {
+    "caseId": "sunscreen-brand-exclusion-paraphrases",
+    "capability": "negative_constraint",
+    "queries": [
+      "除了安热沙还有什么防晒",
+      "不要安热沙的防晒",
+      "换个不是安热沙的防晒",
+      "防晒霜避开安热沙"
+    ],
+    "filters": {
+      "category": "美妆护肤",
+      "subCategory": "防晒",
+      "availableOnly": true,
+      "excludeBrands": ["安热沙"]
+    },
+    "expectedProductIdsAny": ["p_beauty_006", "p_beauty_023"],
+    "expectedCategory": "美妆护肤",
+    "expectedSubCategory": "防晒",
+    "expectedNoResult": false,
+    "forbidden": {
+      "brands": ["安热沙"],
+      "productIds": ["p_beauty_010"]
+    },
+    "notes": "新增 E2。事实依据：p_beauty_006 / p_beauty_023 为 active 非安热沙防晒；p_beauty_010 品牌为安热沙，应被品牌排除。"
+  },
+  {
+    "caseId": "cleanser-sensitive-or-gentle-paraphrases",
+    "capability": "paraphrase_consistency",
+    "queries": [
+      "温和一点的洁面",
+      "敏感肌能用的洗面奶",
+      "不要刺激的洁面乳",
+      "日常清洁温和洁面"
+    ],
+    "filters": {
+      "category": "美妆护肤",
+      "subCategory": "洁面",
+      "availableOnly": true
+    },
+    "expectedProductIdsAny": ["p_beauty_011"],
+    "expectedCategory": "美妆护肤",
+    "expectedSubCategory": "洁面",
+    "expectedNoResult": false,
+    "notes": "新增 E2。事实依据：p_beauty_011 为唯一 active 洁面，描述包含绵密泡沫、温和清洁、敏感肌先测试等温和/敏感肌相关事实。"
+  },
+  {
+    "caseId": "beauty-wrong-category-guard",
+    "capability": "category_retrieval",
+    "queries": [
+      "油皮洗面奶",
+      "控油洁面",
+      "日常洁面乳",
+      "混油皮早晚洁面"
+    ],
+    "filters": {
+      "category": "美妆护肤",
+      "subCategory": "洁面",
+      "availableOnly": true
+    },
+    "expectedProductIdsAny": ["p_beauty_011"],
+    "expectedCategory": "美妆护肤",
+    "expectedSubCategory": "洁面",
+    "expectedNoResult": false,
+    "notes": "新增 E2 类目串味 guard。事实依据：商品库仅 p_beauty_011 为 active 洁面；该 case 防止油皮词把主命中带到防晒、粉底液或精华。"
+  },
+  {
+    "caseId": "earbuds-commute-comfort-paraphrases",
+    "capability": "use_case",
+    "queries": [
+      "通勤戴着舒服的蓝牙耳机",
+      "坐地铁用无线耳机",
+      "日常听歌耳机推荐",
+      "上课听歌耳机"
+    ],
+    "filters": {
+      "category": "数码电子",
+      "subCategory": "真无线耳机",
+      "availableOnly": true
+    },
+    "expectedProductIdsAny": ["p_digital_007", "p_digital_018"],
+    "expectedCategory": "数码电子",
+    "expectedSubCategory": "真无线耳机",
+    "expectedNoResult": false,
+    "notes": "新增 E2。事实依据：p_digital_007 / p_digital_018 均为 active 真无线耳机，描述覆盖通勤、降噪、听歌、学生/上班族场景。"
+  },
+  {
+    "caseId": "earbuds-budget-gap-paraphrases",
+    "capability": "data_gap",
+    "queries": [
+      "1000元以下蓝牙耳机",
+      "几百块无线耳机",
+      "预算低一点的耳机",
+      "学生党便宜耳机"
+    ],
+    "filters": {
+      "category": "数码电子",
+      "subCategory": "真无线耳机",
+      "maxPriceCents": 100000,
+      "availableOnly": true
+    },
+    "expectedProductIdsAny": [],
+    "expectedCategory": "数码电子",
+    "expectedSubCategory": "真无线耳机",
+    "expectedNoResult": true,
+    "notes": "新增 E2 data gap。事实依据：active 真无线耳机最低价为 p_digital_007 的 1499 元，当前没有 1000 元以下真无线耳机。"
+  },
+  {
+    "caseId": "phone-camera-brand-exclusion-paraphrases",
+    "capability": "negative_constraint",
+    "queries": [
+      "拍照好但不要苹果的手机",
+      "除了苹果还有什么拍照手机",
+      "不买 iPhone 的影像手机",
+      "安卓拍照手机推荐"
+    ],
+    "filters": {
+      "category": "数码电子",
+      "subCategory": "智能手机",
+      "availableOnly": true,
+      "excludeBrands": ["Apple 苹果"]
+    },
+    "expectedProductIdsAny": [
+      "p_digital_002",
+      "p_digital_008",
+      "p_digital_015",
+      "p_digital_016",
+      "p_digital_017"
+    ],
+    "expectedCategory": "数码电子",
+    "expectedSubCategory": "智能手机",
+    "expectedNoResult": false,
+    "forbidden": {
+      "brands": ["Apple 苹果"],
+      "productIds": ["p_digital_001", "p_digital_003"]
+    },
+    "notes": "新增 E2。事实依据：expected ids 均为 active 非 Apple 智能手机，描述含拍照/影像/人像/旗舰影像；Apple 手机作为品牌排除负例。"
+  },
+  {
+    "caseId": "phone-budget-gap-paraphrases",
+    "capability": "data_gap",
+    "queries": [
+      "1000到2000的手机",
+      "两千以内老人手机",
+      "预算不高的手机",
+      "便宜一点的备用机"
+    ],
+    "filters": {
+      "category": "数码电子",
+      "subCategory": "智能手机",
+      "maxPriceCents": 200000,
+      "availableOnly": true
+    },
+    "expectedProductIdsAny": [],
+    "expectedCategory": "数码电子",
+    "expectedSubCategory": "智能手机",
+    "expectedNoResult": true,
+    "notes": "新增 E2 data gap。事实依据：active 智能手机最低价为 p_digital_016 的 3299 元，当前没有 2000 元以内手机。"
+  },
+  {
+    "caseId": "small-kitchen-appliance-one-person-paraphrases",
+    "capability": "use_case",
+    "queries": [
+      "一个人做饭的小家电",
+      "一人食厨房电器",
+      "小容量做早餐电器",
+      "租房党厨房小电"
+    ],
+    "filters": {
+      "category": "家用电器",
+      "subCategory": "厨房小电",
+      "availableOnly": true
+    },
+    "expectedProductIdsAny": [
+      "p_home_kitchen_001",
+      "p_home_kitchen_002",
+      "p_home_kitchen_003",
+      "p_home_kitchen_004"
+    ],
+    "expectedCategory": "家用电器",
+    "expectedSubCategory": "厨房小电",
+    "expectedNoResult": false,
+    "notes": "新增 E2。事实依据：四款 expected 均为 active 厨房小电，商品文本覆盖一人食、早餐、租房、小容量或快手料理。"
+  },
+  {
+    "caseId": "air-care-bedroom-paraphrases",
+    "capability": "use_case",
+    "queries": [
+      "卧室用空气净化器",
+      "租房空气护理",
+      "小房间空气净化",
+      "除味空气净化器"
+    ],
+    "filters": {
+      "category": "家用电器",
+      "subCategory": "空气护理",
+      "availableOnly": true
+    },
+    "expectedProductIdsAny": [
+      "p_home_air_001",
+      "p_home_air_002",
+      "p_home_air_003",
+      "p_home_air_004"
+    ],
+    "expectedCategory": "家用电器",
+    "expectedSubCategory": "空气护理",
+    "expectedNoResult": false,
+    "notes": "新增 E2。事实依据：四款 expected 均为 active 空气护理，文本覆盖卧室、除味、空气净化、低噪或加湿空气护理场景。"
+  },
+  {
+    "caseId": "home-appliance-category-confusion-guard",
+    "capability": "category_retrieval",
+    "queries": [
+      "小家电",
+      "宿舍电器",
+      "租房用电器",
+      "省空间家用电器"
+    ],
+    "filters": {
+      "category": "家用电器",
+      "availableOnly": true
+    },
+    "expectedProductIdsAny": [
+      "p_home_ac_001",
+      "p_home_ac_002",
+      "p_home_ac_003",
+      "p_home_air_001",
+      "p_home_air_002",
+      "p_home_air_003",
+      "p_home_air_004",
+      "p_home_airfryer_001",
+      "p_home_airfryer_002",
+      "p_home_airfryer_003",
+      "p_home_kitchen_001",
+      "p_home_kitchen_002",
+      "p_home_kitchen_003",
+      "p_home_kitchen_004",
+      "p_home_vacuum_001",
+      "p_home_vacuum_002",
+      "p_home_vacuum_003",
+      "p_home_washer_001",
+      "p_home_washer_002",
+      "p_home_washer_003",
+      "p_home_washer_004",
+      "p_home_water_001",
+      "p_home_water_002",
+      "p_home_water_003",
+      "p_home_water_004"
+    ],
+    "expectedCategory": "家用电器",
+    "expectedSubCategory": null,
+    "expectedNoResult": false,
+    "notes": "新增 E2 宽泛类目 guard。事实依据：expected set 为 25 个 active 家用电器，用于观察宽泛家电请求是否仍被 category filter 固定在家用电器内。"
+  },
+  {
+    "caseId": "appliance-unrealistic-budget-no-result",
+    "capability": "data_gap",
+    "queries": [
+      "50元以内空气净化器",
+      "100块空气净化器",
+      "很便宜的净化器",
+      "百元内空气护理"
+    ],
+    "filters": {
+      "category": "家用电器",
+      "subCategory": "空气护理",
+      "maxPriceCents": 10000,
+      "availableOnly": true
+    },
+    "expectedProductIdsAny": [],
+    "expectedCategory": "家用电器",
+    "expectedSubCategory": "空气护理",
+    "expectedNoResult": true,
+    "notes": "新增 E2 data gap。事实依据：active 空气护理最低价为 p_home_air_004 的 139 元，空气净化器最低价为 p_home_air_003 的 699 元，当前没有百元内空气护理/净化器。"
+  },
+  {
+    "caseId": "office-storage-or-desk-paraphrases",
+    "capability": "use_case",
+    "queries": [
+      "桌面收纳",
+      "学习桌整理用品",
+      "宿舍桌面收纳",
+      "办公桌收纳推荐"
+    ],
+    "filters": {
+      "category": "办公学习",
+      "subCategory": "文件收纳",
+      "availableOnly": true
+    },
+    "expectedProductIdsAny": [
+      "p_office_storage_001",
+      "p_office_storage_002",
+      "p_office_storage_003",
+      "p_office_storage_004"
+    ],
+    "expectedCategory": "办公学习",
+    "expectedSubCategory": "文件收纳",
+    "expectedNoResult": false,
+    "notes": "新增 E2。事实依据：四款 expected 均为 active 办公学习/文件收纳，覆盖文件夹、文件框、文件柜、收纳盒等桌面/办公整理需求。"
+  },
+  {
+    "caseId": "student-study-supplies-paraphrases",
+    "capability": "use_case",
+    "queries": [
+      "学生党学习用品",
+      "上课用的办公学习东西",
+      "宿舍学习小物",
+      "备考用学习用品"
+    ],
+    "filters": {
+      "category": "办公学习",
+      "availableOnly": true
+    },
+    "expectedProductIdsAny": [
+      "p_office_bag_001",
+      "p_office_bag_002",
+      "p_office_bag_003",
+      "p_office_keyboard_001",
+      "p_office_keyboard_002",
+      "p_office_keyboard_003",
+      "p_office_notebook_001",
+      "p_office_notebook_002",
+      "p_office_notebook_003",
+      "p_office_storage_001",
+      "p_office_storage_002",
+      "p_office_storage_003",
+      "p_office_storage_004"
+    ],
+    "expectedCategory": "办公学习",
+    "expectedSubCategory": null,
+    "expectedNoResult": false,
+    "notes": "新增 E2 宽泛学习场景。事实依据：expected set 覆盖 active 办公收纳、办公外设、学习用品、文件收纳，商品文本包含学习/学生/宿舍/收纳等场景。"
+  },
+  {
+    "caseId": "running-shoes-lightweight-paraphrases",
+    "capability": "use_case",
+    "queries": [
+      "轻量跑鞋",
+      "跑步训练鞋",
+      "日常慢跑鞋",
+      "通勤也能穿的跑鞋"
+    ],
+    "filters": {
+      "category": "服饰运动",
+      "subCategory": "跑步鞋",
+      "availableOnly": true
+    },
+    "expectedProductIdsAny": [
+      "p_clothes_007",
+      "p_clothes_008",
+      "p_clothes_009",
+      "p_clothes_010"
+    ],
+    "expectedCategory": "服饰运动",
+    "expectedSubCategory": "跑步鞋",
+    "expectedNoResult": false,
+    "notes": "新增 E2。事实依据：四款 expected 均为 active 跑步鞋，文本覆盖跑步训练、慢跑、通勤、轻量或竞速训练。"
+  },
+  {
+    "caseId": "sports-category-confusion-guard",
+    "capability": "category_retrieval",
+    "queries": [
+      "运动装备",
+      "健身穿的东西",
+      "跑步用装备",
+      "训练用服饰运动"
+    ],
+    "filters": {
+      "category": "服饰运动",
+      "availableOnly": true
+    },
+    "expectedProductIdsAny": [
+      "p_clothes_001",
+      "p_clothes_002",
+      "p_clothes_003",
+      "p_clothes_004",
+      "p_clothes_005",
+      "p_clothes_006",
+      "p_clothes_007",
+      "p_clothes_008",
+      "p_clothes_009",
+      "p_clothes_010",
+      "p_clothes_011",
+      "p_clothes_012",
+      "p_clothes_013",
+      "p_clothes_014",
+      "p_clothes_015",
+      "p_clothes_016",
+      "p_clothes_017",
+      "p_clothes_018",
+      "p_clothes_019",
+      "p_clothes_020",
+      "p_clothes_021",
+      "p_clothes_022",
+      "p_clothes_023",
+      "p_clothes_024",
+      "p_clothes_025"
+    ],
+    "expectedCategory": "服饰运动",
+    "expectedSubCategory": null,
+    "expectedNoResult": false,
+    "notes": "新增 E2 宽泛运动类目 guard。事实依据：expected set 为 25 个 active 服饰运动商品，用于观察宽泛运动请求是否稳定留在服饰运动类目。"
+  },
+  {
+    "caseId": "food-lifestyle-snack-or-dorm-paraphrases",
+    "capability": "use_case",
+    "queries": [
+      "宿舍囤货食品",
+      "晚上加班吃点什么",
+      "方便食品推荐",
+      "一人份零食"
+    ],
+    "filters": {
+      "category": "食品饮料",
+      "availableOnly": true
+    },
+    "expectedProductIdsAny": [
+      "p_food_001",
+      "p_food_002",
+      "p_food_009",
+      "p_food_010",
+      "p_food_011",
+      "p_food_012",
+      "p_food_019",
+      "p_food_020",
+      "p_food_021",
+      "p_food_022",
+      "p_food_023"
+    ],
+    "expectedCategory": "食品饮料",
+    "expectedSubCategory": null,
+    "expectedNoResult": false,
+    "notes": "新增 E2。事实依据：expected set 覆盖 active 咖啡、坚果/零食、方便食品，商品文本包含宿舍、加班、办公室补给、零食、方便食品等场景。"
+  },
+  {
+    "caseId": "mother-baby-travel-paraphrases",
+    "capability": "use_case",
+    "queries": [
+      "带娃出门用品",
+      "轻便婴儿推车",
+      "宝宝短途出行装备",
+      "城市通勤带娃用什么"
+    ],
+    "filters": {
+      "category": "母婴用品",
+      "subCategory": "出行用品",
+      "availableOnly": true
+    },
+    "expectedProductIdsAny": [
+      "p_mom_travel_001",
+      "p_mom_travel_002",
+      "p_mom_travel_003",
+      "p_mom_travel_004",
+      "p_mom_travel_005"
+    ],
+    "expectedCategory": "母婴用品",
+    "expectedSubCategory": "出行用品",
+    "expectedNoResult": false,
+    "notes": "新增 E2。事实依据：商品库存在 active 母婴用品/出行用品，expected ids 覆盖婴儿推车、背带和安全座椅，适用城市通勤/短途旅行/商场出行。"
+  },
+  {
+    "caseId": "mother-baby-early-education-toy-paraphrases",
+    "capability": "use_case",
+    "queries": [
+      "宝宝早教玩具",
+      "低龄儿童感官启蒙",
+      "亲子互动玩具",
+      "送小朋友的积木玩具"
+    ],
+    "filters": {
+      "category": "母婴用品",
+      "subCategory": "早教玩具",
+      "availableOnly": true
+    },
+    "expectedProductIdsAny": [
+      "p_mom_toy_001",
+      "p_mom_toy_002",
+      "p_mom_toy_003",
+      "p_mom_toy_004",
+      "p_mom_toy_005"
+    ],
+    "expectedCategory": "母婴用品",
+    "expectedSubCategory": "早教玩具",
+    "expectedNoResult": false,
+    "notes": "新增 E2。事实依据：expected ids 均为 active 母婴用品/早教玩具，商品文本覆盖感官启蒙、亲子陪伴、形状认知、拼搭启蒙和送礼。"
   }
 ]

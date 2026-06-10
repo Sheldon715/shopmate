@@ -53,6 +53,24 @@ class ChatProductMapperTest {
     }
 
     @Test
+    fun ignoresSkuAndDatasetNoticeRecommendationReasonFromBackend() {
+        val ui = productDto(
+            priceCents = 329900,
+            name = "欧珀人像十六代专业版",
+            brand = "欧珀",
+            category = "数码电子",
+            subCategory = "智能手机",
+            tags = listOf("学生", "办公学习", "影像娱乐"),
+            recommendationReason = "推荐理由：价格、SKU、评论和 FAQ 为比赛数据集模拟内容，不代表实时售价或真实用户反馈。",
+        ).toProductCardUi()
+
+        assertEquals(
+            "推荐理由：学生，办公学习，可结合预算和使用场景继续比较。",
+            ui.recommendationReason,
+        )
+    }
+
+    @Test
     fun mapsRawCatalogSeoTitleToConciseDisplayName() {
         val ui = productDto(
             priceCents = 17000,

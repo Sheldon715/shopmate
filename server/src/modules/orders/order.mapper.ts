@@ -19,6 +19,7 @@ export function mapPendingCheckoutDraftToSnapshot(
     source: draft.source,
     status: draft.status,
     address: draft.address,
+    savedAddresses: draft.savedAddresses?.map((address) => ({ ...address })),
     items: draft.items.map((item) => ({ ...item })),
     summary: draft.summary,
     selectedDeliveryMethod: draft.selectedDeliveryMethod,

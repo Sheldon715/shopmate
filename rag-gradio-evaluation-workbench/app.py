@@ -1465,6 +1465,7 @@ def results_to_rows(results: list[ChatRunResult]) -> list[dict[str, Any]]:
             "问题": item.query,
             "首token(ms)": item.first_token_ms,
             "总耗时(ms)": item.total_ms,
+            "LLM模型": format_llm_lane_summary(item.retrieval),
             "返回商品": "|".join(item.returned_product_ids),
             "对比商品": "|".join(item.comparison_product_ids),
             "assistant摘要": item.assistant_text[:120],
@@ -1480,6 +1481,31 @@ def results_to_rows(results: list[ChatRunResult]) -> list[dict[str, Any]]:
         }
         for item in results
     ]
+
+
+def format_llm_lane_summary(retrieval: dict[str, Any]) -> str:
+    llm = retrieval.get("llm")
+    if not isinstance(llm, dict):
+        return ""
+
+    parts: list[str] = []
+    labels = [
+        ("decisionPrimary", "decision"),
+        ("decisionFallback", "fallback"),
+        ("answer", "answer"),
+    ]
+    for key, label in labels:
+        lane = llm.get(key)
+        if not isinstance(lane, dict):
+            continue
+        provider = str(lane.get("provider") or "").strip()
+        model = str(lane.get("model") or "").strip()
+        enabled = lane.get("enabled")
+        enabled_text = "" if enabled is True else " off"
+        value = "/".join(item for item in [provider, model] if item)
+        if value:
+            parts.append(f"{label}:{value}{enabled_text}")
+    return " | ".join(parts)
 
 
 def summarize_cart_action(cart_action: dict[str, Any] | None) -> str:
@@ -1947,6 +1973,7 @@ def run_single_debug(
         "totalMs": result.total_ms,
         "filters": result.request_filters,
         "retrieval": result.retrieval,
+        "llm": result.retrieval.get("llm", {}),
         "returnedProductIds": result.returned_product_ids,
         "fallbackUsed": result.fallback_used,
         "fallbackReason": result.fallback_reason,

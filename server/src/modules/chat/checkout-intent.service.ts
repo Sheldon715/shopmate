@@ -7,6 +7,8 @@ import type {
   CheckoutIntentDetection,
   CheckoutTargetScope,
   CheckoutPatchInput,
+  MockShippingAddress,
+  PendingCheckoutDraft,
 } from "../orders/checkout.types";
 import type { PendingCheckoutLookup } from "./pending-checkout.store";
 import { parseJsonObject, stripCodeFence } from "./llm-output-utils";
@@ -44,6 +46,12 @@ const PENDING_ONLY_CUE_PATTERN =
   /(确认|可以|好的|没问题|取消|先取消|不要了|地址|收货|收货人|电话|手机号|配送|快递|加急|标准|支付|支付宝|微信|银行卡)/u;
 const SINGLE_RECENT_RECOMMENDATION_BUY_PATTERN =
   /^(?:帮我|给我|替我|麻烦)?(?:下单|结算|去结算|拿去结算|买下|买了|就买|立即买|直接买)(?:一下|这个|这款|它|吧|了)?$/u;
+const SAVED_ADDRESS_ACCEPT_PATTERN =
+  /^(?:可以|好|好的|行|没问题|对|是|要|就这个|改这个|改成这个|换这个|换成这个|用这个|用这个地址|这个地址|宿舍这个|学校这个|公司这个)$/u;
+const SAVED_ADDRESS_CONTEXT_PATTERN =
+  /(保存地址|已保存地址|这个地址|改到.*地址|改成.*地址|换到.*地址|切换到.*地址)/u;
+const PHONE_CONTEXT_PATTERN =
+  /(手机号|手机号码|电话|号码|新手机|新手机号|11位)/u;
 
 export class CheckoutIntentService {
   constructor(private readonly options: CheckoutIntentServiceOptions) {}
@@ -96,6 +104,20 @@ export class CheckoutIntentService {
 
 function shouldRunCheckoutIntent(input: CheckoutIntentDetectInput): boolean {
   const question = input.question.replace(/\s+/gu, "");
+  const phone = extractPhoneFollowUp(input.question);
+
+  if (
+    input.pendingCheckout?.status === "found"
+    && (
+      phone !== undefined
+      || (
+        isNumericPhoneFollowUp(input.question)
+        && lastAssistantAskedPhone(input.shortHistory)
+      )
+    )
+  ) {
+    return true;
+  }
 
   if (CHECKOUT_CUE_PATTERN.test(question)) {
     return true;
@@ -116,6 +138,42 @@ function detectDeterministicCheckoutIntent(
 ): CheckoutIntentDetection | undefined {
   const question = input.question.replace(/\s+/gu, "");
   const recentOrdinal = extractRecentRecommendationCheckoutOrdinal(question);
+  const phone = extractPhoneFollowUp(input.question);
+
+  if (
+    input.pendingCheckout?.status === "found"
+    && (
+      phone !== undefined
+      || (
+        isNumericPhoneFollowUp(input.question)
+        && lastAssistantAskedPhone(input.shortHistory)
+      )
+    )
+  ) {
+    if (phone === undefined) {
+      return {
+        isCheckoutIntent: true,
+        action: "update_checkout",
+        targetScope: "selected_cart_items",
+        confidence: "high",
+        needsConfirmation: true,
+        clarificationQuestion: "这个号码不是 11 位手机号，请直接发新的 11 位手机号。",
+      };
+    }
+
+    return {
+      isCheckoutIntent: true,
+      action: "update_checkout",
+      checkoutPatch: {
+        shipping: {
+          phone,
+        },
+      },
+      targetScope: "selected_cart_items",
+      confidence: "high",
+      needsConfirmation: false,
+    };
+  }
 
   if (recentOrdinal !== undefined) {
     return {
@@ -142,7 +200,109 @@ function detectDeterministicCheckoutIntent(
     };
   }
 
+  const savedAddressIntent = detectSavedAddressSelectionIntent(input, question);
+
+  if (savedAddressIntent) {
+    return savedAddressIntent;
+  }
+
   return undefined;
+}
+
+function detectSavedAddressSelectionIntent(
+  input: CheckoutIntentDetectInput,
+  question: string,
+): CheckoutIntentDetection | undefined {
+  if (
+    input.pendingCheckout?.status !== "found"
+    || !SAVED_ADDRESS_ACCEPT_PATTERN.test(question)
+    || !lastAssistantAskedSavedAddress(input.shortHistory)
+  ) {
+    return undefined;
+  }
+
+  const savedAddress = findAlternateSavedAddress(input.pendingCheckout.draft);
+
+  if (!savedAddress?.id) {
+    return undefined;
+  }
+
+  return {
+    isCheckoutIntent: true,
+    action: "update_checkout",
+    checkoutPatch: {
+      shipping: {
+        savedAddressId: savedAddress.id,
+      },
+    },
+    targetScope: "selected_cart_items",
+    confidence: "high",
+    needsConfirmation: false,
+  };
+}
+
+function lastAssistantAskedSavedAddress(
+  shortHistory: CheckoutIntentDetectInput["shortHistory"],
+): boolean {
+  const lastAssistantMessage = [...(shortHistory ?? [])]
+    .reverse()
+    .find((message) => message.role === "assistant")?.content ?? "";
+
+  return SAVED_ADDRESS_CONTEXT_PATTERN.test(lastAssistantMessage.replace(/\s+/gu, ""));
+}
+
+function lastAssistantAskedPhone(
+  shortHistory: CheckoutIntentDetectInput["shortHistory"],
+): boolean {
+  const lastAssistantMessage = [...(shortHistory ?? [])]
+    .reverse()
+    .find((message) => message.role === "assistant")?.content ?? "";
+
+  return PHONE_CONTEXT_PATTERN.test(lastAssistantMessage.replace(/\s+/gu, ""));
+}
+
+function extractPhoneFollowUp(question: string): string | undefined {
+  const compact = question.trim();
+
+  if (!isNumericPhoneFollowUp(compact)) {
+    return undefined;
+  }
+
+  const digits = compact.replace(/\D/gu, "");
+
+  return /^[0-9]{11}$/u.test(digits) ? digits : undefined;
+}
+
+function isNumericPhoneFollowUp(question: string): boolean {
+  const compact = question.trim();
+
+  if (!/^[\d\s-]+$/u.test(compact)) {
+    return false;
+  }
+
+  return compact.replace(/\D/gu, "").length > 0;
+}
+
+function findAlternateSavedAddress(
+  draft: PendingCheckoutDraft,
+): MockShippingAddress | undefined {
+  const currentAddressId = draft.address.id?.trim();
+  const currentFullAddress = draft.address.fullAddress.trim();
+
+  return draft.savedAddresses?.find((address) => {
+    const addressId = address.id?.trim();
+    const fullAddress = address.fullAddress.trim();
+
+    if (fullAddress.length === 0) {
+      return false;
+    }
+
+    if (currentAddressId && addressId === currentAddressId) {
+      return false;
+    }
+
+    return !currentFullAddress || fullAddress !== currentFullAddress;
+  });
 }
 
 function isSingleRecentRecommendationCheckout(question: string): boolean {
@@ -228,7 +388,7 @@ function buildCheckoutIntentPrompt(
         "只判断当前用户是否明确要启动、确认、修改 pending checkout、取消或重新汇总 pending checkout。",
         "不生成用户可见回复，不输出订单号、金额或商品事实。",
         "Return one JSON object only.",
-        "Schema: {\"is_checkout_intent\":boolean,\"action\":\"start_checkout|summarize_checkout|update_checkout|update_address|cancel_checkout|confirm_checkout|unknown\",\"address_text\":string|null,\"checkout_patch\":{\"shipping\":{\"recipient\":string|null,\"phone\":string|null,\"full_address\":string|null},\"delivery_method_type\":string|null,\"payment_method_type\":string|null}|null,\"target_scope\":\"selected_cart_items|recent_recommendation\",\"target_ordinal\":number|null,\"confidence\":\"high|medium|low\",\"needs_confirmation\":boolean,\"clarification_question\":string|null}.",
+        "Schema: {\"is_checkout_intent\":boolean,\"action\":\"start_checkout|summarize_checkout|update_checkout|update_address|cancel_checkout|confirm_checkout|unknown\",\"address_text\":string|null,\"checkout_patch\":{\"shipping\":{\"recipient\":string|null,\"phone\":string|null,\"full_address\":string|null,\"saved_address_id\":string|null},\"delivery_method_type\":string|null,\"payment_method_type\":string|null}|null,\"target_scope\":\"selected_cart_items|recent_recommendation\",\"target_ordinal\":number|null,\"confidence\":\"high|medium|low\",\"needs_confirmation\":boolean,\"clarification_question\":string|null}.",
         "购物车结算、确认购物车商品下单使用 target_scope selected_cart_items。",
         "用户说“下单第一款”“就买第一个”“把刚才第一款拿去结算”这类最近推荐商品时，使用 target_scope recent_recommendation，并把 target_ordinal 设为对应序号。",
         "recent_recommendation 必须有明确序号；没有明确目标时 confidence low 或 needs_confirmation true，并用 clarification_question 追问用户要下单哪一款。",
@@ -236,6 +396,7 @@ function buildCheckoutIntentPrompt(
         "确认、可以、没问题只有在 pendingCheckout.status 为 found 时才可能是 confirm_checkout。",
         "confirm_checkout 必须表示用户明确同意创建订单。",
         "update_checkout 用于更新收货人、手机号、详细地址、配送方式或支付方式，不等于确认下单。",
+        "如果用户选择 pendingCheckout.savedAddresses 里的地址，写入 checkout_patch.shipping.saved_address_id；只是说“修改地址”但没有指定哪个保存地址或新地址时，needs_confirmation true 并追问是否切换到某个保存地址。",
         "旧 action update_address 只在模型只能表达整段地址时使用，并把 address_text 放入 checkout_patch.shipping.full_address。",
         "delivery_method_type 和 payment_method_type 必须来自 pendingCheckout 里的 options type；不确定时保持 null 或 needs_confirmation true。",
         "取消下单应为 cancel_checkout，不改变购物车。",
@@ -278,6 +439,16 @@ function summarizePendingCheckout(
     selectedCount: lookup.draft.summary.selectedCount,
     totalCents: lookup.draft.summary.totalCents,
     address: lookup.draft.address,
+    savedAddresses: (lookup.draft.savedAddresses ?? []).map((address, index) => ({
+      ordinal: index + 1,
+      id: address.id,
+      label: address.label,
+      tag: address.tag,
+      recipient: address.recipient,
+      phoneMasked: address.phoneMasked,
+      fullAddress: address.fullAddress,
+      isDefault: address.isDefault,
+    })),
     selectedDeliveryMethod: lookup.draft.selectedDeliveryMethod,
     selectedPaymentMethod: lookup.draft.selectedPaymentMethod,
     deliveryOptions: lookup.draft.deliveryOptions.map((option) => ({
@@ -405,6 +576,10 @@ function parseShippingPatch(
     parseNullableString(record.full_address)
     ?? parseNullableString(record.fullAddress)
     ?? undefined;
+  const savedAddressId =
+    parseNullableString(record.saved_address_id)
+    ?? parseNullableString(record.savedAddressId)
+    ?? undefined;
   const shipping: NonNullable<CheckoutPatchInput["shipping"]> = {};
   const normalizedRecipient = normalizeOptionalText(recipient);
   const normalizedPhone = normalizeOptionalText(phone);
@@ -420,6 +595,12 @@ function parseShippingPatch(
 
   if (normalizedFullAddress !== undefined) {
     shipping.fullAddress = normalizedFullAddress;
+  }
+
+  const normalizedSavedAddressId = normalizeOptionalText(savedAddressId);
+
+  if (normalizedSavedAddressId !== undefined) {
+    shipping.savedAddressId = normalizedSavedAddressId;
   }
 
   if (Object.keys(shipping).length > 0) {

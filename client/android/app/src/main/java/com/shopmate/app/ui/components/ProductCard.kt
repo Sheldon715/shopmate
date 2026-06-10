@@ -56,6 +56,10 @@ import com.shopmate.app.ui.theme.ShopMateTextPrimary
 import com.shopmate.app.ui.theme.ShopMateTheme
 
 private const val FIGMA_PRODUCT_CARD_WIDTH = 360.667f
+private const val PRODUCT_CARD_REASON_CHARS_PER_LINE = 16
+private const val PRODUCT_CARD_REASON_MIN_LINES = 3
+private const val PRODUCT_CARD_REASON_MAX_LINES = 7
+private const val PRODUCT_CARD_REASON_LINE_HEIGHT = 16.4f
 
 @Composable
 fun ProductCard(
@@ -74,6 +78,10 @@ fun ProductCard(
         fun Float.s(): Dp = (this * scale).dp
 
         val effectiveAddCartState = if (enabled) addCartState else ProductAddCartState.Disabled
+        val reasonLines = product.recommendationReason.estimatedProductCardReasonLines()
+        val reasonHeight = reasonLines * PRODUCT_CARD_REASON_LINE_HEIGHT
+        val addCartButtonTop = productCardAddCartButtonTop(reasonLines)
+        val contentHeight = maxOf(171f, addCartButtonTop + 32f)
         val cardInteractionSource = remember { MutableInteractionSource() }
         val isCardPressed by cardInteractionSource.collectIsPressedAsState()
         val cardScale by animateFloatAsState(
@@ -128,7 +136,7 @@ fun ProductCard(
             Box(
                 modifier = Modifier
                     .offset(x = 138f.s(), y = 12f.s())
-                    .size(width = 209.333f.s(), height = 153.771f.s())
+                    .size(width = 209.333f.s(), height = contentHeight.s())
             ) {
                 Text(
                     text = product.name,
@@ -176,11 +184,11 @@ fun ProductCard(
                     fontSize = (11.5f * scale).sp,
                     lineHeight = (16.4f * scale).sp,
                     letterSpacing = 0.sp,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
+                    maxLines = reasonLines,
+                    overflow = TextOverflow.Visible,
                     modifier = Modifier
                         .offset(y = 86.8f.s())
-                        .size(width = 209.333f.s(), height = 32.8f.s())
+                        .size(width = 209.333f.s(), height = reasonHeight.s())
                 )
 
                 AddCartButton(
@@ -191,7 +199,7 @@ fun ProductCard(
                     modifier = Modifier
                         .offset(
                             x = 101.333f.s(),
-                            y = 121.2f.s()
+                            y = addCartButtonTop.s()
                         )
                         .size(
                             width = 108f.s(),
@@ -202,6 +210,29 @@ fun ProductCard(
         }
     }
 }
+
+fun ProductCardUi.estimatedProductCardHeight(scale: Float): Dp {
+    val reasonLines = recommendationReason.estimatedProductCardReasonLines()
+    val buttonTop = productCardAddCartButtonTop(reasonLines)
+    val height = 12f + buttonTop + 32f + 14f
+
+    return maxOf(196f, height).s(scale)
+}
+
+private fun String.estimatedProductCardReasonLines(): Int {
+    val compactLength = trim().replace("\\s+".toRegex(), "").length.coerceAtLeast(1)
+    val lines = (compactLength + PRODUCT_CARD_REASON_CHARS_PER_LINE - 1) /
+        PRODUCT_CARD_REASON_CHARS_PER_LINE
+
+    return lines.coerceIn(PRODUCT_CARD_REASON_MIN_LINES, PRODUCT_CARD_REASON_MAX_LINES)
+}
+
+private fun productCardAddCartButtonTop(reasonLines: Int): Float =
+    if (reasonLines <= PRODUCT_CARD_REASON_MIN_LINES) {
+        137.6f
+    } else {
+        86.8f + reasonLines * PRODUCT_CARD_REASON_LINE_HEIGHT + 8.4f
+    }
 
 @Composable
 private fun ProductImage(
@@ -444,7 +475,7 @@ private val PreviewLongProduct = ProductCardUi(
 @Preview(
     name = "Product card - enabled",
     widthDp = 361,
-    heightDp = 179,
+    heightDp = 196,
     showBackground = true
 )
 @Composable
@@ -457,7 +488,7 @@ private fun ProductCardEnabledPreview() {
 @Preview(
     name = "Product card - disabled",
     widthDp = 361,
-    heightDp = 179,
+    heightDp = 196,
     showBackground = true
 )
 @Composable
@@ -473,7 +504,7 @@ private fun ProductCardDisabledPreview() {
 @Preview(
     name = "Product card - long copy compact",
     widthDp = 332,
-    heightDp = 168,
+    heightDp = 236,
     showBackground = true
 )
 @Composable

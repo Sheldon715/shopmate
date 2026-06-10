@@ -26,6 +26,7 @@ import type {
   ChatStreamWriter,
   RagCartWriter,
   RagChatServiceOptions,
+  RagProductDisplayCopyGenerator,
   RagProductReader,
   RagQueryRewriter,
   RagVectorSearchClient,
@@ -77,7 +78,7 @@ describe("RagChatService", () => {
 
     expect(productReaderCalls).toEqual([["product_001", "product_002"]]);
     expect(llmRequest?.responseFormat).toBeUndefined();
-    expect(llmRequest?.maxCompletionTokens).toBe(320);
+    expect(llmRequest?.maxCompletionTokens).toBe(520);
     expect(llmRequest?.messages.map((message) => message.content).join("\n"))
       .toContain("first snippet");
     expect(llmRequest?.messages.map((message) => message.content).join("\n"))
@@ -99,6 +100,38 @@ describe("RagChatService", () => {
       name: "PostgreSQL Product 2",
       priceCents: 3200,
     });
+  });
+
+  it("uses generated product display copy for chat product cards", async () => {
+    const productDisplayCopyGenerator: RagProductDisplayCopyGenerator = {
+      generate: async (input) =>
+        new Map(input.products.map((product) => [
+          product.id,
+          {
+            productId: product.id,
+            cardReason: "推荐理由：半入耳佩戴轻松，通勤久戴不闷，通话也清楚。",
+          },
+        ])),
+    };
+    const service = new RagChatService(withNoCartIntent({
+      vectorSearch: createVectorSearch([createHit("product_001")]),
+      productReader: createProductReader(),
+      llmClient: new MockLlmClient({
+        response: createLlmResponse(JSON.stringify({
+          answer: "这款适合通勤。",
+          recommended_product_ids: ["product_001"],
+        })),
+      }),
+      productDisplayCopyGenerator,
+    }));
+
+    const result = await service.answer({
+      question: "推荐通勤蓝牙耳机",
+    });
+
+    expect(result.productCards[0]?.recommendationReason).toBe(
+      "推荐理由：半入耳佩戴轻松，通勤久戴不闷，通话也清楚。",
+    );
   });
 
   it("streams real RAG answer text before final product cards and done", async () => {
@@ -315,7 +348,7 @@ describe("RagChatService", () => {
 
     expect(result.fallbackUsed).toBe(true);
     expect(result.fallbackReason).toBe("LLM_ERROR");
-    expect(result.answer).toBe("先为你保留 1 款库内相关商品，推荐理由以商品事实为准，可查看详情再确认。");
+    expect(result.answer).toBe("我先把这款库内相关商品列出来，具体参数和限制以卡片与详情页为准。");
     expect(result.recommendedProductIds).toEqual(["product_001"]);
     expect(result.productCards).toHaveLength(1);
     expect(result.productCards[0]).toMatchObject({
@@ -4016,16 +4049,16 @@ describe("RagChatService", () => {
     expect(result.fallbackUsed).toBe(true);
     expect(result.fallbackReason).toBe("LLM_INVALID_OUTPUT");
     expect(result.comparisonResult).toMatchObject({
-      title: "基础事实对比",
+      title: "商品核心差异对比",
       query: "帮我对比这两款",
       productIds: ["product_001", "product_002"],
       recommendedProductId: null,
-      highlights: [],
     });
+    expect(result.comparisonResult?.highlights).toHaveLength(2);
     expect(result.comparisonResult?.dimensions.map((dimension) => dimension.id))
-      .toEqual(["brand_category", "price", "facts"]);
+      .toEqual(["brand_category", "price", "facts", "fit"]);
     expect(result.answer).toBe(
-      "对比结论生成不稳定，先展示两款商品的库内基础事实。",
+      "我先按库内商品事实整理了这两款的核心差异，方便你继续看详情。",
     );
     expect(result.productCards.map((card) => card.id)).toEqual([
       "product_001",
@@ -4067,7 +4100,7 @@ describe("RagChatService", () => {
     expect(result.fallbackUsed).toBe(true);
     expect(result.fallbackReason).toBe("LLM_INVALID_OUTPUT");
     expect(result.answer).toBe(
-      "对比结论生成不稳定，先展示两款商品的库内基础事实。",
+      "我先按库内商品事实整理了这两款的核心差异，方便你继续看详情。",
     );
     expect(result.comparisonResult?.productIds).toEqual([
       "product_001",
@@ -4082,7 +4115,7 @@ describe("RagChatService", () => {
 
     expect(result.fallbackUsed).toBe(true);
     expect(result.fallbackReason).toBe("LLM_INVALID_OUTPUT");
-    expect(result.answer).toBe("先为你保留 2 款库内相关商品，推荐理由以商品事实为准，可查看详情再确认。");
+    expect(result.answer).toBe("我先把这 2 款库内相关商品列出来，具体参数和限制以卡片与详情页为准。");
     expect(result.recommendedProductIds).toEqual(["product_001", "product_002"]);
     expect(result.productCards.map((card) => card.id)).toEqual([
       "product_001",

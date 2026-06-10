@@ -362,6 +362,142 @@ describe("CheckoutIntentService", () => {
     expect(Object.hasOwn(shippingPatch, "phone")).toBe(false);
   });
 
+  it("treats an 11 digit phone follow-up as a checkout shipping update", async () => {
+    let llmCalled = false;
+    const service = new CheckoutIntentService({
+      llmClient: new MockLlmClient({
+        handler: () => {
+          llmCalled = true;
+          return createLlmResponse(JSON.stringify({
+            is_checkout_intent: false,
+          }));
+        },
+      }),
+    });
+
+    const result = await service.detect({
+      question: "13623411345",
+      shortHistory: [{
+        role: "assistant",
+        content: "可以，直接把新的手机号发我，我会更新这张订单草稿。",
+      }],
+      pendingCheckout: { status: "found", draft: createDraft() },
+    });
+
+    expect(llmCalled).toBe(false);
+    expect(result).toMatchObject({
+      isCheckoutIntent: true,
+      action: "update_checkout",
+      checkoutPatch: {
+        shipping: {
+          phone: "13623411345",
+        },
+      },
+      confidence: "high",
+      needsConfirmation: false,
+    });
+  });
+
+  it("treats a standalone 11 digit phone as checkout update when a draft is pending", async () => {
+    let llmCalled = false;
+    const service = new CheckoutIntentService({
+      llmClient: new MockLlmClient({
+        handler: () => {
+          llmCalled = true;
+          return createLlmResponse(JSON.stringify({
+            is_checkout_intent: false,
+          }));
+        },
+      }),
+    });
+
+    const result = await service.detect({
+      question: "13623411345",
+      pendingCheckout: { status: "found", draft: createDraft() },
+    });
+
+    expect(llmCalled).toBe(false);
+    expect(result).toMatchObject({
+      isCheckoutIntent: true,
+      action: "update_checkout",
+      checkoutPatch: {
+        shipping: {
+          phone: "13623411345",
+        },
+      },
+      confidence: "high",
+      needsConfirmation: false,
+    });
+  });
+
+  it("keeps invalid numeric phone follow-ups inside checkout clarification", async () => {
+    let llmCalled = false;
+    const service = new CheckoutIntentService({
+      llmClient: new MockLlmClient({
+        handler: () => {
+          llmCalled = true;
+          return createLlmResponse(JSON.stringify({
+            is_checkout_intent: false,
+          }));
+        },
+      }),
+    });
+
+    const result = await service.detect({
+      question: "1391231231331",
+      shortHistory: [{
+        role: "assistant",
+        content: "可以，直接把新的手机号发我，我会更新这张订单草稿。",
+      }],
+      pendingCheckout: { status: "found", draft: createDraft() },
+    });
+
+    expect(llmCalled).toBe(false);
+    expect(result).toMatchObject({
+      isCheckoutIntent: true,
+      action: "update_checkout",
+      confidence: "high",
+      needsConfirmation: true,
+      clarificationQuestion: "这个号码不是 11 位手机号，请直接发新的 11 位手机号。",
+    });
+  });
+
+  it("uses a saved address id when user accepts the saved address prompt", async () => {
+    let llmCalled = false;
+    const service = new CheckoutIntentService({
+      llmClient: new MockLlmClient({
+        handler: () => {
+          llmCalled = true;
+          return createLlmResponse(JSON.stringify({
+            is_checkout_intent: false,
+          }));
+        },
+      }),
+    });
+
+    const result = await service.detect({
+      question: "可以",
+      shortHistory: [{
+        role: "assistant",
+        content: "可以，你还有一个已保存地址「宿舍：UNSW Village 6 栋 302」，要把这张订单草稿改到这个地址吗？",
+      }],
+      pendingCheckout: { status: "found", draft: createDraft() },
+    });
+
+    expect(llmCalled).toBe(false);
+    expect(result).toMatchObject({
+      isCheckoutIntent: true,
+      action: "update_checkout",
+      checkoutPatch: {
+        shipping: {
+          savedAddressId: "saved-address-campus",
+        },
+      },
+      confidence: "high",
+      needsConfirmation: false,
+    });
+  });
+
   it("does not call LLM for ordinary recommendation requests", async () => {
     const service = new CheckoutIntentService({
       llmClient: new MockLlmClient({
@@ -397,11 +533,34 @@ function createDraft(): PendingCheckoutDraft {
     source: "cart",
     status: "pending",
     address: {
+      id: "saved-address-default",
       label: "默认地址",
       recipient: "ShopMate 用户",
       phoneMasked: "138****0000",
       fullAddress: "ShopMate 收货点",
+      region: "ShopMate 演示配送区",
+      tag: "默认",
+      isDefault: true,
     },
+    savedAddresses: [{
+      id: "saved-address-default",
+      label: "默认地址",
+      recipient: "ShopMate 用户",
+      phoneMasked: "138****0000",
+      fullAddress: "ShopMate 收货点",
+      region: "ShopMate 演示配送区",
+      tag: "默认",
+      isDefault: true,
+    }, {
+      id: "saved-address-campus",
+      label: "学校宿舍",
+      recipient: "ShopMate 用户",
+      phoneMasked: "138****0000",
+      fullAddress: "UNSW Village 6 栋 302",
+      region: "ShopMate 演示配送区",
+      tag: "宿舍",
+      isDefault: false,
+    }],
     items: [],
     summary: {
       itemCount: 0,

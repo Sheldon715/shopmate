@@ -1,4 +1,4 @@
-# Current Feature: RAG Document and Embedding Text Cleanup
+# Current Feature: 导购对话链路调优
 
 ## 状态
 
@@ -6,38 +6,57 @@ Complete
 
 ## 目标
 
-- 校准 `retrieval-baseline-cases.json` 中 `dorm-small-appliance-paraphrases` 的 expected product set，并在报告中写清商品事实依据。
-- 清理进入 RAG document / embedding text / snippet 的 dataset、demo、source、process 和图片占位等污染文本，同时保留真实商品事实。
-- 新增每个 active product 的 `product_profile` 主文档，并将旧 `content_block` 粗粒度类型映射到更明确的 docType。
-- 新增 deterministic 中文 alias / natural language tags，优先覆盖 baseline 中的洁面、防晒、耳机、厨房小电、办公外设、空气护理和跑鞋场景。
-- 重建 RAG documents 与 Qdrant index，复跑 baseline，并在 `docs/rag-tuning-report.md` 输出 E0 -> E1 对比。
+- 调优导购决策、回答、兜底和对比链路，减少模板化回复，同时保留商品事实、候选商品 allowlist、JSON schema 和业务动作安全边界。
+- 优化商品卡片、商品详情页和对比页的导购文案生成与展示，避免 SKU、数据说明、过短理由、截断和空白间距影响体验。
+- 修复多轮推荐、口语对比、预算清除、耳机音质偏好、订单草稿、地址簿、手机号更新和结算金额显示等用户可见问题。
+- 增加调试与评估可观测性，让 Chat SSE、Gradio 和 baseline 结果能追踪导购链路的关键阶段，但不暴露敏感配置。
+- 通过后端、Android 和 focused regression tests 确认 cartAction、checkoutAction、comparison_result、clarification、negative constraint 和普通推荐路径稳定。
 
 ## 待办清单
 
-- [x] 复核 `retrieval-baseline-traces.jsonl` 中 `一人食省空间小家电` 的 top hits，并回查商品事实判断 `p_home_kitchen_004` / `002` / `001` 是否应进入 expected set。
-- [x] 按事实更新 `data/processed/rag/retrieval-baseline-cases.json`，并准备报告中的 Expected Set Audit 说明。
-- [x] 新增 `rag-document-text-cleaner.ts` 与单测，清理污染短语、视觉生产标签和低价值内容块关键词，确认真实品牌、价格、规格、场景、限制和评论事实不被误删。
-- [x] 新增 `rag-document-aliases.ts` 与单测，覆盖 baseline 高价值类目，保证 alias 去重、trim、不产生空值或过宽噪音词。
-- [x] 重构 `rag-document.builder.ts` / types / mapper 测试：生成 `product_profile`，映射 `product_specs`、`selling_points`、`use_cases`、`constraints`、`faq`、`reviews_summary`，并停止生成 raw `description` 文档。
-- [x] 同步 Qdrant payload、vector search trace、RAG debug trace 等相关 docType 类型；如只需 keyword payload index，保持写入兼容。
-- [x] 运行目标后端测试：`npm.cmd test -- rag-document-text-cleaner.test.ts rag-document-aliases.test.ts rag-document.builder.test.ts` 与相关 trace / baseline evaluator 测试。
-- [x] 运行 `npm.cmd run build` 和必要的全量 `npm.cmd test`。
-- [x] 运行 `npm.cmd run rag:documents`，检查 `product-documents.jsonl`、`document-manifest.json` 中的污染文本、docType 分布和 product_profile 覆盖。
-- [x] 在外部服务可用时运行 `npm.cmd run rag:index -- --recreate` 与 `npm.cmd run rag:baseline ...`，更新 index manifest、baseline results/traces 和 `docs/rag-tuning-report.md`。
-- [x] 在报告中补充 `E1 Document / Embedding Cleanup` 小节，记录 expected audit、document text changes、before/after metrics、remaining failures 和 next recommended spec。
+- [x] 盘点 chat / RAG / intent / comparison / detail mapper 中的提示、兜底文案、JSON schema、用户可见模板和安全约束。
+- [x] 增加脱敏链路 metadata 和 debug trace 字段，便于评估导购链路阶段与输出来源。
+- [x] 调整导购回答、澄清、对比和兜底文案，减少重复、机械和过度保守表达。
+- [x] 保留商品事实、active product、购物车 / checkout allowlist、JSON schema、无效输出不执行业务动作等安全边界。
+- [x] 修复 Android 商品卡推荐理由展示空间和推荐理由清洗，避免全品类长理由被截断或 SKU / 数据说明进入卡片。
+- [x] 修复商品详情页推荐理由卡内容密度、布局关系和底部遮挡，保持洗衣机、手机、美妆、耳机等不同品类通用。
+- [x] 修复 comparison follow-up 退化为“基础事实对比”或只显示入口卡的问题，确保最近两款/这两个/对比一下这两个等全品类追问能稳定生成 `comparison_result`。
+- [x] 将聊天商品卡与商品详情页导购文案改为基于 PostgreSQL 商品事实生成，保留 JSON 校验、product allowlist、内部数据说明过滤和旧 mapper 兜底。
+- [x] 修复“对一下这两个”等口语对比入口、预算清除追问和耳机音质偏好记忆，避免旧预算 / 旧品类约束把后续推荐卡死。
+- [x] 修复商品详情页导购推荐理由 dot point 空隙问题，改为单段理由展示，并让聊天商品卡推荐理由按内容伸缩。
+- [x] 修复聊天订单草稿确认 / 取消 / 过期后的底部残留，并优化“修改地址 / 电话”等缺少新值时的引导文案。
+- [x] 修复 checkout 地址簿交互：草稿携带保存地址候选，用户说“修改地址”时优先询问是否切换另一个已保存地址，并支持用户确认后通过 `savedAddressId` 更新草稿。
+- [x] 修复 checkout 手机号 follow-up 被推荐链路抢走的问题：待确认订单里单独发送 11 位手机号会直接更新草稿，非 11 位数字在电话上下文里明确要求重发 11 位。
+- [x] 修复 checkout 金额回复把分单位误读成元单位的问题，聊天气泡和订单卡统一显示 `¥` 金额。
+- [x] 运行后端、Android 和 focused regression tests，并记录验证结果。
 
 ## 备注
 
-- Spec 来源：`context/feature/rag-document-embedding-cleanup-spec.md`。
-- 上游基线：`RAG Debug Trace and Evaluation Baseline` 已完成，E0 为 24 条 query 中 23 条通过，唯一失败是 `dorm-small-appliance-paraphrases` / `一人食省空间小家电`。
-- 范围边界：本阶段只处理 expected set 校准、document / embedding text cleanup、docType 责任拆分、product_profile 和 deterministic alias；不改 Android UI、Chat SSE contract、cart / checkout / comparison / clarification 业务逻辑，不通过 prompt 掩盖检索问题。
-- 明确非目标：不做 keyword / BM25 / sparse retrieval、hybrid retrieval、candidate merge、rule-based reranker，也不为了分数删除失败 case。
-- 验证重点：E1 的 recall@10、MRR@10、paraphrase overlap@10 不低于 E0；constraint satisfaction、negative constraint accuracy 保持 1.000；stale hit rate 保持 0.000。
-- 外部依赖：Qdrant / embedding 不可用时先完成 documents 和 tests，并在报告中明确 index / baseline 未完成原因，不编造 E1 指标。
-- 实施记录：`rag:index -- --recreate` 首次超过 10 分钟工具超时，但后台进程继续执行并已等待完成；`vector-index-manifest.json` 已更新为 1889/1889 indexed。
-- E1 结果：baseline 24/24 通过，recall@5/10/20 = 1.000，MRR@10 = 1.000，candidate overlap@10 = 0.935，constraint / negative / no-result 均保持 1.000，stale hit rate = 0.000。
-- 文档检查：`product-documents.jsonl` 当前 1889 docs，175/175 active product 均有 `product_profile`，未检出本 spec 指定的 dataset/demo/process/visual 污染 marker。
-- 已执行验证：目标 Vitest 7 个文件 42 个测试通过；后端全量 `npm.cmd test` 61 个文件 484 个测试通过；`npm.cmd run build` 通过。
+- `.env` 只保留本地配置，不能输出或提交任何密钥。
+- 必须保留的安全边界：商品卡片和对比商品 ID 必须来自 PostgreSQL active product / 当前候选集；cart / checkout 只允许后端 allowlist 通过后执行；JSON invalid、低置信、超时或 schema 不合法时不执行业务动作；不能绕过 negative fact validation、库存 / 价格 / 订单金额事实校验。
+- 本轮不做大规模 RAG retrieval/rerank 改造，不更换 Android 导航或 Chat SSE 公共 contract；如发现商品详情页内容主要是 Android mapper 问题，先记录后续 slice，除非是明显低风险文案过滤修复。
+- 已保留的硬约束：RAG answer 仍只允许候选商品 ID；comparison 仍维持结构化 JSON schema 和两商品 target 解析；cart / checkout 仍由后端命令层和 allowlist 执行，不由文案直接触发；invalid / timeout / low confidence 仍走 no-action fallback。
+- 已松绑的过度模板约束：普通 RAG answer 从固定短句模板改为 1-2 句自然短回复；clarification / comparison intent 删除重复强制例句但保留分类边界；错误兜底从“保留 X 款”改为更自然且不承诺能力的卡片说明；cart / checkout response 统一中文约束，避免风格割裂。
+- 可观测性：Chat done retrieval、RAG debug trace、Gradio 批量结果和 single debug evidence 现在都能看到脱敏链路 metadata，不包含 API key 或 baseUrl；RAG evaluation query rewrite 也接入同一套链路 metadata。
+- Popular query cache：仍是单进程内存 cache，重启 server 会清空；本轮已将 cache 版本纳入脱敏链路配置组合，避免同一进程内配置变化后误命中旧结果。
+- fallback 分层说明：用户看到的“基础事实对比 / 先展示库内事实”来自 comparison generation invalid / timeout 后的后端业务安全兜底；本轮已把该业务兜底从空 highlights / 3 维基础事实改为 4 维 `comparison_result`、商品 highlights 和更自然的结论文案。
+- 输出长度调整：普通 RAG answer 放宽到更自然的 1-2 句短回复；决策、cart、checkout 等 JSON 路径仍保持短输出和 schema 约束；comparison generation 主要修复 invalid 后的业务兜底。
+- 商品卡片：后端 `mapProductToCardDto` 和 Android `ChatProductMapper` 都过滤 SKU / FAQ / 评论 / 实时售价 / 数据集说明类文案；Android 商品卡从固定高度改为按推荐理由估算 3-7 行高度，推荐理由不再省略，避免全品类长理由直接截断。
+- 商品详情页：`ProductDetailMapper` 不再把干净商品描述切成过短逗号片段，推荐理由上限放宽到 120 字，并用归一化比较去掉与 highlights 的重复；详情页“导购推荐理由”卡改成单段正文，不再渲染 dot point，卡片高度按文本估算，减少空隙和底部遮挡。
+- 商品展示文案生成：新增 `ProductDisplayCopyGenerationService`，聊天商品卡、popular cache 命中重建卡片、comparison 商品卡和 `/api/products/:id` 详情页都会优先根据库内 facts 生成 `card_reason` / `detail_reason` / `detail_highlights`；生成失败、JSON 非法、product id 越界或出现 SKU / FAQ / 数据集 / 评论 / 实时售价等内部痕迹时回退到旧事实 mapper。
+- 对比入口：`ComparisonIntentService` 现在识别“对一下这两个 / 对下这两款 / 对一对前两个”等口语说法；正常对比内容生成失败或超时后才走事实 fallback。
+- 对比生成容错：旧逻辑强制要求 4-6 个完整维度、snake_case 字段和严格 `comparison` 包裹，输出只要少一行或字段形态变化就会被判 invalid 并显示“商品核心差异对比”业务兜底；本轮改为保留 allowlist 商品 ID 硬边界，同时接受 camelCase / `comparisonResult` 包裹 / 外层说明文字 / 缺少维度 id / cells 按商品顺序省略 `product_id` / 仅 2 个完整事实维度，减少正常结构化输出被模板兜底吞掉的问题。
+- 多轮约束：`ChatContextMemoryService` 支持“不要管 200 / 不限预算 / 不管价格”等预算清除表达，并解析“1500呢 / 2000 的耳机呢”这类短预算追问；耳机相关偏好补充 `音质`、`降噪`、`低音`、`人声`、`通话`、`佩戴舒适`。
+- 数据库连接日志：PostgreSQL idle client error 改为脱敏 `warn`，只记录 name / message / code，不再把 pg client 对象和连接参数整段打印到终端。
+- Checkout 草稿：Android 只保留可继续操作的草稿卡；`order_created`、`cancelled`、`expired`、`empty_cart` 和确认 / 取消失败等收口状态会清掉底部草稿。用户只说“修改地址 / 修改电话”但没有给新值时，后端直接引导发送新的具体地址 / 手机号，不再绕回“先确认当前信息”。
+- Checkout 地址簿：后端 draft / snapshot 增加 `savedAddresses`，默认提供当前地址和另一个保存地址候选；Chat intent 支持 `checkout_patch.shipping.saved_address_id`，response 会在“修改地址”无具体值时问是否切换保存地址，Android chat / order contract 会把候选地址映射到 checkout 地址簿并优先选中当前草稿地址。
+- Checkout 手机号：待确认订单内单独 11 位数字不再依赖短历史即可进入 `update_checkout` 更新手机号；电话上下文里的非 11 位数字会停留在 checkout clarification，不再掉到普通 RAG 推荐。
+- Checkout 金额回复：聊天气泡不再把 `totalCents=26900` 交给回复生成器自行解读为“26900 元”；`draft_created`、`summarize_checkout` 和 `order_created` 等强事实状态由后端 formatter 直接输出 `¥269`，其余 checkout 回复上下文只暴露 `totalText` / `subtotalText` / `feeText` / `priceText`，避免分/元单位错读。
+- 已执行验证：后端目标 Vitest 4 个文件 104 个测试通过；Android mapper 目标单测通过；后端全量 `npm.cmd test` 64 个文件 497 个测试通过；后端 `npm.cmd run build` 通过；Android 全量 `testDebugUnitTest` 通过；Android `assembleDebug` 通过；`git diff --check` 通过。Android `build` 未作为通过项记录，因为 demo variant 未配置 `SHOPMATE_DEMO_API_BASE_URL` 时会按既有 fail-fast 规则失败。
+- 本轮追加验证：`server npm.cmd test -- --run src/modules/chat/checkout-command.service.test.ts` 通过 9 个测试；`client/android .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.ui.chat.ChatViewModelTest"` 通过。
+- 本轮 checkout 追加验证：`server npm.cmd test -- --run src/modules/chat/checkout-intent.service.test.ts src/modules/chat/checkout-command.service.test.ts` 通过 2 个文件 30 个测试；`server npm.cmd test -- --run src/modules/chat/checkout-intent.service.test.ts` 通过 20 个测试；`server npm.cmd run build` 通过；`client/android .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.data.chat.ChatStreamEventParserTest"` 通过；`client/android .\gradlew.bat --no-daemon assembleDebug` 通过。
+- 本轮 comparison 追加验证：`server npm.cmd test -- --run src/modules/chat/comparison-generation.service.test.ts` 通过 12 个测试；`server npm.cmd test -- --run src/modules/chat/rag.service.test.ts` 通过 77 个测试；`server npm.cmd run build` 通过。
+- 本轮 checkout 金额追加验证：`server npm.cmd test -- --run src/modules/chat/checkout-response.service.test.ts src/modules/chat/checkout-command.service.test.ts` 通过 2 个文件 13 个测试；`server npm.cmd run build` 通过。
 
 ## 历史记录
 - 初始化前后端技术栈骨架：完成 Android Kotlin + Jetpack Compose 与 Node.js + TypeScript + Express 最小工程初始化，补充 README 与 Git 忽略配置，并通过后端构建与 Android `assembleDebug` 验证。
@@ -130,3 +149,4 @@ Complete
 - Android Motion Transition Polish：新增统一 motion token、按压反馈 helper 和 Compose animation 依赖，覆盖主路径页面进入、侧边栏抽屉、聊天状态、商品卡、对比、商品详情、购物车和 checkout 的轻量动效；按反馈调整 sidebar 阅读尺度并修复商品详情长标题裁切，通过 Android `testDebugUnitTest` 与带 demo HTTPS URL 的 `build` 验证。
 - Chat / RAG / UI 稳定性修复：建立稳定性回归矩阵，修复 RAG contract、主动澄清、多轮上下文串味、推荐理由污染、商品展示名清洗、Android 商品卡 / 详情页 / 历史锚点、购物车价格和自然语言 checkout；补充数据 / RAG 工件与后端 / Android 回归测试，并通过后端 test/build、Android testDebugUnitTest 和 demo URL build 验证。
 - RAG Debug Trace and Evaluation Baseline：新增内部 `RagDebugTrace`、baseline evaluator、`rag:baseline` CLI、grouped baseline cases、正式 `retrieval-baseline-results.jsonl` / `retrieval-baseline-traces.jsonl` 与 `docs/rag-tuning-report.md`；保持现有 Chat SSE contract 不变，并通过后端全量 test / build 与真实 baseline 跑通验证，当前 24 条 query 中 23 条通过、1 条 `vector_retrieval_failure` 留给后续 document / embedding text cleanup。
+- RAG Document and Embedding Text Cleanup：校准厨房小电 baseline expected set，新增 RAG 文档清理器、deterministic alias 和每商品 `product_profile`，将旧 content block 映射到明确 docType，重建 1889 条 RAG documents / Qdrant index / baseline trace 并补充 E1 报告；通过后端目标测试、全量 `npm.cmd test`、`npm.cmd run build`、`rag:documents`、`rag:index -- --recreate` 和 `rag:baseline` 验证，baseline 24/24 通过。

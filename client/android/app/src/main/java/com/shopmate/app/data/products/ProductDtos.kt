@@ -41,6 +41,7 @@ data class ProductDetailDto(
     val reviewSummary: JsonElement? = null,
     val officialFaq: JsonElement? = null,
     val contentBlocks: JsonElement? = null,
+    val recommendationHighlights: List<String> = emptyList(),
 )
 
 @Serializable

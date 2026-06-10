@@ -44,17 +44,23 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.zIndex
 import com.shopmate.app.R
 import com.shopmate.app.data.mock.MockShopMateData
@@ -139,6 +145,8 @@ private fun ProductDetailScreenContent(
         )
         val screenWidth = maxWidth
         val frameStart = ((maxWidth.value - ShopMateFigmaFrameWidth * scale) / 2f).dp
+        val density = LocalDensity.current
+        val textMeasurer = rememberTextMeasurer()
 
         fun Float.s(): Dp = scaledDp(scale)
 
@@ -147,18 +155,23 @@ private fun ProductDetailScreenContent(
         val footerHeight = 58f.s()
         val footerBottom = 18f.s()
         val footerTop = maxHeight - footerHeight - footerBottom
-        val recommendationHeight = product?.recommendationCardHeight(scale) ?: 201.01f.s()
+        val recommendationHeight = product?.recommendationCardHeight(
+            scale = scale,
+            textMeasurer = textMeasurer,
+            density = density,
+        ) ?: 201.01f.s()
         val recommendationGap = 14f.s()
         val specTop = contentTop + 437.531f.s() + recommendationHeight + recommendationGap
         val suitabilityTop = specTop + 176f.s()
-        val productBodyBottom = suitabilityTop + 95.188f.s()
+        val suitabilityHeight = 112f.s()
+        val productBodyBottom = suitabilityTop + suitabilityHeight
         val scrollBodyHeight = if (product == null && !state.isLoading) {
             430f.s()
         } else {
             productBodyBottom - contentTop
         }
         val scrollContentHeight =
-            (contentTop + scrollBodyHeight + footerHeight + footerBottom + 28f.s())
+            (contentTop + scrollBodyHeight + footerHeight + footerBottom + 54f.s())
                 .coerceAtLeast(maxHeight + 1.dp)
 
         Box(
@@ -253,7 +266,7 @@ private fun ProductDetailScreenContent(
                             scale = scale,
                             modifier = Modifier
                                 .offset(x = frameStart + 18f.s(), y = suitabilityTop)
-                                .size(width = 352.667f.s(), height = 95.188f.s())
+                                .size(width = 352.667f.s(), height = suitabilityHeight)
                         )
                     }
                 }
@@ -292,24 +305,30 @@ private fun ProductDetailScreenContent(
     }
 }
 
-private fun ProductDetailUi.recommendationCardHeight(scale: Float): Dp {
-    val reasonLines = estimatedLineCount(recommendationReason, charsPerLine = 15, maxLines = 7)
-    val highlightLines = highlights.take(3).sumOf { highlight ->
-        estimatedLineCount(highlight, charsPerLine = 20, maxLines = 2)
-    }
-    val baseHeight = 106f + reasonLines * 21.45f + highlightLines * 20.2f +
-        (highlights.take(3).size.coerceAtLeast(1) - 1) * 8f
-    return baseHeight.coerceIn(184f, 372f).scaledDp(scale)
-}
+private fun ProductDetailUi.recommendationCardHeight(
+    scale: Float,
+    textMeasurer: TextMeasurer,
+    density: Density,
+): Dp {
+    val textWidth = 320f.scaledDp(scale)
+    val textStyle = TextStyle(
+        fontSize = (13f * scale).sp,
+        lineHeight = (21.45f * scale).sp,
+        letterSpacing = 0.sp,
+    )
+    val textLayout = textMeasurer.measure(
+        text = recommendationReason,
+        style = textStyle,
+        maxLines = 10,
+        overflow = TextOverflow.Ellipsis,
+        constraints = Constraints(
+            maxWidth = with(density) { textWidth.roundToPx() },
+        ),
+    )
+    val measuredTextHeight = with(density) { textLayout.size.height.toDp() }
 
-private fun estimatedLineCount(
-    text: String,
-    charsPerLine: Int,
-    maxLines: Int,
-): Int {
-    val count = ((text.length + charsPerLine - 1) / charsPerLine)
-        .coerceAtLeast(1)
-    return count.coerceAtMost(maxLines)
+    return (64f.scaledDp(scale) + measuredTextHeight + 26f.scaledDp(scale))
+        .coerceAtLeast(148f.scaledDp(scale))
 }
 
 @Composable
@@ -574,14 +593,6 @@ private fun RecommendationReasonCard(
         shape = cardShape,
         elevation = 14f.scaledDp(scale)
     ) {
-        val reasonLines = estimatedLineCount(
-            product.recommendationReason,
-            charsPerLine = 15,
-            maxLines = 7
-        )
-        val reasonHeight = (reasonLines * 21.45f + 4f).scaledDp(scale)
-        var highlightTop = 66f + reasonLines * 21.45f + 18f
-
         Box(
             modifier = Modifier
                 .offset(x = 16f.scaledDp(scale), y = 16.667f.scaledDp(scale))
@@ -614,59 +625,11 @@ private fun RecommendationReasonCard(
             fontSize = (13f * scale).sp,
             lineHeight = (21.45f * scale).sp,
             letterSpacing = 0.sp,
-            maxLines = reasonLines,
-            modifier = Modifier
-                .offset(x = 16f.scaledDp(scale), y = 64f.scaledDp(scale))
-                .size(width = 320f.scaledDp(scale), height = reasonHeight)
-        )
-
-        product.highlights.take(3).forEach { highlight ->
-            val highlightLines = estimatedLineCount(
-                text = highlight,
-                charsPerLine = 20,
-                maxLines = 2
-            )
-            val highlightHeight = highlightLines * 20.2f
-            HighlightRow(
-                text = highlight,
-                scale = scale,
-                modifier = Modifier
-                    .offset(
-                        x = 16f.scaledDp(scale),
-                        y = highlightTop.scaledDp(scale)
-                    )
-                    .size(width = 319.333f.scaledDp(scale), height = highlightHeight.scaledDp(scale))
-            )
-            highlightTop += highlightHeight + 8f
-        }
-    }
-}
-
-@Composable
-private fun HighlightRow(
-    text: String,
-    scale: Float,
-    modifier: Modifier = Modifier
-) {
-    Box(modifier = modifier) {
-        Box(
-            modifier = Modifier
-                .offset(x = 2f.scaledDp(scale), y = 6f.scaledDp(scale))
-                .size(5f.scaledDp(scale))
-                .clip(CircleShape)
-                .background(ShopMateGreen.copy(alpha = 0.28f))
-        )
-        Text(
-            text = text,
-            color = Color(0xFF3F4A56),
-            fontSize = (12f * scale).sp,
-            lineHeight = (18.6f * scale).sp,
-            letterSpacing = 0.sp,
-            maxLines = 2,
+            maxLines = 10,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier
-                .offset(x = 18f.scaledDp(scale), y = 0.dp)
-                .width(292f.scaledDp(scale))
+                .offset(x = 16f.scaledDp(scale), y = 64f.scaledDp(scale))
+                .width(320f.scaledDp(scale))
         )
     }
 }
@@ -780,11 +743,11 @@ private fun SuitabilityCard(
             fontSize = (12f * scale).sp,
             lineHeight = (18.6f * scale).sp,
             letterSpacing = 0.sp,
-            maxLines = 2,
+            maxLines = 3,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier
                 .offset(x = 15f.scaledDp(scale), y = 41.667f.scaledDp(scale))
-                .size(width = 319f.scaledDp(scale), height = 38f.scaledDp(scale))
+                .size(width = 319f.scaledDp(scale), height = 56f.scaledDp(scale))
         )
     }
 }

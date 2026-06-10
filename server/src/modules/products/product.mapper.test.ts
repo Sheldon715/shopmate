@@ -337,6 +337,32 @@ describe("mapProductToCardDto", () => {
     expect(card.recommendationReason).not.toContain("模拟内容");
   });
 
+  it("uses useful fit facts instead of SKU dataset notices for card reasons", () => {
+    const dirtyNotice = "价格、SKU、评论和 FAQ 为比赛数据集模拟内容，不代表实时售价或真实用户反馈";
+    const card = mapProductToCardDto(createProduct({
+      name: "欧珀人像十六代专业版",
+      brand: "欧珀",
+      category: "数码电子",
+      subCategory: "智能手机",
+      recommendWhen: [dirtyNotice],
+      attributes: {
+        "核心卖点": [dirtyNotice],
+        "适用人群": ["学生", "上班族"],
+        "使用场景": ["办公学习", "影音娱乐"],
+      },
+      pros: [dirtyNotice],
+      visualTags: ["数码电子", "智能手机"],
+      marketingDescription: `${dirtyNotice}。`,
+    }));
+
+    expect(card.recommendationReason).toContain("适合办公学习");
+    expect(card.recommendationReason).toContain("适合学生");
+    expect(card.recommendationReason).not.toContain("SKU");
+    expect(card.recommendationReason).not.toContain("FAQ");
+    expect(card.recommendationReason).not.toContain("实时售价");
+    expect(card.recommendationReason).not.toContain("真实用户反馈");
+  });
+
   it("maps raw catalog SEO titles to concise display names across categories", () => {
     const examples: Array<{
       product: Product;

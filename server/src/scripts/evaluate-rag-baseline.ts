@@ -4,12 +4,13 @@ import type { Pool } from "pg";
 import { createDatabasePool } from "../lib/db/pool";
 import { getEnv } from "../lib/env";
 import { QueryRewriteService } from "../modules/chat/query-rewrite.service";
-import { createLlmClient } from "../modules/llm/openai-compatible-chat.client";
+import { createLlmLaneClients } from "../modules/llm/llm-lanes";
 import { findActiveProductsByIds } from "../modules/products/product.repository";
 import type { Product } from "../modules/products/product.types";
 import {
   createRetrievalBaselineMarkdownReport,
   evaluateRetrievalBaseline,
+  validateRetrievalBaselineCaseGroups,
 } from "../modules/vector/retrieval-baseline-evaluation.service";
 import type {
   RetrievalBaselineCaseGroup,
@@ -51,6 +52,8 @@ const BASELINE_RESULTS_FILE = "retrieval-baseline-results.jsonl";
 const BASELINE_TRACES_FILE = "retrieval-baseline-traces.jsonl";
 const BASELINE_MARKDOWN_REPORT = "rag-tuning-report.md";
 const VECTOR_INDEX_MANIFEST_FILE = "vector-index-manifest.json";
+const MIN_BASELINE_CASE_GROUPS = 20;
+const MIN_BASELINE_QUERIES_PER_GROUP = 4;
 
 function parseArgs(argv: string[]): EvaluateRagBaselineOptions {
   const options: EvaluateRagBaselineOptions = {
@@ -411,8 +414,9 @@ function selectGroups(
 }
 
 function createBaselineQueryRewriter(): RetrievalBaselineQueryRewriter {
+  const laneClients = createLlmLaneClients();
   const queryRewriteService = new QueryRewriteService({
-    llmClient: createLlmClient(),
+    llmClient: laneClients.decision,
   });
 
   return async (input) => {
@@ -539,15 +543,24 @@ export async function evaluateRagBaselineCommand(
     path.join(resolveProjectRootForDocs(), "docs", BASELINE_MARKDOWN_REPORT),
   );
   const indexCoverageNote = await readOptionalIndexCoverageNote(env.ragDataDir);
-  const groups = selectGroups(await readBaselineCaseGroups(groupsPath), options);
+  const allGroups = await readBaselineCaseGroups(groupsPath);
+  const groups = selectGroups(allGroups, options);
   const searchService = new VectorSearchService();
   const pool = createDatabasePool({ allowExitOnIdle: true });
+  const productLookup = createProductLookup(pool);
 
   try {
+    await validateRetrievalBaselineCaseGroups({
+      groups: allGroups,
+      minGroups: MIN_BASELINE_CASE_GROUPS,
+      minQueriesPerGroup: MIN_BASELINE_QUERIES_PER_GROUP,
+      productLookup,
+    });
+
     const result = await evaluateRetrievalBaseline({
       groups,
       search: (input) => searchService.search(input),
-      productLookup: createProductLookup(pool),
+      productLookup,
       queryRewriter: options.rewrite ? createBaselineQueryRewriter() : undefined,
       topK: options.topK,
     });

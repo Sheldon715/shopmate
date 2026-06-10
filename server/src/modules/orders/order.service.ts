@@ -166,13 +166,15 @@ export class OrderService {
     const selectedPaymentMethod = mapPaymentOptionToSnapshot(
       DEFAULT_CHECKOUT_PAYMENT_OPTIONS[0],
     );
+    const selectedAddress = input.address ?? createDefaultMockShippingAddress();
     const draft: PendingCheckoutDraft = {
       id: this.dependencies.createId(),
       conversationId,
       userKey: this.userKey,
       source: "cart",
       status: "pending",
-      address: input.address ?? createDefaultMockShippingAddress(),
+      address: selectedAddress,
+      savedAddresses: createDefaultSavedShippingAddresses(selectedAddress),
       items,
       summary: createCheckoutSummary(items, selectedDeliveryMethod.feeCents),
       selectedDeliveryMethod,
@@ -210,13 +212,15 @@ export class OrderService {
     const selectedPaymentMethod = mapPaymentOptionToSnapshot(
       DEFAULT_CHECKOUT_PAYMENT_OPTIONS[0],
     );
+    const selectedAddress = input.address ?? createDefaultMockShippingAddress();
     const draft: PendingCheckoutDraft = {
       id: this.dependencies.createId(),
       conversationId,
       userKey: this.userKey,
       source: "buy_now",
       status: "pending",
-      address: input.address ?? createDefaultMockShippingAddress(),
+      address: selectedAddress,
+      savedAddresses: createDefaultSavedShippingAddresses(selectedAddress),
       items,
       summary: createCheckoutSummary(items, selectedDeliveryMethod.feeCents),
       selectedDeliveryMethod,
@@ -256,7 +260,11 @@ export class OrderService {
     let summary = draft.summary;
 
     if (patch.shipping) {
-      address = applyShippingPatch(draft.address, patch.shipping);
+      address = applyShippingPatch(
+        draft.address,
+        patch.shipping,
+        draft.savedAddresses ?? [],
+      );
       changedFields.push("shipping");
     }
 
@@ -392,11 +400,42 @@ export class OrderService {
 
 export function createDefaultMockShippingAddress(): MockShippingAddress {
   return {
+    id: "saved-address-default",
     label: "默认地址",
     recipient: "ShopMate 用户",
     phoneMasked: "138****0000",
     fullAddress: "ShopMate 收货点",
+    region: "ShopMate 演示配送区",
+    tag: "默认",
+    isDefault: true,
   };
+}
+
+export function createDefaultSavedShippingAddresses(
+  selectedAddress: MockShippingAddress = createDefaultMockShippingAddress(),
+): MockShippingAddress[] {
+  const defaultAddress = {
+    ...createDefaultMockShippingAddress(),
+    ...selectedAddress,
+    id: selectedAddress.id ?? "saved-address-default",
+    tag: selectedAddress.tag ?? "默认",
+    isDefault: selectedAddress.isDefault ?? true,
+  };
+  const alternateAddress: MockShippingAddress = {
+    id: "saved-address-campus",
+    label: "学校宿舍",
+    recipient: "ShopMate 用户",
+    phoneMasked: "138****0000",
+    fullAddress: "UNSW Village 6 栋 302",
+    region: "ShopMate 演示配送区",
+    tag: "宿舍",
+    isDefault: false,
+  };
+
+  return [defaultAddress, alternateAddress]
+    .filter((address, index, addresses) =>
+      addresses.findIndex((candidate) => candidate.id === address.id) === index
+    );
 }
 
 export function parseMockCheckoutBody(body: unknown): {
@@ -613,8 +652,28 @@ function normalizeShippingInput(input: CheckoutShippingInput): MockShippingAddre
 function applyShippingPatch(
   current: MockShippingAddress,
   patch: NonNullable<CheckoutPatchInput["shipping"]>,
+  savedAddresses: MockShippingAddress[] = [],
 ): MockShippingAddress {
   let next = current;
+
+  if (patch.savedAddressId !== undefined) {
+    const savedAddressId = normalizeRequiredText(
+      patch.savedAddressId,
+      "checkoutPatch.shipping.savedAddressId",
+    );
+    const savedAddress = savedAddresses.find((candidate) =>
+      candidate.id === savedAddressId
+    );
+
+    if (!savedAddress) {
+      throw new CheckoutRequestError("checkoutPatch.shipping.savedAddressId 不可用");
+    }
+
+    next = {
+      ...savedAddress,
+      label: savedAddress.label || "本次收货信息",
+    };
+  }
 
   if (patch.recipient !== undefined) {
     next = {

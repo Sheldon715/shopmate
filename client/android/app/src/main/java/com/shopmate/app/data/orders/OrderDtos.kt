@@ -82,6 +82,7 @@ data class MockCheckoutDraftDto(
     val deliveryOptions: List<MockCheckoutDeliveryOptionDto> = emptyList(),
     val paymentOptions: List<MockCheckoutPaymentOptionDto> = emptyList(),
     val expiresAt: String,
+    val savedAddresses: List<MockCheckoutAddressDto> = emptyList(),
 )
 
 @Serializable
@@ -100,6 +101,10 @@ data class MockCheckoutAddressDto(
     val recipient: String,
     val phoneMasked: String,
     val fullAddress: String,
+    val id: String? = null,
+    val region: String? = null,
+    val tag: String? = null,
+    val isDefault: Boolean? = null,
 )
 
 @Serializable

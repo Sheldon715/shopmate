@@ -12,6 +12,7 @@ import type { CartActionResult, CartCommandFallbackReason } from "./cart-command
 import type { ChatTimingEntry, ChatTimingTracker } from "./chat-timing";
 import type { ClarificationSlot } from "./clarification.types";
 import type { CheckoutActionResult } from "../orders/checkout.types";
+import type { LlmLaneMetadata } from "../llm/llm-lanes";
 
 export interface ChatHistoryMessage {
   role: "user" | "assistant";
@@ -85,6 +86,7 @@ export interface ChatDonePayload {
     candidateCount: number;
     returnedProductIds: string[];
     imageSearch?: ChatImageSearchMetadata;
+    llm?: LlmLaneMetadata;
     timing?: ChatTimingEntry[];
   };
   contextMemory?: ChatContextMemorySummary;
@@ -165,6 +167,7 @@ export interface RagChatResult {
     candidateCount: number;
     returnedProductIds: string[];
     imageSearch?: ChatImageSearchMetadata;
+    llm?: LlmLaneMetadata;
     timing?: ChatTimingEntry[];
   };
   contextMemory?: ChatContextMemorySummary;

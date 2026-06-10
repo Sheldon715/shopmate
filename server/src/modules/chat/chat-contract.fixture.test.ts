@@ -126,6 +126,19 @@ describe("chat contract fixtures", () => {
       expect(Array.isArray(event.payload.retrieval.returnedProductIds)).toBe(
         true,
       );
+      if (event.payload.retrieval.llm) {
+        const serialized = JSON.stringify(event.payload.retrieval.llm);
+
+        expect(event.payload.retrieval.llm.decisionPrimary).toMatchObject({
+          enabled: expect.any(Boolean) as unknown as boolean,
+          provider: expect.any(String) as unknown as string,
+        });
+        expect(event.payload.retrieval.llm.answer).toMatchObject({
+          enabled: expect.any(Boolean) as unknown as boolean,
+          provider: expect.any(String) as unknown as string,
+        });
+        expect(serialized).not.toMatch(/api[_-]?key|baseUrl|sk-/i);
+      }
       if (event.payload.fallbackReason === "NEEDS_CLARIFICATION") {
         expect(event.payload.clarification).toEqual({
           missingSlots: ["budget", "priority"],

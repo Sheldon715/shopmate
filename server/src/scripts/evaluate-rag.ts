@@ -18,7 +18,7 @@ import type {
 import { VectorSearchService } from "../modules/vector/vector-search.service";
 import { extractRagNegativeFactMetadata } from "../modules/vector/rag-negative-fact-metadata";
 import type { VectorSearchFilters } from "../modules/vector/vector-search.types";
-import { createLlmClient } from "../modules/llm/openai-compatible-chat.client";
+import { createLlmLaneClients } from "../modules/llm/llm-lanes";
 import {
   parseCsv,
   parsePositiveInteger,
@@ -104,8 +104,9 @@ function parseArgs(argv: string[]): EvaluateRagOptions {
 }
 
 function createEvaluationQueryRewriter(): VectorEvaluationQueryRewriter {
+  const laneClients = createLlmLaneClients();
   const queryRewriteService = new QueryRewriteService({
-    llmClient: createLlmClient(),
+    llmClient: laneClients.decision,
   });
 
   return async (input) => {

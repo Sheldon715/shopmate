@@ -272,6 +272,74 @@ describe("parseComparisonGenerationOutput", () => {
     ).toThrow(ComparisonGenerationOutputError);
   });
 
+  it("repairs common OpenAI comparison shapes without falling back", () => {
+    const result = parseComparisonGenerationOutput(
+      `这里是结构化对比：${JSON.stringify({
+        answer: "我按肤感和价格先做核心对比。",
+        comparisonResult: {
+          comparisonTitle: "通勤防晒对比",
+          products: [
+            { productId: "product_001", displayLabel: "理肤泉" },
+            { productId: "product_002", displayLabel: "欧莱雅" },
+          ],
+          dimensions: [
+            {
+              label: "肤感",
+              cells: [
+                { value: "更偏清爽控油，适合日常通勤。", highlight: "true" },
+                { value: "水感更轻薄，适合换季护理参考。" },
+              ],
+            },
+            {
+              dimension: "价格",
+              cells: ["价格更高，定位更偏专业防晒。", "价格更低，预算压力更小。"],
+            },
+          ],
+          recommendedProductId: "product_001",
+          summary: "如果更在意通勤控油，先看理肤泉；如果看预算，欧莱雅更轻。",
+          keyHighlights: [
+            {
+              productId: "product_001",
+              title: "通勤控油",
+              summary: "事实更贴近日常清爽防晒诉求。",
+            },
+          ],
+        },
+      })}`,
+      ["product_001", "product_002"],
+    );
+
+    expect(result.title).toBe("通勤防晒对比");
+    expect(result.products.map((product) => product.productId)).toEqual([
+      "product_001",
+      "product_002",
+    ]);
+    expect(result.dimensions).toHaveLength(2);
+    expect(result.dimensions[0]).toMatchObject({
+      id: "肤感",
+      label: "肤感",
+      cells: [
+        {
+          productId: "product_001",
+          value: "更偏清爽控油，适合日常通勤。",
+          highlight: true,
+        },
+        {
+          productId: "product_002",
+          value: "水感更轻薄，适合换季护理参考。",
+        },
+      ],
+    });
+    expect(result.recommendedProductId).toBe("product_001");
+    expect(result.highlights).toEqual([
+      {
+        productId: "product_001",
+        label: "通勤控油",
+        text: "事实更贴近日常清爽防晒诉求。",
+      },
+    ]);
+  });
+
   it("rejects dimensions that do not cover every comparison product", () => {
     expect(() =>
       parseComparisonGenerationOutput(
@@ -360,35 +428,46 @@ describe("parseComparisonGenerationOutput", () => {
     expect(result.dimensions).toHaveLength(4);
   });
 
-  it("rejects comparison output with fewer than four complete dimensions", () => {
-    expect(() =>
-      parseComparisonGenerationOutput(
-        JSON.stringify({
-          answer: "我做了对比。",
-          comparison: {
-            title: "防晒霜对比",
-            products: [
-              { product_id: "product_001", display_label: "理肤泉" },
-              { product_id: "product_002", display_label: "安热沙" },
-            ],
-            dimensions: [
-              {
-                id: "skin_feel",
-                label: "肤感",
-                cells: [
-                  { product_id: "product_001", value: "更轻薄。" },
-                  { product_id: "product_002", value: "更清爽。" },
-                ],
-              },
-            ],
-            recommended_product_id: null,
-            conclusion: "维度不足，不应生成完整对比。",
-            highlights: [],
-          },
-        }),
-        ["product_001", "product_002"],
-      )
-    ).toThrow(ComparisonGenerationOutputError);
+  it("accepts two complete dimensions when facts are limited", () => {
+    const result = parseComparisonGenerationOutput(
+      JSON.stringify({
+        answer: "我做了核心对比。",
+        comparison: {
+          title: "防晒霜对比",
+          products: [
+            { product_id: "product_001", display_label: "理肤泉" },
+            { product_id: "product_002", display_label: "安热沙" },
+          ],
+          dimensions: [
+            {
+              id: "skin_feel",
+              label: "肤感",
+              cells: [
+                { product_id: "product_001", value: "更轻薄。" },
+                { product_id: "product_002", value: "更清爽。" },
+              ],
+            },
+            {
+              id: "usage",
+              label: "适用场景",
+              cells: [
+                { product_id: "product_001", value: "适合日常通勤。" },
+                { product_id: "product_002", value: "适合长时间户外。" },
+              ],
+            },
+          ],
+          recommended_product_id: null,
+          conclusion: "维度有限时也应保留有事实支撑的核心对比。",
+          highlights: [],
+        },
+      }),
+      ["product_001", "product_002"],
+    );
+
+    expect(result.dimensions.map((dimension) => dimension.id)).toEqual([
+      "skin_feel",
+      "usage",
+    ]);
   });
 
   it("clears highlights when both products are marked better in one dimension", () => {

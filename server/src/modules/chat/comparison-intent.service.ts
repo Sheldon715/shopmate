@@ -63,7 +63,9 @@ export interface ComparisonClarificationQuestionInput {
 }
 
 export interface ComparisonIntentServiceOptions {
-  llmClient: LlmClient;
+  llmClient?: LlmClient;
+  decisionLlmClient?: LlmClient;
+  answerLlmClient?: LlmClient;
 }
 
 const COMPARISON_INTENT_MAX_COMPLETION_TOKENS = 360;
@@ -96,10 +98,20 @@ const NO_COMPARISON_INTENT: ComparisonIntentResult = {
 };
 
 export class ComparisonIntentService {
-  private readonly llmClient: LlmClient;
+  private readonly decisionLlmClient: LlmClient;
+  private readonly answerLlmClient: LlmClient;
 
   constructor(options: ComparisonIntentServiceOptions) {
-    this.llmClient = options.llmClient;
+    const llmClient = options.llmClient
+      ?? options.decisionLlmClient
+      ?? options.answerLlmClient;
+
+    if (!llmClient) {
+      throw new Error("ComparisonIntentService requires an LLM client.");
+    }
+
+    this.decisionLlmClient = options.decisionLlmClient ?? llmClient;
+    this.answerLlmClient = options.answerLlmClient ?? llmClient;
   }
 
   async detect(
@@ -124,7 +136,7 @@ export class ComparisonIntentService {
     }
 
     try {
-      const response = await this.llmClient.generate({
+      const response = await this.decisionLlmClient.generate({
         messages: buildComparisonIntentPrompt(input),
         temperature: 0,
         maxCompletionTokens: COMPARISON_INTENT_MAX_COMPLETION_TOKENS,
@@ -190,7 +202,7 @@ export class ComparisonIntentService {
     input: ComparisonClarificationQuestionInput,
   ): Promise<string | undefined> {
     try {
-      const response = await this.llmClient.generate({
+      const response = await this.answerLlmClient.generate({
         messages: buildComparisonClarificationQuestionPrompt(input),
         temperature: 0,
         maxCompletionTokens: COMPARISON_INTENT_MAX_COMPLETION_TOKENS,
@@ -209,7 +221,7 @@ export class ComparisonIntentService {
     input: ComparisonIntentDetectInput,
   ): Promise<ComparisonIntentResult | undefined> {
     try {
-      const response = await this.llmClient.generate({
+      const response = await this.decisionLlmClient.generate({
         messages: buildFocusedComparisonIntentPrompt(input),
         temperature: 0,
         maxCompletionTokens: COMPARISON_INTENT_MAX_COMPLETION_TOKENS,
@@ -237,12 +249,11 @@ function buildComparisonIntentPrompt(
         "不要推荐商品，不要生成对比表，不要输出 productId。",
         "“推荐两款商品”不是对比请求；“把第二个加入购物车”不是对比请求。",
         "“这两款哪个好”“对比第一款和第二款”“理肤泉和安热沙怎么选”才是对比请求。",
-        "当 recentRecommendationCount >= 2 且用户说“这两款”“这两个”“第一款和第二款”“哪个更适合”这类指代最近推荐商品的比较问题时，必须输出 is_comparison=true，target.kind=recent_recommendations。",
-        "不要因为用户没重复商品名就输出 false；最近推荐上下文就是目标来源。",
-        "示例：帮我对比这两款，哪个更适合油皮通勤 -> is_comparison=true,target.kind=recent_recommendations,ordinals=[1,2],user_priority=油皮通勤。",
-        "示例：对比第一款和第二款 -> is_comparison=true,target.kind=recent_recommendations,ordinals=[1,2]。",
-        "示例：对比下前两个 -> is_comparison=true,target.kind=recent_recommendations,ordinals=[1,2]。",
-        "示例：对比一下第二个和第三个 -> is_comparison=true,target.kind=recent_recommendations,ordinals=[2,3]。",
+        "当 recentRecommendationCount >= 2 且用户说“这两款”“这两个”“第一款和第二款”“前两个”“哪个更适合”这类表达时，视为指向最近推荐商品的对比请求。",
+        "“对一下这两个”“帮我对下这两款”“对一对前两个”也是对比请求。",
+        "如果用户没重复商品名，但上下文有最近推荐商品，不要因此输出 false。",
+        "例如“帮我对比这两款，哪个更适合油皮通勤”应输出 target.kind=recent_recommendations，user_priority=油皮通勤。",
+        "例如“对比第一款和第二款”“对比下前两个”应保留 1-based ordinals。",
         "示例：推荐两款适合通勤的防晒 -> is_comparison=false。",
         "ShopMate 当前只支持两款商品对比；如果用户要求对比三款或更多，仍输出 is_comparison=true，但 needs_clarification=true，并用 clarification_question 自然说明目前只支持两款，请用户选两款。",
         "target.kind 只能是 recent_recommendations、names、category_search、unknown。",
@@ -285,11 +296,11 @@ function buildFocusedComparisonIntentPrompt(
         "如果用户当前消息是在问最近推荐中的多款商品哪个更适合、怎么选、有什么差异，输出 is_comparison=true。",
         "如果用户只说“帮我比较一下”“对比一下”这类明确比较请求，但没有给出商品名、序号或品类，仍输出 is_comparison=true,target.kind=unknown,needs_clarification=true，并生成一句自然中文 clarification_question 追问要比较哪两款商品。",
         "如果用户是在要求推荐新商品、加入购物车、删除购物车或普通闲聊，输出 is_comparison=false。",
-        "当用户指向最近推荐商品时，target.kind 必须是 recent_recommendations；如果没有明确序号但说“这两款/这两个”，ordinals 输出 [1,2]。",
-        "如果用户说“前两个”“前两款”“前俩”“前2个”，且 recentRecommendationCount >= 2，必须输出 is_comparison=true,target.kind=recent_recommendations,ordinals=[1,2]。",
+        "当用户指向最近推荐商品时，target.kind 使用 recent_recommendations；如果没有明确序号但说“这两款/这两个”，ordinals 输出 [1,2]。",
+        "如果用户说“前两个”“前两款”“前俩”“前2个”，且 recentRecommendationCount >= 2，输出 target.kind=recent_recommendations,ordinals=[1,2]。",
         "当用户说“帮我对比两款防晒霜”“比较两款耳机”这类有品类但没有具体商品名的请求时，target.kind=category_search。",
         "如果没有最近推荐目标，也没有商品名或品类，target.kind 必须是 unknown。",
-        "如果用户说“第二个和第三个”“第2个和第3个”“2和3”，且 recentRecommendationCount >= 3，必须输出 is_comparison=true,target.kind=recent_recommendations,ordinals=[2,3]。",
+        "如果用户说“第二个和第三个”“第2个和第3个”“2和3”，且 recentRecommendationCount >= 3，输出 target.kind=recent_recommendations,ordinals=[2,3]。",
         "ShopMate 当前只支持两款商品对比；如果用户要求对比三款或更多，needs_clarification=true，并用 clarification_question 自然说明目前只支持两款，请用户选两款。",
         '只输出 JSON object，例如 {"is_comparison":true,"confidence":"high","target":{"kind":"recent_recommendations","ordinals":[1,2],"names":[]},"user_priority":"油皮通勤","needs_clarification":false,"clarification_question":null}。',
       ].join("\n"),
@@ -422,6 +433,10 @@ function hasRecentRecommendationComparisonCue(
   const hasComparisonCue = [
     "对比",
     "比较",
+    "对一下",
+    "对下",
+    "对一对",
+    "对对",
     "哪个更",
     "哪款更",
     "怎么选",
@@ -461,10 +476,16 @@ function hasAmbiguousComparisonCue(input: ComparisonIntentDetectInput): boolean 
   return [
     "帮我对比一下",
     "帮我比较一下",
+    "帮我对一下",
+    "帮我对下",
+    "帮我对一对",
     "对比一下",
     "比较一下",
+    "对一下",
+    "对一对",
     "对比下",
     "比较下",
+    "对下",
     "帮我对比",
     "帮我比较",
   ].some((term) => normalized.includes(term));
@@ -476,6 +497,9 @@ function hasGeneralComparisonCue(input: ComparisonIntentDetectInput): boolean {
   return [
     "对比",
     "比较",
+    "对一下",
+    "对下",
+    "对一对",
     "哪个更",
     "哪款更",
     "哪个好",
@@ -501,6 +525,9 @@ function createExplicitRecentOrdinalComparisonIntent(
   const hasComparisonCue = [
     "对比",
     "比较",
+    "对一下",
+    "对下",
+    "对一对",
     "哪个更",
     "哪款更",
     "怎么选",
@@ -546,6 +573,9 @@ function createExplicitRecentDemonstrativeComparisonIntent(
   const hasComparisonCue = [
     "对比",
     "比较",
+    "对一下",
+    "对下",
+    "对一对",
     "哪个更",
     "哪款更",
     "怎么选",
@@ -556,6 +586,7 @@ function createExplicitRecentDemonstrativeComparisonIntent(
     "这两款",
     "这两个",
     "这俩",
+    "这两个",
   ].some((term) => normalized.includes(term));
 
   if (!hasComparisonCue || !hasTwoRecentProductsCue) {

@@ -27,7 +27,7 @@ describe("CheckoutCommandService", () => {
     });
 
     expect(result).toMatchObject({
-      answer: "请确认本次订单。",
+      answer: "已为你生成结算草稿，当前是 1 件商品、合计 ¥199。请确认是否继续，或告诉我需要修改的收货信息、配送方式或支付方式。",
       productCards: [],
       checkoutAction: {
         type: "start_checkout",
@@ -64,7 +64,7 @@ describe("CheckoutCommandService", () => {
     });
 
     expect(result).toMatchObject({
-      answer: "请确认本次订单。",
+      answer: "已为你生成结算草稿，当前是 1 件商品、合计 ¥199。请确认是否继续，或告诉我需要修改的收货信息、配送方式或支付方式。",
       checkoutAction: {
         type: "start_checkout",
         status: "draft_created",
@@ -245,6 +245,125 @@ describe("CheckoutCommandService", () => {
         selectedDeliveryMethod: { type: "express" },
         selectedPaymentMethod: { type: "alipay" },
         summary: { totalCents: 21100 },
+      },
+    });
+    expect(harness.persistCalls).toHaveLength(0);
+  });
+
+  it("asks directly for the new phone when update intent has no concrete value", async () => {
+    const harness = createCommandHarness();
+    await harness.service.execute({
+      question: "帮我结算购物车",
+      conversationId: "checkout-demo-1",
+      cartSnapshot: createCartDto([createCartItem()]),
+      intent: createIntent("start_checkout"),
+      pendingCheckout: { status: "missing" },
+    });
+    const pending = harness.service.getPendingCheckout({
+      conversationId: "checkout-demo-1",
+    });
+
+    const result = await harness.service.execute({
+      question: "修改电话",
+      conversationId: "checkout-demo-1",
+      cartSnapshot: createCartDto([createCartItem()]),
+      intent: createIntent("update_checkout"),
+      pendingCheckout: pending,
+    });
+
+    expect(result.answer).toContain("直接把新的手机号发我");
+    expect(result.checkoutAction).toMatchObject({
+      type: "update_checkout",
+      status: "needs_confirmation",
+      draftId: "draft_1",
+    });
+    expect(harness.service.getPendingCheckout({
+      conversationId: "checkout-demo-1",
+    })).toMatchObject({
+      status: "found",
+      draft: { id: "draft_1" },
+    });
+    expect(harness.persistCalls).toHaveLength(0);
+  });
+
+  it("asks whether to switch to another saved address when address update has no concrete value", async () => {
+    const harness = createCommandHarness();
+    await harness.service.execute({
+      question: "帮我结算购物车",
+      conversationId: "checkout-demo-1",
+      cartSnapshot: createCartDto([createCartItem()]),
+      intent: createIntent("start_checkout"),
+      pendingCheckout: { status: "missing" },
+    });
+    const pending = harness.service.getPendingCheckout({
+      conversationId: "checkout-demo-1",
+    });
+
+    const result = await harness.service.execute({
+      question: "修改地址",
+      conversationId: "checkout-demo-1",
+      cartSnapshot: createCartDto([createCartItem()]),
+      intent: createIntent("update_checkout"),
+      pendingCheckout: pending,
+    });
+
+    expect(result.answer).toContain("已保存地址");
+    expect(result.answer).toContain("UNSW Village 6 栋 302");
+    expect(result.checkoutAction).toMatchObject({
+      type: "update_checkout",
+      status: "needs_confirmation",
+      draftId: "draft_1",
+    });
+    expect(harness.persistCalls).toHaveLength(0);
+  });
+
+  it("updates checkout draft from a saved address id", async () => {
+    const harness = createCommandHarness();
+    await harness.service.execute({
+      question: "帮我结算购物车",
+      conversationId: "checkout-demo-1",
+      cartSnapshot: createCartDto([createCartItem()]),
+      intent: createIntent("start_checkout"),
+      pendingCheckout: { status: "missing" },
+    });
+    const pending = harness.service.getPendingCheckout({
+      conversationId: "checkout-demo-1",
+    });
+
+    const result = await harness.service.execute({
+      question: "改成宿舍那个地址",
+      conversationId: "checkout-demo-1",
+      cartSnapshot: createCartDto([createCartItem()]),
+      intent: createIntent("update_checkout", {
+        checkoutPatch: {
+          shipping: {
+            savedAddressId: "saved-address-campus",
+          },
+        },
+      }),
+      pendingCheckout: pending,
+    });
+
+    expect(result.answer).toContain("收货地址已改为");
+    expect(result.checkoutAction).toMatchObject({
+      type: "update_checkout",
+      status: "address_updated",
+      draftId: "draft_1",
+      address: {
+        id: "saved-address-campus",
+        fullAddress: "UNSW Village 6 栋 302",
+      },
+      changedFields: ["shipping"],
+    });
+    expect(harness.service.getPendingCheckout({
+      conversationId: "checkout-demo-1",
+    })).toMatchObject({
+      status: "found",
+      draft: {
+        address: {
+          id: "saved-address-campus",
+          fullAddress: "UNSW Village 6 栋 302",
+        },
       },
     });
     expect(harness.persistCalls).toHaveLength(0);

@@ -1,5 +1,10 @@
 import path from "node:path";
 import { getEnv } from "../../lib/env";
+import {
+  createLlmLaneMetadata,
+  type LlmLaneMetadata,
+  type LlmLaneModelMetadata,
+} from "../llm/llm-lanes";
 import { readJsonFile } from "../../utils/json-files";
 import type { PopularQueryCacheVersions } from "./popular-query-cache.service";
 
@@ -37,8 +42,10 @@ export class PopularQueryCacheVersionService
       ),
     ]);
 
+    const llmLanes = createLlmLaneMetadata();
+
     return {
-      modelVersion: env.llm.model ?? "llm-disabled",
+      modelVersion: buildPopularQueryModelVersion(llmLanes),
       promptVersion: RAG_CHAT_PROMPT_VERSION,
       dataVersion: buildPopularQueryDataVersion(
         documentManifest,
@@ -47,6 +54,16 @@ export class PopularQueryCacheVersionService
       visibleBoundary: buildVisibleBoundary(env.publicImageBaseUrl),
     };
   }
+}
+
+export function buildPopularQueryModelVersion(llm: LlmLaneMetadata): string {
+  return [
+    formatLlmLaneModel("decision", llm.decisionPrimary),
+    llm.decisionFallback
+      ? formatLlmLaneModel("fallback", llm.decisionFallback)
+      : "fallback=none",
+    formatLlmLaneModel("answer", llm.answer),
+  ].join("|");
 }
 
 export function buildPopularQueryDataVersion(
@@ -76,6 +93,23 @@ function buildVisibleBoundary(publicImageBaseUrl: string | undefined): string {
     "currency=CNY",
     `imageBase=${publicImageBaseUrl ?? "relative"}`,
   ].join("|");
+}
+
+function formatLlmLaneModel(
+  label: string,
+  lane: LlmLaneModelMetadata,
+): string {
+  const provider = sanitizeVersionPart(lane.provider) || "unknown-provider";
+  const model = sanitizeVersionPart(lane.model) || "llm-disabled";
+  const state = lane.enabled ? "on" : "off";
+
+  return `${label}=${provider}/${model}/${state}`;
+}
+
+function sanitizeVersionPart(value: string | undefined): string {
+  return (value ?? "")
+    .trim()
+    .replace(/[|=/\s]+/gu, "-");
 }
 
 function stringValue(value: unknown): string {

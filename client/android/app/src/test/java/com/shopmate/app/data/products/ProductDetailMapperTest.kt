@@ -70,6 +70,21 @@ class ProductDetailMapperTest {
     }
 
     @Test
+    fun usesGeneratedRecommendationHighlightsFromBackendWhenPresent() {
+        val ui = productDto(
+            recommendationReason = "推荐理由：半入耳佩戴轻松，适合通勤办公久戴。",
+            recommendationHighlights = listOf(
+                "半入耳佩戴轻松",
+                "通勤办公久戴不闷",
+                "SKU 选择较多",
+            ),
+            pros = listOf("续航稳定", "半入耳轻盈"),
+        ).toProductDetailUi()
+
+        assertEquals(listOf("通勤办公久戴不闷"), ui.highlights)
+    }
+
+    @Test
     fun filtersDatasetHousekeepingCopyOutOfDetailRecommendationContent() {
         val dirtyCopies = listOf(
             "本数据集保留真实品牌与产品名",
@@ -97,6 +112,30 @@ class ProductDetailMapperTest {
             assertFalse(displayCopies.any { value -> value.contains(dirtyCopy) })
         }
         assertTrue(ui.highlights.any { value -> value.contains("早餐制作") || value.contains("一人食") })
+    }
+
+    @Test
+    fun buildsDenseRecommendationReasonFromCleanMarketingCopyWhenBackendReasonIsMissing() {
+        val ui = productDto(
+            name = "小天鹅滚筒洗衣机",
+            brand = "小天鹅",
+            category = "家用电器",
+            subCategory = "洗护电器",
+            recommendationReason = null,
+            pros = listOf("洗涤更柔和", "运行较安静", "小户型友好"),
+            recommendWhen = listOf("日常洗衣", "小户型阳台"),
+            attributes = mapOf(
+                "适用人群" to listOf("家庭", "租房党"),
+                "使用场景" to listOf("日常洗衣", "小户型阳台"),
+                "核心卖点" to listOf("洗涤更柔和", "运行较安静", "小户型友好"),
+            ),
+            marketingDescription = "洗涤更柔和，运行较安静，适合家庭使用。支持日常洗衣和小户型阳台摆放。",
+        ).toProductDetailUi()
+
+        assertEquals("洗涤更柔和，运行较安静，适合家庭使用。", ui.recommendationReason)
+        assertFalse(ui.recommendationReason.contains("时重点比较"))
+        assertFalse(ui.recommendationReason.contains("推荐理由"))
+        assertFalse(ui.highlights.any { highlight -> ui.recommendationReason.contains(highlight) })
     }
 
     @Test
@@ -241,6 +280,7 @@ class ProductDetailMapperTest {
         pros: List<String> = listOf("续航稳定", "半入耳轻盈"),
         recommendWhen: List<String> = listOf("通勤"),
         recommendationReason: String? = null,
+        recommendationHighlights: List<String> = emptyList(),
         marketingDescription: String = "适合通勤和日常使用。轻巧佩戴，通话清晰。",
         attributes: Map<String, List<String>> = mapOf(
             "适用人群" to listOf("通勤用户", "办公用户"),
@@ -277,6 +317,7 @@ class ProductDetailMapperTest {
             pros = pros,
             recommendWhen = recommendWhen,
             avoidWhen = listOf("需要强降噪"),
+            recommendationHighlights = recommendationHighlights,
         )
 
     private fun beautyDto(): ProductDetailDto =

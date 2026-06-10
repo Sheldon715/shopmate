@@ -53,6 +53,7 @@ import com.shopmate.app.ui.components.ChatComposer
 import com.shopmate.app.ui.components.ChatMessageBubble
 import com.shopmate.app.ui.components.ChatTypingIndicatorBubble
 import com.shopmate.app.ui.components.ProductCard
+import com.shopmate.app.ui.components.estimatedProductCardHeight
 import com.shopmate.app.ui.components.ShopMateEnterMotion
 import com.shopmate.app.ui.components.ShopMateBuddyMotionState
 import com.shopmate.app.ui.components.ShopMateFigmaFrameWidth
@@ -817,7 +818,7 @@ private fun ProductCardList(
                         onAddCartClick(product.id)
                     },
                     modifier = Modifier
-                        .size(width = 360.667f.s(), height = 179.104f.s()),
+                        .size(width = 360.667f.s(), height = product.estimatedProductCardHeight(scale)),
                 )
             }
         }

@@ -166,6 +166,45 @@ describe("ComparisonIntentService", () => {
     expect(result.target.ordinals).toEqual([1, 2]);
   });
 
+  it("treats colloquial dui-yixia wording as recent two-product comparison", async () => {
+    let calls = 0;
+    const service = new ComparisonIntentService({
+      llmClient: new MockLlmClient({
+        handler: () => {
+          calls += 1;
+          return createLlmResponse({
+            is_comparison: false,
+            confidence: "low",
+            target: {
+              kind: "unknown",
+              ordinals: [],
+              names: [],
+            },
+            needs_clarification: false,
+            clarification_question: null,
+          });
+        },
+      }),
+    });
+
+    const result = await service.detect({
+      question: "对一下这两个",
+      recentProductIds: ["product_001", "product_002"],
+    });
+
+    expect(calls).toBeGreaterThanOrEqual(1);
+    expect(result).toMatchObject({
+      isComparison: true,
+      confidence: "medium",
+      target: {
+        kind: "recent_recommendations",
+        ordinals: [1, 2],
+        names: [],
+      },
+      needsClarification: false,
+    });
+  });
+
   it("uses a focused LLM check for ambiguous comparison without targets", async () => {
     let calls = 0;
     const service = new ComparisonIntentService({

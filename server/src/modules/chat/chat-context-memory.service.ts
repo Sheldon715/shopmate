@@ -34,6 +34,14 @@ const PREFERENCE_TERMS = [
   "续航",
   "拍照",
   "性价比",
+  "音质",
+  "降噪",
+  "低音",
+  "人声",
+  "通话",
+  "佩戴舒适",
+  "办公",
+  "通勤",
 ];
 
 const CATEGORY_HINTS = [
@@ -253,8 +261,12 @@ function mergeMemory(input: {
     subCategory: extracted.subCategory
       ?? (categoryChanged ? undefined : previousConstraints.subCategory),
     brand: extracted.brand ?? (categoryChanged ? undefined : previousConstraints.brand),
-    minPriceCents: extracted.minPriceCents ?? previousConstraints.minPriceCents,
-    maxPriceCents: extracted.maxPriceCents ?? previousConstraints.maxPriceCents,
+    minPriceCents: extracted.clearPriceConstraints
+      ? undefined
+      : extracted.minPriceCents ?? previousConstraints.minPriceCents,
+    maxPriceCents: extracted.clearPriceConstraints
+      ? undefined
+      : extracted.maxPriceCents ?? previousConstraints.maxPriceCents,
     preferenceTerms: mergeTerms(
       previousConstraints.preferenceTerms,
       extracted.preferenceTerms,
@@ -321,24 +333,38 @@ function mergeFilters(
     : undefined;
 }
 
-function extractConstraints(question: string): ChatContextConstraints {
+interface ExtractedChatContextConstraints extends ChatContextConstraints {
+  clearPriceConstraints?: boolean;
+}
+
+function extractConstraints(question: string): ExtractedChatContextConstraints {
   const categoryHint = findCategoryHint(question);
   const budgetRange = extractBudgetRangeCents(question);
+  const clearPriceConstraints = hasBudgetClearCue(question);
 
-  return pruneConstraints({
+  const constraints = pruneConstraints({
     category: categoryHint?.category,
     subCategory: categoryHint?.subCategory,
     brand: undefined,
-    minPriceCents: budgetRange?.minPriceCents ?? extractMinPriceCents(question),
-    maxPriceCents: budgetRange?.maxPriceCents ?? extractMaxPriceCents(question),
+    minPriceCents: clearPriceConstraints
+      ? undefined
+      : budgetRange?.minPriceCents ?? extractMinPriceCents(question),
+    maxPriceCents: clearPriceConstraints
+      ? undefined
+      : budgetRange?.maxPriceCents ?? extractMaxPriceCents(question),
     preferenceTerms: PREFERENCE_TERMS.filter((term) => question.includes(term)),
     avoidTerms: [],
   });
+
+  return {
+    ...constraints,
+    ...(clearPriceConstraints ? { clearPriceConstraints: true } : {}),
+  };
 }
 
 function extractIntent(
   question: string,
-  constraints: ChatContextConstraints,
+  constraints: ExtractedChatContextConstraints,
 ): string | undefined {
   if (
     constraints.category
@@ -349,6 +375,34 @@ function extractIntent(
   }
 
   return undefined;
+}
+
+function hasBudgetClearCue(question: string): boolean {
+  const normalized = question.replace(/\s+/gu, "");
+
+  return [
+    "不用管预算",
+    "不要管预算",
+    "不管预算",
+    "预算不用管",
+    "预算不要管",
+    "预算先不管",
+    "先不管预算",
+    "不限预算",
+    "没有预算限制",
+    "不要预算限制",
+    "不用预算限制",
+    "不限制预算",
+    "不用管200",
+    "不要管200",
+    "不管200",
+    "不用管价格",
+    "不要管价格",
+    "不管价格",
+  ].some((term) => normalized.includes(term))
+    || /(?:不用|不要|不)管\d{1,6}(?:元|块)?/u.test(normalized)
+    || /(?:不用|不要|不)看\d{1,6}(?:元|块)?/u.test(normalized)
+    || /(?:预算|价格)(?:不用|不要|不)限/u.test(normalized);
 }
 
 function findCategoryHint(question: string):
@@ -435,6 +489,12 @@ function extractMaxPriceCents(question: string): number | undefined {
     return strictMaxPriceCents;
   }
 
+  const followUpBudgetCents = extractFollowUpBudgetCents(question);
+
+  if (followUpBudgetCents !== undefined) {
+    return followUpBudgetCents;
+  }
+
   const approximatePatterns = [
     pricePattern(String.raw`预算\s*(?:大概|大约|约|差不多)?\s*`, String.raw`\s*(?:元|块)?\s*(?:左右|上下|附近)?`),
     pricePattern(String.raw`(?:大概|大约|约|差不多)\s*`, String.raw`\s*(?:元|块)?\s*(?:左右|上下|附近)?`),
@@ -451,6 +511,33 @@ function extractMaxPriceCents(question: string): number | undefined {
         (approximateMaxPriceCents * APPROXIMATE_BUDGET_TOLERANCE_PERCENT)
           / 100,
       );
+}
+
+function extractFollowUpBudgetCents(question: string): number | undefined {
+  const valuePattern = String.raw`(\d{2,6}|[一二三四五六七八九十百千万两〇零]{1,12})`;
+  const normalized = question.trim();
+  const patterns = [
+    new RegExp(String.raw`^${valuePattern}\s*(?:元|块)?\s*呢?$`, "u"),
+    new RegExp(
+      String.raw`^${valuePattern}\s*(?:元|块)?\s*的(?:耳机|手机|跑鞋|鞋|防晒|洗面奶|洁面|小家电|商品)?\s*呢?$`,
+      "u",
+    ),
+    new RegExp(
+      String.raw`^${valuePattern}\s*(?:元|块)?\s*(?:有没有|有吗|有没有合适的)$`,
+      "u",
+    ),
+  ];
+
+  for (const pattern of patterns) {
+    const value = pattern.exec(normalized)?.[1];
+    const yuan = value ? parsePriceYuan(value) : undefined;
+
+    if (yuan !== undefined) {
+      return yuan * 100;
+    }
+  }
+
+  return undefined;
 }
 
 function extractMinPriceCents(question: string): number | undefined {

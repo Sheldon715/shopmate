@@ -16,6 +16,23 @@ describe("createRagDebugTrace", () => {
     const trace = createRagDebugTrace({
       requestId: "req_001",
       generatedAt: GENERATED_AT,
+      llm: {
+        decisionPrimary: {
+          enabled: true,
+          provider: "openai",
+          model: "gpt-5.4-mini",
+        },
+        decisionFallback: {
+          enabled: true,
+          provider: "openai",
+          model: "gpt-5.4",
+        },
+        answer: {
+          enabled: true,
+          provider: "openai",
+          model: "gpt-5.4-mini",
+        },
+      },
       originalQuery: "推荐一款适合油皮的洗面奶",
       baseRetrievalQuery: "油皮 洗面奶",
       retrievalQuery: "油皮 洁面 控油",
@@ -52,6 +69,23 @@ describe("createRagDebugTrace", () => {
 
     expect(trace).toMatchObject({
       requestId: "req_001",
+      llm: {
+        decisionPrimary: {
+          enabled: true,
+          provider: "openai",
+          model: "gpt-5.4-mini",
+        },
+        decisionFallback: {
+          enabled: true,
+          provider: "openai",
+          model: "gpt-5.4",
+        },
+        answer: {
+          enabled: true,
+          provider: "openai",
+          model: "gpt-5.4-mini",
+        },
+      },
       originalQuery: "推荐一款适合油皮的洗面奶",
       baseRetrievalQuery: "油皮 洗面奶",
       retrievalQuery: "油皮 洁面 控油",

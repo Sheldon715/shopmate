@@ -28,6 +28,13 @@ export interface EvaluateRetrievalBaselineInput {
   generatedAt?: string;
 }
 
+export interface ValidateRetrievalBaselineCaseGroupsInput {
+  groups: RetrievalBaselineCaseGroup[];
+  minGroups?: number;
+  minQueriesPerGroup?: number;
+  productLookup?: RetrievalBaselineProductLookup;
+}
+
 interface QueryEvaluationContext {
   group: RetrievalBaselineCaseGroup;
   query: string;
@@ -57,6 +64,67 @@ const FAILURE_TYPES: RagFailureType[] = [
   "data_missing",
   "no_failure_detected",
 ];
+
+export async function validateRetrievalBaselineCaseGroups(
+  input: ValidateRetrievalBaselineCaseGroupsInput,
+): Promise<void> {
+  const minGroups = input.minGroups ?? 1;
+  const minQueriesPerGroup = input.minQueriesPerGroup ?? 1;
+  const seenCaseIds = new Set<string>();
+  const expectedProductIds = new Set<string>();
+
+  if (input.groups.length < minGroups) {
+    throw new Error(
+      `Retrieval baseline must contain at least ${minGroups} case groups.`,
+    );
+  }
+
+  for (const group of input.groups) {
+    if (seenCaseIds.has(group.caseId)) {
+      throw new Error(`Duplicate baseline caseId: ${group.caseId}.`);
+    }
+    seenCaseIds.add(group.caseId);
+
+    if (group.queries.length < minQueriesPerGroup) {
+      throw new Error(
+        `${group.caseId} must contain at least ${minQueriesPerGroup} queries.`,
+      );
+    }
+
+    if (group.expectedNoResult && group.expectedProductIdsAny.length > 0) {
+      throw new Error(
+        `${group.caseId} cannot set expectedNoResult with expectedProductIdsAny.`,
+      );
+    }
+
+    const seenExpectedIds = new Set<string>();
+    for (const productId of group.expectedProductIdsAny) {
+      if (seenExpectedIds.has(productId)) {
+        throw new Error(
+          `${group.caseId} contains duplicate expected product id: ${productId}.`,
+        );
+      }
+      seenExpectedIds.add(productId);
+      expectedProductIds.add(productId);
+    }
+  }
+
+  if (!input.productLookup || expectedProductIds.size === 0) {
+    return;
+  }
+
+  const foundProducts = await input.productLookup([...expectedProductIds]);
+  const foundProductIds = new Set(foundProducts.map((product) => product.id));
+  const missingProductIds = [...expectedProductIds].filter((productId) =>
+    !foundProductIds.has(productId)
+  );
+
+  if (missingProductIds.length > 0) {
+    throw new Error(
+      `Expected product ids are not active: ${missingProductIds.join(", ")}.`,
+    );
+  }
+}
 
 export async function evaluateRetrievalBaseline(
   input: EvaluateRetrievalBaselineInput,

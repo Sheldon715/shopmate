@@ -140,6 +140,7 @@ export interface ProductDetailDto extends ProductCardDto {
   reviewSummary: JsonValue;
   officialFaq: JsonValue;
   contentBlocks: JsonValue;
+  recommendationHighlights?: string[];
 }
 
 export interface ProductListQuery {

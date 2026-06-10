@@ -4,6 +4,7 @@ import type { VectorSearchHit } from "./vector-search.types";
 import {
   createRetrievalBaselineMarkdownReport,
   evaluateRetrievalBaseline,
+  validateRetrievalBaselineCaseGroups,
 } from "./retrieval-baseline-evaluation.service";
 import type {
   RetrievalBaselineCaseGroup,
@@ -166,6 +167,59 @@ describe("evaluateRetrievalBaseline", () => {
     expect(markdown).toContain("## 9. Next Recommended Spec");
   });
 });
+
+describe("validateRetrievalBaselineCaseGroups", () => {
+  it("rejects undersized expanded baseline suites", async () => {
+    await expect(validateRetrievalBaselineCaseGroups({
+      groups: [createGroup()],
+      minGroups: 2,
+    })).rejects.toThrow("at least 2 case groups");
+  });
+
+  it("rejects duplicate case ids", async () => {
+    await expect(validateRetrievalBaselineCaseGroups({
+      groups: [
+        createGroup({ caseId: "same-case" }),
+        createGroup({ caseId: "same-case" }),
+      ],
+    })).rejects.toThrow("Duplicate baseline caseId");
+  });
+
+  it("rejects expected products on no-result cases", async () => {
+    await expect(validateRetrievalBaselineCaseGroups({
+      groups: [createGroup({
+        expectedNoResult: true,
+        expectedProductIdsAny: ["p_beauty_011"],
+      })],
+    })).rejects.toThrow("cannot set expectedNoResult");
+  });
+
+  it("rejects expected product ids that are not active", async () => {
+    await expect(validateRetrievalBaselineCaseGroups({
+      groups: [createGroup({
+        expectedProductIdsAny: ["p_active", "p_missing"],
+      })],
+      productLookup: async (productIds) =>
+        productIds.includes("p_active")
+          ? [createProduct({ id: "p_active" })]
+          : [],
+    })).rejects.toThrow("p_missing");
+  });
+});
+
+function createGroup(
+  overrides: Partial<RetrievalBaselineCaseGroup> = {},
+): RetrievalBaselineCaseGroup {
+  return {
+    caseId: "baseline-case",
+    capability: "category_retrieval",
+    queries: ["洁面", "洗面奶", "日常清洁", "温和洁面"],
+    filters: { category: "美妆护肤" },
+    expectedProductIdsAny: ["p_beauty_011"],
+    expectedNoResult: false,
+    ...overrides,
+  };
+}
 
 function createHit(
   productId: string,

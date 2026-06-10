@@ -20,7 +20,9 @@ export interface ClarificationIntentDetectInput
 }
 
 export interface ClarificationIntentServiceOptions {
-  llmClient: LlmClient;
+  llmClient?: LlmClient;
+  decisionLlmClient?: LlmClient;
+  answerLlmClient?: LlmClient;
   clarificationService?: ClarificationService;
 }
 
@@ -43,11 +45,21 @@ const NO_CLARIFICATION: ClarificationDecision = {
 };
 
 export class ClarificationIntentService {
-  private readonly llmClient: LlmClient;
+  private readonly decisionLlmClient: LlmClient;
+  private readonly answerLlmClient: LlmClient;
   private readonly clarificationService: ClarificationService;
 
   constructor(options: ClarificationIntentServiceOptions) {
-    this.llmClient = options.llmClient;
+    const llmClient = options.llmClient
+      ?? options.decisionLlmClient
+      ?? options.answerLlmClient;
+
+    if (!llmClient) {
+      throw new Error("ClarificationIntentService requires an LLM client.");
+    }
+
+    this.decisionLlmClient = options.decisionLlmClient ?? llmClient;
+    this.answerLlmClient = options.answerLlmClient ?? llmClient;
     this.clarificationService =
       options.clarificationService ?? new ClarificationService();
   }
@@ -62,7 +74,7 @@ export class ClarificationIntentService {
     }
 
     try {
-      const response = await this.llmClient.generate({
+      const response = await this.decisionLlmClient.generate({
         messages: buildClarificationIntentPrompt(input, candidate),
         temperature: 0,
         maxCompletionTokens: CLARIFICATION_INTENT_MAX_COMPLETION_TOKENS,
@@ -130,7 +142,7 @@ export class ClarificationIntentService {
     candidate: ClarificationDecision,
   ): Promise<string | undefined> {
     try {
-      const response = await this.llmClient.generate({
+      const response = await this.answerLlmClient.generate({
         messages: buildRequiredClarificationQuestionPrompt(input, candidate),
         temperature: 0,
         maxCompletionTokens: CLARIFICATION_INTENT_MAX_COMPLETION_TOKENS,
@@ -158,10 +170,10 @@ function buildClarificationIntentPrompt(
         "判断用户当前这句话是否因为信息不足，需要先追问，再进入商品检索。",
         "如果需要澄清，请生成一句自然、简短、移动端友好的中文反问。",
         "不要推荐具体商品，不要决定 productId，不要输出商品卡片。",
-        "只要用户只说了宽泛品类和普通推荐意图，且没有预算、用途、人群或偏好，就必须输出 true。",
+        "如果用户只给出宽泛品类和普通推荐意图，且没有预算、用途、人群或偏好，通常需要先澄清。",
         "不要把“推荐”“帮我推荐”“有什么”本身理解成用户接受宽泛推荐；这些只是普通购物意图。",
-        "true 的例子：推荐一款手机、手机推荐、推荐护肤品、跑鞋推荐、跑步鞋、训练鞋、运动鞋推荐、鞋子推荐、蓝牙耳机推荐、真无线耳机、有什么跑鞋、鞋、手机。",
-        "false 的例子：推荐 3000 元以内拍照好的手机、适合油皮的洗面奶、先给我几个看看、随便推荐一个。",
+        "需要澄清的典型情况：推荐一款手机、跑鞋推荐、蓝牙耳机推荐、鞋子推荐。",
+        "不需要澄清的典型情况：推荐 3000 元以内拍照好的手机、适合油皮的洗面奶、先给我几个看看、随便推荐一个。",
         "如果问题已有预算、使用场景、人群、品牌、功效或用户明确接受宽泛推荐，输出 false。",
         "missing_slots 只能包含 budget、use_case、priority、audience。",
         "clarification_question 必须是一句话，不超过 70 个中文字符。",

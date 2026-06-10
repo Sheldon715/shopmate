@@ -4,11 +4,13 @@ import com.shopmate.app.data.network.ShopMateImageUrlResolver
 import com.shopmate.app.ui.chat.ChatCheckoutDraftCardUi
 import com.shopmate.app.ui.chat.ChatCheckoutDraftStatusUi
 import com.shopmate.app.ui.checkout.CheckoutAddressUi
+import com.shopmate.app.ui.checkout.CheckoutSavedAddressUi
 import com.shopmate.app.ui.checkout.CheckoutDeliveryMethodUi
 import com.shopmate.app.ui.checkout.CheckoutDraftUi
 import com.shopmate.app.ui.checkout.CheckoutItemUi
 import com.shopmate.app.ui.checkout.CheckoutPaymentMethodUi
 import com.shopmate.app.ui.checkout.CheckoutSummaryUi
+import com.shopmate.app.ui.checkout.CHECKOUT_DEMO_REGION
 import com.shopmate.app.ui.checkout.toCheckoutPriceText
 
 fun ChatCheckoutActionDto.toCheckoutDraftCardUi(
@@ -62,6 +64,7 @@ private fun ChatCheckoutDraftDto.toCheckoutDraftUi(
         items = items.map { item -> item.toCheckoutItemUi(imageUrlResolver) },
         summary = summary.toCheckoutSummaryUi(),
         address = address.toCheckoutAddressUi(),
+        savedAddresses = savedAddresses.toCheckoutSavedAddressUiList(address),
         deliveryOptions = deliveryMethods,
         paymentOptions = paymentMethods,
         expiresAt = expiresAt,
@@ -142,6 +145,44 @@ private fun ChatCheckoutAddressDto.toCheckoutAddressUi(): CheckoutAddressUi =
         phoneMasked = phoneMasked,
         fullAddress = fullAddress,
     )
+
+private fun List<ChatCheckoutAddressDto>.toCheckoutSavedAddressUiList(
+    currentAddress: ChatCheckoutAddressDto,
+): List<CheckoutSavedAddressUi> =
+    if (isEmpty()) {
+        emptyList()
+    } else {
+        mapIndexed { index, address ->
+            address.toCheckoutSavedAddressUi(
+                fallbackId = "chat-saved-address-${index + 1}",
+                isFallbackDefault = matchesCheckoutAddress(currentAddress, address),
+            )
+        }.distinctBy { address -> address.id }
+    }
+
+private fun ChatCheckoutAddressDto.toCheckoutSavedAddressUi(
+    fallbackId: String,
+    isFallbackDefault: Boolean,
+): CheckoutSavedAddressUi =
+    CheckoutSavedAddressUi(
+        id = id?.trim()?.takeIf { value -> value.isNotBlank() } ?: fallbackId,
+        recipient = recipient,
+        phone = "",
+        phoneMasked = phoneMasked,
+        fullAddress = fullAddress,
+        region = region?.trim()?.takeIf { value -> value.isNotBlank() }
+            ?: CHECKOUT_DEMO_REGION,
+        tag = tag?.trim()?.takeIf { value -> value.isNotBlank() }
+            ?: label.ifBlank { "保存地址" },
+        isDefault = isDefault ?: isFallbackDefault,
+    )
+
+private fun matchesCheckoutAddress(
+    current: ChatCheckoutAddressDto,
+    candidate: ChatCheckoutAddressDto,
+): Boolean =
+    current.id != null && current.id == candidate.id
+        || current.fullAddress == candidate.fullAddress
 
 private fun ChatCheckoutDraftItemDto.toCheckoutItemUi(
     imageUrlResolver: ShopMateImageUrlResolver?,
