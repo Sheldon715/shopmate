@@ -202,6 +202,19 @@ class ProductDetailMapperTest {
     }
 
     @Test
+    fun detailMapperDoesNotBuildTagsFromRecommendationReasonWhenBackendTagsAreEmpty() {
+        val ui = productDto(
+            name = "华为无线耳机专业五代主动降噪真无线蓝牙耳机高解析音质",
+            recommendationReason = "推荐理由：半入耳式真无线设计，适合通勤和移动使用，学生与上班族都能轻松搭配。",
+        ).copy(
+            tags = emptyList(),
+        ).toProductDetailUi()
+
+        assertEquals(emptyList(), ui.tags)
+        assertTrue(ui.name.contains("蓝牙耳机"))
+    }
+
+    @Test
     fun mapsReadableAttributesAndSkuSummaryToSpecs() {
         val ui = productDto().toProductDetailUi()
 

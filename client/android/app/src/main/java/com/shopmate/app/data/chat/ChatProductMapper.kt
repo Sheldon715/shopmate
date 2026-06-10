@@ -1,6 +1,7 @@
 package com.shopmate.app.data.chat
 
 import com.shopmate.app.data.network.ShopMateImageUrlResolver
+import com.shopmate.app.data.products.buildFallbackDisplayTags
 import com.shopmate.app.data.products.cleanProductDisplayName
 import com.shopmate.app.data.products.formatProductPriceRangeText
 import com.shopmate.app.data.products.resolveProductPlaceholder
@@ -50,7 +51,12 @@ fun ChatProductCardDto.toProductCardUi(
         ),
         priceText = formatProductPrice(),
         imageRes = resolveProductImageRes(),
-        tags = tags.take(MAX_PRODUCT_TAGS),
+        tags = buildFallbackDisplayTags(
+            tags = tags,
+            recommendationReason = recommendationReason,
+            category = category,
+            subCategory = subCategory,
+        ).take(MAX_PRODUCT_TAGS),
         recommendationReason = buildRecommendationReason(),
         imageUrl = imageUrlResolver?.resolve(imagePath),
     )

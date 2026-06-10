@@ -337,6 +337,76 @@ describe("mapProductToCardDto", () => {
     expect(card.recommendationReason).not.toContain("模拟内容");
   });
 
+  it("keeps image and category housekeeping tags out of public card DTOs", () => {
+    const card = mapProductToCardDto(createProduct({
+      brand: "352",
+      category: "家用电器",
+      subCategory: "空气护理",
+      visualTags: [
+        "家用电器",
+        "空气护理",
+        "占位图",
+        "主图",
+        "场景明确",
+        "适用场景清楚",
+        "除甲醛",
+        "大空间",
+        "长效滤芯可替换覆盖卧室客厅",
+        "除甲醛",
+      ],
+    }));
+
+    expect(card.tags).toEqual(["除甲醛", "大空间", "长效滤芯可替换覆盖卧室客"]);
+    expect(card.tags.every((tag) => Array.from(tag).length <= 12)).toBe(true);
+  });
+
+  it("builds short public tags from marketing facts when visual tags are only housekeeping", () => {
+    const card = mapProductToCardDto(createProduct({
+      name: "雅诗兰黛特润修护肌活精华露淡纹紧致保湿夜间修护抗初老精华",
+      brand: "雅诗兰黛",
+      category: "美妆护肤",
+      subCategory: "精华",
+      visualTags: ["美妆护肤", "精华", "主图"],
+      attributes: {
+        "适用人群": ["日常护肤用户", "关注肤感的人群"],
+        "使用场景": ["日常护理", "换季护理"],
+        "核心卖点": ["功效描述明确", "适用场景清楚"],
+      },
+      pros: ["功效描述明确", "适用场景清楚"],
+      recommendWhen: ["功效描述明确", "适用场景清楚"],
+      marketingDescription:
+        "雅诗兰黛特润修护肌活精华露（小棕瓶）是品牌经典抗初老单品，主打夜间肌底修护。搭配透明质酸锁水保湿，猴面包树籽提取物淡纹紧致。适合25+有干纹细纹、熬夜后暗沉的抗初老人群，夜间护肤时使用效果更佳。",
+    }));
+
+    expect(card.tags).toEqual(["夜间肌底修护", "锁水保湿", "淡纹紧致"]);
+    expect(card.tags).not.toContain("美妆护肤");
+    expect(card.tags).not.toContain("主图");
+    expect(card.tags).not.toContain("功效描述明确");
+  });
+
+  it("keeps public tag fallback grounded in short product facts across categories", () => {
+    const card = mapProductToCardDto(createProduct({
+      name: "小熊电炖盅适合炖汤小容量宿舍友好早餐制作一人食",
+      brand: "小熊",
+      category: "家用电器",
+      subCategory: "厨房小电",
+      visualTags: ["家用电器", "厨房小电", "主图"],
+      attributes: {
+        "核心卖点": ["规格容易比较"],
+        "使用场景": ["规格选择清楚"],
+      },
+      pros: ["规格容易比较"],
+      recommendWhen: ["规格选择清楚"],
+      marketingDescription:
+        "小熊电炖盅，主要卖点包括适合炖汤、小容量、宿舍友好，适合早餐制作、一人食。",
+    }));
+
+    expect(card.tags).toEqual(["小容量", "宿舍友好", "早餐制作"]);
+    expect(card.tags.every((tag) => Array.from(tag).length <= 12)).toBe(true);
+    expect(card.tags).not.toContain("规格容易比较");
+    expect(card.tags).not.toContain("厨房小电");
+  });
+
   it("uses useful fit facts instead of SKU dataset notices for card reasons", () => {
     const dirtyNotice = "价格、SKU、评论和 FAQ 为比赛数据集模拟内容，不代表实时售价或真实用户反馈";
     const card = mapProductToCardDto(createProduct({
@@ -361,6 +431,30 @@ describe("mapProductToCardDto", () => {
     expect(card.recommendationReason).not.toContain("FAQ");
     expect(card.recommendationReason).not.toContain("实时售价");
     expect(card.recommendationReason).not.toContain("真实用户反馈");
+  });
+
+  it("keeps generic generated placeholder facts out of fallback card reasons", () => {
+    const card = mapProductToCardDto(createProduct({
+      name: "三只松鼠每日坚果",
+      brand: "三只松鼠",
+      category: "食品饮料",
+      subCategory: "坚果/零食",
+      recommendWhen: ["口味信息明确", "规格容易比较"],
+      attributes: {
+        "核心卖点": ["口味信息明确", "规格容易比较", "场景适用性强"],
+        "使用场景": ["日常食用", "办公室补给"],
+      },
+      pros: ["口味信息明确", "规格容易比较"],
+      visualTags: ["食品饮料", "坚果/零食", "主图"],
+      marketingDescription:
+        "这款每日坚果适合办公室补给，也适合作为日常食用的小包装零食。",
+    }));
+
+    expect(card.recommendationReason).toContain("适合日常食用");
+    expect(card.recommendationReason).toContain("适合办公室补给");
+    expect(card.recommendationReason).not.toContain("口味信息明确");
+    expect(card.recommendationReason).not.toContain("规格容易比较");
+    expect(card.recommendationReason).not.toContain("场景适用性强");
   });
 
   it("maps raw catalog SEO titles to concise display names across categories", () => {

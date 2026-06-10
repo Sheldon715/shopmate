@@ -333,6 +333,15 @@ export class RagChatError extends Error {
   }
 }
 
+export class ProductCardCopyGenerationError extends Error {
+  readonly code = "PRODUCT_CARD_COPY_GENERATION_FAILED";
+
+  constructor(message: string) {
+    super(message);
+    this.name = "ProductCardCopyGenerationError";
+  }
+}
+
 export class RagChatService {
   private readonly vectorSearch: RagVectorSearchClient;
   private readonly productReader: RagProductReader;
@@ -844,6 +853,11 @@ export class RagChatService {
       );
     } catch (error) {
       rethrowIfAborted(input.abortSignal, error);
+
+      if (error instanceof ProductCardCopyGenerationError) {
+        throw error;
+      }
+
       const fallbackReason =
         error instanceof RagLlmOutputParseError ? "LLM_INVALID_OUTPUT" : "LLM_ERROR";
       const result = this.withContextMemory(
@@ -1170,6 +1184,10 @@ export class RagChatService {
     } catch (error) {
       rethrowIfAborted(input.request.abortSignal, error);
 
+      if (error instanceof ProductCardCopyGenerationError) {
+        throw error;
+      }
+
       return {
         status: "error",
         queryRewrite: input.queryRewrite,
@@ -1233,6 +1251,8 @@ export class RagChatService {
     streamWriter: ChatStreamWriter | undefined,
     timing: RagChatRequest["timing"],
   ): Promise<RagLlmGenerationResult> {
+    // Providers stream arbitrary JSON text, so we incrementally extract only
+    // the user-visible answer field before emitting `message_delta`.
     if (streamWriter && this.llmClient.streamGenerate) {
       const answerExtractor = new StreamingJsonAnswerExtractor();
       let streamedText = "";
@@ -2116,10 +2136,7 @@ export class RagChatService {
       abortSignal?: AbortSignal;
     } = {},
   ): Promise<ReturnType<typeof mapProductToCardDto>[]> {
-    const copies = await this.tryGenerateProductDisplayCopies(
-      products,
-      options,
-    );
+    const copies = await this.generateProductDisplayCopies(products, options);
 
     return products.map((product) =>
       mapProductToCardDto(product, {
@@ -2131,7 +2148,7 @@ export class RagChatService {
     );
   }
 
-  private async tryGenerateProductDisplayCopies(
+  private async generateProductDisplayCopies(
     products: Product[],
     options: {
       userQuestion?: string;
@@ -2144,22 +2161,31 @@ export class RagChatService {
       return new Map();
     }
 
-    try {
-      throwIfAborted(options.abortSignal);
-      const copies = await this.productDisplayCopyGenerator.generate({
-        products,
-        userQuestion: options.userQuestion,
-        surface: options.surface ?? "chat_card",
-        requestId: options.requestId,
-        abortSignal: options.abortSignal,
-      });
-      throwIfAborted(options.abortSignal);
+    throwIfAborted(options.abortSignal);
+    const copies = await this.productDisplayCopyGenerator.generate({
+      products,
+      userQuestion: options.userQuestion,
+      surface: options.surface ?? "chat_card",
+      requestId: options.requestId,
+      abortSignal: options.abortSignal,
+    });
+    throwIfAborted(options.abortSignal);
 
-      return copies;
-    } catch (error) {
-      rethrowIfAborted(options.abortSignal, error);
-      return new Map();
+    const missingProductIds = products
+      .filter((product) => {
+        const copy = copies.get(product.id);
+
+        return !copy?.cardReason && !copy?.detailReason;
+      })
+      .map((product) => product.id);
+
+    if (missingProductIds.length > 0) {
+      throw new ProductCardCopyGenerationError(
+        `Product card LLM copy missing for ${missingProductIds.join(", ")}.`,
+      );
     }
+
+    return copies;
   }
 
   private async createRetrievedFallbackResult(

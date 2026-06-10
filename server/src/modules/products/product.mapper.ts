@@ -269,7 +269,7 @@ export function mapProductToCardDto(
       options.publicImageBaseUrl,
     ),
     ratingAvg: product.ratingAvg,
-    tags: product.visualTags,
+    tags: createPublicProductTags(product),
     available: isProductAvailable(product),
     recommendationReason:
       options.recommendationReason
@@ -338,6 +338,223 @@ function buildProductCardRecommendationReason(product: Product): string {
   return isProductAvailable(product)
     ? "推荐理由：库内有货，可结合预算和使用场景继续比较。"
     : "推荐理由：当前暂不可选，可看看同类可选商品。";
+}
+
+export function createPublicProductTags(product: Product): string[] {
+  const maxPublicTags = 3;
+  const weakTags = [
+    product.brand,
+    product.category,
+    product.subCategory ?? "",
+    "主图",
+    "占位图",
+    "商品",
+  ]
+    .map(normalizeProductTag)
+    .filter((value) => value.length > 0);
+  const seen = new Set<string>();
+  const tags: string[] = [];
+
+  for (const rawTag of product.visualTags) {
+    const tag = cleanPublicTagCandidate(rawTag);
+    const normalizedTag = normalizeProductTag(tag);
+
+    if (
+      tag.length === 0
+      || hasSeenPublicTag(seen, normalizedTag)
+      || isCautionFact(tag)
+      || isWeakCategoryFact(tag, product)
+      || weakTags.some((weakTag) =>
+        normalizedTag === weakTag || normalizedTag === `适合${weakTag}`
+      )
+    ) {
+      continue;
+    }
+
+    seen.add(normalizedTag);
+    tags.push(tag);
+
+    if (tags.length >= maxPublicTags) {
+      break;
+    }
+  }
+
+  if (tags.length > 0) {
+    return tags;
+  }
+
+  return createFallbackProductTags(product);
+}
+
+function normalizeProductTag(value: string): string {
+  return value.replace(/\s+/gu, "");
+}
+
+function hasSeenPublicTag(seen: Set<string>, normalizedTag: string): boolean {
+  if (seen.has(normalizedTag)) {
+    return true;
+  }
+
+  if (Array.from(normalizedTag).length < 4) {
+    return false;
+  }
+
+  return [...seen].some((seenTag) => {
+    if (Array.from(seenTag).length < 4) {
+      return false;
+    }
+
+    return normalizedTag.includes(seenTag) || seenTag.includes(normalizedTag);
+  });
+}
+
+function createFallbackProductTags(product: Product): string[] {
+  const fallbackCandidates = [
+    ...(product.attributes["佩戴形态"] ?? []),
+    ...(product.attributes["使用场景"] ?? []),
+    ...(product.attributes["适用人群"] ?? []),
+    ...product.recommendWhen,
+    ...product.pros,
+    ...extractMarketingTagCandidates(product),
+  ];
+  const seen = new Set<string>();
+  const tags: string[] = [];
+
+  for (const rawValue of fallbackCandidates) {
+    const tag = cleanPublicTagCandidate(rawValue);
+    const normalizedTag = normalizeProductTag(tag);
+
+    if (
+      tag.length === 0
+      || hasSeenPublicTag(seen, normalizedTag)
+      || isCautionFact(tag)
+      || isWeakCategoryFact(tag, product)
+    ) {
+      continue;
+    }
+
+    seen.add(normalizedTag);
+    tags.push(tag);
+
+    if (tags.length >= 3) {
+      break;
+    }
+  }
+
+  return tags;
+}
+
+function extractMarketingTagCandidates(product: Product): string[] {
+  const candidates: string[] = [];
+
+  for (const segment of product.marketingDescription.split(/[。；;！!\n]+/u)) {
+    const cleanedSegment = stripLeadingProductReference(
+      segment.trim(),
+      product,
+    );
+
+    candidates.push(...extractKnownPublicTagSignals(cleanedSegment));
+
+    for (const phrase of extractShortMarketingTagPhrases(cleanedSegment)) {
+      candidates.push(phrase);
+    }
+  }
+
+  return candidates;
+}
+
+function extractKnownPublicTagSignals(value: string): string[] {
+  const signals: string[] = [];
+  const paRating = value.match(/PA\+{2,4}/iu)?.[0].toUpperCase();
+
+  if (/SPF\s*50\+?/iu.test(value)) {
+    signals.push("SPF50+");
+  }
+
+  if (paRating) {
+    signals.push(paRating);
+  }
+
+  const signalTags: Array<[RegExp, string]> = [
+    [/夜间肌底修护/u, "夜间肌底修护"],
+    [/屏障修护/u, "屏障修护"],
+    [/补水修护/u, "补水修护"],
+    [/锁水保湿/u, "锁水保湿"],
+    [/淡纹紧致/u, "淡纹紧致"],
+    [/水感轻薄/u, "水感轻薄"],
+    [/清爽不油腻/u, "清爽不油腻"],
+    [/质地清爽/u, "质地清爽"],
+    [/抗初老/u, "抗初老"],
+    [/控油/u, "控油"],
+    [/温和/u, "温和"],
+    [/清洁/u, "清洁"],
+    [/主动降噪/u, "主动降噪"],
+    [/半入耳/u, "半入耳"],
+    [/真无线/u, "真无线"],
+    [/长续航/u, "长续航"],
+    [/通勤/u, "通勤"],
+    [/小容量/u, "小容量"],
+    [/宿舍友好/u, "宿舍友好"],
+    [/早餐制作/u, "早餐制作"],
+    [/一人食/u, "一人食"],
+    [/办公室补给/u, "办公室补给"],
+    [/小包装/u, "小包装"],
+    [/多任务办公/u, "多任务办公"],
+    [/办公学习/u, "办公学习"],
+    [/影音娱乐/u, "影音娱乐"],
+    [/折叠屏/u, "折叠屏"],
+    [/大屏/u, "大屏"],
+    [/拍照/u, "拍照"],
+    [/轻量/u, "轻量"],
+    [/缓震/u, "缓震"],
+    [/透气/u, "透气"],
+    [/耐磨/u, "耐磨"],
+  ];
+
+  for (const [pattern, tag] of signalTags) {
+    if (pattern.test(value)) {
+      signals.push(tag);
+    }
+  }
+
+  return signals;
+}
+
+function extractShortMarketingTagPhrases(value: string): string[] {
+  const source = value
+    .replace(/^(主要卖点包括|核心特点包括|它的核心特点包括)\s*/u, "")
+    .trim();
+  const markerIndex = [
+    source.indexOf("主打"),
+    source.indexOf("适合"),
+    source.indexOf("包括"),
+  ]
+    .filter((index) => index >= 0)
+    .sort((a, b) => a - b)[0];
+  const phraseSource = markerIndex === undefined
+    ? source
+    : source.slice(markerIndex);
+
+  if (!hasMarketingReasonSignal(phraseSource)) {
+    return [];
+  }
+
+  return phraseSource
+    .split(/[、，,]/u)
+    .map(cleanPublicTagCandidate)
+    .filter((phrase) => phrase.length > 0);
+}
+
+function cleanPublicTagCandidate(value: string): string {
+  return value
+    .replace(/^(主要卖点包括|核心特点包括|它的核心特点包括)\s*/u, "")
+    .replace(/^(主打|包括)\s*/u, "")
+    .replace(/^适合/u, "")
+    .replace(/的人群$/u, "")
+    .replace(/用户$/u, "")
+    .replace(/[。；;,.，\s]+$/u, "")
+    .trim()
+    .slice(0, 12);
 }
 
 function flattenAttributeFacts(
@@ -516,13 +733,27 @@ function isWeakCategoryFact(value: string, product: Product): boolean {
     "商品信息",
     "功效描述明确",
     "适用场景清楚",
+    "适用场景明确",
+    "场景明确",
+    "场景清楚",
     "便于按肤质筛选",
+    "按肤质筛选",
     "日常护肤用户",
+    "日常护肤",
     "关注肤感的人群",
+    "关注肤感",
     "成分敏感用户",
+    "成分敏感",
     "日常护理",
     "换季护理",
     "送礼",
+    "口味信息明确",
+    "规格容易比较",
+    "规格选择清楚",
+    "场景适用性强",
+    "配置清晰",
+    "SKU 选择较多",
+    "适合参数比较",
     "主图",
     "占位图",
   ]

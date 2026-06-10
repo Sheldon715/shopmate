@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   PRODUCT_QUERY_DEFAULT_LIMIT,
   PRODUCT_QUERY_MAX_OFFSET,
+  ProductDetailCopyGenerationError,
   ProductQueryError,
+  getProductDetail,
   parseProductIdParam,
   parseProductListQuery,
 } from "./product.service";
@@ -56,5 +58,49 @@ describe("parseProductIdParam", () => {
 
   it("rejects empty product ids", () => {
     expect(() => parseProductIdParam("   ")).toThrow(ProductQueryError);
+  });
+});
+
+describe("getProductDetail", () => {
+  it("uses generated LLM detail copy for product detail recommendation content", async () => {
+    const detail = await getProductDetail("p_beauty_006", {
+      displayCopyGenerator: {
+        generate: async () =>
+          new Map([
+            [
+              "p_beauty_006",
+              {
+                productId: "p_beauty_006",
+                cardReason: "推荐理由：卡片理由不应覆盖详情理由。",
+                detailReason: "水感轻薄，SPF50+ PA++++，适合日常通勤防晒。",
+                detailHighlights: [
+                  "SPF50+ PA++++",
+                  "水感轻薄不厚重",
+                ],
+              },
+            ],
+          ]),
+      },
+    });
+
+    expect(detail.recommendationReason).toBe(
+      "水感轻薄，SPF50+ PA++++，适合日常通勤防晒。",
+    );
+    expect(detail.recommendationHighlights).toEqual([
+      "SPF50+ PA++++",
+      "水感轻薄不厚重",
+    ]);
+  });
+
+  it("fails explicitly when product detail LLM copy is missing", async () => {
+    await expect(
+      getProductDetail("p_beauty_006", {
+        displayCopyGenerator: {
+          generate: async () => new Map(),
+        },
+      }),
+    ).rejects.toMatchObject({
+      code: "PRODUCT_DETAIL_COPY_GENERATION_FAILED",
+    } satisfies Partial<ProductDetailCopyGenerationError>);
   });
 });

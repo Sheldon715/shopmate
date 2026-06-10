@@ -7,6 +7,7 @@ import {
   mapProductToDetailDto,
 } from "./product.mapper";
 import {
+  type ProductDisplayCopy,
   ProductDisplayCopyGenerationService,
   type ProductDisplayCopyGenerator,
 } from "./product-display-copy-generation.service";
@@ -42,6 +43,17 @@ export class ProductNotFoundError extends Error {
   constructor(productId: string) {
     super(`商品不存在：${productId}`);
     this.name = "ProductNotFoundError";
+  }
+}
+
+export class ProductDetailCopyGenerationError extends Error {
+  readonly code = "PRODUCT_DETAIL_COPY_GENERATION_FAILED";
+  readonly cause?: unknown;
+
+  constructor(productId: string, cause?: unknown) {
+    super(`商品详情页导购文案生成失败：${productId}`);
+    this.name = "ProductDetailCopyGenerationError";
+    this.cause = cause;
   }
 }
 
@@ -165,15 +177,15 @@ export async function getProductDetail(
     throw new ProductNotFoundError(productId);
   }
 
-  const generatedCopy = await tryGenerateProductDetailCopy(
+  const generatedCopy = await generateProductDetailCopy(
     product,
     options.displayCopyGenerator ?? getDefaultDisplayCopyGenerator(),
   );
 
   return mapProductToDetailDto(product, {
     publicImageBaseUrl: getEnv().publicImageBaseUrl,
-    recommendationReason: generatedCopy?.detailReason ?? generatedCopy?.cardReason,
-    recommendationHighlights: generatedCopy?.detailHighlights,
+    recommendationReason: generatedCopy.detailReason,
+    recommendationHighlights: generatedCopy.detailHighlights,
   });
 }
 
@@ -187,18 +199,34 @@ function getDefaultDisplayCopyGenerator(): ProductDisplayCopyGenerator {
   return defaultDisplayCopyGenerator;
 }
 
-async function tryGenerateProductDetailCopy(
+async function generateProductDetailCopy(
   product: Product,
   generator: ProductDisplayCopyGenerator,
-) {
+): Promise<Required<Pick<ProductDisplayCopy, "detailReason" | "detailHighlights">>> {
   try {
     const copies = await generator.generate({
       products: [product],
       surface: "product_detail",
     });
+    const copy = copies.get(product.id);
+    const detailHighlights = copy?.detailHighlights ?? [];
 
-    return copies.get(product.id);
-  } catch {
-    return undefined;
+    if (!copy?.detailReason || detailHighlights.length === 0) {
+      throw new ProductDetailCopyGenerationError(
+        product.id,
+        "missing_detail_copy",
+      );
+    }
+
+    return {
+      detailReason: copy.detailReason,
+      detailHighlights,
+    };
+  } catch (error) {
+    if (error instanceof ProductDetailCopyGenerationError) {
+      throw error;
+    }
+
+    throw new ProductDetailCopyGenerationError(product.id, error);
   }
 }

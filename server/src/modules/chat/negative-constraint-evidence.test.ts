@@ -25,6 +25,26 @@ describe("evaluateNegativeConstraintEvidence", () => {
     expect(result.evidence[0]).toContain("不含酒精");
   });
 
+  it("does not treat an FAQ question about alcohol as conflict evidence", () => {
+    const result = evaluateNegativeConstraintEvidence({
+      term: "酒精",
+      kind: "ingredient",
+      matchPolicy: "exclude_if_product_facts_conflict",
+      productFacts: createFacts({
+        officialFaq: [
+          {
+            question: "这款防晒是否含酒精？",
+            answer: "这款防晒不含酒精，适合日常通勤使用。",
+          },
+        ],
+      }),
+    });
+
+    expect(result.conflicts).toBe(false);
+    expect(result.reason).toBe("explicit_safe_free_from");
+    expect(result.evidence[0]).toContain("不含酒精");
+  });
+
   it("treats avoidWhen alcohol sensitivity as a strict risk conflict", () => {
     const result = evaluateNegativeConstraintEvidence({
       term: "酒精",

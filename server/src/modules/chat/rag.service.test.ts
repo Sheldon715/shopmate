@@ -31,7 +31,10 @@ import type {
   RagQueryRewriter,
   RagVectorSearchClient,
 } from "./rag.service";
-import { RagChatService } from "./rag.service";
+import {
+  ProductCardCopyGenerationError,
+  RagChatService,
+} from "./rag.service";
 
 describe("RagChatService", () => {
   it("runs vector search, PostgreSQL lookup, LLM JSON parsing, and product card mapping", async () => {
@@ -132,6 +135,27 @@ describe("RagChatService", () => {
     expect(result.productCards[0]?.recommendationReason).toBe(
       "推荐理由：半入耳佩戴轻松，通勤久戴不闷，通话也清楚。",
     );
+  });
+
+  it("fails explicitly when chat product card LLM copy is missing", async () => {
+    const productDisplayCopyGenerator: RagProductDisplayCopyGenerator = {
+      generate: async () => new Map(),
+    };
+    const service = new RagChatService(withNoCartIntent({
+      vectorSearch: createVectorSearch([createHit("product_001")]),
+      productReader: createProductReader(),
+      llmClient: new MockLlmClient({
+        response: createLlmResponse(JSON.stringify({
+          answer: "这款适合通勤。",
+          recommended_product_ids: ["product_001"],
+        })),
+      }),
+      productDisplayCopyGenerator,
+    }));
+
+    await expect(service.answer({
+      question: "推荐通勤蓝牙耳机",
+    })).rejects.toBeInstanceOf(ProductCardCopyGenerationError);
   });
 
   it("streams real RAG answer text before final product cards and done", async () => {
@@ -1527,6 +1551,75 @@ describe("RagChatService", () => {
       fallbackUsed: true,
       fallbackReason: "NEEDS_CLARIFICATION",
     });
+  });
+
+  it("does not let broad clarification intercept explicit alcohol-free sunscreen constraints", async () => {
+    const vectorCalls: Array<Parameters<RagVectorSearchClient["search"]>[0]> = [];
+    const riskyProduct = createProduct({
+      id: "product_001",
+      name: "Alcohol Risk Sunscreen",
+      avoidWhen: ["酒精敏感人群慎用"],
+      marketingDescription: "部分敏感肌可能对酒精敏感。",
+    });
+    const alcoholFreeProduct = createProduct({
+      id: "product_002",
+      name: "Alcohol Free Sunscreen",
+      marketingDescription: "这款防晒质地清爽，适合日常通勤。",
+      officialFaq: [
+        {
+          question: "这款防晒是否含酒精？",
+          answer: "这款防晒不含酒精，适合日常通勤使用。",
+        },
+      ],
+    });
+    const service = new RagChatService(withNoCartIntent({
+      vectorSearch: {
+        search: async (input) => {
+          vectorCalls.push(input);
+          return [
+            createHit("product_001"),
+            createHit("product_002"),
+          ];
+        },
+      },
+      productReader: {
+        findActiveByIds: async () => [
+          riskyProduct,
+          alcoholFreeProduct,
+        ],
+      },
+      negativeConstraintIntentService: {
+        detect: async () => ({
+          hasNegativeConstraints: true,
+          confidence: "high",
+          constraints: [createNegativeConstraint("酒精")],
+          needsClarification: false,
+        }),
+      },
+      llmClient: new MockLlmClient({
+        response: createLlmResponse(JSON.stringify({
+          answer: "推荐不含酒精的防晒。",
+          recommended_product_ids: ["product_002"],
+        })),
+      }),
+    }));
+
+    const result = await service.answer({
+      conversationId: "alcohol-free-sunscreen-demo",
+      question: "推荐无酒精防晒霜",
+    });
+
+    expect(vectorCalls.length).toBeGreaterThan(0);
+    expect(vectorCalls[0]?.filters).toMatchObject({
+      category: "美妆护肤",
+      subCategory: "防晒",
+      excludeRiskTerms: ["酒精"],
+    });
+    expect(result.fallbackUsed).toBe(false);
+    expect(result.fallbackReason).toBeUndefined();
+    expect(result.recommendedProductIds).toEqual(["product_002"]);
+    expect(result.productCards.map((card) => card.id)).toEqual(["product_002"]);
+    expect(result.contextMemory?.pendingClarification).toBeUndefined();
   });
 
   it("rethrows aborted no-candidates generation without writing cache or memory", async () => {

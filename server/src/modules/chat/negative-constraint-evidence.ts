@@ -261,10 +261,7 @@ function labelAttributeFacts(
 }
 
 function labelFlattenedFacts(label: string, value: unknown): LabeledFact[] {
-  return flattenFactValues(value).map((factValue) => ({
-    label,
-    value: factValue,
-  }));
+  return flattenFactValues(label, value);
 }
 
 function findFirstMatchingFacts(
@@ -274,6 +271,10 @@ function findFirstMatchingFacts(
   const evidence: string[] = [];
 
   for (const fact of facts) {
+    if (isQuestionLikeFact(fact.label)) {
+      continue;
+    }
+
     if (factMentionsConflict(fact.value, term)) {
       evidence.push(`${fact.label}: ${fact.value}`);
     }
@@ -293,6 +294,10 @@ function findSafeFreeEvidence(
   const evidence: string[] = [];
 
   for (const fact of buildGeneralFacts(facts, term)) {
+    if (isQuestionLikeFact(fact.label)) {
+      continue;
+    }
+
     if (hasSafeFreeStatement(normalizeText(fact.value), term)) {
       evidence.push(`${fact.label}: ${fact.value}`);
     }
@@ -392,24 +397,30 @@ function normalizeText(value: string): string {
     .toLocaleLowerCase("zh-CN");
 }
 
-function flattenFactValues(value: unknown): string[] {
+function flattenFactValues(label: string, value: unknown): LabeledFact[] {
   if (typeof value === "string") {
-    return [value];
+    return [{ label, value }];
   }
 
   if (typeof value === "number" || typeof value === "boolean") {
-    return [String(value)];
+    return [{ label, value: String(value) }];
   }
 
   if (Array.isArray(value)) {
-    return value.flatMap((item) => flattenFactValues(item));
+    return value.flatMap((item) => flattenFactValues(label, item));
   }
 
   if (value && typeof value === "object") {
-    return Object.values(value).flatMap((item) => flattenFactValues(item));
+    return Object.entries(value).flatMap(([key, item]) =>
+      flattenFactValues(`${label}.${key}`, item)
+    );
   }
 
   return [];
+}
+
+function isQuestionLikeFact(label: string): boolean {
+  return /(?:^|\.)question$/u.test(label);
 }
 
 function noConflict(): NegativeConstraintEvidenceResult {

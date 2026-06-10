@@ -108,7 +108,12 @@ fun ProductDetailDto.toProductDetailUi(
             subCategory?.takeIf { value -> value.isNotBlank() },
         ).joinToString(" / ").ifBlank { "商品" },
         brandText = brand.orEmpty().ifBlank { "品牌信息待补充" },
-        tags = tags.filter { tag -> tag.isNotBlank() }.take(MAX_DETAIL_TAGS),
+        tags = buildFallbackDisplayTags(
+            tags = tags,
+            recommendationReason = recommendationReason,
+            category = category,
+            subCategory = subCategory,
+        ).take(MAX_DETAIL_TAGS),
         recommendationReason = recommendationReason,
         description = buildDescription(),
         highlights = buildHighlights(excludeReason = recommendationReason),

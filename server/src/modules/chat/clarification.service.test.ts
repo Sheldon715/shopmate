@@ -96,4 +96,31 @@ describe("ClarificationService", () => {
       }).needsClarification,
     ).toBe(false);
   });
+
+  it("does not clarify broad category requests that already include explicit exclusion constraints", () => {
+    expect(
+      service.decide({
+        question: "推荐无酒精防晒霜",
+      }).needsClarification,
+    ).toBe(false);
+
+    expect(
+      service.decide({
+        question: "推荐防晒霜，不要酒精",
+      }).needsClarification,
+    ).toBe(false);
+  });
+
+  it("does not clarify when negative fact filters were already extracted", () => {
+    expect(
+      service.decide({
+        question: "推荐防晒霜",
+        filters: {
+          category: "美妆护肤",
+          subCategory: "防晒",
+          excludeRiskTerms: ["酒精"],
+        },
+      }).needsClarification,
+    ).toBe(false);
+  });
 });

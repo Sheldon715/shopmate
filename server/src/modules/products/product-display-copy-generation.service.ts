@@ -70,6 +70,23 @@ const FORBIDDEN_DISPLAY_COPY_MARKERS = [
 ];
 
 const WEAK_DISPLAY_COPY_MARKERS = [
+  "功效描述明确",
+  "适用场景清楚",
+  "适用场景明确",
+  "场景明确",
+  "场景清楚",
+  "便于按肤质筛选",
+  "按肤质筛选",
+  "日常护肤用户",
+  "关注肤感的人群",
+  "成分敏感用户",
+  "日常护理",
+  "换季护理",
+  "送礼",
+  "口味信息明确",
+  "规格容易比较",
+  "规格选择清楚",
+  "场景适用性强",
   "配置清晰",
   "参数比较",
   "当前可选",
@@ -78,6 +95,12 @@ const WEAK_DISPLAY_COPY_MARKERS = [
   "信息完整",
   "规格明确",
   "便于筛选",
+  "SKU 选择较多",
+  "SKU选择较多",
+  "主图",
+  "占位图",
+  "商品信息",
+  "结合自身需求",
 ];
 
 export class ProductDisplayCopyGenerationService
@@ -95,24 +118,40 @@ export class ProductDisplayCopyGenerationService
       return new Map();
     }
 
-    const products = input.products.slice(0, MAX_PRODUCTS_PER_REQUEST);
-    const request: LlmGenerateRequest = {
-      messages: buildProductDisplayCopyPrompt({
-        ...input,
-        products,
-      }),
-      temperature: 0.35,
-      maxCompletionTokens: PRODUCT_DISPLAY_COPY_MAX_COMPLETION_TOKENS,
-      timeoutMs: PRODUCT_DISPLAY_COPY_TIMEOUT_MS,
-      requestId: input.requestId,
-      abortSignal: input.abortSignal,
-    };
-    const response = await this.llmClient.generate(request);
+    const copies = new Map<string, ProductDisplayCopy>();
 
-    return parseProductDisplayCopyOutput(
-      response.text,
-      products.map((product) => product.id),
-    );
+    for (
+      let index = 0;
+      index < input.products.length;
+      index += MAX_PRODUCTS_PER_REQUEST
+    ) {
+      const products = input.products.slice(
+        index,
+        index + MAX_PRODUCTS_PER_REQUEST,
+      );
+      const request: LlmGenerateRequest = {
+        messages: buildProductDisplayCopyPrompt({
+          ...input,
+          products,
+        }),
+        temperature: 0.35,
+        maxCompletionTokens: PRODUCT_DISPLAY_COPY_MAX_COMPLETION_TOKENS,
+        timeoutMs: PRODUCT_DISPLAY_COPY_TIMEOUT_MS,
+        requestId: input.requestId,
+        abortSignal: input.abortSignal,
+      };
+      const response = await this.llmClient.generate(request);
+      const batchCopies = parseProductDisplayCopyOutput(
+        response.text,
+        products.map((product) => product.id),
+      );
+
+      for (const [productId, copy] of batchCopies) {
+        copies.set(productId, copy);
+      }
+    }
+
+    return copies;
   }
 }
 
@@ -197,7 +236,8 @@ function buildProductDisplayCopyPrompt(
         "detail_reason 不要加“推荐理由：”前缀，1-2 句，<=120 字，适合详情页导购推荐理由。",
         "detail_highlights 写 2-3 条具体事实亮点，每条 <=42 字，不要和 detail_reason 完全重复。",
         "不要出现 SKU、FAQ、评论、数据集、模拟内容、实时售价、PostgreSQL、product_id 等内部或数据说明词。",
-        "不要写“配置清晰”“适合参数比较”“库内有货”“继续比较”这类模板话术。",
+        "优先使用 facts 里的具体成分、功效、容量、佩戴/使用场景、限制或 FAQ 答案；不要把泛化标签当作事实。",
+        "不要写“功效描述明确”“适用场景清楚”“日常护理”“换季护理”“便于按肤质筛选”“配置清晰”“适合参数比较”“库内有货”“继续比较”这类模板话术。",
         "product_id 只能来自 allowlistProductIds；不要输出 markdown、解释或额外 key。",
         '只输出 JSON object，格式为 {"products":[{"product_id":"...","card_reason":"推荐理由：...","detail_reason":"...","detail_highlights":["...","..."]}]}。',
       ].join("\n"),
@@ -234,13 +274,14 @@ function collectProductFacts(product: Product): string[] {
       values.map((value) => `${normalizeFactKey(key)}：${value}`)
     );
   const contentBlockFacts = extractContentBlockFacts(product.contentBlocks);
+  const officialFaqFacts = extractOfficialFaqFacts(product.officialFaq);
   const rawFacts = [
+    product.marketingDescription,
+    ...officialFaqFacts,
     ...product.recommendWhen,
     ...product.pros,
     ...attributeFacts,
     ...contentBlockFacts,
-    product.marketingDescription,
-    product.knowledgeText,
   ];
   const facts: string[] = [];
   const seen = new Set<string>();
@@ -266,6 +307,23 @@ function collectProductFacts(product: Product): string[] {
   }
 
   return facts;
+}
+
+function extractOfficialFaqFacts(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      return [];
+    }
+
+    const record = item as Record<string, unknown>;
+    const answer = parseString(record.answer);
+
+    return answer ? [answer] : [];
+  });
 }
 
 function extractContentBlockFacts(value: unknown): string[] {
@@ -385,8 +443,7 @@ function normalizeGeneratedDisplayCopy(
 }
 
 function isUsefulGeneratedCopy(value: string): boolean {
-  return isUsefulDisplayCopy(value)
-    && !WEAK_DISPLAY_COPY_MARKERS.some((marker) => value.includes(marker));
+  return isUsefulDisplayCopy(value);
 }
 
 function isUsefulDisplayCopy(value: string): boolean {
@@ -394,6 +451,9 @@ function isUsefulDisplayCopy(value: string): boolean {
 
   return cleaned.length > 0
     && !FORBIDDEN_DISPLAY_COPY_MARKERS.some((marker) =>
+      cleaned.includes(marker)
+    )
+    && !WEAK_DISPLAY_COPY_MARKERS.some((marker) =>
       cleaned.includes(marker)
     );
 }

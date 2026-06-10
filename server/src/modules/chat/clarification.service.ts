@@ -60,6 +60,8 @@ const PRIORITY_PATTERN =
   /拍照|续航|性价比|轻量|轻薄|便携|缓震|耐磨|耐穿|耐用|好穿|透气|支撑|稳定|防滑|降噪|音质|舒适|控油|保湿|补水|美白|防晒|温和|不刺激|低糖|无糖|好吃|口味|性能|散热|小容量|省空间/u;
 const AUDIENCE_PATTERN =
   /学生|学生党|油皮|干皮|混油|敏感肌|老人|老年人|儿童|宝宝|男生|女生|妈妈|上班族|新手|孕妇/u;
+const EXPLICIT_CONSTRAINT_PATTERN =
+  /不含|不要|不想要|不需要|别|避开|排除|除了|无酒精|无糖|少糖|低糖|不入耳|非入耳|不油腻|不刺激|不闷|不粘|不辣|不甜/u;
 
 export class ClarificationService {
   decide(input: ClarificationServiceInput): ClarificationDecision {
@@ -138,6 +140,7 @@ function hasEnoughContext(
       || USE_CASE_PATTERN.test(constraintQuestion)
       || PRIORITY_PATTERN.test(constraintQuestion)
       || AUDIENCE_PATTERN.test(constraintQuestion)
+      || EXPLICIT_CONSTRAINT_PATTERN.test(constraintQuestion)
       || (constraints?.minPriceCents ?? filters?.minPriceCents) !== undefined
       || (constraints?.maxPriceCents ?? filters?.maxPriceCents) !== undefined
       || Boolean(constraints?.brand ?? filters?.brand)
@@ -145,6 +148,11 @@ function hasEnoughContext(
       || hasItems(constraints?.avoidTerms)
       || hasItems(filters?.tagsAny)
       || hasItems(filters?.avoidTerms)
+      || hasItems(filters?.excludeRiskTerms)
+      || hasItems(filters?.excludeWearingStyles)
+      || hasItems(filters?.excludeBrands)
+      || hasItems(filters?.excludeProductIds)
+      || hasItems(filters?.excludeCategories)
   );
 }
 

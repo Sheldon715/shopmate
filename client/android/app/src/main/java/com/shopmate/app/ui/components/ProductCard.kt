@@ -14,12 +14,14 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
@@ -149,7 +151,8 @@ fun ProductCard(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
                         .offset(y = 0.5f.s())
-                        .size(width = 209.333f.s(), height = 34.4f.s())
+                        .width(209.333f.s())
+                        .heightIn(min = 17.2f.s(), max = 38f.s())
                 )
 
                 Text(
@@ -167,7 +170,9 @@ fun ProductCard(
 
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(6f.s()),
-                    modifier = Modifier.offset(y = 62.8f.s())
+                    modifier = Modifier
+                        .offset(y = 62.8f.s())
+                        .width(209.333f.s())
                 ) {
                     product.tags.take(2).forEach { tag ->
                         ProductTag(
@@ -268,14 +273,18 @@ private fun ProductTag(
 ) {
     Text(
         text = text,
-        color = Color(0xFF77828B).disabledAware(enabled),
+        color = ShopMateGreen.disabledAware(enabled),
         fontSize = (10f * scale).sp,
         lineHeight = (12f * scale).sp,
         fontWeight = FontWeight.Bold,
         letterSpacing = 0.sp,
+        maxLines = 1,
+        softWrap = false,
+        overflow = TextOverflow.Ellipsis,
         modifier = modifier
+            .widthIn(max = 86f.s(scale))
             .clip(ShopMatePillShape)
-            .background(Color(0xFFF3F5F5).copy(alpha = if (enabled) 1f else 0.58f))
+            .background(Color(0xFFE8F9F2).copy(alpha = if (enabled) 1f else 0.58f))
             .padding(horizontal = 8f.s(scale), vertical = 3f.s(scale))
     )
 }

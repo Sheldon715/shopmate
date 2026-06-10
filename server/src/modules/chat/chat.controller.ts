@@ -18,7 +18,11 @@ import {
   ChatStreamRequestError,
   parseChatStreamRequestBody,
 } from "./chat-stream.request";
-import { RagChatError, RagChatService } from "./rag.service";
+import {
+  ProductCardCopyGenerationError,
+  RagChatError,
+  RagChatService,
+} from "./rag.service";
 import {
   SseSerializationError,
   chunkMessageDelta,
@@ -35,6 +39,8 @@ export interface ChatAnswerService {
 }
 
 type SseWriteStatus = "ok" | "closed" | "serialization_error";
+const PRODUCT_CARD_COPY_ERROR_MESSAGE =
+  "商品卡片导购文案生成失败，请稍后重试。";
 
 export function createChatStreamController(
   chatService?: ChatAnswerService,
@@ -285,11 +291,26 @@ function writeJsonError(response: Response, error: unknown): void {
     return;
   }
 
+  if (error instanceof ProductCardCopyGenerationError) {
+    response
+      .status(502)
+      .json(fail(error.code, PRODUCT_CARD_COPY_ERROR_MESSAGE));
+    return;
+  }
+
   logUnexpectedError(error);
   response.status(500).json(fail("INTERNAL_ERROR", "Chat stream failed."));
 }
 
 function mapStreamError(error: unknown): ChatErrorPayload {
+  if (error instanceof ProductCardCopyGenerationError) {
+    return {
+      code: error.code,
+      message: PRODUCT_CARD_COPY_ERROR_MESSAGE,
+      retryable: true,
+    };
+  }
+
   if (error instanceof RagChatError) {
     return {
       code: CHAT_STREAM_REQUEST_ERROR_CODE,

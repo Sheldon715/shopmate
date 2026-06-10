@@ -1,6 +1,6 @@
 package com.shopmate.app.data.products
 
-private const val MAX_PRODUCT_DISPLAY_NAME_CHARS = 18
+private const val MAX_PRODUCT_DISPLAY_NAME_CHARS = 22
 
 private val ProductTypeMarkers = listOf(
     "黑白激光一体机",
@@ -196,6 +196,24 @@ fun cleanProductDisplayName(
         .ifBlank { value.shortenProductDisplayName() }
 }
 
+fun buildFallbackDisplayTags(
+    tags: List<String>,
+    recommendationReason: String?,
+    category: String?,
+    subCategory: String?,
+): List<String> {
+    val cleanedTags = tags
+        .map { tag -> tag.cleanDisplayWhitespace() }
+        .filter { tag -> tag.isNotBlank() && !tag.isWeakDisplayTag(category, subCategory) }
+        .distinctBy { tag -> tag.lowercase() }
+
+    if (cleanedTags.isNotEmpty()) {
+        return cleanedTags
+    }
+
+    return emptyList()
+}
+
 private fun String.extractThroughFirstMarker(
     markers: List<String>,
     startIndex: Int,
@@ -225,6 +243,42 @@ private fun String.cleanDisplayWhitespace(): String =
 
 private fun String.trimProductNameSeparators(): String =
     trim(' ', '·', '-', '_', '/', '｜', '|', '，', ',', '。', '；', ';')
+
+private fun String.isWeakDisplayTag(category: String?, subCategory: String?): Boolean {
+    val normalized = cleanDisplayWhitespace().replace("\\s+".toRegex(), "")
+    val weakTags = listOfNotNull(
+        category,
+        subCategory,
+        "商品",
+        "主图",
+        "占位图",
+        "功效描述明确",
+        "适用场景清楚",
+        "适用场景明确",
+        "场景明确",
+        "场景清楚",
+        "便于按肤质筛选",
+        "按肤质筛选",
+        "日常护肤用户",
+        "关注肤感的人群",
+        "成分敏感用户",
+        "日常护理",
+        "换季护理",
+        "送礼",
+        "口味信息明确",
+        "规格容易比较",
+        "规格选择清楚",
+        "场景适用性强",
+        "配置清晰",
+        "SKU 选择较多",
+        "适合参数比较",
+    )
+        .map { tag -> tag.cleanDisplayWhitespace().replace("\\s+".toRegex(), "") }
+
+    return normalized.isBlank() || weakTags.any { weakTag ->
+        weakTag.isNotBlank() && (normalized == weakTag || normalized == "适合$weakTag")
+    }
+}
 
 private fun String.shortenProductDisplayName(): String {
     if (length <= MAX_PRODUCT_DISPLAY_NAME_CHARS) return this

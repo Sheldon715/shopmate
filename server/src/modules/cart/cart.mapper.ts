@@ -1,6 +1,7 @@
 import { resolvePublicProductImagePath } from "../images/image.service";
 import { isProductAvailable } from "../products/product-availability";
 import { buildProductDisplayName } from "../products/product-display-copy";
+import { createPublicProductTags } from "../products/product.mapper";
 import type { Product } from "../products/product.types";
 import type { CartDto, CartItemDto, CartItemRecord, CartItemRow } from "./cart.types";
 
@@ -52,7 +53,7 @@ export function mapCartToDto(
       selected: item.selected,
       subtotalCents,
       available: isProductAvailable(product),
-      tags: product.visualTags,
+      tags: createPublicProductTags(product),
       imagePath: resolvePublicProductImagePath(
         product.imagePath,
         options.publicImageBaseUrl,

@@ -4,6 +4,7 @@ import com.shopmate.app.R
 import com.shopmate.app.data.network.ShopMateApiConfig
 import com.shopmate.app.data.network.ShopMateImageUrlResolver
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import org.junit.Test
 
 class ChatProductMapperTest {
@@ -82,6 +83,19 @@ class ChatProductMapperTest {
         ).toProductCardUi()
 
         assertEquals("巴黎欧莱雅新多重防护隔离露", ui.name)
+    }
+
+    @Test
+    fun doesNotBuildTagsFromRecommendationReasonWhenBackendTagsAreEmpty() {
+        val ui = productDto(
+            priceCents = 169900,
+            name = "华为无线耳机专业五代主动降噪真无线蓝牙耳机高解析音质",
+            tags = emptyList(),
+            recommendationReason = "推荐理由：半入耳式真无线设计，适合通勤和移动使用，学生与上班族都能轻松搭配。",
+        ).toProductCardUi()
+
+        assertEquals(emptyList(), ui.tags)
+        assertTrue(ui.name.contains("蓝牙耳机"))
     }
 
     @Test

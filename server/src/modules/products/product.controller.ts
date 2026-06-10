@@ -5,6 +5,7 @@ import {
   listProducts,
   parseProductIdParam,
   parseProductListQuery,
+  ProductDetailCopyGenerationError,
   ProductNotFoundError,
   ProductQueryError,
 } from "./product.service";
@@ -50,6 +51,14 @@ export async function getProductDetailController(
 
     if (error instanceof ProductNotFoundError) {
       response.status(404).json(fail(error.code, "商品不存在"));
+      return;
+    }
+
+    if (error instanceof ProductDetailCopyGenerationError) {
+      response.status(502).json(fail(
+        error.code,
+        "商品详情页导购文案生成失败，请稍后重试",
+      ));
       return;
     }
 

@@ -10,6 +10,7 @@ import type {
 } from "./chat.types";
 import type { ChatAnswerService } from "./chat.controller";
 import { createChatStreamController } from "./chat.controller";
+import { ProductCardCopyGenerationError } from "./rag.service";
 import {
   eventNames,
   parseSseEvents,
@@ -191,6 +192,33 @@ describe("createChatStreamController", () => {
     expect(stripTiming(response.streamEvents())).toEqual(
       chatContractFixtures.errorStream.events,
     );
+    expect(response.ended).toBe(true);
+  });
+
+  it("streams a dedicated product-card copy error when card copy generation fails", async () => {
+    const service = createService(async () => {
+      throw new ProductCardCopyGenerationError(
+        "Missing generated display copy for product_001.",
+      );
+    });
+    const request = createRequest({ message: "推荐适合宿舍小家电" });
+    const response = new FakeResponse();
+
+    await createChatStreamController(service)(
+      request.asRequest(),
+      response.asResponse(),
+    );
+
+    expect(stripTiming(response.streamEvents())).toEqual([
+      {
+        eventName: "error",
+        payload: {
+          code: "PRODUCT_CARD_COPY_GENERATION_FAILED",
+          message: "商品卡片导购文案生成失败，请稍后重试。",
+          retryable: true,
+        },
+      },
+    ]);
     expect(response.ended).toBe(true);
   });
 

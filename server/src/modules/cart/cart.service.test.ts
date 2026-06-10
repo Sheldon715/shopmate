@@ -68,6 +68,22 @@ describe("CartService", () => {
     });
   });
 
+  it("keeps image and category housekeeping tags out of cart items", async () => {
+    const store = new InMemoryCartStore([
+      productFixture("product_001", {
+        visualTags: ["数码电子", "耳机", "主图", "通勤", "蓝牙"],
+      }),
+    ]);
+    const service = new CartService(store);
+
+    const cart = await service.addItem({
+      productId: "product_001",
+      quantity: 1,
+    });
+
+    expect(cart.items[0]?.tags).toEqual(["通勤", "蓝牙"]);
+  });
+
   it("merges duplicate adds into the existing cart item", async () => {
     const store = new InMemoryCartStore([productFixture("product_001")]);
     const service = new CartService(store);
@@ -264,7 +280,7 @@ class InMemoryCartStore {
 
 function productFixture(
   id: string,
-  options: { skuAvailable?: boolean } = {},
+  options: { skuAvailable?: boolean; visualTags?: string[] } = {},
 ): Product {
   return {
     id,
@@ -283,7 +299,7 @@ function productFixture(
     knowledgeText: "通勤蓝牙耳机",
     ratingAvg: 4.6,
     categoryPath: ["数码电子", "耳机"],
-    visualTags: ["通勤", "蓝牙"],
+    visualTags: options.visualTags ?? ["通勤", "蓝牙"],
     attributes: {},
     pros: [],
     cons: [],
