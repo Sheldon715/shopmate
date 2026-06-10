@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { isProductAvailable } from "../products/product-availability";
+import { buildProductDisplayName } from "../products/product-display-copy";
 import type { Product } from "../products/product.types";
 import type {
   JsonRecord,
@@ -7,7 +8,13 @@ import type {
   RagDocumentMetadata,
   RagDocumentType,
 } from "./rag-document.types";
+import { buildRagDocumentAliases } from "./rag-document-aliases";
 import { extractRagNegativeFactMetadata } from "./rag-negative-fact-metadata";
+import {
+  cleanRagDocumentKeywordArray,
+  cleanRagDocumentText,
+  shouldSkipRagContentBlock,
+} from "./rag-document-text-cleaner";
 
 interface ContentBlock {
   blockId: string;
@@ -28,9 +35,6 @@ interface ReviewSummary {
   negativePoints: string[];
   commonComplaints: string[];
 }
-
-const DATASET_NOTE =
-  "本商品数据来自 synthetic/desensitized 脱敏商品数据集，仅用于课程 Demo 和检索实验；价格、库存与最终展示以后续 PostgreSQL 回查为准。";
 
 function normalizeWhitespace(value: string): string {
   return value.replace(/\s+/g, " ").trim();
@@ -189,8 +193,11 @@ function formatAttributes(
 }
 
 function buildSharedContext(product: Product): string[] {
+  const aliases = buildRagDocumentAliases(product);
+
   return [
-    `商品名: ${product.name}`,
+    `商品: ${buildProductDisplayName(product)}`,
+    `原始标题: ${product.name}`,
     `品牌: ${product.brand}`,
     `类目: ${product.category}${product.subCategory ? ` / ${product.subCategory}` : ""}`,
     `价格参考: ${formatPriceRange(product)}`,
@@ -201,7 +208,7 @@ function buildSharedContext(product: Product): string[] {
     formatList("不适合", product.avoidWhen),
     formatList("优势", product.pros),
     formatList("限制", product.cons),
-    `数据说明: ${DATASET_NOTE}`,
+    formatList("自然语言标签", aliases),
   ].filter((part): part is string => Boolean(part));
 }
 
@@ -237,7 +244,7 @@ function createBaseMetadata(
     priceMinCents: product.priceMinCents,
     priceMaxCents: product.priceMaxCents,
     currency: product.currency,
-    tags: product.visualTags,
+    tags: cleanRagDocumentKeywordArray(product.visualTags),
     recommendWhen: product.recommendWhen,
     avoidWhen: product.avoidWhen,
     freeFromTerms: negativeFactMetadata.freeFromTerms,
@@ -261,17 +268,24 @@ function createDocument(input: {
   docType: RagDocumentType;
   docId: string;
   bodyLines: string[];
+  includeSharedContext?: boolean;
   metadata?: Partial<Omit<RagDocumentMetadata, "documentHash">>;
 }): RagDocument | undefined {
   const bodyLines = input.bodyLines
-    .map((line) => line.trim())
+    .map((line) => cleanRagDocumentText(line))
     .filter((line) => line.length > 0);
 
   if (bodyLines.length === 0) {
     return undefined;
   }
 
-  const text = [...buildSharedContext(input.product), ...bodyLines].join("\n");
+  const sharedContext = input.includeSharedContext === false
+    ? []
+    : buildSharedContext(input.product);
+  const text = [...sharedContext, ...bodyLines]
+    .map((line) => cleanRagDocumentText(line))
+    .filter((line) => line.length > 0)
+    .join("\n");
   const documentHash = hashDocument(input.docId, text);
 
   return {
@@ -288,17 +302,89 @@ function createDocument(input: {
   };
 }
 
+function mapContentBlockTypeToDocumentType(
+  blockType: string,
+): RagDocumentType | undefined {
+  const normalized = blockType.trim().toLowerCase();
+
+  if (shouldSkipRagContentBlock(normalized)) {
+    return undefined;
+  }
+
+  if (normalized === "spec" || normalized === "sku") {
+    return "product_specs";
+  }
+
+  if (normalized === "selling_point") {
+    return "selling_points";
+  }
+
+  if (normalized === "scenario") {
+    return "use_cases";
+  }
+
+  if (normalized === "limitation") {
+    return "constraints";
+  }
+
+  return "selling_points";
+}
+
+function buildProductProfileDocument(product: Product): RagDocument[] {
+  const aliases = buildRagDocumentAliases(product);
+  const marketingDescription = cleanRagDocumentText(product.marketingDescription);
+  const document = createDocument({
+    product,
+    docType: "product_profile",
+    docId: `${product.id}::product_profile`,
+    includeSharedContext: false,
+    bodyLines: [
+      `商品: ${buildProductDisplayName(product)}`,
+      `原始标题: ${product.name}`,
+      `品牌: ${product.brand}`,
+      `类目: ${product.category}${product.subCategory ? ` / ${product.subCategory}` : ""}`,
+      `价格: ${formatPriceRange(product)}`,
+      `可售: ${isProductAvailable(product) ? "是" : "否"}`,
+      formatAttributes("属性", product.attributes),
+      formatList("适合人群", asStringArray(product.attributes["适用人群"])),
+      formatList("使用场景", [
+        ...asStringArray(product.attributes["使用场景"]),
+        ...product.recommendWhen,
+      ]),
+      formatList("核心特点", [
+        ...asStringArray(product.attributes["核心卖点"]),
+        ...product.pros,
+      ]),
+      formatList("不适合", [
+        ...asStringArray(product.attributes["不适合"]),
+        ...product.avoidWhen,
+        ...product.cons,
+      ]),
+      formatList("自然语言标签", aliases),
+      marketingDescription ? `商品描述要点: ${marketingDescription}` : undefined,
+    ].filter((line): line is string => Boolean(line)),
+  });
+
+  return document ? [document] : [];
+}
+
 function buildContentBlockDocuments(product: Product): RagDocument[] {
   return parseContentBlocks(product.contentBlocks).flatMap((block) => {
+    const docType = mapContentBlockTypeToDocumentType(block.blockType);
+
+    if (!docType) {
+      return [];
+    }
+
     const document = createDocument({
       product,
-      docType: "content_block",
-      docId: `${product.id}::content_block::${block.blockId}`,
+      docType,
+      docId: `${product.id}::${docType}::${block.blockId}`,
       bodyLines: [
         `内容块标题: ${block.title}`,
         `内容块类型: ${block.blockType}`,
         `正文: ${block.content}`,
-        formatList("关键词", block.keywords),
+        formatList("关键词", cleanRagDocumentKeywordArray(block.keywords)),
       ].filter((line): line is string => Boolean(line)),
       metadata: {
         blockId: block.blockId,
@@ -328,23 +414,6 @@ function buildFaqDocuments(product: Product): RagDocument[] {
   });
 }
 
-function buildDescriptionDocument(product: Product): RagDocument[] {
-  const description = nonEmptyText(product.marketingDescription);
-
-  if (!description) {
-    return [];
-  }
-
-  const document = createDocument({
-    product,
-    docType: "description",
-    docId: `${product.id}::description`,
-    bodyLines: [`商品描述: ${description}`],
-  });
-
-  return document ? [document] : [];
-}
-
 function buildReviewSummaryDocument(product: Product): RagDocument[] {
   const reviewSummary = parseReviewSummary(product.reviewSummary);
 
@@ -354,8 +423,8 @@ function buildReviewSummaryDocument(product: Product): RagDocument[] {
 
   const document = createDocument({
     product,
-    docType: "review_summary",
-    docId: `${product.id}::review_summary`,
+    docType: "reviews_summary",
+    docId: `${product.id}::reviews_summary`,
     bodyLines: [
       reviewSummary.ratingAvg !== undefined
         ? `评分摘要: ${reviewSummary.ratingAvg}`
@@ -371,9 +440,9 @@ function buildReviewSummaryDocument(product: Product): RagDocument[] {
 
 export function buildProductRagDocuments(product: Product): RagDocument[] {
   return [
+    ...buildProductProfileDocument(product),
     ...buildContentBlockDocuments(product),
     ...buildFaqDocuments(product),
-    ...buildDescriptionDocument(product),
     ...buildReviewSummaryDocument(product),
   ];
 }

@@ -2,14 +2,17 @@
   "source": "postgres",
   "ingest_batch_id": "catalog_20260605_011315708_14055cdc",
   "product_count": 175,
-  "document_count": 2064,
-  "generated_at": "2026-06-05T01:16:51.398Z",
+  "document_count": 1889,
+  "generated_at": "2026-06-09T23:56:21.984Z",
   "output_path": "rag/product-documents.jsonl",
   "document_types": [
-    "content_block",
+    "product_profile",
+    "product_specs",
+    "selling_points",
+    "use_cases",
+    "constraints",
     "faq",
-    "description",
-    "review_summary"
+    "reviews_summary"
   ],
   "source_dataset": "ecommerce_agent_dataset_v3",
   "source_version": "v3",

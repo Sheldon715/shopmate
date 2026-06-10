@@ -2,10 +2,13 @@ import type { JsonValue } from "../products/product.types";
 import type { RagWearingStyle } from "./rag-negative-fact-metadata";
 
 export type RagDocumentType =
-  | "content_block"
-  | "faq"
-  | "description"
-  | "review_summary";
+  | "product_profile"
+  | "product_specs"
+  | "selling_points"
+  | "use_cases"
+  | "reviews_summary"
+  | "constraints"
+  | "faq";
 
 export interface RagDocumentMetadata {
   productName: string;

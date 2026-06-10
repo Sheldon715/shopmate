@@ -128,12 +128,12 @@ describe("mapQdrantScoredPointToVectorSearchHit", () => {
     const hit = mapQdrantScoredPointToVectorSearchHit(createScoredPoint());
 
     expect(hit).toEqual({
-      docId: "prod_001::description",
+      docId: "prod_001::product_profile",
       productId: "prod_001",
       score: 0.91,
       snippet: "轻量 snippet",
       metadata: {
-        docType: "description",
+        docType: "product_profile",
         category: "美妆护肤",
         subCategory: "防晒",
         brand: "示例品牌",
@@ -289,9 +289,9 @@ function createScoredPoint(): QdrantScoredPoint {
     version: 1,
     score: 0.91,
     payload: {
-      doc_id: "prod_001::description",
+      doc_id: "prod_001::product_profile",
       product_id: "prod_001",
-      doc_type: "description",
+      doc_type: "product_profile",
       status: "active",
       category: "美妆护肤",
       sub_category: "防晒",
@@ -319,9 +319,9 @@ function createScoredPoint(): QdrantScoredPoint {
 
 function createRagDocument(): RagDocument {
   return {
-    docId: "prod_001::description",
+    docId: "prod_001::product_profile",
     productId: "prod_001",
-    docType: "description",
+    docType: "product_profile",
     text: "Demo document",
     snippet: "Demo snippet",
     metadata: {
@@ -349,7 +349,7 @@ function createRagDocument(): RagDocument {
       isDesensitized: true,
       ingestBatchId: "batch_001",
       sourcePath: "data/raw/demo.json",
-      docType: "description",
+      docType: "product_profile",
       documentHash: "abc123",
     },
   };

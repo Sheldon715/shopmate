@@ -99,6 +99,9 @@
       "availableOnly": true
     },
     "expectedProductIdsAny": [
+      "p_home_kitchen_004",
+      "p_home_kitchen_001",
+      "p_home_kitchen_002",
       "p_home_airfryer_001",
       "p_home_water_001",
       "p_home_water_003",

@@ -4,8 +4,8 @@
   "embedding_dimensions": 2048,
   "distance": "Cosine",
   "source_document_path": "C:\\Users\\lxd04\\Desktop\\WEB\\WEB PROJECT\\shopmate\\data\\processed\\rag\\product-documents.jsonl",
-  "source_document_count": 2064,
-  "indexed_document_count": 2064,
+  "source_document_count": 1889,
+  "indexed_document_count": 1889,
   "ingest_batch_id": "catalog_20260605_011315708_14055cdc",
-  "generated_at": "2026-06-05T01:42:10.843Z"
+  "generated_at": "2026-06-10T00:11:48.319Z"
 }

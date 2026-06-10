@@ -1,4 +1,4 @@
-# Current Feature: Chat / RAG / UI 稳定性修复
+# Current Feature: RAG Document and Embedding Text Cleanup
 
 ## 状态
 
@@ -6,95 +6,38 @@ Complete
 
 ## 目标
 
-- 建立统一回归矩阵，覆盖用户截图中的全部 bug、当前 Chat SSE smoke 发现的 P0 问题，以及 spec order 中已实现但可能回归的能力。
-- 对照之前已完成的 spec，不重写历史目标；本轮优先判断是已承诺行为回归、Android 展示 bug、RAG 数据不足，还是需要另拆升级 spec。
-- 先修后端 contract 和事实一致性，确保 answer、product_cards、recommendedProductIds、retrieval、cartAction / checkoutAction 不互相打架。
-- 恢复稳定的 LLM 意图判断和主动澄清，例如“跑鞋推荐”应先反问预算、场景、性能偏好，而不是直接给商品。
-- 提升推荐理由质量，理由必须命中适用人群、使用场景、核心优势和用户约束，不能只写品牌 / 类目 / 当前可选。
-- 修复 Android 展示问题，包括聊天气泡文本显示不全、商品名称截断、推荐理由 UI 异常、发送新消息后旧商品卡 / 详情入口消失。
-- 修复购物车总价显示和自然语言下单路径，避免“下单第一款商品”落入普通 RAG no-candidates。
-- 重新平衡首 Token 优化和模型表现，保留等待反馈与 streaming，但不以截短回答、弱化 prompt 或降低 token 上限来换速度。
-- 区分真实 bug 与数据 / 能力升级项；如果商品库缺手机、低价耳机、300 元跑鞋等 Demo 场景，需要明确补数据或调整 Home prompt / 测试问题。
-- 建立反过拟合修复方法：每个截图 bug 都要抽象成行为不变量，并用 seed、同义变体和 holdout case 验证，避免只修原句。
-- 纳入数据工程与 Agent 治理：检查向量化字段、metadata 一致性、chunk size / overlap、RAG 链路可靠性、意图识别和 prompt 输出约束。
+- 校准 `retrieval-baseline-cases.json` 中 `dorm-small-appliance-paraphrases` 的 expected product set，并在报告中写清商品事实依据。
+- 清理进入 RAG document / embedding text / snippet 的 dataset、demo、source、process 和图片占位等污染文本，同时保留真实商品事实。
+- 新增每个 active product 的 `product_profile` 主文档，并将旧 `content_block` 粗粒度类型映射到更明确的 docType。
+- 新增 deterministic 中文 alias / natural language tags，优先覆盖 baseline 中的洁面、防晒、耳机、厨房小电、办公外设、空气护理和跑鞋场景。
+- 重建 RAG documents 与 Qdrant index，复跑 baseline，并在 `docs/rag-tuning-report.md` 输出 E0 -> E1 对比。
 
 ## 待办清单
 
-- [x] 冻结回归矩阵：把截图问题、spec order 已实现能力和本轮 smoke case 合并为稳定性测试清单，并区分 seed / paraphrase / holdout。
-- [x] 新增反过拟合 case 校验：P0/P1 case 必须有同义变体和行为不变量，后端可自动化的先进入 Vitest。
-- [x] 对照既有 spec：Active Clarification、Chat Context Memory、RAG Response Generation、Query Rewrite、Negative Constraint、Comparison、Cart / Checkout、First Token、Android Home / Product / Cart polish。
-- [x] 新增后端 Chat SSE 回归用例，覆盖 `跑鞋推荐`、多轮跑鞋预算补充、重复提示词、蓝牙耳机、手机、小家电、油皮洗面奶、反选、加购和下单。
-- [x] 修复 P0 contract：回答无推荐 / 无可靠说明时不得返回不相关 product_cards，商品卡必须与用户需求和后端事实一致。
-- [x] 修复业务动作路由：cart / checkout intent 在普通 RAG 前处理，不明确时澄清，不返回“当前商品库没有找到匹配结果”。
-- [x] 修复主动澄清和多轮上下文：宽泛品类请求要反问，补充预算 / 偏好后能稳定合并约束。
-- [x] 检查 query rewrite、popular cache、recentProductIds、visible product ids 和 conversation memory 的交互，避免同一对话内结果漂移。
-- [x] 检查数据工程和 chunking 策略：商品详情 / FAQ / 评论 / 内容块是否按语义拆分，是否存在跨类目串味，并规划 chunk size / overlap A/B eval。
-- [x] 修复 no-candidates 文案完整性和 token / streaming / typewriter flush，确保无结果回复完整、可继续。
-- [x] 优化推荐理由生成和 fallback，使用商品事实中的适用人群、场景、卖点、约束命中点，而不是品牌模板。
-- [x] 修复 Android 聊天气泡、商品卡标题、推荐理由、详情页推荐理由和商品卡历史锚点。（卡片标题 / 推荐理由 / 详情理由 / 详情页 tag 挤压 / 空卡片不清旧锚点 / 多组卡片历史锚点已补；模拟器本地 dev server 链路已确认）
-- [x] 修复购物车合计显示，以后端 `summary.selectedTotalCents` 为权威，并保证底部 footer 小屏不挤压。
-- [x] 盘点商品数据覆盖：手机、老人机、低价耳机、300 元跑鞋、一人食小家电；必要时补数据并重建 catalog / RAG documents / vector index。
-- [x] 跑后端 test / build、Android testDebugUnitTest / 带 demo HTTPS URL build，并记录修复前后 Chat SSE smoke 对比。
+- [x] 复核 `retrieval-baseline-traces.jsonl` 中 `一人食省空间小家电` 的 top hits，并回查商品事实判断 `p_home_kitchen_004` / `002` / `001` 是否应进入 expected set。
+- [x] 按事实更新 `data/processed/rag/retrieval-baseline-cases.json`，并准备报告中的 Expected Set Audit 说明。
+- [x] 新增 `rag-document-text-cleaner.ts` 与单测，清理污染短语、视觉生产标签和低价值内容块关键词，确认真实品牌、价格、规格、场景、限制和评论事实不被误删。
+- [x] 新增 `rag-document-aliases.ts` 与单测，覆盖 baseline 高价值类目，保证 alias 去重、trim、不产生空值或过宽噪音词。
+- [x] 重构 `rag-document.builder.ts` / types / mapper 测试：生成 `product_profile`，映射 `product_specs`、`selling_points`、`use_cases`、`constraints`、`faq`、`reviews_summary`，并停止生成 raw `description` 文档。
+- [x] 同步 Qdrant payload、vector search trace、RAG debug trace 等相关 docType 类型；如只需 keyword payload index，保持写入兼容。
+- [x] 运行目标后端测试：`npm.cmd test -- rag-document-text-cleaner.test.ts rag-document-aliases.test.ts rag-document.builder.test.ts` 与相关 trace / baseline evaluator 测试。
+- [x] 运行 `npm.cmd run build` 和必要的全量 `npm.cmd test`。
+- [x] 运行 `npm.cmd run rag:documents`，检查 `product-documents.jsonl`、`document-manifest.json` 中的污染文本、docType 分布和 product_profile 覆盖。
+- [x] 在外部服务可用时运行 `npm.cmd run rag:index -- --recreate` 与 `npm.cmd run rag:baseline ...`，更新 index manifest、baseline results/traces 和 `docs/rag-tuning-report.md`。
+- [x] 在报告中补充 `E1 Document / Embedding Cleanup` 小节，记录 expected audit、document text changes、before/after metrics、remaining failures 和 next recommended spec。
 
 ## 备注
 
-- 规划来源：`context/feature/chat-rag-ui-stability-bugfix-spec.md`。
-- 修复顺序：回归矩阵 -> 后端 contract 一致性 -> LLM 意图 / RAG 质量 -> Android 展示稳定性 -> 购物车 / checkout -> 数据补强。
-- P0 证据：本轮 `POST /api/chat/stream` smoke 中，`推荐一款小容量省空间，适配宿舍使用的一人食小家电` 的回答说没有合适推荐，但 `product_cards` 返回美妆商品；这类 answer / cards 冲突必须优先修。
-- P1 证据：`跑鞋推荐` 当前直接推荐 3 款跑鞋，违背已实现的主动澄清预期；`300左右，好穿耐用` 后出现无结果且文本不完整。
-- 已执行基线检查：后端 `npm.cmd test` 通过 55 个测试文件 / 412 个测试，`npm.cmd run build` 通过；Android `.\gradlew.bat --no-daemon testDebugUnitTest` 通过。现有自动化不足以覆盖截图里的真实回归。
-- 首 Token 边界：Android 本地 waiting / thinking 气泡负责即时反馈，后端首条真实 `message_delta` 必须保持业务回答质量；不得通过截短回答或删除商品事实来换速度。
-- 反过拟合边界：修复不得只针对截图原句或单条测试调 prompt；涉及 RAG 的检索、生成、grounding、eval、query rewrite、ranking 问题，修前先查资料或官方 / 论文 / 框架文档，再转成行为不变量。
-- 资料参考：OpenAI eval best practices、LangChain TextSplitter / Tokenizer 文档、Pinecone chunking strategies；本轮用这些原则约束“先建 eval，再调 chunk / prompt / ranking”。
-- 本 tracker 先进入规划 / 待启动状态；开始实现前再创建 `fix/chat-rag-ui-stability` 分支。
-- 2026-06-08 进展：已创建并切换到 `fix/chat-rag-ui-stability`，状态进入 In Progress。
-- 2026-06-08 P0/P1 第一刀：常规 RAG 的 `LLM_ERROR` / `LLM_INVALID_OUTPUT` / `NO_VALID_PRODUCT_IDS` fallback 不再自动返回商品卡，避免“无可靠推荐说明但仍展示商品”；contract fixture 已同步。
-- 2026-06-08 主动澄清修复：`跑鞋推荐` 等宽泛品类即使 LLM intent 误判或输出异常，也会返回澄清问题，不再直接进入 RAG 推荐；真实 `RagChatService` 直连验证返回 `NEEDS_CLARIFICATION` 且无商品卡。
-- 2026-06-08 已验证：`cd server && npm.cmd test -- clarification.service.test.ts clarification-intent.service.test.ts rag.service.test.ts chat-contract.fixture.test.ts` 通过 4 个测试文件 / 90 个测试；`cd server && npm.cmd run build` 通过。
-- 2026-06-08 方法调整：暂停逐句调参，改为“seed + paraphrase + holdout + invariant”的稳定性矩阵；刚刚已修过的澄清 / fallback contract 也要补同义变体后重新验证。
-- 2026-06-08 反过拟合落地：新增 `data/processed/rag/chat-stability-regression-cases.json`，覆盖截图 12 类问题；新增 `chat-stability-regression.validation.ts` / test，强制 P0/P1 case 包含 seed、paraphrase、holdout，并用矩阵驱动宽泛澄清测试。
-- 2026-06-08 澄清泛化修复：`ClarificationService` 先移除品类词再判断槽位，避免把“跑步鞋”里的“跑步”误判为已补充场景；已覆盖 `跑鞋`、`跑步鞋`、`训练鞋`、`运动鞋`、`真无线耳机` 等同义变体。
-- 2026-06-08 checkout 路由修复：扩展 checkout intent 支持 `targetScope=recent_recommendation` + `targetOrdinal`，`下单第一款商品` / `就买第一个` / `把刚才第一款拿去结算` 可走 `createProductCheckout` 生成 `buy_now` 草稿；无最近推荐时返回目标澄清，不进入普通 RAG no-candidates。
-- 2026-06-08 已验证：`cd server && npm.cmd test` 通过 57 个测试文件 / 441 个测试；`cd server && npm.cmd run build` 通过。
-- 2026-06-09 推荐理由合同修复：后端 `ProductCardDto` 增加 `recommendationReason`，由 `recommendWhen`、适用人群 / 场景 / 核心卖点、pros 和 tags 生成，并过滤品牌 / 类目 / 注意事项类弱事实；Android Chat / Detail 优先消费后端理由，fallback 不再拼“品牌 · 类目，当前可选”。已验证：`cd server && npm.cmd test -- product.mapper.test.ts`、`cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.data.chat.ChatProductMapperTest" --tests "com.shopmate.app.data.products.ProductDetailMapperTest"` 通过。
-- 2026-06-09 Android 文本和历史锚点修复：商品卡标题支持 2 行省略，商品卡推荐理由改为 2 行省略，详情页推荐理由允许 3 行并动态增高；普通后续消息返回空 `product_cards` 时不再清掉上一轮推荐卡和详情入口。已验证：`cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.ui.chat.ChatViewModelTest"` 通过。
-- 2026-06-09 购物车价格语义修复：购物车 item 主价格显示单价，数量大于 1 时单独展示“小计”，底部合计继续使用后端 `summary.selectedTotalCents`，并给 footer 总价固定显示宽度和省略保护。已验证：`cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.data.cart.CartMapperTest" --tests "com.shopmate.app.ui.cart.CartViewModelTest"` 通过。
-- 2026-06-09 验证注意：一次并行运行两个 Gradle `testDebugUnitTest` 目标触发 Kotlin 增量编译缓存冲突，串行 `.\gradlew.bat --stop` 后重跑通过；后续 Android 验证保持串行。
-- 2026-06-09 自动化 gate：`cd server && npm.cmd test` 通过 57 个测试文件 / 443 个测试；`cd server && npm.cmd run build` 通过；`cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest` 通过；`cd client/android && .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api-e519.onrender.com/` 通过。
-- 2026-06-09 数据 / RAG 治理补充：已将非结构化向量化、数据一致性、chunking 策略、RAG 链路可靠性、意图识别和 Prompt Engineering 纳入稳定性 spec；chunk size / overlap 后续必须用固定 eval 做 A/B，不再凭单句效果调整。
-- 2026-06-09 洁面召回修复：`ChatContextMemoryService` 将 `洗面奶 / 洁面乳 / 洁面` 映射到 `美妆护肤 / 洁面` 子类，同时保留 `护肤品 / 护肤` 为泛类，避免“油皮洗面奶”召回粉底液；已新增 seed + paraphrase 测试。
-- 2026-06-09 推荐理由弱事实治理：后端推荐理由过滤 `功效描述明确 / 适用场景清楚 / 日常护肤用户 / 主图` 等占位弱事实，结构化字段不足时从商品营销描述抽取短事实，避免卡片理由继续模板化；已新增 mapper 回归测试。
-- 2026-06-09 预算区间解析修复：live smoke 发现 `预算1000-2000` 被误解析成约 1100 元上限；已新增通用区间解析，`1000-2000`、`1000 到 2000 元`、`一千到两千` 均写入 `minPriceCents=100000` / `maxPriceCents=200000`。
-- 2026-06-09 数据覆盖盘点：当前商品库 `跑步鞋` 4 款，价格 899-1399；`真无线耳机` 2 款，价格 1499-2299；`智能手机` 10 款，价格 3299-13499；`厨房小电` 4 款，价格 159-558；`洁面` 1 款，价格 52-69。因此 300 元跑鞋、1000 元以下耳机、1000-2000 老人手机属于当前数据缺口，正确行为是完整说明无候选并建议放宽条件，或后续补 seed 数据。
-- 2026-06-09 Chat SSE smoke：`跑鞋推荐` 返回 `NEEDS_CLARIFICATION` 且无商品卡；`跑鞋推荐 -> 300左右，好穿耐用` 正确合并 `跑步鞋` 和 `maxPriceCents=33000`，返回完整 no-candidates；`1000元以下蓝牙耳机` 返回完整 no-candidates；`推荐一款适合油皮的洗面奶` 与 `找个混油皮日常用的洁面乳` 均只返回 `p_beauty_011 / 洁面`；`一人食小家电` 返回 `p_home_kitchen_004 / 厨房小电`；`下单第一款商品` 返回 `checkout_action draft_created / buy_now`。
-- 2026-06-09 第二轮 live Chat SSE：改用 UTF-8 JSON / unicode 转义重跑后，合同层结果与预期一致：`跑鞋推荐` 走 `NEEDS_CLARIFICATION` 且空商品卡；`300左右，好穿耐用` 返回完整 no-candidates；`1000元以下蓝牙耳机` 返回完整 no-candidates；`洗面奶` seed 与 paraphrase 都只命中 `p_beauty_011`；`不要含酒精的防晒` 只返回 `p_beauty_006`；`下单第一款商品` 在洁面推荐后正确输出 `checkout_action draft_created` 且 `returnedProductIds=["p_beauty_011"]`。
-- 2026-06-09 query / cache / visible ids 回归：`rag.service.test.ts` 新增宽泛同义请求必须在 query rewrite / popular cache / RAG 前进入澄清路径的回归；同时新增 `recentProductIds` 优先于 memory 的单品下单用例，以及对应 `answerStream` SSE 回归，锁定 `checkout_action` 仍按当前可见商品顺序执行。
-- 2026-06-09 Android 历史锚点升级：聊天 UI state 新增 `productCardGroups(messageId -> productCards)`，保留 `productCards` 作为最近推荐给加购 / 对比 / 下单 follow-up 使用；`ChatViewModelTest` 已覆盖“多轮不同品类推荐都保留在各自 assistant 消息下，后续 `下单第一款商品` 只使用最新可见推荐”。
-- 2026-06-09 文档 / chunking 现状复核：当前 `product-documents.jsonl` 已按 `content_block`、`faq`、`description`、`review_summary` 等原子文档输出，并带 `blockType` / `docType` metadata；但 chunk size / overlap A/B 还没开始，本轮保留为后续数据治理任务。
-- 2026-06-09 完整验证：`cd server && npm.cmd test -- rag.service.test.ts clarification.service.test.ts clarification-intent.service.test.ts chat-stability-regression.validation.test.ts checkout-intent.service.test.ts checkout-command.service.test.ts` 通过 6 个测试文件 / 125 个测试；`cd server && npm.cmd test` 通过 57 个测试文件 / 456 个测试；`cd server && npm.cmd run build` 通过；`cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.ui.chat.ChatViewModelTest"` 通过；`cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest` 通过；`cd client/android && .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api-e519.onrender.com/` 通过；`git diff --check` 无空白错误，仅 Windows CRLF 提示。
-- 2026-06-09 本轮续修：后端 checkout intent 增加“最近可见推荐只有一款时的明确下单”兜底，`帮我下单一下` / `下单这个` / `直接买这款` 会定位唯一商品，多商品仍要求序号或澄清，疑问句如“下单流程是什么？”不执行 checkout。
-- 2026-06-09 本轮续修：Android 发送 `recentProductIds` 改为读取最新可见商品组，空 `product_cards` 后继续下单不会丢失上一轮真实推荐；新增回归覆盖“空商品事件后 `帮我下单一下` 仍传当前商品”。
-- 2026-06-09 本轮续修：详情页优先消费后端 `recommendationReason`，并过滤已被主推荐理由覆盖的 highlight，避免“摘要和 bullet 重复”；同时收紧详情页 tag 区域宽度与长标题下的价格 / tag 位置，减少 tag 挤到卡片边缘的问题。
-- 2026-06-09 本轮验证：`cd server && npm.cmd test -- checkout-intent.service.test.ts checkout-command.service.test.ts rag.service.test.ts` 通过 3 个测试文件 / 100 个测试；`cd server && npm.cmd test` 通过 57 个测试文件 / 461 个测试；`cd server && npm.cmd run build` 通过；`cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.ui.chat.ChatViewModelTest" --tests "com.shopmate.app.data.products.ProductDetailMapperTest"` 通过；`cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest` 通过；`cd client/android && .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api-e519.onrender.com/` 通过；`git diff --check` 无空白错误，仅 Windows CRLF 提示。
-- 2026-06-09 本轮续修二：重新定位截图根因，`小熊电炖盅` / 小家电等商品的 `marketing_description` 和 RAG 文档里混有“本数据集保留真实品牌与产品名 / 后续查找图片 / 构建商品详情页 / 脱敏结构化”等数据生产说明，之前前后端 mapper 会把这些字段当成可展示卖点；这不是模型过拟合本身，也不是继续压缩导购文案能解决的问题。
-- 2026-06-09 本轮续修二：后端商品推荐理由过滤扩展到数据集 / 脱敏 / Demo / PostgreSQL / 模拟内容 / 限制条件说明等后台文案，并剥离 `主要卖点包括` 等营销段前缀；Android 商品卡消费后端 `recommendationReason` 前也做同类污染过滤，fallback 不再使用品牌 / 类目 / 主图 / 占位图作为理由。
-- 2026-06-09 本轮续修二：详情页 mapper 过滤同类后台文案，保留更长的真实后端推荐理由；详情页 `导购推荐理由` 主文案不再使用 `TextOverflow.Ellipsis` 截断，按中文行宽估算动态增高到最多 6 行 / 336dp，并同步把下方规格卡片位置按实际推荐卡高度下移。
-- 2026-06-09 本轮续修二回归：新增小熊电炖盅式“数据集说明污染”用例，断言后台说明不进入推荐理由、亮点、描述、选择建议和规格；新增理肤泉式长推荐理由用例，断言真实理由不会在 mapper 层被 50 字截短；新增 Android 商品卡脏 `recommendationReason` fallback 用例。
-- 2026-06-09 本轮验证二：`cd server && npm.cmd test -- product.mapper.test.ts` 通过 1 个测试文件 / 10 个测试；`cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.data.chat.ChatProductMapperTest" --tests "com.shopmate.app.data.products.ProductDetailMapperTest"` 通过；`cd server && npm.cmd test` 通过 57 个测试文件 / 462 个测试；`cd server && npm.cmd run build` 通过；`cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest` 通过；`cd client/android && .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api-e519.onrender.com/` 通过；`git diff --check` 无空白错误，仅 Windows CRLF 提示。
-- 2026-06-09 本轮续修三：重新定位截图根因，当前 `product.name` 实际是检索 / SEO 式 catalog 标题，可能拼入功效、场景和卖点；用户可见标题必须使用独立 display name，原始长标题只允许保留给检索、匹配、rawName / raw_name 和证据链。
-- 2026-06-09 本轮续修三：后端新增 `buildProductDisplayName`，Android 新增 `cleanProductDisplayName`，以 catalog `name` 为唯一标题来源，按跨品类商品类型 / 型号版型 / SEO 后缀边界清洗；明确禁止从 `marketingDescription` 反向猜标题，避免普通商品名被营销文案覆盖。
-- 2026-06-09 本轮续修三：商品卡、商品详情、购物车、buy-now checkout、聊天加购事件、对比 prompt 和 RAG candidate prompt 均改用 display name；后端 prompt 同时保留 `raw_name` 给模型识别，cart command 继续把 raw name 和 display name 都作为匹配候选。
-- 2026-06-09 本轮续修三：推荐理由事实过滤新增“不要把展示标题当 bullet”的回归，后台说明 / 品牌类目 / 标题回声都不能进入 `recommendationReason`、详情亮点或选择建议；Android 详情页过滤逻辑与后端软判断对齐，避免误删短但有价值的真实卖点。
-- 2026-06-09 本轮续修三：参考 Compose 文本布局规则，详情页 `导购推荐理由` 按实际估算行数增高、主理由不再省略，下方 bullet 和规格卡片随推荐卡高度下移；详情页 tag 限宽省略，长标题时价格和 tag 下移，减少挤压。
-- 2026-06-09 本轮续修三回归：新增 / 更新美妆防晒、隔离露、小熊早餐机、手机型号等跨品类 title cleanup 用例，覆盖 `巴黎欧莱雅新多重防护隔离露水感轻薄高倍防晒修护提亮` -> `巴黎欧莱雅新多重防护隔离露`、`安热沙金灿倍护防晒乳高倍防水防汗清爽户外面部身体防晒` -> `安热沙金灿倍护防晒乳`、`小熊多功能早餐机` 保持完整、`苹果手机十七专业版十九代专业芯片...` -> `苹果手机十七专业版`。
-- 2026-06-09 本轮验证三：`cd server && npm.cmd test -- product.mapper.test.ts rag.service.test.ts` 通过 2 个测试文件 / 89 个测试；`cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.data.chat.ChatProductMapperTest" --tests "com.shopmate.app.data.products.ProductDetailMapperTest"` 通过；`cd server && npm.cmd test` 通过 57 个测试文件 / 465 个测试；`cd server && npm.cmd run build` 通过；`cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest` 通过；`cd client/android && .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api-e519.onrender.com/` 通过；`git diff --check` 无空白错误，仅 Windows CRLF 提示；展示名扫漏确认剩余 `product.name` 只在 rawName / raw_name、匹配候选和负向约束证据里。
-- 2026-06-09 review 修复：`feature review` 发现 display name helper 对“短品牌 + 紧跟商品类型”仍会漏判，且后端会在 raw candidate 与 fallback 间按长度重新选择，存在把 SEO 原长标题抢回展示位的风险；已改为 marker 允许紧贴 brand 命中，抽出 core title 后直接使用，不再让 fallback 参与竞选。
-- 2026-06-09 review 修复：推荐理由 `marketingDescription` summary fallback 也补上标题回声过滤，避免结构化事实为空时把商品标题本身当导购理由；新增小熊电炖盅、兰蔻眼霜等短品牌 / 短品类回归，Android 商品卡和详情页同步覆盖。
-- 2026-06-09 review 验证：`cd server && npm.cmd test -- product.mapper.test.ts rag.service.test.ts` 通过 2 个测试文件 / 90 个测试；`cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest --tests "com.shopmate.app.data.chat.ChatProductMapperTest" --tests "com.shopmate.app.data.products.ProductDetailMapperTest"` 通过；`cd server && npm.cmd test` 通过 57 个测试文件 / 466 个测试；`cd server && npm.cmd run build` 通过；`cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest` 通过；`cd client/android && .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api-e519.onrender.com/` 通过；`git diff --check` 无空白错误，仅 Windows CRLF 提示。
-- 2026-06-09 环境修复：确认 Android debug 默认应走 `http://10.0.2.2:3000/`，停止旧 `dist/server.js` 后端并重启 `tsx watch src/server.ts`，当前 `3000` 端口由最新源码 dev server 监听；`client/android/gradle.properties` 显式固定 debug base URL，避免 Android Studio Run 误用云端。
-- 2026-06-09 最后串味修复：复现同一会话先问防晒、再问“推荐宿舍好用的小家电”会继承旧 `美妆护肤 / 防晒` 约束；新增 `小家电 / 厨房小电 / 早餐机 / 电炖盅 / 电饭煲` 到 `家用电器 / 厨房小电` 映射，新显式品类现在会覆盖旧会话记忆，retrieval query 不再拼旧防晒约束。
-- 2026-06-09 最后串味验证：`cd server && npm.cmd test -- chat-context-memory.service.test.ts rag.service.test.ts` 通过 2 个测试文件 / 96 个测试；本地 live smoke 同一 `conversationId` 先问 `推荐油皮夏天用的防晒` 再问 `推荐宿舍好用的小家电`，第二问返回 `p_home_kitchen_002`、`p_home_kitchen_004`、`p_home_kitchen_001`，`contextMemory.constraints` 为 `家用电器 / 厨房小电`，无防晒卡片。
-- 2026-06-09 完成验证：`cd server && npm.cmd test` 通过 57 个测试文件 / 467 个测试；`cd server && npm.cmd run build` 通过；`cd client/android && .\gradlew.bat --no-daemon testDebugUnitTest` 通过；`cd client/android && .\gradlew.bat --no-daemon build -PSHOPMATE_DEMO_API_BASE_URL=https://shopmate-api-e519.onrender.com/` 通过；`git diff --check` 无空白错误，仅 Windows CRLF 提示。
+- Spec 来源：`context/feature/rag-document-embedding-cleanup-spec.md`。
+- 上游基线：`RAG Debug Trace and Evaluation Baseline` 已完成，E0 为 24 条 query 中 23 条通过，唯一失败是 `dorm-small-appliance-paraphrases` / `一人食省空间小家电`。
+- 范围边界：本阶段只处理 expected set 校准、document / embedding text cleanup、docType 责任拆分、product_profile 和 deterministic alias；不改 Android UI、Chat SSE contract、cart / checkout / comparison / clarification 业务逻辑，不通过 prompt 掩盖检索问题。
+- 明确非目标：不做 keyword / BM25 / sparse retrieval、hybrid retrieval、candidate merge、rule-based reranker，也不为了分数删除失败 case。
+- 验证重点：E1 的 recall@10、MRR@10、paraphrase overlap@10 不低于 E0；constraint satisfaction、negative constraint accuracy 保持 1.000；stale hit rate 保持 0.000。
+- 外部依赖：Qdrant / embedding 不可用时先完成 documents 和 tests，并在报告中明确 index / baseline 未完成原因，不编造 E1 指标。
+- 实施记录：`rag:index -- --recreate` 首次超过 10 分钟工具超时，但后台进程继续执行并已等待完成；`vector-index-manifest.json` 已更新为 1889/1889 indexed。
+- E1 结果：baseline 24/24 通过，recall@5/10/20 = 1.000，MRR@10 = 1.000，candidate overlap@10 = 0.935，constraint / negative / no-result 均保持 1.000，stale hit rate = 0.000。
+- 文档检查：`product-documents.jsonl` 当前 1889 docs，175/175 active product 均有 `product_profile`，未检出本 spec 指定的 dataset/demo/process/visual 污染 marker。
+- 已执行验证：目标 Vitest 7 个文件 42 个测试通过；后端全量 `npm.cmd test` 61 个文件 484 个测试通过；`npm.cmd run build` 通过。
 
 ## 历史记录
 - 初始化前后端技术栈骨架：完成 Android Kotlin + Jetpack Compose 与 Node.js + TypeScript + Express 最小工程初始化，补充 README 与 Git 忽略配置，并通过后端构建与 Android `assembleDebug` 验证。
@@ -185,3 +128,5 @@ Complete
 - Android Product Card Rich Interaction：新增商品卡、详情页、对比页和购物车的加购 / 操作反馈，详情页立即购买改为单品 `buy_now` checkout，购物车商品可进入详情；通过后端 test / build、Android `testDebugUnitTest` 与带 demo HTTPS URL 的 `build` 验证。
 - Android Entry Global Feedback Polish：统一入口、图片找货、购物车操作、checkout 和语音权限等全局临时反馈，图片来源改为 ShopMate 主题弹窗，恢复入口 / 购物车返回按压反馈，收口状态卡装饰语义和完整路由恢复链路；通过 Android 路由 helper 单测、全量 `testDebugUnitTest` 和带 demo HTTPS URL 的 `build` 验证。
 - Android Motion Transition Polish：新增统一 motion token、按压反馈 helper 和 Compose animation 依赖，覆盖主路径页面进入、侧边栏抽屉、聊天状态、商品卡、对比、商品详情、购物车和 checkout 的轻量动效；按反馈调整 sidebar 阅读尺度并修复商品详情长标题裁切，通过 Android `testDebugUnitTest` 与带 demo HTTPS URL 的 `build` 验证。
+- Chat / RAG / UI 稳定性修复：建立稳定性回归矩阵，修复 RAG contract、主动澄清、多轮上下文串味、推荐理由污染、商品展示名清洗、Android 商品卡 / 详情页 / 历史锚点、购物车价格和自然语言 checkout；补充数据 / RAG 工件与后端 / Android 回归测试，并通过后端 test/build、Android testDebugUnitTest 和 demo URL build 验证。
+- RAG Debug Trace and Evaluation Baseline：新增内部 `RagDebugTrace`、baseline evaluator、`rag:baseline` CLI、grouped baseline cases、正式 `retrieval-baseline-results.jsonl` / `retrieval-baseline-traces.jsonl` 与 `docs/rag-tuning-report.md`；保持现有 Chat SSE contract 不变，并通过后端全量 test / build 与真实 baseline 跑通验证，当前 24 条 query 中 23 条通过、1 条 `vector_retrieval_failure` 留给后续 document / embedding text cleanup。
