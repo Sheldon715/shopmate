@@ -2,28 +2,36 @@ package com.shopmate.app.data.products
 
 import com.shopmate.app.data.network.ShopMateApiConfig
 import com.shopmate.app.data.network.ShopMateImageUrlResolver
+import com.shopmate.app.ui.model.ProductDetailSpecUi
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import org.junit.Test
 
 class ProductDetailMapperTest {
     @Test
-    fun mapsProductDetailDtoToPolishedUiModel() {
+    fun mapsAiGeneratedProductDetailDisplayFieldsToUiModel() {
         val ui = productDto().toProductDetailUi()
 
         assertEquals("product_001", ui.id)
-        assertEquals("通勤蓝牙耳机", ui.name)
+        assertEquals("漫步者 Zero Air", ui.name)
         assertEquals("¥179-219", ui.priceText)
         assertEquals("数码电子 / 耳机", ui.categoryText)
         assertEquals("示例品牌", ui.brandText)
-        assertEquals(listOf("通勤", "蓝牙", "轻巧", "办公"), ui.tags)
-        assertTrue(ui.recommendationReason.contains("通勤"))
-        assertFalse(ui.recommendationReason.contains(ui.highlights.first()))
-        assertTrue(ui.highlights.contains("续航稳定"))
-        assertTrue(ui.highlights.contains("半入耳轻盈"))
-        assertTrue(ui.suitedForText.contains("适合通勤"))
-        assertTrue(ui.suitedForText.contains("强降噪"))
+        assertEquals(listOf("半入耳", "通勤久戴", "通话清晰"), ui.tags)
+        assertEquals("半入耳佩戴轻松，适合通勤和办公长时间使用。", ui.recommendationReason)
+        assertEquals(listOf("通勤办公久戴不闷", "通话清晰度更稳"), ui.highlights)
+        assertEquals("适合想要久戴轻松和日常通话的用户，如果更看重地铁深度降噪，可以比较高阶款。", ui.suitedForText)
+        assertEquals(
+            listOf(
+                ProductDetailSpecUi("佩戴", "半入耳轻量"),
+                ProductDetailSpecUi("场景", "通勤 / 办公"),
+                ProductDetailSpecUi("通话", "清晰度更稳"),
+                ProductDetailSpecUi("取舍", "弱于深度降噪"),
+            ),
+            ui.specs,
+        )
     }
 
     @Test
@@ -41,248 +49,241 @@ class ProductDetailMapperTest {
     }
 
     @Test
-    fun filtersTemplateAndCautionCopyOutOfHighlights() {
-        val ui = beautyDto().toProductDetailUi()
-
-        assertFalse(ui.recommendationReason.contains("可以结合价格、规格和注意事项继续比较"))
-        assertFalse(ui.highlights.any { value -> value.contains("功效描述明确") })
-        assertFalse(ui.highlights.any { value -> value.contains("适用场景清楚") })
-        assertFalse(ui.highlights.any { value -> value.contains("不应替代医疗建议") })
-        assertFalse(ui.highlights.any { value -> value.contains("过敏") })
-        assertFalse(ui.recommendationReason.contains(ui.highlights.first()))
-        assertTrue(ui.highlights.any { value -> value.contains("夜间肌底修护") })
-        assertTrue(ui.suitedForText.contains("局部测试") || ui.suitedForText.contains("过敏"))
-    }
-
-    @Test
-    fun usesGroundedRecommendationReasonFromBackendWhenPresent() {
-        val ui = productDto(
-            recommendationReason = "推荐理由：适合学生党通勤训练，轻便耐穿。",
-            pros = listOf("适合学生党通勤训练", "轻便耐穿", "鞋面透气"),
-        ).toProductDetailUi()
-
-        assertEquals("适合学生党通勤训练，轻便耐穿。", ui.recommendationReason)
-        assertFalse(ui.recommendationReason.contains("推荐理由：推荐理由"))
-        assertFalse(ui.recommendationReason.contains("示例品牌"))
-        assertFalse(ui.highlights.any { value -> value.contains("适合学生党通勤训练") })
-        assertFalse(ui.highlights.any { value -> value.contains("轻便耐穿") })
-        assertTrue(ui.highlights.any { value -> value.contains("鞋面透气") })
-    }
-
-    @Test
-    fun usesGeneratedRecommendationHighlightsFromBackendWhenPresent() {
-        val ui = productDto(
-            recommendationReason = "推荐理由：半入耳佩戴轻松，适合通勤办公久戴。",
-            recommendationHighlights = listOf(
-                "半入耳佩戴轻松",
-                "通勤办公久戴不闷",
-                "SKU 选择较多",
-            ),
-            pros = listOf("续航稳定", "半入耳轻盈"),
-        ).toProductDetailUi()
-
-        assertEquals(listOf("通勤办公久戴不闷"), ui.highlights)
-    }
-
-    @Test
-    fun filtersDatasetHousekeepingCopyOutOfDetailRecommendationContent() {
-        val dirtyCopies = listOf(
-            "本数据集保留真实品牌与产品名",
-            "便于后续查找对应商品图片和构建商品详情页",
-            "导购信息经过脱敏和结构化整理",
-            "价格、SKU、评论和 FAQ 为比赛数据集模拟内容，不代表实时售价或真实用户反馈",
-        )
-        val ui = productDto(
-            recommendationReason = "推荐理由：适合炖汤，小容量，宿舍友好。",
-            pros = dirtyCopies + listOf("适合炖汤", "小容量"),
-            recommendWhen = listOf("适合炖汤", "小容量"),
-            attributes = mapOf(
-                "适用人群" to listOf("租房党", "早餐需求用户"),
-                "使用场景" to listOf("早餐制作", "一人食"),
-                "核心卖点" to dirtyCopies + listOf("适合炖汤", "小容量", "宿舍友好"),
-            ),
-            marketingDescription = "小熊 DDZ-C06A1 电炖盅 是真实品牌 小熊 旗下的家用电器/厨房小电商品，本数据集保留真实品牌与产品名，便于后续查找对应商品图片和构建商品详情页。导购信息经过脱敏和结构化整理，主要卖点包括适合炖汤、小容量、宿舍友好，适合早餐制作、一人食。价格、SKU、评论和 FAQ 为比赛数据集模拟内容，不代表实时售价或真实用户反馈。",
-        ).toProductDetailUi()
-
-        assertEquals("适合炖汤，小容量，宿舍友好。", ui.recommendationReason)
-        val displayCopies = listOf(ui.recommendationReason, ui.description, ui.suitedForText) +
-            ui.highlights +
-            ui.specs.map { spec -> spec.value }
-        dirtyCopies.forEach { dirtyCopy ->
-            assertFalse(displayCopies.any { value -> value.contains(dirtyCopy) })
+    fun filtersTemplateAndCautionCopyOutOfAiDisplayFields() {
+        val error = assertFailsWith<IllegalStateException> {
+            productDto(
+                recommendationReason = "推荐理由：配置清晰，适合参数比较。",
+                recommendationHighlights = listOf("SKU 选择较多", "通勤办公久戴不闷"),
+                displayTags = listOf("数码电子", "通勤"),
+                displaySpecs = listOf(
+                    ProductDetailDisplaySpecDto("规格", "SKU 选择较多"),
+                    ProductDetailDisplaySpecDto("场景", "通勤"),
+                    ProductDetailDisplaySpecDto("注意", "不适合强降噪需求"),
+                    ProductDetailDisplaySpecDto("品牌", "示例品牌"),
+                ),
+            ).toProductDetailUi()
         }
-        assertTrue(ui.highlights.any { value -> value.contains("早餐制作") || value.contains("一人食") })
+
+        assertTrue(error.message.orEmpty().contains("Product detail AI"))
     }
 
     @Test
-    fun buildsDenseRecommendationReasonFromCleanMarketingCopyWhenBackendReasonIsMissing() {
+    fun requiresAiRecommendationReasonForProductDetail() {
+        assertFailsWith<IllegalStateException> {
+            productDto(recommendationReason = null).toProductDetailUi()
+        }
+    }
+
+    @Test
+    fun requiresAiHighlightsForProductDetail() {
+        assertFailsWith<IllegalStateException> {
+            productDto(recommendationHighlights = emptyList()).toProductDetailUi()
+        }
+    }
+
+    @Test
+    fun requiresAiDisplayNameForProductDetail() {
+        assertFailsWith<IllegalStateException> {
+            productDto(displayName = null).toProductDetailUi()
+        }
+    }
+
+    @Test
+    fun requiresFourAiDisplaySpecsForProductDetail() {
+        assertFailsWith<IllegalStateException> {
+            productDto(
+                displaySpecs = listOf(
+                    ProductDetailDisplaySpecDto("佩戴", "半入耳轻量"),
+                    ProductDetailDisplaySpecDto("场景", "通勤 / 办公"),
+                ),
+            ).toProductDetailUi()
+        }
+    }
+
+    @Test
+    fun keepsHardFactsFromBackendStructuredFields() {
         val ui = productDto(
-            name = "小天鹅滚筒洗衣机",
-            brand = "小天鹅",
-            category = "家用电器",
-            subCategory = "洗护电器",
-            recommendationReason = null,
-            pros = listOf("洗涤更柔和", "运行较安静", "小户型友好"),
-            recommendWhen = listOf("日常洗衣", "小户型阳台"),
-            attributes = mapOf(
-                "适用人群" to listOf("家庭", "租房党"),
-                "使用场景" to listOf("日常洗衣", "小户型阳台"),
-                "核心卖点" to listOf("洗涤更柔和", "运行较安静", "小户型友好"),
+            displayName = "AI 缩略耳机名",
+            displayTags = listOf("差异标签"),
+            recommendationReason = "推荐理由：AI 只写导购理由，不改价格品牌和品类。",
+            recommendationHighlights = listOf("导购亮点来自 AI"),
+            displaySpecs = listOf(
+                ProductDetailDisplaySpecDto("人群", "学生通勤"),
+                ProductDetailDisplaySpecDto("场景", "宿舍网课"),
+                ProductDetailDisplaySpecDto("佩戴", "半入耳"),
+                ProductDetailDisplaySpecDto("取舍", "弱于旗舰降噪"),
             ),
-            marketingDescription = "洗涤更柔和，运行较安静，适合家庭使用。支持日常洗衣和小户型阳台摆放。",
+            suitabilityText = "适合学生通勤和宿舍网课，价格品牌仍以商品事实为准。",
         ).toProductDetailUi()
 
-        assertEquals("洗涤更柔和，运行较安静，适合家庭使用。", ui.recommendationReason)
-        assertFalse(ui.recommendationReason.contains("时重点比较"))
-        assertFalse(ui.recommendationReason.contains("推荐理由"))
-        assertFalse(ui.highlights.any { highlight -> ui.recommendationReason.contains(highlight) })
+        assertEquals("AI 缩略耳机名", ui.name)
+        assertEquals("¥179-219", ui.priceText)
+        assertEquals("数码电子 / 耳机", ui.categoryText)
+        assertEquals("示例品牌", ui.brandText)
     }
 
     @Test
-    fun preservesLongGroundedRecommendationReasonFromBackend() {
-        val reason = "推荐理由：适合油皮或混合皮在夏季使用，适合追求自然妆感的人群，50ml容量刚好满足日常通勤或短途旅行需求。"
+    fun trimsLongAiDisplayCopiesAndAvoidsDanglingParentheses() {
         val ui = productDto(
-            recommendationReason = reason,
-            pros = listOf("专为易敏肌设计", "50ml容量适合通勤或短途旅行"),
-            attributes = mapOf(
-                "适用人群" to listOf("日常护肤用户", "关注肤感的人群"),
-                "使用场景" to listOf("日常护理", "换季护理"),
-                "核心卖点" to listOf("清爽控油", "轻薄不油腻"),
+            displayName = "这是一个非常非常非常非常长的 AI 商品名",
+            recommendationHighlights = listOf(
+                "这是一段非常非常非常非常长的真实商品优势文案应该被截短",
+                "含五胜肽（Pal-KTTKS）",
             ),
-        ).toProductDetailUi()
-
-        assertEquals(
-            "适合油皮或混合皮在夏季使用，适合追求自然妆感的人群，50ml容量刚好满足日常通勤或短途旅行需求。",
-            ui.recommendationReason,
-        )
-    }
-
-    @Test
-    fun mapsRawCatalogSeoTitleToConciseDetailDisplayNameAndFiltersTitleEchoHighlights() {
-        val ui = productDto(
-            name = "安热沙金灿倍护防晒乳高倍防水防汗清爽户外面部身体防晒",
-            brand = "安热沙",
-            category = "美妆护肤",
-            subCategory = "防晒",
-            recommendationReason = "推荐理由：适合户外爱好者、通勤族及易出汗人群，防水配方需用卸妆产品清洁。",
-            pros = listOf("安热沙金灿倍护防晒乳", "遇水增强技术", "SPF50+ PA++++高倍防护"),
-            recommendWhen = listOf("安热沙金灿倍护防晒乳", "户外通勤"),
-            attributes = mapOf(
-                "适用人群" to listOf("户外爱好者", "通勤族"),
-                "使用场景" to listOf("户外防晒", "日常上班"),
-                "核心卖点" to listOf("安热沙金灿倍护防晒乳", "遇水增强技术", "质地清爽不油腻"),
-            ),
-        ).toProductDetailUi()
-
-        assertEquals("安热沙金灿倍护防晒乳", ui.name)
-        assertFalse(ui.highlights.any { value -> value == "安热沙金灿倍护防晒乳" })
-        assertTrue(ui.highlights.any { value -> value.contains("遇水增强") })
-    }
-
-    @Test
-    fun mapsShortBrandTitleWithImmediateProductTypeToConciseDetailDisplayName() {
-        val ui = productDto(
-            name = "小熊电炖盅适合炖汤小容量宿舍友好早餐制作一人食",
-            brand = "小熊",
-            category = "家用电器",
-            subCategory = "厨房小电",
-            recommendationReason = "推荐理由：适合炖汤，小容量，宿舍友好。",
-            pros = listOf("小熊电炖盅", "适合炖汤", "小容量"),
-            recommendWhen = listOf("早餐制作", "一人食"),
-            attributes = mapOf(
-                "适用人群" to listOf("租房党", "早餐需求"),
-                "使用场景" to listOf("早餐制作", "一人食"),
-                "核心卖点" to listOf("小熊电炖盅", "适合炖汤", "小容量"),
+            displaySpecs = listOf(
+                ProductDetailDisplaySpecDto("核心亮点很长", "这是一段非常非常非常长的规格文案"),
+                ProductDetailDisplaySpecDto("肤感", "水感轻薄不厚重"),
+                ProductDetailDisplaySpecDto("场景", "通勤防晒"),
+                ProductDetailDisplaySpecDto("取舍", "户外暴晒看高阶款"),
             ),
         ).toProductDetailUi()
 
-        assertEquals("小熊电炖盅", ui.name)
-        assertFalse(ui.highlights.any { value -> value == "小熊电炖盅" })
-        assertTrue(ui.highlights.any { value -> value.contains("早餐制作") || value.contains("一人食") })
-    }
-
-    @Test
-    fun detailMapperDoesNotBuildTagsFromRecommendationReasonWhenBackendTagsAreEmpty() {
-        val ui = productDto(
-            name = "华为无线耳机专业五代主动降噪真无线蓝牙耳机高解析音质",
-            recommendationReason = "推荐理由：半入耳式真无线设计，适合通勤和移动使用，学生与上班族都能轻松搭配。",
-        ).copy(
-            tags = emptyList(),
-        ).toProductDetailUi()
-
-        assertEquals(emptyList(), ui.tags)
-        assertTrue(ui.name.contains("蓝牙耳机"))
-    }
-
-    @Test
-    fun mapsReadableAttributesAndSkuSummaryToSpecs() {
-        val ui = productDto().toProductDetailUi()
-
-        assertEquals("适用人群", ui.specs[0].label)
-        assertEquals("通勤 / 办公", ui.specs[0].value)
-        assertEquals("使用场景", ui.specs[1].label)
-        assertEquals("通勤 / 办公", ui.specs[1].value)
-        assertEquals("规格", ui.specs[2].label)
-        assertEquals("标准版 / 续航版", ui.specs[2].value)
-        assertEquals("品牌", ui.specs[3].label)
-        assertEquals("示例品牌", ui.specs[3].value)
-    }
-
-    @Test
-    fun keepsCautionAttributesOutOfSpecs() {
-        val ui = beautyDto().toProductDetailUi()
-
-        assertFalse(ui.specs.any { spec -> spec.label == "注意事项" })
-        assertFalse(ui.specs.any { spec -> spec.label == "不适合" })
-        assertFalse(ui.specs.any { spec -> spec.value.contains("医疗") })
-    }
-
-    @Test
-    fun mapperUsesConservativeFallbacksForMissingOptionalFields() {
-        val ui = ProductDetailDto(
-            id = "product_missing",
-            name = "",
-            priceCents = 0,
-        ).toProductDetailUi()
-
-        assertEquals("未命名商品", ui.name)
-        assertEquals("价格待确认", ui.priceText)
-        assertEquals("商品", ui.categoryText)
-        assertEquals("品牌信息待补充", ui.brandText)
-        assertEquals("暂无详细说明", ui.description)
-        assertEquals(listOf("暂无更多商品亮点"), ui.highlights)
-        assertTrue(ui.recommendationReason.contains("可以结合价格、规格和适用场景继续比较"))
-    }
-
-    @Test
-    fun trimsLongHighlights() {
-        val ui = productDto(
-            pros = listOf("这是一段非常非常非常非常长的真实商品优势文案应该被截短"),
-            recommendWhen = emptyList(),
-            attributes = emptyMap(),
-        ).toProductDetailUi()
-
-        assertTrue(ui.highlights.isNotEmpty())
+        assertTrue(ui.name.length <= 22)
         assertTrue(ui.highlights.all { highlight -> highlight.length <= 34 })
-    }
-
-    @Test
-    fun avoidsDanglingParenthesesWhenShorteningCopy() {
-        val ui = beautyDto().copy(
-            marketingDescription = "玉兰油新生塑颜金纯面霜（大红瓶）是针对25+初老肌的面霜。核心成分含高浓度烟酰胺与五胜肽（Pal-KTTKS），帮助提亮肤色。烟酰胺助力提亮肤色、促进胶原蛋白生成。",
-            attributes = mapOf(
-                "适用人群" to listOf("初老肌用户", "关注纹路改善的人群"),
-                "使用场景" to listOf("日常护理", "抗老护理"),
-                "核心卖点" to emptyList(),
-            ),
-            pros = emptyList(),
-            recommendWhen = emptyList(),
-        ).toProductDetailUi()
-
+        assertTrue(ui.specs.all { spec -> spec.label.length <= 8 && spec.value.length <= 32 })
         val displayCopies = listOf(ui.recommendationReason) + ui.highlights + ui.specs.map { spec -> spec.value }
         assertTrue(displayCopies.none { value -> value.contains("（") && !value.contains("）") })
         assertTrue(displayCopies.none { value -> value.contains("(") && !value.contains(")") })
-        assertTrue(ui.highlights.any { value -> value.contains("五胜肽") })
+    }
+
+    @Test
+    fun doesNotUseRawTagsOrAttributesAsFallbackWhenAiTagsAreMissing() {
+        assertFailsWith<IllegalStateException> {
+            productDto(
+                displayTags = emptyList(),
+                tags = listOf("通勤", "蓝牙"),
+                attributes = mapOf(
+                    "适用人群" to listOf("学生"),
+                    "使用场景" to listOf("办公学习"),
+                ),
+            ).toProductDetailUi()
+        }
+    }
+
+    @Test
+    fun filtersBrandAndCategoryOutOfAiTagsAndSpecs() {
+        val ui = productDto(
+            displayTags = listOf("示例品牌", "数码电子", "半入耳"),
+            displaySpecs = listOf(
+                ProductDetailDisplaySpecDto("品牌", "示例品牌"),
+                ProductDetailDisplaySpecDto("品类", "耳机"),
+                ProductDetailDisplaySpecDto("佩戴", "半入耳轻量"),
+                ProductDetailDisplaySpecDto("场景", "通勤 / 办公"),
+                ProductDetailDisplaySpecDto("通话", "清晰度更稳"),
+                ProductDetailDisplaySpecDto("取舍", "弱于深度降噪"),
+            ),
+        ).toProductDetailUi()
+
+        assertEquals(listOf("半入耳"), ui.tags)
+        assertEquals(
+            listOf(
+                ProductDetailSpecUi("品牌", "示例品牌"),
+                ProductDetailSpecUi("佩戴", "半入耳轻量"),
+                ProductDetailSpecUi("场景", "通勤 / 办公"),
+                ProductDetailSpecUi("通话", "清晰度更稳"),
+            ),
+            ui.specs,
+        )
+        assertFalse(ui.tags.contains("示例品牌"))
+        assertFalse(ui.tags.contains("数码电子"))
+    }
+
+    @Test
+    fun allowsFactuallyCorrectBrandAndCategorySpecsFromAi() {
+        val ui = productDto(
+            brand = "苏泊尔",
+            category = "家用电器",
+            subCategory = "厨房小电",
+            displayName = "苏泊尔智能电饭煲",
+            displayTags = listOf("操作简单", "小家庭", "一人食", "早餐"),
+            recommendationReason = "推荐理由：操作简单，适合小家庭和一人食，日常早餐制作更省心。",
+            recommendationHighlights = listOf(
+                "操作简单，容易上手",
+                "适合早餐制作、一人食",
+                "可选3L、4L规格",
+            ),
+            displaySpecs = listOf(
+                ProductDetailDisplaySpecDto("品牌", "苏泊尔"),
+                ProductDetailDisplaySpecDto("规格", "3L、4L可选"),
+                ProductDetailDisplaySpecDto("适合", "小家庭/一人食"),
+                ProductDetailDisplaySpecDto("注意", "功能偏基础"),
+            ),
+            suitabilityText = "适合租房党、小家庭和早餐需求用户，日常做饭以简单实用为主。",
+        ).toProductDetailUi()
+
+        assertEquals(
+            listOf(
+                ProductDetailSpecUi("品牌", "苏泊尔"),
+                ProductDetailSpecUi("规格", "3L、4L可选"),
+                ProductDetailSpecUi("适合", "小家庭/一人食"),
+                ProductDetailSpecUi("注意", "功能偏基础"),
+            ),
+            ui.specs,
+        )
+    }
+
+    @Test
+    fun allowsCautionStyleAiSpecValuesForReminderLabels() {
+        val ui = productDto(
+            brand = "苏泊尔",
+            category = "家用电器",
+            subCategory = "厨房小电",
+            displayName = "苏泊尔智能电饭煲",
+            displayTags = listOf("操作简单", "一人食", "小家庭", "早餐"),
+            recommendationReason = "推荐理由：主打操作简单，适合早餐和一人食场景。",
+            recommendationHighlights = listOf(
+                "操作简单，上手门槛低",
+                "适合早餐制作和一人食",
+                "可选3L、4L等规格",
+            ),
+            displaySpecs = listOf(
+                ProductDetailDisplaySpecDto("容量", "可选3L、4L等"),
+                ProductDetailDisplaySpecDto("适合", "小家庭、租房党"),
+                ProductDetailDisplaySpecDto("场景", "早餐制作、一人食"),
+                ProductDetailDisplaySpecDto("提醒", "功能偏基础，不适合复杂烹饪"),
+            ),
+            suitabilityText = "适合预算有限、空间不大、主要做早餐或一人食的人。",
+        ).toProductDetailUi()
+
+        assertTrue(ui.specs.any { spec ->
+            spec.label == "提醒" && spec.value.contains("不适合复杂烹饪")
+        })
+    }
+
+    @Test
+    fun allowsLimitationStyleAiSpecValuesForConstraintLabels() {
+        val ui = productDto(
+            displayName = "小熊电炖盅",
+            displayTags = listOf("一人食", "宿舍友好", "炖汤", "小容量"),
+            recommendationReason = "推荐理由：适合炖汤和早餐制作，小容量更适合一人食。",
+            recommendationHighlights = listOf(
+                "适合炖汤、小容量",
+                "更适合一人食早餐",
+                "宿舍、租房场景友好",
+            ),
+            displaySpecs = listOf(
+                ProductDetailDisplaySpecDto("容量", "可选1L、1.5L等"),
+                ProductDetailDisplaySpecDto("场景", "早餐制作、一人食"),
+                ProductDetailDisplaySpecDto("限制", "烹饪速度较慢"),
+                ProductDetailDisplaySpecDto("建议", "结合预算、空间和频率"),
+            ),
+            suitabilityText = "适合一人食、早餐制作和宿舍租房场景。",
+        ).toProductDetailUi()
+
+        assertTrue(ui.specs.any { spec ->
+            spec.label == "限制" && spec.value.contains("烹饪速度较慢")
+        })
+    }
+
+    @Test
+    fun allowsAiRecommendationReasonWithNormalTradeoffAdvice() {
+        val ui = productDto(
+            recommendationReason = "这款主打操作简单，适合小家庭、租房党和早餐需求用户，日常做早餐或一人食更合适。若是多人聚餐，建议先对比同类其他商品。",
+            suitabilityText = "适合预算有限、空间不大、主要做早餐或一人食的人。若经常多人聚餐，建议优先对比更大容量的同类商品。",
+        ).toProductDetailUi()
+
+        assertTrue(ui.recommendationReason.contains("建议先对比同类其他商品"))
+        assertTrue(ui.suitedForText.contains("建议优先对比更大容量"))
     }
 
     private fun productDto(
@@ -290,17 +291,27 @@ class ProductDetailMapperTest {
         brand: String = "示例品牌",
         category: String = "数码电子",
         subCategory: String = "耳机",
-        pros: List<String> = listOf("续航稳定", "半入耳轻盈"),
-        recommendWhen: List<String> = listOf("通勤"),
-        recommendationReason: String? = null,
-        recommendationHighlights: List<String> = emptyList(),
+        tags: List<String> = listOf("通勤", "蓝牙", "轻巧", "办公", "长续航"),
+        recommendationReason: String? = "推荐理由：半入耳佩戴轻松，适合通勤和办公长时间使用。",
+        recommendationHighlights: List<String> = listOf(
+            "半入耳佩戴轻松",
+            "通勤办公久戴不闷",
+            "通话清晰度更稳",
+        ),
+        displayName: String? = "漫步者 Zero Air",
+        displayTags: List<String> = listOf("半入耳", "通勤久戴", "通话清晰"),
+        displaySpecs: List<ProductDetailDisplaySpecDto> = listOf(
+            ProductDetailDisplaySpecDto("佩戴", "半入耳轻量"),
+            ProductDetailDisplaySpecDto("场景", "通勤 / 办公"),
+            ProductDetailDisplaySpecDto("通话", "清晰度更稳"),
+            ProductDetailDisplaySpecDto("取舍", "弱于深度降噪"),
+        ),
+        suitabilityText: String? = "适合想要久戴轻松和日常通话的用户，如果更看重地铁深度降噪，可以比较高阶款。",
         marketingDescription: String = "适合通勤和日常使用。轻巧佩戴，通话清晰。",
         attributes: Map<String, List<String>> = mapOf(
             "适用人群" to listOf("通勤用户", "办公用户"),
             "使用场景" to listOf("通勤", "办公"),
             "核心卖点" to listOf("续航稳定", "半入耳轻盈"),
-            "不适合" to listOf("需要强降噪"),
-            "注意事项" to listOf("购买前确认佩戴方式"),
         ),
     ): ProductDetailDto =
         ProductDetailDto(
@@ -312,7 +323,7 @@ class ProductDetailMapperTest {
             priceCents = 19900,
             priceRangeCents = PriceRangeCentsDto(min = 17900, max = 21900),
             currency = "CNY",
-            tags = listOf("通勤", "蓝牙", "轻巧", "办公", "长续航"),
+            tags = tags,
             available = true,
             recommendationReason = recommendationReason,
             marketingDescription = marketingDescription,
@@ -327,33 +338,10 @@ class ProductDetailMapperTest {
                 ),
             ),
             attributes = attributes,
-            pros = pros,
-            recommendWhen = recommendWhen,
-            avoidWhen = listOf("需要强降噪"),
             recommendationHighlights = recommendationHighlights,
-        )
-
-    private fun beautyDto(): ProductDetailDto =
-        ProductDetailDto(
-            id = "beauty_001",
-            name = "雅诗兰黛特润修护肌活精华露",
-            brand = "雅诗兰黛",
-            category = "美妆护肤",
-            subCategory = "精华",
-            priceCents = 72000,
-            tags = listOf("精华", "保湿"),
-            available = true,
-            marketingDescription = "雅诗兰黛特润修护肌活精华露是品牌经典单品，主打夜间肌底修护。搭配透明质酸锁水保湿，适合夜间护肤使用。敏感肌先做耳后测试，避免不适。",
-            attributes = mapOf(
-                "适用人群" to listOf("日常护肤用户", "关注肤感的人群"),
-                "使用场景" to listOf("日常护理", "换季护理"),
-                "核心卖点" to listOf("功效描述明确", "适用场景清楚", "便于按肤质筛选"),
-                "不适合" to listOf("对相关成分过敏的人群", "希望获得医疗效果的用户"),
-                "注意事项" to listOf("敏感肌建议先做局部测试，不应替代医疗建议"),
-            ),
-            pros = listOf("功效描述明确", "适用场景清楚"),
-            cons = listOf("对相关成分过敏的人群", "敏感肌建议先做局部测试，不应替代医疗建议"),
-            recommendWhen = listOf("功效描述明确", "适用场景清楚"),
-            avoidWhen = listOf("对相关成分过敏的人群", "希望获得医疗效果的用户"),
+            displayName = displayName,
+            displayTags = displayTags,
+            displaySpecs = displaySpecs,
+            suitabilityText = suitabilityText,
         )
 }

@@ -186,6 +186,10 @@ export async function getProductDetail(
     publicImageBaseUrl: getEnv().publicImageBaseUrl,
     recommendationReason: generatedCopy.detailReason,
     recommendationHighlights: generatedCopy.detailHighlights,
+    displayName: generatedCopy.displayName,
+    displayTags: generatedCopy.displayTags,
+    displaySpecs: generatedCopy.displaySpecs,
+    suitabilityText: generatedCopy.suitabilityText,
   });
 }
 
@@ -202,7 +206,15 @@ function getDefaultDisplayCopyGenerator(): ProductDisplayCopyGenerator {
 async function generateProductDetailCopy(
   product: Product,
   generator: ProductDisplayCopyGenerator,
-): Promise<Required<Pick<ProductDisplayCopy, "detailReason" | "detailHighlights">>> {
+): Promise<Required<Pick<
+  ProductDisplayCopy,
+  | "detailReason"
+  | "detailHighlights"
+  | "displayName"
+  | "displayTags"
+  | "displaySpecs"
+  | "suitabilityText"
+>>> {
   try {
     const copies = await generator.generate({
       products: [product],
@@ -210,8 +222,17 @@ async function generateProductDetailCopy(
     });
     const copy = copies.get(product.id);
     const detailHighlights = copy?.detailHighlights ?? [];
+    const displayTags = copy?.displayTags ?? [];
+    const displaySpecs = copy?.displaySpecs ?? [];
 
-    if (!copy?.detailReason || detailHighlights.length === 0) {
+    if (
+      !copy?.detailReason
+      || detailHighlights.length === 0
+      || !copy.displayName
+      || displayTags.length === 0
+      || displaySpecs.length < 4
+      || !copy.suitabilityText
+    ) {
       throw new ProductDetailCopyGenerationError(
         product.id,
         "missing_detail_copy",
@@ -221,6 +242,10 @@ async function generateProductDetailCopy(
     return {
       detailReason: copy.detailReason,
       detailHighlights,
+      displayName: copy.displayName,
+      displayTags,
+      displaySpecs,
+      suitabilityText: copy.suitabilityText,
     };
   } catch (error) {
     if (error instanceof ProductDetailCopyGenerationError) {

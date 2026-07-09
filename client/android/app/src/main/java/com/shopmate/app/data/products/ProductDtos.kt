@@ -42,6 +42,16 @@ data class ProductDetailDto(
     val officialFaq: JsonElement? = null,
     val contentBlocks: JsonElement? = null,
     val recommendationHighlights: List<String> = emptyList(),
+    val displayName: String? = null,
+    val displayTags: List<String> = emptyList(),
+    val displaySpecs: List<ProductDetailDisplaySpecDto> = emptyList(),
+    val suitabilityText: String? = null,
+)
+
+@Serializable
+data class ProductDetailDisplaySpecDto(
+    val label: String,
+    val value: String,
 )
 
 @Serializable

@@ -9,6 +9,7 @@ import type {
   JsonValue,
   Product,
   ProductCardDto,
+  ProductDetailDisplaySpecDto,
   ProductDetailDto,
   ProductRow,
   ProductSku,
@@ -21,6 +22,10 @@ export interface ProductMapperOptions {
   publicImageBaseUrl?: string;
   recommendationReason?: string;
   recommendationHighlights?: string[];
+  displayName?: string;
+  displayTags?: string[];
+  displaySpecs?: ProductDetailDisplaySpecDto[];
+  suitabilityText?: string;
 }
 
 function toJsonValue(value: unknown): JsonValue {
@@ -296,6 +301,10 @@ export function mapProductToDetailDto(
     ...(options.recommendationHighlights
       ? { recommendationHighlights: options.recommendationHighlights }
       : {}),
+    ...(options.displayName ? { displayName: options.displayName } : {}),
+    ...(options.displayTags ? { displayTags: options.displayTags } : {}),
+    ...(options.displaySpecs ? { displaySpecs: options.displaySpecs } : {}),
+    ...(options.suitabilityText ? { suitabilityText: options.suitabilityText } : {}),
   };
 }
 

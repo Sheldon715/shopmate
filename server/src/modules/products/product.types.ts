@@ -113,6 +113,11 @@ export interface ProductPriceRangeCents {
   max: number;
 }
 
+export interface ProductDetailDisplaySpecDto {
+  label: string;
+  value: string;
+}
+
 export interface ProductCardDto {
   id: string;
   name: string;
@@ -141,6 +146,10 @@ export interface ProductDetailDto extends ProductCardDto {
   officialFaq: JsonValue;
   contentBlocks: JsonValue;
   recommendationHighlights?: string[];
+  displayName?: string;
+  displayTags?: string[];
+  displaySpecs?: ProductDetailDisplaySpecDto[];
+  suitabilityText?: string;
 }
 
 export interface ProductListQuery {

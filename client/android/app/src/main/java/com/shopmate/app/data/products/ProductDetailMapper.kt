@@ -86,17 +86,29 @@ private val CautionCopyMarkers = listOf(
     "闭口",
     "长痘",
 )
+private val AllowedAiSpecLabels = setOf(
+    "品牌",
+    "品类",
+    "分类",
+    "子类",
+    "子类目",
+)
+private val AllowedAiCautionSpecLabels = setOf(
+    "注意",
+    "提醒",
+    "限制",
+    "取舍",
+)
 
 fun ProductDetailDto.toProductDetailUi(
     imageUrlResolver: ShopMateImageUrlResolver? = null,
 ): ProductDetailUi {
-    val displayName = cleanProductDisplayName(
-        rawName = name,
-        brand = brand,
-        category = category,
-        subCategory = subCategory,
-    )
-    val recommendationReason = buildRecommendationReason()
+    val displayName = requireAiDisplayName()
+    val recommendationReason = requireAiRecommendationReason()
+    val aiHighlights = requireAiHighlights(recommendationReason)
+    val aiTags = requireAiTags()
+    val aiSpecs = requireAiSpecs()
+    val aiSuitabilityText = requireAiSuitabilityText()
 
     return ProductDetailUi(
         id = id,
@@ -108,17 +120,17 @@ fun ProductDetailDto.toProductDetailUi(
             subCategory?.takeIf { value -> value.isNotBlank() },
         ).joinToString(" / ").ifBlank { "商品" },
         brandText = brand.orEmpty().ifBlank { "品牌信息待补充" },
-        tags = buildFallbackDisplayTags(
-            tags = tags,
-            recommendationReason = recommendationReason,
-            category = category,
-            subCategory = subCategory,
-        ).take(MAX_DETAIL_TAGS),
+        tags = aiTags,
         recommendationReason = recommendationReason,
-        description = buildDescription(),
-        highlights = buildHighlights(excludeReason = recommendationReason),
-        specs = buildSpecs(),
-        suitedForText = buildSuitabilityText(),
+        description = marketingDescription
+            ?.toCleanDisplayCopy()
+            ?.takeIf { value -> value.isNotBlank() && !value.isTemplateLikeProductCopy() }
+            ?.shortCopy(MAX_DESCRIPTION_CHARS)
+            ?.ensureSentence()
+            ?: recommendationReason,
+        highlights = aiHighlights,
+        specs = aiSpecs,
+        suitedForText = aiSuitabilityText,
         imageUrl = imageUrlResolver?.resolve(imagePath),
     )
 }
@@ -167,6 +179,158 @@ private fun ProductDetailDto.buildRecommendationReason(): String {
         ?.ensureSentence()
         ?: buildProductFallbackReason()
 }
+
+private fun ProductDetailDto.requireAiDisplayName(): String =
+    displayName
+        ?.toCleanDisplayCopy()
+        ?.takeIf { value ->
+            value.isNotBlank() &&
+                value.isPositiveProductCopy() &&
+                !value.containsCautionCopy()
+        }
+        ?.shortCopy(22)
+        ?: throw IllegalStateException("Product detail AI displayName is missing.")
+
+private fun ProductDetailDto.requireAiRecommendationReason(): String =
+    recommendationReason
+        ?.toCleanDisplayCopy()
+        ?.takeIf { value -> value.isReadableAiNarrativeCopy() }
+        ?.let { value -> value.shortenForSentence(MAX_REASON_CHARS).ensureSentence() }
+        ?: throw IllegalStateException("Product detail AI recommendationReason is missing.")
+
+private fun ProductDetailDto.requireAiHighlights(reasonCopy: String): List<String> {
+    val highlights = recommendationHighlights
+        .mapNotNull { value -> value.toCleanDisplayCopy() }
+        .map { value -> value.shortCopy(MAX_HIGHLIGHT_CHARS) }
+        .filter { value -> value.isPositiveProductCopy() }
+        .filter { value -> !value.isSameCopyAs(reasonCopy) }
+        .distinctByNormalized()
+        .take(MAX_DETAIL_HIGHLIGHTS)
+
+    if (highlights.isEmpty()) {
+        throw IllegalStateException("Product detail AI highlights are missing.")
+    }
+
+    return highlights
+}
+
+private fun ProductDetailDto.requireAiTags(): List<String> {
+    val productFacts = listOfNotNull(brand, category, subCategory)
+        .map { value -> value.toCleanDisplayCopy().normalizeDisplayFact() }
+        .filter { value -> value.isNotBlank() }
+    val tags = displayTags
+        .map { value -> value.toCleanDisplayCopy() }
+        .filter { value ->
+            val normalized = value.normalizeDisplayFact()
+            value.isNotBlank() &&
+                value.isPositiveProductCopy() &&
+                normalized !in productFacts
+        }
+        .distinctByNormalized()
+        .take(MAX_DETAIL_TAGS)
+
+    if (tags.isEmpty()) {
+        throw IllegalStateException("Product detail AI tags are missing.")
+    }
+
+    return tags
+}
+
+private fun ProductDetailDto.requireAiSpecs(): List<ProductDetailSpecUi> {
+    val blockedFacts = listOfNotNull(brand, category, subCategory)
+        .map { value -> value.toCleanDisplayCopy().normalizeDisplayFact() }
+        .filter { value -> value.isNotBlank() }
+    val allowedFactSpecs = buildAllowedFactSpecs()
+    val specs = displaySpecs
+        .mapNotNull { spec ->
+            val label = spec.label.toCleanDisplayCopy().shortCopy(8)
+            val value = spec.value.toCleanDisplayCopy().shortCopy(MAX_SPEC_VALUE_CHARS)
+            val normalizedValue = value.normalizeDisplayFact()
+            val allowedFactValue = allowedFactSpecs[label]
+            val usesAllowedFactValue = allowedFactValue != null && normalizedValue == allowedFactValue
+            val valueAllowed =
+                if (label.isAllowedAiCautionSpecLabel()) {
+                    value.isAllowedAiCautionSpecValue()
+                } else {
+                    value.isPositiveProductCopy()
+                }
+
+            if (
+                label.isBlank() ||
+                value.isBlank() ||
+                !label.isAllowedAiSpecLabel() ||
+                !valueAllowed ||
+                (normalizedValue in blockedFacts && !usesAllowedFactValue)
+            ) {
+                null
+            } else {
+                ProductDetailSpecUi(label = label, value = value)
+            }
+        }
+        .distinctBy { spec -> spec.label to spec.value }
+        .take(MAX_DETAIL_SPECS)
+
+    if (specs.size < MAX_DETAIL_SPECS) {
+        throw IllegalStateException("Product detail AI displaySpecs are incomplete.")
+    }
+
+    return specs
+}
+
+private fun String.isAllowedAiSpecLabel(): Boolean =
+    isNotBlank() && (
+        isPositiveProductCopy() ||
+            this in AllowedAiSpecLabels ||
+            this in AllowedAiCautionSpecLabels
+        )
+
+private fun String.isAllowedAiCautionSpecLabel(): Boolean =
+    this in AllowedAiCautionSpecLabels
+
+private fun String.isAllowedAiCautionSpecValue(): Boolean =
+    isNotBlank() && !isTemplateLikeProductCopy()
+
+private fun String.isReadableAiNarrativeCopy(): Boolean =
+    isNotBlank() && !isTemplateLikeProductCopy()
+
+private fun ProductDetailDto.buildAllowedFactSpecs(): Map<String, String> =
+    buildMap {
+        brand
+            ?.toCleanDisplayCopy()
+            ?.normalizeDisplayFact()
+            ?.takeIf { value -> value.isNotBlank() }
+            ?.let { value ->
+                put("品牌", value)
+            }
+
+        listOfNotNull(category, subCategory)
+            .map { value -> value.toCleanDisplayCopy() }
+            .filter { value -> value.isNotBlank() }
+            .joinToString(" / ")
+            .normalizeDisplayFact()
+            .takeIf { value -> value.isNotBlank() }
+            ?.let { value ->
+                put("品类", value)
+                put("分类", value)
+            }
+
+        subCategory
+            ?.toCleanDisplayCopy()
+            ?.normalizeDisplayFact()
+            ?.takeIf { value -> value.isNotBlank() }
+            ?.let { value ->
+                put("子类", value)
+                put("子类目", value)
+            }
+    }
+
+private fun ProductDetailDto.requireAiSuitabilityText(): String =
+    suitabilityText
+        ?.toCleanDisplayCopy()
+        ?.takeIf { value -> value.isReadableAiNarrativeCopy() }
+        ?.shortenForSentence(MAX_REASON_CHARS)
+        ?.ensureSentence()
+        ?: throw IllegalStateException("Product detail AI suitabilityText is missing.")
 
 private fun mergeReasonWithScenario(
     productSnippet: String,

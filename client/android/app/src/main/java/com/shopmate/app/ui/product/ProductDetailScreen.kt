@@ -161,7 +161,9 @@ private fun ProductDetailScreenContent(
             density = density,
         ) ?: 201.01f.s()
         val recommendationGap = 14f.s()
-        val specTop = contentTop + 437.531f.s() + recommendationHeight + recommendationGap
+        val highlightsHeight = 104f.s()
+        val highlightsTop = contentTop + 437.531f.s() + recommendationHeight + recommendationGap
+        val specTop = highlightsTop + highlightsHeight + 14f.s()
         val suitabilityTop = specTop + 176f.s()
         val suitabilityHeight = 112f.s()
         val productBodyBottom = suitabilityTop + suitabilityHeight
@@ -251,6 +253,16 @@ private fun ProductDetailScreenContent(
                     }
 
                     ShopMateEnterMotion(delayMillis = 90) {
+                        ProductHighlightsCard(
+                            highlights = product.highlights,
+                            scale = scale,
+                            modifier = Modifier
+                                .offset(x = frameStart + 18f.s(), y = highlightsTop)
+                                .size(width = 352.667f.s(), height = highlightsHeight)
+                        )
+                    }
+
+                    ShopMateEnterMotion(delayMillis = 110) {
                         ProductSpecGrid(
                             specs = product.specs,
                             scale = scale,
@@ -260,7 +272,7 @@ private fun ProductDetailScreenContent(
                         )
                     }
 
-                    ShopMateEnterMotion(delayMillis = 130) {
+                    ShopMateEnterMotion(delayMillis = 150) {
                         SuitabilityCard(
                             product = product,
                             scale = scale,
@@ -631,6 +643,64 @@ private fun RecommendationReasonCard(
                 .offset(x = 16f.scaledDp(scale), y = 64f.scaledDp(scale))
                 .width(320f.scaledDp(scale))
         )
+    }
+}
+
+@Composable
+private fun ProductHighlightsCard(
+    highlights: List<String>,
+    scale: Float,
+    modifier: Modifier = Modifier
+) {
+    val cardShape = RoundedCornerShape(20f.scaledDp(scale))
+
+    ShopMateElevatedSurface(
+        modifier = modifier,
+        shape = cardShape,
+        elevation = 12f.scaledDp(scale)
+    ) {
+        Text(
+            text = "商品亮点",
+            color = ShopMateTextPrimary,
+            fontSize = (15f * scale).sp,
+            lineHeight = (20f * scale).sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 0.sp,
+            maxLines = 1,
+            modifier = Modifier.offset(x = 16f.scaledDp(scale), y = 14f.scaledDp(scale))
+        )
+
+        highlights.take(3).forEachIndexed { index, highlight ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .offset(
+                        x = 16f.scaledDp(scale),
+                        y = (42f + index * 18f).scaledDp(scale)
+                    )
+                    .width(320f.scaledDp(scale))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(5f.scaledDp(scale))
+                        .clip(CircleShape)
+                        .background(ShopMateGreen.copy(alpha = 0.86f))
+                )
+
+                Text(
+                    text = highlight,
+                    color = Color(0xFF5F6975),
+                    fontSize = (12f * scale).sp,
+                    lineHeight = (16f * scale).sp,
+                    letterSpacing = 0.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .padding(start = 8f.scaledDp(scale))
+                        .width(296f.scaledDp(scale))
+                )
+            }
+        }
     }
 }
 

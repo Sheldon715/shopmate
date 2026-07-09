@@ -1,80 +1,67 @@
 # ShopMate
 
-ShopMate 是一个面向电商场景的对话式购物助手项目，采用 Android 客户端与 AI 后端协同的方式，让用户能够通过自然语言描述需求，完成商品探索、推荐理解、对比筛选和购物决策。
+ShopMate is an Android-native conversational shopping assistant. It combines a Kotlin mobile app with a TypeScript backend, retrieval-augmented generation, product search, cart operations, and a mock checkout flow so users can describe what they need in natural language and receive grounded product recommendations.
 
-## 项目简介
+## Overview
 
-传统电商应用通常依赖关键词搜索、分类浏览和手动筛选。ShopMate 希望提供一种更自然的购物体验：用户通过对话表达需求，系统根据上下文逐步理解用户意图，并返回更贴近需求的商品结果与解释。
+Traditional ecommerce apps usually depend on keyword search, category browsing, and manual filters. ShopMate explores a more conversational flow: the user explains a shopping need, the assistant asks follow-up questions when needed, retrieves product facts from the catalog, and returns recommendations with product cards and actionable next steps.
 
-## 核心能力
+The project is designed as a course/demo system rather than a production marketplace. It focuses on a complete and explainable AI shopping loop:
 
-- 自然语言商品发现
-- 对话式推荐与追问
-- 条件补充与结果收敛
-- 商品对比与推荐理由生成
-- 面向购物车场景的交互设计
-- 基于检索增强生成的推荐架构
+```text
+Android chat input
+-> Express API
+-> RAG retrieval from product documents
+-> PostgreSQL product fact lookup
+-> LLM-guided response generation
+-> SSE streaming response
+-> Android product cards, cart, and checkout interactions
+```
 
-## 技术架构
+## Key Features
 
-ShopMate 采用前后端分离架构：
+- Natural-language product discovery
+- Streaming AI chat responses through Server-Sent Events
+- Grounded product recommendations from a structured catalog
+- Product cards and detail pages in the Android app
+- Multi-turn shopping context and follow-up questions
+- Negative constraints such as "no alcohol" or "not in-ear"
+- Product comparison responses
+- Cart management through both UI actions and chat commands
+- Image-search entry points and backend interpretation flow
+- Mock checkout drafts and order confirmation for demo scenarios
+- RAG evaluation scripts, debug traces, and tuning reports
 
-- Android Native 客户端
-- Kotlin
-- Jetpack Compose
-- Node.js
-- TypeScript
-- Express
-- PostgreSQL
-- Qdrant
+## Tech Stack
 
-## 项目结构
+| Layer | Technology |
+| --- | --- |
+| Mobile app | Android Native, Kotlin, Jetpack Compose |
+| Backend | Node.js, TypeScript, Express |
+| Streaming | Server-Sent Events |
+| Database | PostgreSQL |
+| Vector search | Qdrant |
+| Testing | Vitest, Android unit tests |
+| Data pipeline | Node.js scripts, JSON/JSONL artifacts |
+
+## Repository Structure
 
 ```text
 shopmate/
-  client/android/       Android Kotlin + Jetpack Compose 客户端
-  server/               Node.js + TypeScript + Express 后端
-  data/raw/             原始脱敏商品数据与本地图片素材
-  data/processed/       结构化 catalog 与 RAG / vector 生成工件
-  context/              当前 active specs、工作流与项目上下文
-  docs/                 部署、APK 演示与运行手册
+  client/android/       Android Kotlin + Jetpack Compose app
+  server/               Node.js + TypeScript + Express backend
+  data/raw/             Raw product data and local product images
+  data/processed/       Catalog, RAG, vector, and evaluation artifacts
+  context/              Active specs, workflow notes, and project context
+  docs/                 Research notes, demo runbooks, and reports
+  tools/                Local scripts and evaluation utilities
 ```
 
-## 运行方式
+## Getting Started
 
-### Android 客户端
+### Backend
 
-使用 Android Studio 打开以下目录：
-
-```text
-client/android
-```
-
-选择 `app` 模块，在模拟器或 Android 真机上运行。
-
-也可以在 Windows PowerShell 中执行：
-
-```powershell
-cd client/android
-.\gradlew.bat testDebugUnitTest
-.\gradlew.bat assembleDebug
-```
-
-真机同 Wi-Fi 调试时可通过 Gradle property 覆盖 debug API 地址：
-
-```powershell
-.\gradlew.bat assembleDebug -PSHOPMATE_DEBUG_API_BASE_URL=http://<电脑局域网IP>:3000/
-```
-
-打包 demo / release 变体时必须显式提供公网 HTTPS API 地址，避免生成不可联网的 APK：
-
-```powershell
-.\gradlew.bat build -PSHOPMATE_DEMO_API_BASE_URL=https://<云端API域名>/ -PSHOPMATE_RELEASE_API_BASE_URL=https://<云端API域名>/
-```
-
-### 后端服务
-
-在仓库根目录执行：
+Install dependencies and start the Express development server:
 
 ```powershell
 cd server
@@ -82,11 +69,119 @@ npm.cmd install
 npm.cmd run dev
 ```
 
-常用检查命令：
+Common backend checks:
 
 ```powershell
+cd server
 npm.cmd test
 npm.cmd run build
 ```
 
-后端默认使用 `3000` 端口。
+The backend uses port `3000` by default unless configured otherwise.
+
+### Android App
+
+Open the Android project in Android Studio:
+
+```text
+client/android
+```
+
+Select the `app` module and run it on an emulator or Android device.
+
+From Windows PowerShell, the common checks are:
+
+```powershell
+cd client/android
+.\gradlew.bat testDebugUnitTest
+.\gradlew.bat assembleDebug
+```
+
+For device testing over the same Wi-Fi network, override the debug API base URL:
+
+```powershell
+.\gradlew.bat assembleDebug -PSHOPMATE_DEBUG_API_BASE_URL=http://<your-lan-ip>:3000/
+```
+
+Demo and release variants require public HTTPS API URLs:
+
+```powershell
+.\gradlew.bat build -PSHOPMATE_DEMO_API_BASE_URL=https://<api-domain>/ -PSHOPMATE_RELEASE_API_BASE_URL=https://<api-domain>/
+```
+
+## Environment
+
+Backend runtime configuration is documented in `.env.example`. Do not commit real API keys, database credentials, JWT secrets, provider tokens, or Android signing material.
+
+Typical backend configuration includes:
+
+```text
+PORT=
+DATABASE_URL=
+JWT_SECRET=
+QDRANT_URL=
+QDRANT_API_KEY=
+LLM_BASE_URL=
+LLM_API_KEY=
+LLM_MODEL=
+EMBEDDING_BASE_URL=
+EMBEDDING_API_KEY=
+EMBEDDING_MODEL=
+```
+
+## Data And RAG Workflow
+
+ShopMate keeps structured product facts and vector retrieval artifacts separate:
+
+- PostgreSQL is the source of truth for product, cart, and order facts.
+- Qdrant stores vector points and lightweight retrieval metadata.
+- Product cards and checkout totals must come from structured backend data, not from free-form model output.
+- RAG scripts generate product documents, vector indexes, evaluation results, and debug traces under `data/processed/`.
+
+Useful backend commands depend on the configured environment and may include catalog validation, RAG document generation, vector indexing, and retrieval baselines. See the docs and scripts under `server/`, `data/processed/`, and `docs/` for the current workflow.
+
+## Testing
+
+Run backend tests:
+
+```powershell
+cd server
+npm.cmd test
+```
+
+Compile the backend:
+
+```powershell
+cd server
+npm.cmd run build
+```
+
+Run Android unit tests:
+
+```powershell
+cd client/android
+.\gradlew.bat testDebugUnitTest
+```
+
+Build the Android app:
+
+```powershell
+cd client/android
+.\gradlew.bat build -PSHOPMATE_DEMO_API_BASE_URL=https://<api-domain>/ -PSHOPMATE_RELEASE_API_BASE_URL=https://<api-domain>/
+```
+
+## Documentation
+
+Active project context lives in `context/`:
+
+- `context/project-overview.md`
+- `context/coding-standards.md`
+- `context/ai-interaction.md`
+- `context/current-feature.md`
+- `context/spec-implementation-order.md`
+
+Supporting reports, runbooks, and research outputs live in `docs/`.
+
+## Current Screenshot Policy
+
+App screenshots are intentionally omitted from this README for now because the available demo captures contain Chinese UI text. English screenshots can be added later once matching English demo assets are available.

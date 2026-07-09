@@ -77,6 +77,16 @@ describe("getProductDetail", () => {
                   "SPF50+ PA++++",
                   "水感轻薄不厚重",
                 ],
+                displayName: "欧莱雅水感防晒",
+                displayTags: ["水感轻薄", "高倍防晒"],
+                displaySpecs: [
+                  { label: "防护", value: "SPF50+ PA++++" },
+                  { label: "肤感", value: "水感轻薄" },
+                  { label: "场景", value: "日常通勤" },
+                  { label: "取舍", value: "户外暴晒看高阶款" },
+                ],
+                suitabilityText:
+                  "适合想要清爽通勤防晒的人群，如果长时间户外暴晒，可以比较防水更强的款。",
               },
             ],
           ]),
@@ -90,6 +100,15 @@ describe("getProductDetail", () => {
       "SPF50+ PA++++",
       "水感轻薄不厚重",
     ]);
+    expect(detail.displayName).toBe("欧莱雅水感防晒");
+    expect(detail.displayTags).toEqual(["水感轻薄", "高倍防晒"]);
+    expect(detail.displaySpecs).toEqual([
+      { label: "防护", value: "SPF50+ PA++++" },
+      { label: "肤感", value: "水感轻薄" },
+      { label: "场景", value: "日常通勤" },
+      { label: "取舍", value: "户外暴晒看高阶款" },
+    ]);
+    expect(detail.suitabilityText).toContain("清爽通勤防晒");
   });
 
   it("fails explicitly when product detail LLM copy is missing", async () => {
@@ -97,6 +116,34 @@ describe("getProductDetail", () => {
       getProductDetail("p_beauty_006", {
         displayCopyGenerator: {
           generate: async () => new Map(),
+        },
+      }),
+    ).rejects.toMatchObject({
+      code: "PRODUCT_DETAIL_COPY_GENERATION_FAILED",
+    } satisfies Partial<ProductDetailCopyGenerationError>);
+  });
+
+  it("fails explicitly when generated detail display fields are incomplete", async () => {
+    await expect(
+      getProductDetail("p_beauty_006", {
+        displayCopyGenerator: {
+          generate: async () =>
+            new Map([
+              [
+                "p_beauty_006",
+                {
+                  productId: "p_beauty_006",
+                  detailReason: "水感轻薄，适合通勤防晒。",
+                  detailHighlights: ["水感轻薄"],
+                  displayName: "欧莱雅水感防晒",
+                  displayTags: ["水感轻薄"],
+                  displaySpecs: [
+                    { label: "肤感", value: "水感轻薄" },
+                  ],
+                  suitabilityText: "适合通勤防晒。",
+                },
+              ],
+            ]),
         },
       }),
     ).rejects.toMatchObject({

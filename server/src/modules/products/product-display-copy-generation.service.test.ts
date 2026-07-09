@@ -22,6 +22,16 @@ describe("parseProductDisplayCopyOutput", () => {
               "适合通勤办公",
               "通话清晰度更稳",
             ],
+            display_name: "漫步者 Zero Air",
+            display_tags: ["半入耳", "通勤久戴"],
+            display_specs: [
+              { label: "佩戴", value: "半入耳轻量" },
+              { label: "场景", value: "通勤 / 办公" },
+              { label: "通话", value: "清晰度更稳" },
+              { label: "取舍", value: "弱于深度降噪" },
+            ],
+            suitability_text:
+              "适合想要久戴轻松和日常通话的用户，如果更看重地铁深度降噪，可以比较高阶款。",
           },
         ],
       }),
@@ -37,6 +47,16 @@ describe("parseProductDisplayCopyOutput", () => {
         "适合通勤办公",
         "通话清晰度更稳",
       ],
+      displayName: "漫步者 Zero Air",
+      displayTags: ["半入耳", "通勤久戴"],
+      displaySpecs: [
+        { label: "佩戴", value: "半入耳轻量" },
+        { label: "场景", value: "通勤 / 办公" },
+        { label: "通话", value: "清晰度更稳" },
+        { label: "取舍", value: "弱于深度降噪" },
+      ],
+      suitabilityText:
+        "适合想要久戴轻松和日常通话的用户，如果更看重地铁深度降噪，可以比较高阶款。",
     });
   });
 
@@ -56,6 +76,13 @@ describe("parseProductDisplayCopyOutput", () => {
               "SKU 选择较多",
               "通勤佩戴舒服",
             ],
+            display_name: "通勤耳机",
+            display_tags: ["SKU 选择较多", "通勤"],
+            display_specs: [
+              { label: "规格", value: "SKU 选择较多" },
+              { label: "场景", value: "通勤" },
+            ],
+            suitability_text: "SKU 选择较多，适合继续比较。",
           },
         ],
       }),
@@ -66,6 +93,11 @@ describe("parseProductDisplayCopyOutput", () => {
     expect(copies.get("product_001")).toEqual({
       productId: "product_001",
       detailHighlights: ["通勤佩戴舒服"],
+      displayName: "通勤耳机",
+      displayTags: ["通勤"],
+      displaySpecs: [
+        { label: "场景", value: "通勤" },
+      ],
     });
   });
 
@@ -97,6 +129,30 @@ describe("parseProductDisplayCopyOutput", () => {
       parseProductDisplayCopyOutput("not json", ["product_001"])
     ).toThrow(ProductDisplayCopyGenerationOutputError);
   });
+
+  it("extracts a valid json object when the model wraps json with extra text", () => {
+    const copies = parseProductDisplayCopyOutput(
+      [
+        "下面是生成结果：",
+        "```json",
+        JSON.stringify({
+          products: [
+            {
+              product_id: "product_001",
+              card_reason: "推荐理由：清爽控油，适合油皮日常通勤。",
+            },
+          ],
+        }),
+        "```",
+      ].join("\n"),
+      ["product_001"],
+    );
+
+    expect(copies.get("product_001")).toEqual({
+      productId: "product_001",
+      cardReason: "推荐理由：清爽控油，适合油皮日常通勤。",
+    });
+  });
 });
 
 describe("ProductDisplayCopyGenerationService", () => {
@@ -120,6 +176,16 @@ describe("ProductDisplayCopyGenerationService", () => {
                   "水感轻薄不厚重",
                   "FAQ 明确不含酒精",
                 ],
+                display_name: "欧莱雅水感防晒",
+                display_tags: ["水感轻薄", "无酒精"],
+                display_specs: [
+                  { label: "防护", value: "SPF50+ PA++++" },
+                  { label: "肤感", value: "水感轻薄" },
+                  { label: "成分", value: "FAQ 标明无酒精" },
+                  { label: "场景", value: "通勤防晒" },
+                ],
+                suitability_text:
+                  "适合油皮和混油皮做日常通勤防晒，想要户外强防水可再比较高阶款。",
               },
             ],
           }));
@@ -178,6 +244,16 @@ describe("ProductDisplayCopyGenerationService", () => {
                 "小容量不占桌面",
                 "早餐一人食友好",
               ],
+              display_name: `${productId} 早餐机`,
+              display_tags: ["小容量", "一人食"],
+              display_specs: [
+                { label: "容量", value: "小容量" },
+                { label: "场景", value: "宿舍早餐" },
+                { label: "人群", value: "一人食" },
+                { label: "收纳", value: "不占桌面" },
+              ],
+              suitability_text:
+                "适合宿舍早餐和一人食，想要多人份容量可以比较更大机型。",
             })),
           }));
         },
@@ -207,6 +283,39 @@ describe("ProductDisplayCopyGenerationService", () => {
       "product_4",
       "product_5",
     ]);
+  });
+
+  it("uses a simpler schema for chat card copy generation", async () => {
+    let llmRequest: LlmGenerateRequest | undefined;
+    const service = new ProductDisplayCopyGenerationService({
+      llmClient: new MockLlmClient({
+        handler: (request) => {
+          llmRequest = request;
+          return createLlmResponse(JSON.stringify({
+            products: [
+              {
+                product_id: "p_beauty_006",
+                card_reason: "推荐理由：清爽控油，适合油皮日常通勤。",
+              },
+            ],
+          }));
+        },
+      }),
+    });
+
+    await service.generate({
+      products: [createProduct()],
+      userQuestion: "推荐适合油皮的清爽防晒",
+      surface: "chat_card",
+    });
+
+    const systemPrompt = llmRequest?.messages.find((message) =>
+      message.role === "system"
+    )?.content ?? "";
+
+    expect(systemPrompt).toContain("只为每个商品生成 card_reason");
+    expect(systemPrompt).not.toContain("display_specs");
+    expect(systemPrompt).not.toContain("suitability_text");
   });
 });
 

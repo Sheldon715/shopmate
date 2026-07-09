@@ -58,10 +58,16 @@ import com.shopmate.app.ui.theme.ShopMateTextPrimary
 import com.shopmate.app.ui.theme.ShopMateTheme
 
 private const val FIGMA_PRODUCT_CARD_WIDTH = 360.667f
+private const val PRODUCT_CARD_CONTENT_WIDTH = 209.333f
+private const val PRODUCT_CARD_PRICE_TOP = 40.8f
+private const val PRODUCT_CARD_PRICE_HEIGHT = 20f
+private const val PRODUCT_CARD_TAG_TOP = 70f
+private const val PRODUCT_CARD_REASON_TOP = 96f
 private const val PRODUCT_CARD_REASON_CHARS_PER_LINE = 16
 private const val PRODUCT_CARD_REASON_MIN_LINES = 3
 private const val PRODUCT_CARD_REASON_MAX_LINES = 7
 private const val PRODUCT_CARD_REASON_LINE_HEIGHT = 16.4f
+private const val PRODUCT_CARD_BUTTON_MIN_TOP = 149.6f
 
 @Composable
 fun ProductCard(
@@ -138,7 +144,7 @@ fun ProductCard(
             Box(
                 modifier = Modifier
                     .offset(x = 138f.s(), y = 12f.s())
-                    .size(width = 209.333f.s(), height = contentHeight.s())
+                    .size(width = PRODUCT_CARD_CONTENT_WIDTH.s(), height = contentHeight.s())
             ) {
                 Text(
                     text = product.name,
@@ -151,7 +157,7 @@ fun ProductCard(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
                         .offset(y = 0.5f.s())
-                        .width(209.333f.s())
+                        .width(PRODUCT_CARD_CONTENT_WIDTH.s())
                         .heightIn(min = 17.2f.s(), max = 38f.s())
                 )
 
@@ -163,16 +169,20 @@ fun ProductCard(
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.sp,
                     maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
-                        .offset(y = 40.8f.s())
-                        .size(width = 209.333f.s(), height = 16f.s())
+                        .offset(y = PRODUCT_CARD_PRICE_TOP.s())
+                        .size(
+                            width = PRODUCT_CARD_CONTENT_WIDTH.s(),
+                            height = PRODUCT_CARD_PRICE_HEIGHT.s()
+                        )
                 )
 
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(6f.s()),
                     modifier = Modifier
-                        .offset(y = 62.8f.s())
-                        .width(209.333f.s())
+                        .offset(y = PRODUCT_CARD_TAG_TOP.s())
+                        .width(PRODUCT_CARD_CONTENT_WIDTH.s())
                 ) {
                     product.tags.take(2).forEach { tag ->
                         ProductTag(
@@ -192,8 +202,8 @@ fun ProductCard(
                     maxLines = reasonLines,
                     overflow = TextOverflow.Visible,
                     modifier = Modifier
-                        .offset(y = 86.8f.s())
-                        .size(width = 209.333f.s(), height = reasonHeight.s())
+                        .offset(y = PRODUCT_CARD_REASON_TOP.s())
+                        .size(width = PRODUCT_CARD_CONTENT_WIDTH.s(), height = reasonHeight.s())
                 )
 
                 AddCartButton(
@@ -203,7 +213,7 @@ fun ProductCard(
                     scale = scale,
                     modifier = Modifier
                         .offset(
-                            x = 101.333f.s(),
+                            x = (PRODUCT_CARD_CONTENT_WIDTH - 108f).s(),
                             y = addCartButtonTop.s()
                         )
                         .size(
@@ -234,9 +244,9 @@ private fun String.estimatedProductCardReasonLines(): Int {
 
 private fun productCardAddCartButtonTop(reasonLines: Int): Float =
     if (reasonLines <= PRODUCT_CARD_REASON_MIN_LINES) {
-        137.6f
+        PRODUCT_CARD_BUTTON_MIN_TOP
     } else {
-        86.8f + reasonLines * PRODUCT_CARD_REASON_LINE_HEIGHT + 8.4f
+        PRODUCT_CARD_REASON_TOP + reasonLines * PRODUCT_CARD_REASON_LINE_HEIGHT + 8.4f
     }
 
 @Composable
@@ -474,11 +484,11 @@ private val PreviewDisabledProduct = ProductCardUi(
 
 private val PreviewLongProduct = ProductCardUi(
     id = "preview-long-product",
-    name = "超长商品名示例 防晒修护清透控油乳 SPF50+ PA++++ 学生通勤版",
-    priceText = "¥199",
+    name = "华为无线耳机专业五代主动降噪真无线蓝牙耳",
+    priceText = "¥1499-1699",
     imageRes = R.drawable.product_zero_air,
-    tags = listOf("长效防晒", "敏感肌可用", "通勤"),
-    recommendationReason = "推荐理由：这是一段特意加长的推荐理由，用来确认小屏和长文案时不会撑破商品卡片。"
+    tags = listOf("半入耳式", "办公学习"),
+    recommendationReason = "推荐理由：适合重视降噪和音质的通勤听歌党，地铁、办公室和居家听歌都能用。"
 )
 
 @Preview(
